@@ -89,15 +89,19 @@ export async function resolveTenant(slugOrId: string) {
 
 /**
  * Auth helper: get the tenant for the current request
- * by reading the x-tenant-slug header or looking up by Clerk user.
+ * by reading the x-tenant-id or x-tenant-slug header.
  */
 export async function getTenantFromHeaders(
   headers: Headers
 ): Promise<{ id: string; schemaName: string; slug: string } | null> {
+  const orgId = headers.get("x-tenant-id");
   const slug = headers.get("x-tenant-slug");
-  if (!slug) return null;
-  const tenant = await resolveTenant(slug);
+  
+  if (!orgId && !slug) return null;
+  
+  const tenant = await resolveTenant((orgId || slug) as string);
   if (!tenant) return null;
+  
   return { id: tenant.id, schemaName: tenant.schemaName, slug: tenant.slug };
 }
 

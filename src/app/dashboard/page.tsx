@@ -1,11 +1,13 @@
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Users,
   GraduationCap,
@@ -13,6 +15,7 @@ import {
   Brain,
   TrendingUp,
   ArrowUpRight,
+  Sparkles,
 } from "lucide-react";
 
 const stats = [
@@ -55,6 +58,39 @@ export default function DashboardPage() {
       />
 
       <div className="p-6 space-y-8">
+        {/* ─── Setup Wizard (Step J in Flowchart) ─────────── */}
+        <Card className="border-primary/20 bg-primary/5 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Welcome to SkooleeAI! Complete your setup
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                { label: "1. Create Classes", href: "/dashboard/classes", done: false },
+                { label: "2. Add Teachers", href: "/dashboard/settings/members", done: false },
+                { label: "3. Set up First Exam", href: "/dashboard/marks", done: false },
+              ].map((step, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-sidebar-border rounded-lg group hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-muted text-xs font-bold text-muted-foreground group-hover:border-primary group-hover:text-primary transition-colors">
+                      {i + 1}
+                    </div>
+                    <span className="text-sm font-medium">{step.label}</span>
+                  </div>
+                  <Link href={step.href}>
+                    <Button variant="ghost" size="sm" className="h-8 px-2">
+                      Start <ArrowUpRight className="ml-1 h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ─── Stats Grid ────────────────────────────────── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useOrganizationList } from "@clerk/nextjs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import { slugify } from "@/lib/utils";
 
 export default function OnboardingPage() {
   const { user } = useUser();
+  const { createOrganization } = useOrganizationList();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,21 +57,21 @@ export default function OnboardingPage() {
   };
 
   const onSubmit = async (data: OnboardingFormData) => {
+    if (!createOrganization) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/tenants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+      // 🏫 School Registration Flow - Create Clerk Org
+      await createOrganization({
+        name: data.schoolName,
+        slug: data.slug,
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to create school");
-      }
-
       toast.success("School created successfully! Setting up your dashboard...");
-      router.push("/dashboard");
+      
+      // Delay to allow webhook to provision schema
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 2000);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Something went wrong"

@@ -16,7 +16,7 @@ import {
   Sparkles,
   LogOut,
 } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -42,6 +42,24 @@ export function Sidebar() {
         <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
           SkooleeAI
         </span>
+      </div>
+
+      {/* ─── Organization Switcher ─────────────────────── */}
+      <div className="border-b border-sidebar-border px-3 py-4">
+        <OrganizationSwitcher
+          hidePersonal
+          afterCreateOrganizationUrl="/dashboard"
+          afterSelectOrganizationUrl="/dashboard"
+          appearance={{
+            elements: {
+              rootBox: "w-full",
+              organizationSwitcherTrigger: "w-full justify-between px-3 py-2 bg-accent/50 hover:bg-accent rounded-lg border border-sidebar-border h-12",
+              organizationPreviewTextContainer: "text-left",
+              organizationPreviewTitle: "text-sm font-semibold text-sidebar-foreground",
+              organizationPreviewSubtitle: "text-xs text-muted-foreground",
+            }
+          }}
+        />
       </div>
 
       {/* ─── Navigation ────────────────────────────────── */}

@@ -15,42 +15,37 @@ const isPublicRoute = createRouteMatcher([
   "/api/auth/webhook",
 ]);
 
+const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
+
 export default clerkMiddleware(async (auth, req) => {
-  // Allow public routes through
+  // 1. Allow public routes
   if (isPublicRoute(req)) {
     return NextResponse.next();
   }
 
-  // Protect all other routes
-  await auth.protect();
-
-  // ── Subdomain-based tenant resolution ──────────────────
-  const hostname = req.headers.get("host") || "";
-  const url = req.nextUrl.clone();
-
-  // Extract subdomain: e.g., "springfield.skooleeai.com" → "springfield"
-  // In local dev: "springfield.localhost:3000" → "springfield"
-  const baseDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "localhost:3000";
-  let subdomain: string | null = null;
-
-  if (hostname !== baseDomain && hostname !== `www.${baseDomain}`) {
-    const parts = hostname.replace(`:${url.port}`, "").split(".");
-    if (parts.length > 1) {
-      subdomain = parts[0];
-    }
-    // Local dev: check for "slug.localhost"
-    if (!subdomain && hostname.includes("localhost")) {
-      const localParts = hostname.split(".");
-      if (localParts.length >= 2 && localParts[0] !== "www") {
-        subdomain = localParts[0];
-      }
-    }
+  // 2. Protect all other routes
+  const { userId, orgId, orgSlug } = await auth();
+  if (!userId) {
+    return (await auth()).redirectToSignIn();
   }
 
-  // Attach tenant slug to headers so API routes / server components can read it
+  // 3. Handle Onboarding (Creating first school)
+  if (isOnboardingRoute(req)) {
+    return NextResponse.next();
+  }
+
+  // 4. Force Onboarding if no organization selected
+  if (!orgId && !req.nextUrl.pathname.startsWith("/onboarding")) {
+    const onboardingUrl = new URL("/onboarding", req.url);
+    return NextResponse.redirect(onboardingUrl);
+  }
+
+  // 5. Tenant Resolution Context
   const requestHeaders = new Headers(req.headers);
-  if (subdomain) {
-    requestHeaders.set("x-tenant-slug", subdomain);
+  if (orgId) {
+    // Pass orgId and slug as headers for easy access in API/Server layouts
+    requestHeaders.set("x-tenant-id", orgId);
+    if (orgSlug) requestHeaders.set("x-tenant-slug", orgSlug);
   }
 
   return NextResponse.next({
