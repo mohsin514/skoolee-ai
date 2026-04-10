@@ -1,0 +1,130 @@
+// ===========================================
+// SkooleeAI - Tenant Schema Template
+// ===========================================
+// This file is used as a TEMPLATE when creating
+// a new school tenant schema (school_{id}).
+// It is NOT used by Prisma directly — it's executed
+// via raw SQL in the tenant provisioning logic.
+
+// ─── SQL Template for Tenant Schema ──────────────────────
+
+// The following models represent the tables that will be
+// created inside each tenant's PostgreSQL schema.
+
+// Students table
+// CREATE TABLE school_{id}.students (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   registration_no TEXT UNIQUE NOT NULL,
+//   first_name TEXT NOT NULL,
+//   last_name TEXT NOT NULL,
+//   date_of_birth DATE,
+//   gender TEXT CHECK (gender IN ('MALE', 'FEMALE', 'OTHER')),
+//   guardian_name TEXT,
+//   guardian_phone TEXT,
+//   guardian_email TEXT,
+//   guardian_whatsapp TEXT,
+//   address TEXT,
+//   photo_url TEXT,
+//   class_id TEXT REFERENCES school_{id}.classes(id),
+//   status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED')),
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ DEFAULT NOW()
+// );
+
+// Classes table
+// CREATE TABLE school_{id}.classes (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   name TEXT NOT NULL,
+//   section TEXT,
+//   grade_level INT NOT NULL,
+//   academic_year TEXT NOT NULL,
+//   teacher_id TEXT,
+//   capacity INT DEFAULT 40,
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ DEFAULT NOW(),
+//   UNIQUE(name, section, academic_year)
+// );
+
+// Subjects table
+// CREATE TABLE school_{id}.subjects (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   name TEXT NOT NULL,
+//   code TEXT UNIQUE NOT NULL,
+//   description TEXT,
+//   max_marks INT DEFAULT 100,
+//   passing_marks INT DEFAULT 33,
+//   is_optional BOOLEAN DEFAULT FALSE,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+
+// Class-Subject mapping
+// CREATE TABLE school_{id}.class_subjects (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   class_id TEXT REFERENCES school_{id}.classes(id) ON DELETE CASCADE,
+//   subject_id TEXT REFERENCES school_{id}.subjects(id) ON DELETE CASCADE,
+//   teacher_id TEXT,
+//   UNIQUE(class_id, subject_id)
+// );
+
+// Exams table
+// CREATE TABLE school_{id}.exams (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   name TEXT NOT NULL,
+//   type TEXT CHECK (type IN ('MONTHLY', 'MIDTERM', 'FINAL', 'UNIT_TEST', 'CUSTOM')),
+//   academic_year TEXT NOT NULL,
+//   term TEXT,
+//   start_date DATE,
+//   end_date DATE,
+//   status TEXT DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'ACTIVE', 'COMPLETED', 'PUBLISHED')),
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+
+// Marks/Results table
+// CREATE TABLE school_{id}.marks (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   student_id TEXT REFERENCES school_{id}.students(id) ON DELETE CASCADE,
+//   subject_id TEXT REFERENCES school_{id}.subjects(id) ON DELETE CASCADE,
+//   exam_id TEXT REFERENCES school_{id}.exams(id) ON DELETE CASCADE,
+//   marks_obtained DECIMAL(5,2),
+//   max_marks DECIMAL(5,2) DEFAULT 100,
+//   grade TEXT,
+//   remarks TEXT,
+//   ai_remark_en TEXT,
+//   ai_remark_ur TEXT,
+//   entered_by TEXT,
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ DEFAULT NOW(),
+//   UNIQUE(student_id, subject_id, exam_id)
+// );
+
+// Report Cards table
+// CREATE TABLE school_{id}.report_cards (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   student_id TEXT REFERENCES school_{id}.students(id) ON DELETE CASCADE,
+//   exam_id TEXT REFERENCES school_{id}.exams(id) ON DELETE CASCADE,
+//   total_marks DECIMAL(7,2),
+//   obtained_marks DECIMAL(7,2),
+//   percentage DECIMAL(5,2),
+//   grade TEXT,
+//   rank INT,
+//   overall_remark_en TEXT,
+//   overall_remark_ur TEXT,
+//   pdf_url TEXT,
+//   status TEXT DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'GENERATED', 'SENT')),
+//   sent_via TEXT CHECK (sent_via IN ('WHATSAPP', 'EMAIL', 'BOTH')),
+//   sent_at TIMESTAMPTZ,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+
+// Notifications log
+// CREATE TABLE school_{id}.notifications (
+//   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+//   student_id TEXT REFERENCES school_{id}.students(id),
+//   type TEXT CHECK (type IN ('WHATSAPP', 'EMAIL', 'SMS')),
+//   recipient TEXT NOT NULL,
+//   message TEXT,
+//   attachment_url TEXT,
+//   status TEXT DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'DELIVERED', 'READ')),
+//   error TEXT,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );

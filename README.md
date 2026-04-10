@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SkooleeAI — AI-Powered School Management
 
-## Getting Started
+Multi-tenant SaaS: marks entry, AI report cards (Urdu/English), WhatsApp delivery.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install
+cp .env.local.example .env   # fill in values
+npx prisma migrate dev --name init
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Workers (separate terminal)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx tsx src/workers/pdf-worker.ts &
+npx tsx src/workers/remark-worker.ts &
+npx tsx src/workers/notification-worker.ts &
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+- **Multi-tenant**: Each school = separate PostgreSQL schema (`school_{slug}`).
+- **Auth**: Clerk middleware handles authentication and redirects to onboarding if needed.
+- **Tenant Resolution**: Middleware extracts the school slug and passes it via headers.
+- **AI**: OpenAI GPT-4o-mini for Urdu/English remarks, credit-metered per school.
+- **Payments**: Stripe subscriptions (Free/Basic/Pro) integrated with credit limits.
+- **Queue**: BullMQ for bulk PDFs, batch AI remarks, WhatsApp notifications.
 
-To learn more about Next.js, take a look at the following resources:
+## Key Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Marks Entry**: Fast tabbing interface with debounced AI remark generation.
+- **Bilingual Support**: AI generates remarks in both English and Urdu.
+- **WhatsApp Integration**: Send PDF report cards directly to parents.
+- **Automated Grading**: Auto-calculation of grades and percentages.
+- **Scalable Multi-tenancy**: Schema-per-tenant isolation for high security and performance.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private — All rights reserved.

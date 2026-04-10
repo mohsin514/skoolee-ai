@@ -1,0 +1,118 @@
+// ===========================================
+// SkooleeAI - Prisma Schema (Public Schema)
+// ===========================================
+// This schema manages the central tenant registry
+// Each tenant gets a separate PostgreSQL schema: school_{id}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant / School Registry ─────────────────────────────
+
+model Tenant {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique // subdomain: slug.skooleeai.com
+  domain        String?        @unique // custom domain
+  schemaName    String         @unique // PostgreSQL schema name: school_xxxx
+  logo          String?
+  address       String?
+  phone         String?
+  email         String?
+  website       String?
+  status        TenantStatus   @default(ACTIVE)
+  plan          PlanType       @default(FREE)
+  stripeCustomerId    String?  @unique
+  stripeSubscriptionId String?
+  aiCreditsUsed   Int          @default(0)
+  aiCreditsLimit  Int          @default(100) // per month
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  users         User[]
+  invoices      Invoice[]
+  aiUsageLogs   AIUsageLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  email         String    @unique
+  firstName     String?
+  lastName      String?
+  role          UserRole  @default(TEACHER)
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([clerkId])
+  @@map("users")
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stripeInvoiceId String        @unique
+  amount          Int           // in cents
+  currency        String        @default("usd")
+  status          InvoiceStatus @default(PENDING)
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([tenantId])
+  @@map("invoices")
+}
+
+model AIUsageLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  action      String   // e.g., "generate_remark", "batch_remarks"
+  tokensUsed  Int
+  model       String
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  CANCELLED
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  PARENT
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
