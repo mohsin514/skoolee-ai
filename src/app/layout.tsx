@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   description:
     "Manage students, enter marks, generate AI-powered report card remarks in Urdu & English, and send results to parents via WhatsApp.",
   keywords: ["school management", "AI report cards", "Pakistan", "Urdu", "WhatsApp"],
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

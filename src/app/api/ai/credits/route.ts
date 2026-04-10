@@ -2,6 +2,8 @@
 // GET /api/ai/credits — Check remaining AI credits
 // ===========================================
 
+export const dynamic = "force-dynamic";
+
 import { auth } from "@clerk/nextjs/server";
 import { getTenantForUser } from "@/lib/db/tenant";
 import { prisma } from "@/lib/db/prisma";
