@@ -11,7 +11,7 @@ export default function SplashScreen() {
     // Keep splash visible slightly longer to match animation
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 4000);
+    }, 8000);
 
     return () => clearTimeout(timer);
   }, []);

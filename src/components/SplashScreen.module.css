@@ -7,7 +7,7 @@
   justify-content: center;
   background-color: #FFF7FE;
   font-family: 'Fredoka', sans-serif;
-  animation: fadeOut 0.5s ease-out 4s forwards;
+  animation: fadeOut 0.5s ease-out 8s forwards;
 }
 
 @keyframes fadeOut {
@@ -34,6 +34,7 @@
     opacity: 0;
     transform: scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -100,10 +101,23 @@
 }
 
 @keyframes lookAround {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(4px, -2px); }
-  50% { transform: translate(-4px, 2px); }
-  75% { transform: translate(2px, 1px); }
+
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  25% {
+    transform: translate(4px, -2px);
+  }
+
+  50% {
+    transform: translate(-4px, 2px);
+  }
+
+  75% {
+    transform: translate(2px, 1px);
+  }
 }
 
 .ai {
@@ -124,7 +138,7 @@
 
 .progressBar {
   width: 160px;
-  height: 3px;
+  height: 8px;
   background: #F0E6F7;
   border-radius: 10px;
   overflow: hidden;
@@ -134,10 +148,11 @@
   height: 100%;
   background: #8127CF;
   width: 0;
-  animation: fillProgress 3.5s ease-in-out forwards;
+  animation: fillProgress 5.5s ease-in-out forwards;
 }
 
 @keyframes fillProgress {
-  to { width: 100%; }
+  to {
+    width: 100%;
+  }
 }
-
