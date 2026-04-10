@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -13,7 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1027.0",
     "@clerk/nextjs": "^7.0.12",
     "@hookform/resolvers": "^5.2.2",
-    "@prisma/client": "^7.7.0",
+    "@prisma/client": "^6.0.0",
     "@react-pdf/renderer": "^4.4.0",
     "@stripe/stripe-js": "^9.1.0",
     "bullmq": "^5.73.3",
@@ -41,7 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
-    "prisma": "^7.7.0",
+    "prisma": "^6.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

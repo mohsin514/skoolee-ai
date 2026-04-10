@@ -4,10 +4,11 @@
 // Per-schema multi-tenancy: each school gets a
 // separate PostgreSQL schema (school_{id}).
 
+import { PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma";
 
 // Cache tenant Prisma clients to avoid re-creation
-const tenantClients = new Map<string, any>();
+const tenantClients = new Map<string, PrismaClient>();
 
 /**
  * Build the connection URL for a tenant's schema by appending
@@ -23,7 +24,7 @@ export function getTenantDbUrl(schoolId: string): string {
  * Get or create a PrismaClient wired to a tenant schema.
  * Uses a cache so we don't create a new client per request.
  */
-export function getTenantClient(schemaName: string): any {
+export function getTenantClient(schemaName: string): PrismaClient {
   if (tenantClients.has(schemaName)) {
     return tenantClients.get(schemaName)!;
   }
