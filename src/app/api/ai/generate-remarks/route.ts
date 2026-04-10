@@ -1,8 +1,6 @@
 // ===========================================
 // POST /api/ai/generate-remarks
 // ===========================================
-
-export const dynamic = "force-dynamic";
 // Generates AI-powered report card remarks
 // for a student, deducts AI credits, and
 // stores the result in the tenant schema.

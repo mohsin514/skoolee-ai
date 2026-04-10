@@ -7,7 +7,7 @@ import { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { buildRemarkPrompt } from "./prompts";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-build",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
