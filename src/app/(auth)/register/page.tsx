@@ -647,7 +647,7 @@ function FirstClassStep({
 
       <div className="space-y-1">
         <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-wider">Academic Year *</Label>
-        <Input className="h-[56px] bg-[#fbf0fe] border-0  rounded-lg px-5 focus:border-[#8127cf] focus:bg-white transition-colors text-[#1f1a23] placeholder:text-[#7e7385] font-medium shadow-none w-full" type="number" {...register("academicYear")} />
+        <Input className="h-[56px] bg-[#fbf0fe] border-0  rounded-lg px-5 focus:border-[#8127cf] focus:bg-white transition-colors text-[#1f1a23] placeholder:text-[#7e7385] font-medium shadow-none w-full" type="number" {...register("academicYear", { valueAsNumber: true })} />
         {errors.academicYear && <p className="text-xs text-red-500">{errors.academicYear.message}</p>}
       </div>
 

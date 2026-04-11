@@ -56,7 +56,7 @@ export const standaloneCampusSchema = z.object({
 export const firstClassSchema = z.object({
   name: z.string().min(1, "Class name required"),
   section: z.string().optional(),
-  academicYear: z.coerce.number().int().min(2000).max(2100),
+  academicYear: z.number().int().min(2000).max(2100),
 });
 
 // Onboarding: teacher invite
@@ -108,7 +108,7 @@ export const bulkStudentSchema = z.object({
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   section: z.string().optional(),
-  academicYear: z.coerce.number().int().min(2000).max(2100),
+  academicYear: z.number().int().min(2000).max(2100),
   classTeacherId: z.string().optional(),
 });
 
@@ -116,14 +116,14 @@ export const subjectSchema = z.object({
   name: z.string().min(1, "Subject name required"),
   classId: z.string().min(1, "Class required"),
   teacherId: z.string().optional(),
-  totalMarks: z.coerce.number().int().min(1).default(100),
+  totalMarks: z.number().int().min(1).default(100),
 });
 
 export const examSchema = z.object({
   title: z.string().min(1, "Exam title required"),
   term: z.string().min(1, "Term required"),
   classId: z.string().min(1, "Class required"),
-  academicYear: z.coerce.number().int().min(2000).max(2100),
+  academicYear: z.number().int().min(2000).max(2100),
 });
 
 // Single mark entry
@@ -131,7 +131,7 @@ export const markEntrySchema = z.object({
   studentId: z.string().min(1),
   subjectId: z.string().min(1),
   examId: z.string().min(1),
-  marksObtained: z.coerce.number().min(0),
+  marksObtained: z.number().min(0),
 });
 
 // Bulk marks (teacher enters entire class)
@@ -141,7 +141,7 @@ export const bulkMarksSchema = z.object({
   entries: z.array(z.object({
     studentId: z.string(),
     subjectId: z.string(),
-    marksObtained: z.coerce.number().min(0),
+    marksObtained: z.number().min(0),
   })).min(1),
 });
 
@@ -172,10 +172,10 @@ export const feeStructureSchema = z.object({
   campusId: z.string().min(1),
   classId: z.string().min(1),
   term: z.string().min(1),
-  tuitionMonthly: z.coerce.number().int().min(0),
-  examFee: z.coerce.number().int().min(0).default(0),
-  annualFee: z.coerce.number().int().min(0).default(0),
-  monthsCount: z.coerce.number().int().min(1).default(1),
+  tuitionMonthly: z.number().int().min(0),
+  examFee: z.number().int().min(0).default(0),
+  annualFee: z.number().int().min(0).default(0),
+  monthsCount: z.number().int().min(1).default(1),
 });
 
 // Generate invoices for all students in a class/term
@@ -183,14 +183,14 @@ export const generateInvoicesSchema = z.object({
   campusId: z.string().min(1),
   classId: z.string().min(1),
   term: z.string().min(1),
-  academicYear: z.coerce.number().int(),
+  academicYear: z.number().int(),
   dueDate: z.string().min(1),
 });
 
 // Record a payment
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
-  amountPaid: z.coerce.number().int().min(1),
+  amountPaid: z.number().int().min(1),
   method: z.enum(["CASH", "JAZZCASH", "EASYPAISA", "BANK_TRANSFER"]),
   receiptNo: z.string().optional(),
 });
