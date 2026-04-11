@@ -1,184 +1,147 @@
-// ===========================================
-// POST /api/ai/generate-remarks
-// ===========================================
-// Generates AI-powered report card remarks
-// for a student, deducts AI credits, and
-// stores the result in the tenant schema.
-
+// ─────────────────────────────────────────────────────────────────
+// Diagram 3 — AI Remarks Generation
+// POST /api/ai/generate-remarks — Generate bilingual remarks per student
+// POST /api/ai/generate-remarks/batch — Batch generation for entire exam
+// ─────────────────────────────────────────────────────────────────
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
-import { generateRemark } from "@/lib/ai/openai";
+import { getAuthUser } from "@/lib/auth";
+import { batchRemarkSchema, remarkRequestSchema } from "@/lib/validators/schemas";
+import OpenAI from "openai";
 
-const requestSchema = z.object({
-  studentId: z.string().min(1),
-  subjectId: z.string().min(1),
-  examId: z.string().min(1),
-  marks: z.number().min(0),
-  maxMarks: z.number().min(1),
-  language: z.enum(["en", "ur", "both"]).default("both"),
-  tone: z.enum(["formal", "encouraging", "constructive"]).default("formal"),
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function POST(req: NextRequest) {
-  try {
-    // ── Auth ────────────────────────────────────────────
-    const { userId } = await auth();
-    if (!userId) {
-      return Response.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+// Helper: call OpenAI to generate a remark
+async function generateRemark(
+  studentName: string,
+  marks: Array<{ subject: string; obtained: number; total: number; grade: string }>,
+  language: "en" | "ur" | "both",
+  tone: string
+): Promise<{ en?: string; ur?: string }> {
+  const overall = marks.reduce((a, m) => a + m.obtained, 0);
+  const totalMax = marks.reduce((a, m) => a + m.total, 0);
+  const pct = Math.round((overall / totalMax) * 100);
 
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json(
-        { success: false, error: "No tenant found for user" },
-        { status: 403 }
-      );
-    }
+  const marksText = marks.map((m) => `${m.subject}: ${m.obtained}/${m.total} (${m.grade})`).join(", ");
 
-    // ── Validate input ──────────────────────────────────
-    const body = await req.json();
-    const parsed = requestSchema.safeParse(body);
-    if (!parsed.success) {
-      return Response.json(
-        { success: false, error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
-    }
+  const prompt = language === "ur"
+    ? `آپ ایک پاکستانی اسکول کے استاد ہیں۔ طالب علم ${studentName} کے لیے اردو میں ایک مختصر ریمارک لکھیں (2-3 جملے، ${tone} انداز)۔ نتائج: ${marksText}، مجموعی: ${pct}%`
+    : language === "both"
+      ? `You are a Pakistani school teacher. Write a brief ${tone} remark in English (2-3 sentences) for student ${studentName}. Results: ${marksText}, Overall: ${pct}%. Then on a new line starting with "UR:" write the same in Urdu.`
+      : `You are a Pakistani school teacher. Write a brief ${tone} English remark (2-3 sentences) for ${studentName}. Results: ${marksText}, Overall: ${pct}%.`;
 
-    const { studentId, subjectId, examId, marks, maxMarks, language, tone } =
-      parsed.data;
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 300,
+    temperature: 0.7,
+  });
 
-    // ── Check AI credit limit ───────────────────────────
-    const tenantRecord = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
-    });
-    if (!tenantRecord) {
-      return Response.json(
-        { success: false, error: "Tenant not found" },
-        { status: 404 }
-      );
-    }
-    if (tenantRecord.aiCreditsUsed >= tenantRecord.aiCreditsLimit) {
-      return Response.json(
-        {
-          success: false,
-          error: "AI credit limit reached. Please upgrade your plan.",
-        },
-        { status: 429 }
-      );
-    }
+  const text = response.choices[0]?.message?.content || "";
 
-    // ── Fetch student name from tenant schema ───────────
-    const studentRows = await withTenant(tenant.schemaName, async (query) => {
-      return query<Array<{ first_name: string; last_name: string }>>(
-        `SELECT first_name, last_name FROM students WHERE id = $1`,
-        [studentId]
-      );
-    });
-    const studentName =
-      Array.isArray(studentRows) && studentRows.length > 0
-        ? `${studentRows[0].first_name} ${studentRows[0].last_name}`
-        : "Student";
-
-    // ── Fetch subject name ──────────────────────────────
-    const subjectRows = await withTenant(tenant.schemaName, async (query) => {
-      return query<Array<{ name: string }>>(
-        `SELECT name FROM subjects WHERE id = $1`,
-        [subjectId]
-      );
-    });
-    const subjectName =
-      Array.isArray(subjectRows) && subjectRows.length > 0
-        ? subjectRows[0].name
-        : "Subject";
-
-    // ── Generate AI remark ──────────────────────────────
-    const percentage = (marks / maxMarks) * 100;
-    const grade =
-      percentage >= 90
-        ? "A+"
-        : percentage >= 80
-          ? "A"
-          : percentage >= 70
-            ? "B"
-            : percentage >= 60
-              ? "C"
-              : percentage >= 50
-                ? "D"
-                : "F";
-
-    const result = await generateRemark({
-      studentName,
-      className: "Class",
-      subjects: [
-        {
-          name: subjectName,
-          marksObtained: marks,
-          maxMarks,
-          grade,
-        },
-      ],
-      language,
-      tone,
-    });
-
-    // ── Store remark in tenant schema ───────────────────
-    await withTenant(tenant.schemaName, async () => {
-      return tenantExec(
-        `UPDATE marks
-         SET ai_remark_en = $1, ai_remark_ur = $2, grade = $3, updated_at = NOW()
-         WHERE student_id = $4 AND subject_id = $5 AND exam_id = $6`,
-        [
-          result.remarkEn || null,
-          result.remarkUr || null,
-          grade,
-          studentId,
-          subjectId,
-          examId,
-        ]
-      );
-    });
-
-    // ── Deduct AI credits ───────────────────────────────
-    await prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { aiCreditsUsed: { increment: 1 } },
-    });
-
-    // ── Log usage ───────────────────────────────────────
-    await prisma.aIUsageLog.create({
-      data: {
-        tenantId: tenant.id,
-        action: "generate_remark",
-        tokensUsed: result.tokensUsed,
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      },
-    });
-
-    return Response.json({
-      success: true,
-      data: {
-        remarkEn: result.remarkEn,
-        remarkUr: result.remarkUr,
-        tokensUsed: result.tokensUsed,
-        creditsRemaining:
-          tenantRecord.aiCreditsLimit - tenantRecord.aiCreditsUsed - 1,
-      },
-    });
-  } catch (error) {
-    console.error("[AI/generate-remarks] Error:", error);
-    return Response.json(
-      {
-        success: false,
-        error: "Failed to generate remark",
-      },
-      { status: 500 }
-    );
+  if (language === "both") {
+    const parts = text.split(/^UR:/m);
+    return { en: parts[0]?.trim(), ur: parts[1]?.trim() };
   }
+  if (language === "ur") return { ur: text.trim() };
+  return { en: text.trim() };
+}
+
+// ─── Single student remark ────────────────────────────────
+export async function POST(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const { batch, ...rest } = body;
+
+  // --- BATCH mode ---
+  if (batch) {
+    const parsed = batchRemarkSchema.safeParse(rest);
+    if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+
+    const { examId, campusId, language, tone } = parsed.data;
+
+    // Fetch all students in exam
+    const marks = await prisma.mark.findMany({
+      where: { examId, campusId },
+      include: {
+        student: true,
+        subject: { select: { name: true, totalMarks: true } },
+      },
+    });
+
+    // Group by student
+    const byStudent = marks.reduce((acc, m) => {
+      if (!acc[m.studentId]) acc[m.studentId] = { student: m.student, marks: [] };
+      acc[m.studentId].marks.push({
+        subject: m.subject.name,
+        obtained: m.marksObtained,
+        total: m.subject.totalMarks,
+        grade: m.grade || "",
+      });
+      return acc;
+    }, {} as Record<string, { student: (typeof marks)[0]["student"]; marks: Array<{ subject: string; obtained: number; total: number; grade: string }> }>);
+
+    const results = await Promise.allSettled(
+      Object.values(byStudent).map(async ({ student, marks: studentMarks }) => {
+        const remarks = await generateRemark(student.fullName, studentMarks, language as "en"|"ur"|"both", tone);
+        
+        // Save to ReportCard (upsert)
+        await prisma.reportCard.upsert({
+          where: { studentId_examId: { studentId: student.id, examId } },
+          update: { remarksEn: remarks.en, remarksUr: remarks.ur },
+          create: {
+            campusId,
+            studentId: student.id,
+            examId,
+            remarksEn: remarks.en,
+            remarksUr: remarks.ur,
+          },
+        });
+
+        return { studentId: student.id, ...remarks };
+      })
+    );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    return Response.json({ success: true, total: results.length, succeeded });
+  }
+
+  // --- SINGLE mode ---
+  const parsed = remarkRequestSchema.safeParse(rest);
+  if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+
+  const { studentId, examId, campusId, language, tone } = parsed.data;
+
+  const student = await prisma.student.findUnique({ where: { id: studentId } });
+  if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
+
+  const marks = await prisma.mark.findMany({
+    where: { studentId, examId },
+    include: { subject: { select: { name: true, totalMarks: true } } },
+  });
+
+  const marksFormatted = marks.map((m) => ({
+    subject: m.subject.name,
+    obtained: m.marksObtained,
+    total: m.subject.totalMarks,
+    grade: m.grade || "",
+  }));
+
+  const remarks = await generateRemark(student.fullName, marksFormatted, language as "en"|"ur"|"both", tone);
+
+  await prisma.reportCard.upsert({
+    where: { studentId_examId: { studentId, examId } },
+    update: { remarksEn: remarks.en, remarksUr: remarks.ur },
+    create: {
+      campusId,
+      studentId,
+      examId,
+      remarksEn: remarks.en,
+      remarksUr: remarks.ur,
+    },
+  });
+
+  return Response.json({ success: true, remarks });
 }

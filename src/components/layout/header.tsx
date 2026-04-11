@@ -1,6 +1,5 @@
 "use client";
 
-import { useOrganization } from "@clerk/nextjs";
 import { Bell, Search, GraduationCap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,8 @@ interface HeaderProps {
 }
 
 export function Header({ title, description, actions }: HeaderProps) {
-  const { organization } = useOrganization();
+  // Mocking organization data for now since Clerk is being removed
+  const organization = null; 
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-lg px-6">
@@ -20,14 +20,15 @@ export function Header({ title, description, actions }: HeaderProps) {
         {organization && (
           <div className="hidden md:flex items-center gap-2 border-r pr-4 bg-muted/30 py-1 px-3 rounded-md border-border">
             <GraduationCap className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">{organization.name}</span>
+            <span className="text-sm font-bold text-foreground">{(organization as any).name}</span>
           </div>
         )}
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
+          {description && (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="relative hidden sm:block">

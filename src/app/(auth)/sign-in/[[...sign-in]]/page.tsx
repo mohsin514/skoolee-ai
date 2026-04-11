@@ -7,13 +7,11 @@ export default function SignInPage() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
       {/* Left Side — Hero Section */}
-      <div className="hidden md:flex flex-1 relative bg-purple-100 overflow-hidden">
-        <Image
-          src="/login-hero.png"
+      <div className="hidden md:flex flex-1 relative bg-[#FFF7FE] items-center justify-center overflow-hidden h-screen">
+        <img
+          src="/login.svg"
           alt="Educator"
-          fill
-          className="object-cover opacity-90"
-          priority
+          className="w-full h-full max-h-screen object-contain opacity-90 p-4 pb-32"
         />
         {/* Floating Quote Card */}
         <div className="absolute bottom-12 left-12 right-12 max-w-lg">
@@ -64,15 +62,15 @@ export default function SignInPage() {
                 card: "shadow-none border-none bg-transparent p-0",
                 header: "hidden",
                 footer: "hidden",
-                formButtonPrimary: 
+                formButtonPrimary:
                   "bg-[#8127CF] hover:bg-[#6D1FB5] text-white py-6 rounded-xl text-lg font-bold shadow-lg shadow-purple-200 transition-all",
-                formFieldInput: 
+                formFieldInput:
                   "bg-white border-[#E2E8F0] focus:border-[#8127CF] focus:ring-1 focus:ring-[#8127CF] rounded-xl py-3 px-4 text-[#1F1A23] placeholder:text-[#94A3B8]",
-                formFieldLabel: 
+                formFieldLabel:
                   "text-[#1F1A23] font-bold text-sm tracking-wide uppercase",
                 identityPreviewTextPrimary: "text-[#1F1A23]",
                 identityPreviewEditButtonIcon: "text-[#8127CF]",
-                socialButtonsBlockButton: 
+                socialButtonsBlockButton:
                   "border-[#E2E8F0] hover:bg-[#F8FAFC] rounded-xl py-3.5 font-bold text-[#1F1A23] transition-colors",
                 dividerText: "text-[#94A3B8] font-bold text-xs uppercase tracking-widest",
                 formResendCodeLink: "text-[#8127CF] font-bold",

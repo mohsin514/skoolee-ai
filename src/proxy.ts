@@ -1,63 +1,67 @@
-// ===========================================
-// SkooleeAI - Middleware
-// ===========================================
-// Handles: Clerk auth, subdomain→tenant resolution,
-// and cross-tenant access prevention.
+// ─────────────────────────────────────────────────────────────────
+// SkooleeAI — Middleware
+// 1. Reads the JWT cookie to identify the logged-in user
+// 2. Protects /dashboard/* routes  (redirects to /login if not authed)
+// 3. Injects campus/school context headers for server components & API routes
+// ─────────────────────────────────────────────────────────────────
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/stripe/webhook",
-  "/api/auth/webhook",
-]);
+const PUBLIC_PATHS = ["/", "/login", "/register", "/accept-invite", "/api/auth/login", "/api/auth/register", "/api/auth/logout"];
 
-const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
+function isPublic(pathname: string) {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
-export default clerkMiddleware(async (auth, req) => {
-  // 1. Allow public routes
-  if (isPublicRoute(req)) {
+export async function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // 1. Lightning-fast early exit for static assets and internal Next.js files
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.includes(".") || // Matches .css, .js, .png, .svg, etc.
+    pathname.startsWith("/api/public")
+  ) {
     return NextResponse.next();
   }
 
-  // 2. Protect all other routes
-  const { userId, orgId, orgSlug } = await auth();
-  if (!userId) {
-    return (await auth()).redirectToSignIn();
-  }
-
-  // 3. Handle Onboarding (Creating first school)
-  if (isOnboardingRoute(req)) {
+  // 2. Pass through public routes
+  if (isPublic(pathname)) {
     return NextResponse.next();
   }
 
-  // 4. Force Onboarding if no organization selected
-  if (!orgId && !req.nextUrl.pathname.startsWith("/onboarding")) {
-    const onboardingUrl = new URL("/onboarding", req.url);
-    return NextResponse.redirect(onboardingUrl);
+  // Protected routes — verify JWT
+  const token = req.cookies.get("skoolee_token")?.value;
+
+  if (!token) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // 5. Tenant Resolution Context
-  const requestHeaders = new Headers(req.headers);
-  if (orgId) {
-    // Pass orgId and slug as headers for easy access in API/Server layouts
-    requestHeaders.set("x-tenant-id", orgId);
-    if (orgSlug) requestHeaders.set("x-tenant-slug", orgSlug);
-  }
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
 
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-});
+    // Inject auth context as headers for server components
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-user-id", String(payload.userId));
+    requestHeaders.set("x-user-role", String(payload.role));
+    requestHeaders.set("x-school-id", String(payload.schoolId));
+    requestHeaders.set("x-campus-id", String(payload.campusId || ""));
+    requestHeaders.set("x-school-slug", String(payload.schoolSlug || ""));
+
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  } catch {
+    // Invalid or expired token
+    const loginUrl = new URL("/login", req.url);
+    const res = NextResponse.redirect(loginUrl);
+    res.cookies.set("skoolee_token", "", { maxAge: 0, path: "/" });
+    return res;
+  }
+}
 
 export const config = {
-  matcher: [
-    // Skip Next.js internals and static files
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

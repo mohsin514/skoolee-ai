@@ -1,27 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { GraduationCap } from 'lucide-react';
 import styles from './SplashScreen.module.css';
 
 export default function SplashScreen() {
+  const router = useRouter();
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Keep splash visible slightly longer to match animation
+    // Keep splash visible for 8 seconds, then redirect
     const timer = setTimeout(() => {
       setIsVisible(false);
+      router.push('/login');
     }, 8000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [router]);
 
   if (!isVisible) return null;
 
   return (
     <div className={styles.splashContainer}>
       <div className={styles.contentWrapper}>
-        {/* Logo Section */}
         <div className={styles.logoContainer}>
           <h1 className={styles.logoText}>
             <span className={styles.letter}>S</span>
@@ -43,7 +45,6 @@ export default function SplashScreen() {
           <p className={styles.tagline}>Igniting Potential...</p>
         </div>
 
-        {/* Custom Progress Bar Loader */}
         <div className={styles.loaderWrapper}>
           <div className={styles.progressBar}>
             <div className={styles.progressFill} />

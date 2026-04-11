@@ -1,262 +1,176 @@
-// ===========================================
-// SkooleeAI - Tenant Schema Management
-// ===========================================
-// Per-schema multi-tenancy: each school gets a
-// separate PostgreSQL schema (school_{id}).
-
-import { PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma";
 
-// Cache tenant Prisma clients to avoid re-creation
-const tenantClients = new Map<string, PrismaClient>();
-
 /**
- * Build the connection URL for a tenant's schema by appending
- * `?schema=school_{id}` to the base DATABASE_URL.
+ * Provisions a new isolated schema for a school and creates all 12 academic/billing tables.
+ * This is used for "Path A" (School groups) and "Path B" (Standalone campuses).
  */
-export function getTenantDbUrl(schoolId: string): string {
-  const baseUrl = process.env.DATABASE_URL || "";
-  const separator = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${separator}schema=school_${schoolId}`;
-}
-
-/**
- * Get or create a PrismaClient wired to a tenant schema.
- * Uses a cache so we don't create a new client per request.
- */
-export function getTenantClient(schemaName: string): PrismaClient {
-  if (tenantClients.has(schemaName)) {
-    return tenantClients.get(schemaName)!;
-  }
-  // We use $executeRawUnsafe to set search_path instead of
-  // separate connection strings (simpler with connection pooling)
-  const client = prisma;
-  tenantClients.set(schemaName, client);
-  return client;
-}
-
-/**
- * Execute a callback within a tenant's schema context.
- * Sets the PostgreSQL search_path before running and resets after.
- */
-export async function withTenant<T>(
-  schemaName: string,
-  callback: (query: typeof tenantQuery) => Promise<T>
-): Promise<T> {
-  await prisma.$executeRawUnsafe(
-    `SET search_path TO "${schemaName}", public`
-  );
-  try {
-    const result = await callback(tenantQuery);
-    return result;
-  } finally {
-    await prisma.$executeRawUnsafe(`SET search_path TO public`);
-  }
-}
-
-/**
- * Execute a raw SQL query scoped to the current search_path.
- * Use inside `withTenant()`.
- */
-export async function tenantQuery<T = unknown>(
-  sql: string,
-  params: unknown[] = []
-): Promise<T> {
-  return prisma.$queryRawUnsafe(sql, ...params) as Promise<T>;
-}
-
-/**
- * Execute a raw write (INSERT/UPDATE/DELETE) within tenant context.
- */
-export async function tenantExec(
-  sql: string,
-  params: unknown[] = []
-): Promise<number> {
-  return prisma.$executeRawUnsafe(sql, ...params);
-}
-
-/**
- * Resolve a tenant slug or ID to the schema name and tenant record.
- */
-export async function resolveTenant(slugOrId: string) {
-  const tenant = await prisma.tenant.findFirst({
-    where: {
-      OR: [{ slug: slugOrId }, { id: slugOrId }],
-    },
-  });
-  return tenant;
-}
-
-/**
- * Auth helper: get the tenant for the current request
- * by reading the x-tenant-id or x-tenant-slug header.
- */
-export async function getTenantFromHeaders(
-  headers: Headers
-): Promise<{ id: string; schemaName: string; slug: string } | null> {
-  const orgId = headers.get("x-tenant-id");
-  const slug = headers.get("x-tenant-slug");
-  
-  if (!orgId && !slug) return null;
-  
-  const tenant = await resolveTenant((orgId || slug) as string);
-  if (!tenant) return null;
-  
-  return { id: tenant.id, schemaName: tenant.schemaName, slug: tenant.slug };
-}
-
-/**
- * Get the tenant for a Clerk user by looking up their tenantId.
- */
-export async function getTenantForUser(clerkId: string) {
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    include: { tenant: true },
-  });
-  if (!user?.tenant) return null;
-  return {
-    id: user.tenant.id,
-    schemaName: user.tenant.schemaName,
-    slug: user.tenant.slug,
-    role: user.role,
-    userId: user.id,
-  };
-}
-
-// ─── Schema Provisioning ─────────────────────────────────
-
-/**
- * Creates a new PostgreSQL schema for a tenant with all tables.
- * Called during school onboarding.
- */
-export async function createTenantSchema(schemaName: string): Promise<void> {
+export async function createTenantSchema(schemaName: string, schoolId: string) {
+  // 1. Create the schema
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "${schemaName}".classes (
+  // 2. Define all tables as individual SQL snippets
+  const tables = [
+    // 1. CAMPUSES
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".campuses (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      city TEXT NOT NULL,
+      board TEXT,
+      logo_url TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    // 2. USERS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".users (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      campus_id TEXT,
+      school_id TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT,
+      username TEXT UNIQUE,
+      full_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'TEACHER',
+      phone TEXT,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    // 3. CLASSES
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".classes (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      campus_id TEXT NOT NULL,
       name TEXT NOT NULL,
       section TEXT,
-      grade_level INT NOT NULL,
-      academic_year TEXT NOT NULL,
-      teacher_id TEXT,
-      capacity INT DEFAULT 40,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(name, section, academic_year)
-    );
+      class_teacher_id TEXT,
+      academic_year INTEGER NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".students (
+    // 4. STUDENTS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".students (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      registration_no TEXT UNIQUE NOT NULL,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      date_of_birth DATE,
-      gender TEXT CHECK (gender IN ('MALE', 'FEMALE', 'OTHER')),
-      guardian_name TEXT,
-      guardian_phone TEXT,
-      guardian_email TEXT,
-      guardian_whatsapp TEXT,
-      address TEXT,
-      photo_url TEXT,
-      class_id TEXT REFERENCES "${schemaName}".classes(id),
-      status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED')),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
+      campus_id TEXT NOT NULL,
+      class_id TEXT NOT NULL,
+      parent_user_id TEXT,
+      full_name TEXT NOT NULL,
+      roll_no TEXT NOT NULL,
+      gender TEXT NOT NULL,
+      date_of_birth TIMESTAMP WITH TIME ZONE,
+      phone TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(campus_id, roll_no)
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".subjects (
+    // 5. SUBJECTS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".subjects (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      campus_id TEXT NOT NULL,
+      class_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      code TEXT UNIQUE NOT NULL,
-      description TEXT,
-      max_marks INT DEFAULT 100,
-      passing_marks INT DEFAULT 33,
-      is_optional BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS "${schemaName}".class_subjects (
-      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      class_id TEXT REFERENCES "${schemaName}".classes(id) ON DELETE CASCADE,
-      subject_id TEXT REFERENCES "${schemaName}".subjects(id) ON DELETE CASCADE,
       teacher_id TEXT,
-      UNIQUE(class_id, subject_id)
-    );
+      total_marks INTEGER DEFAULT 100,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".exams (
+    // 6. EXAMS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".exams (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      name TEXT NOT NULL,
-      type TEXT CHECK (type IN ('MONTHLY', 'MIDTERM', 'FINAL', 'UNIT_TEST', 'CUSTOM')),
-      academic_year TEXT NOT NULL,
-      term TEXT,
-      start_date DATE,
-      end_date DATE,
-      status TEXT DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'ACTIVE', 'COMPLETED', 'PUBLISHED')),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
+      campus_id TEXT NOT NULL,
+      class_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      term TEXT NOT NULL,
+      academic_year INTEGER NOT NULL,
+      is_locked BOOLEAN DEFAULT false,
+      locked_by TEXT,
+      locked_at TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".marks (
+    // 7. MARKS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".marks (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id TEXT REFERENCES "${schemaName}".students(id) ON DELETE CASCADE,
-      subject_id TEXT REFERENCES "${schemaName}".subjects(id) ON DELETE CASCADE,
-      exam_id TEXT REFERENCES "${schemaName}".exams(id) ON DELETE CASCADE,
-      marks_obtained DECIMAL(5,2),
-      max_marks DECIMAL(5,2) DEFAULT 100,
+      campus_id TEXT NOT NULL,
+      exam_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      marks_obtained INTEGER NOT NULL,
       grade TEXT,
-      remarks TEXT,
-      ai_remark_en TEXT,
-      ai_remark_ur TEXT,
       entered_by TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(student_id, subject_id, exam_id)
-    );
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(exam_id, student_id, subject_id)
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".report_cards (
+    // 8. REPORT_CARDS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".report_cards (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id TEXT REFERENCES "${schemaName}".students(id) ON DELETE CASCADE,
-      exam_id TEXT REFERENCES "${schemaName}".exams(id) ON DELETE CASCADE,
-      total_marks DECIMAL(7,2),
-      obtained_marks DECIMAL(7,2),
-      percentage DECIMAL(5,2),
-      grade TEXT,
-      rank INT,
-      overall_remark_en TEXT,
-      overall_remark_ur TEXT,
+      campus_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      exam_id TEXT NOT NULL,
+      remarks_en TEXT,
+      remarks_ur TEXT,
       pdf_url TEXT,
-      status TEXT DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'GENERATED', 'SENT')),
-      sent_via TEXT CHECK (sent_via IN ('WHATSAPP', 'EMAIL', 'BOTH')),
-      sent_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
+      is_sent BOOLEAN DEFAULT false,
+      generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(student_id, exam_id)
+    )`,
 
-    CREATE TABLE IF NOT EXISTS "${schemaName}".notifications (
+    // 9. ATTENDANCE
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".attendance (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id TEXT REFERENCES "${schemaName}".students(id),
-      type TEXT CHECK (type IN ('WHATSAPP', 'EMAIL', 'SMS')),
-      recipient TEXT NOT NULL,
-      message TEXT,
-      attachment_url TEXT,
-      status TEXT DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'DELIVERED', 'READ')),
-      error TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
+      campus_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      date DATE NOT NULL,
+      status TEXT NOT NULL,
+      marked_by TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(student_id, date)
+    )`,
 
-    CREATE INDEX IF NOT EXISTS idx_students_class ON "${schemaName}".students(class_id);
-    CREATE INDEX IF NOT EXISTS idx_marks_student ON "${schemaName}".marks(student_id);
-    CREATE INDEX IF NOT EXISTS idx_marks_exam ON "${schemaName}".marks(exam_id);
-    CREATE INDEX IF NOT EXISTS idx_report_cards_student ON "${schemaName}".report_cards(student_id);
-    CREATE INDEX IF NOT EXISTS idx_report_cards_exam ON "${schemaName}".report_cards(exam_id);
-    CREATE INDEX IF NOT EXISTS idx_notifications_student ON "${schemaName}".notifications(student_id);
-  `);
-}
+    // 10. FEE_STRUCTURES
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".fee_structures (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      campus_id TEXT NOT NULL,
+      class_id TEXT NOT NULL,
+      term TEXT NOT NULL,
+      tuition_monthly INTEGER NOT NULL,
+      exam_fee INTEGER DEFAULT 0,
+      annual_fee INTEGER DEFAULT 0,
+      months_count INTEGER DEFAULT 1,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(class_id, term)
+    )`,
 
-/**
- * Delete a tenant's schema and all its data. Destructive!
- */
-export async function dropTenantSchema(schemaName: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`
-  );
+    // 11. INVOICES
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".invoices (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      campus_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      term TEXT NOT NULL,
+      academic_year INTEGER NOT NULL,
+      total_amount INTEGER NOT NULL,
+      due_date TIMESTAMP WITH TIME ZONE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      challan_url TEXT,
+      generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    // 12. PAYMENTS
+    `CREATE TABLE IF NOT EXISTS "${schemaName}".payments (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+      invoice_id TEXT NOT NULL,
+      amount_paid INTEGER NOT NULL,
+      method TEXT NOT NULL,
+      receipt_no TEXT,
+      paid_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      recorded_by TEXT
+    )`,
+  ];
+
+  // 3. Execute each table creation individually to bypass "multiple commands" limitation
+  for (const sql of tables) {
+    await prisma.$executeRawUnsafe(sql);
+  }
+
+  return schemaName;
 }

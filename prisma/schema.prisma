@@ -1,8 +1,6 @@
 // ===========================================
-// SkooleeAI - Prisma Schema (Public Schema)
+// SkooleeAI - Finalized Multi-Tenant Schema
 // ===========================================
-// This schema manages the central tenant registry
-// Each tenant gets a separate PostgreSQL schema: school_{id}
 
 generator client {
   provider = "prisma-client-js"
@@ -14,106 +12,294 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Tenant / School Registry ─────────────────────────────
-
-model Tenant {
-  id            String         @id @default(cuid())
+// ─── 1. SCHOOLS (Central Registry) ────────────────────────
+model School {
+  id            String    @id @default(uuid())
   name          String
-  slug          String         @unique // subdomain: slug.skooleeai.com
-  domain        String?        @unique // custom domain
-  schemaName    String         @unique // PostgreSQL schema name: school_xxxx
-  logo          String?
-  address       String?
-  phone         String?
-  email         String?
-  website       String?
-  status        TenantStatus   @default(ACTIVE)
-  plan          PlanType       @default(FREE)
-  stripeCustomerId    String?  @unique
-  stripeSubscriptionId String?
-  aiCreditsUsed   Int          @default(0)
-  aiCreditsLimit  Int          @default(100) // per month
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  slug          String    @unique // subdomain routing
+  status        String    @default("TRIAL")
+  city          String
+  contactEmail  String    @unique @map("contact_email")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  campuses      Campus[]
   users         User[]
-  invoices      Invoice[]
-  aiUsageLogs   AIUsageLog[]
 
-  @@map("tenants")
+  @@map("schools")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  clerkId       String    @unique
-  email         String    @unique
-  firstName     String?
-  lastName      String?
-  role          UserRole  @default(TEACHER)
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+// ─── 2. CAMPUSES ──────────────────────────────────────────
+model Campus {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name          String
+  city          String
+  board         String?   // e.g., FBISE, Lahore Board
+  logoUrl       String?   @map("logo_url")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
-  @@index([tenantId])
-  @@index([clerkId])
+  // Global Multi-Tenant Relations
+  users         User[]
+  classes       Class[]
+  students      Student[]
+  subjects      Subject[]
+  exams         Exam[]
+  marks         Mark[]
+  reportCards   ReportCard[] @relation("CampusReports")
+  attendance    Attendance[]
+  feeStructures FeeStructure[]
+  invoices      Invoice[]
+
+  @@map("campuses")
+}
+
+// ─── 3. USERS ─────────────────────────────────────────────
+model User {
+  id            String    @id @default(uuid())
+  campusId      String?   @map("campus_id")
+  campus        Campus?   @relation(fields: [campusId], references: [id])
+  schoolId      String    @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id])
+  email         String    @unique
+  password      String?   // Added for Diagram 2 Flow
+  username      String?   @unique
+  fullName      String    @map("full_name")
+  role          UserRole  @default(TEACHER)
+  phone         String?
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Action Tracking
+  markedAttendance Attendance[] @relation("MarkedBy")
+  enteredMarks     Mark[]       @relation("EnteredBy")
+  lockedExams      Exam[]       @relation("LockedBy")
+  recordedPayments Payment[]    @relation("RecordedBy")
+  taughtSubjects   Subject[]    @relation("Teacher")
+  ledClasses       Class[]      @relation("ClassTeacher")
+  parentedStudents Student[]    @relation("Parent")
+
   @@map("users")
 }
 
-model Invoice {
-  id              String        @id @default(cuid())
-  tenantId        String
-  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  stripeInvoiceId String        @unique
-  amount          Int           // in cents
-  currency        String        @default("usd")
-  status          InvoiceStatus @default(PENDING)
-  paidAt          DateTime?
-  createdAt       DateTime      @default(now())
+// ─── 4. CLASSES ───────────────────────────────────────────
+model Class {
+  id             String    @id @default(uuid())
+  campusId       String    @map("campus_id")
+  campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  name           String
+  section        String?
+  classTeacherId String?   @map("class_teacher_id")
+  classTeacher   User?     @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+  academicYear   Int       @map("academic_year")
 
-  @@index([tenantId])
+  // Relations
+  students       Student[]
+  subjects       Subject[]
+  exams          Exam[]
+  feeStructures  FeeStructure[]
+
+  @@map("classes")
+}
+
+// ─── 5. STUDENTS ──────────────────────────────────────────
+model Student {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String    @map("class_id")
+  class         Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  parentUserId  String?   @map("parent_user_id")
+  parent        User?     @relation("Parent", fields: [parentUserId], references: [id])
+  fullName      String    @map("full_name")
+  rollNo        String    @map("roll_no")
+  gender        Gender
+  dateOfBirth   DateTime? @map("date_of_birth")
+  phone         String?
+
+  // Records
+  marks         Mark[]
+  attendance    Attendance[]
+  reportCards   ReportCard[]
+  invoices      Invoice[]
+
+  @@unique([campusId, rollNo])
+  @@map("students")
+}
+
+// ─── 6. SUBJECTS ──────────────────────────────────────────
+model Subject {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String    @map("class_id")
+  class         Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  name          String
+  teacherId     String?   @map("teacher_id")
+  teacher       User?     @relation("Teacher", fields: [teacherId], references: [id])
+  totalMarks    Int       @default(100) @map("total_marks")
+
+  // Relations
+  marks         Mark[]
+
+  @@map("subjects")
+}
+
+// ─── 7. EXAMS ─────────────────────────────────────────────
+model Exam {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String    @map("class_id")
+  class         Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title         String    // e.g., "First Term", "Mids"
+  term          String
+  academicYear  Int       @map("academic_year")
+  isLocked      Boolean   @default(false) @map("is_locked")
+  lockedBy      String?   @map("locked_by")
+  locker        User?     @relation("LockedBy", fields: [lockedBy], references: [id])
+  lockedAt      DateTime? @map("locked_at")
+
+  // Relations
+  marks         Mark[]
+  reportCards   ReportCard[]
+
+  @@map("exams")
+}
+
+// ─── 8. MARKS ─────────────────────────────────────────────
+model Mark {
+  id             String    @id @default(uuid())
+  campusId       String    @map("campus_id")
+  campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  examId         String    @map("exam_id")
+  exam           Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId      String    @map("student_id")
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId      String    @map("subject_id")
+  subject        Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  marksObtained  Int       @map("marks_obtained")
+  grade          String?
+  enteredBy      String?   @map("entered_by")
+  enterer        User?     @relation("EnteredBy", fields: [enteredBy], references: [id])
+
+  @@unique([examId, studentId, subjectId])
+  @@map("marks")
+}
+
+// ─── 9. REPORT_CARDS ──────────────────────────────────────
+model ReportCard {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation("CampusReports", fields: [campusId], references: [id], onDelete: Cascade)
+  studentId     String    @map("student_id")
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examId        String    @map("exam_id")
+  exam          Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  remarksEn      String?   @map("remarks_en") @db.Text
+  remarksUr      String?   @map("remarks_ur") @db.Text
+  pdfUrl        String?   @map("pdf_url")
+  isSent        Boolean   @default(false) @map("is_sent")
+  generatedAt   DateTime  @default(now()) @map("generated_at")
+
+  @@unique([studentId, examId])
+  @@map("report_cards")
+}
+
+// ─── 10. ATTENDANCE ───────────────────────────────────────
+model Attendance {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId     String    @map("student_id")
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date          DateTime  @db.Date
+  status        AttendanceStatus
+  markedBy      String?   @map("marked_by")
+  marker        User?     @relation("MarkedBy", fields: [markedBy], references: [id])
+
+  @@unique([studentId, date])
+  @@map("attendance")
+}
+
+// ─── 11. FEE_STRUCTURES ───────────────────────────────────
+model FeeStructure {
+  id             String    @id @default(uuid())
+  campusId       String    @map("campus_id")
+  campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId        String    @map("class_id")
+  class          Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  term           String
+  tuitionMonthly Int       @map("tuition_monthly")
+  examFee        Int       @default(0) @map("exam_fee")
+  annualFee      Int       @default(0) @map("annual_fee")
+  monthsCount    Int       @default(1) @map("months_count")
+
+  @@unique([classId, term])
+  @@map("fee_structures")
+}
+
+// ─── 12. INVOICES ─────────────────────────────────────────
+model Invoice {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId     String    @map("student_id")
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term          String
+  academicYear  Int       @map("academic_year")
+  totalAmount   Int       @map("total_amount")
+  dueDate       DateTime  @map("due_date")
+  status        InvoiceStatus @default(PENDING)
+  challanUrl    String?   @map("challan_url")
+  generatedAt   DateTime  @default(now()) @map("generated_at")
+
+  payments      Payment[]
+
   @@map("invoices")
 }
 
-model AIUsageLog {
-  id          String   @id @default(cuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  action      String   // e.g., "generate_remark", "batch_remarks"
-  tokensUsed  Int
-  model       String
-  createdAt   DateTime @default(now())
+// ─── 13. PAYMENTS ─────────────────────────────────────────
+model Payment {
+  id            String    @id @default(uuid())
+  invoiceId     String    @map("invoice_id")
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountPaid    Int       @map("amount_paid")
+  method        String    // Cash, Bank Transfer, EasyPaisa
+  receiptNo     String?   @map("receipt_no")
+  paidAt        DateTime  @default(now()) @map("paid_at")
+  recordedBy    String?   @map("recorded_by")
+  recorder      User?     @relation("RecordedBy", fields: [recordedBy], references: [id])
 
-  @@index([tenantId])
-  @@index([createdAt])
-  @@map("ai_usage_logs")
+  @@map("payments")
 }
 
 // ─── Enums ────────────────────────────────────────────────
-
-enum TenantStatus {
-  ACTIVE
-  SUSPENDED
-  TRIAL
-  CANCELLED
-}
-
-enum PlanType {
-  FREE
-  BASIC
-  PRO
-}
 
 enum UserRole {
   SUPER_ADMIN
   ADMIN
   TEACHER
   PARENT
+  STUDENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
 }
 
 enum InvoiceStatus {
   PENDING
   PAID
-  FAILED
-  REFUNDED
+  PARTIAL
+  CANCELLED
 }

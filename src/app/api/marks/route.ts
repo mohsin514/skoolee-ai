@@ -1,143 +1,82 @@
-// ===========================================
-// CRUD /api/marks
-// ===========================================
-
+// ─────────────────────────────────────────────────────────────────
+// Diagram 3 — Marks APIs
+// POST /api/marks        — Teacher bulk submits marks
+// GET  /api/marks?examId= — Get all marks for an exam
+// ─────────────────────────────────────────────────────────────────
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
-import { bulkMarksSchema, markEntrySchema } from "@/lib/validators/schemas";
-import { calculateGrade } from "@/lib/utils";
+import { prisma } from "@/lib/db/prisma";
+import { getAuthUser, calculateGrade } from "@/lib/auth";
+import { bulkMarksSchema } from "@/lib/validators/schemas";
 
-// GET — Get marks for a class/exam/subject combination
-export async function GET(req: NextRequest) {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const examId = searchParams.get("examId");
-    const subjectId = searchParams.get("subjectId");
-    const classId = searchParams.get("classId");
-
-    if (!examId) {
-      return Response.json({ error: "examId is required" }, { status: 400 });
-    }
-
-    let query = `
-      SELECT m.*, s.first_name, s.last_name, s.registration_no
-      FROM marks m
-      JOIN students s ON s.id = m.student_id
-      WHERE m.exam_id = $1
-    `;
-    const params: unknown[] = [examId];
-    let idx = 2;
-
-    if (subjectId) {
-      query += ` AND m.subject_id = $${idx}`;
-      params.push(subjectId);
-      idx++;
-    }
-
-    if (classId) {
-      query += ` AND s.class_id = $${idx}`;
-      params.push(classId);
-    }
-
-    query += ` ORDER BY s.first_name ASC`;
-
-    const marks = await withTenant(tenant.schemaName, async (q) => {
-      return q(query, params);
-    });
-
-    return Response.json({ success: true, data: marks });
-  } catch (error) {
-    console.error("[marks] GET error:", error);
-    return Response.json({ error: "Failed to fetch marks" }, { status: 500 });
+export async function POST(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "TEACHER" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
+    return Response.json({ error: "Only teachers can enter marks" }, { status: 403 });
   }
+
+  const body = await req.json();
+  const parsed = bulkMarksSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+  }
+
+  const { examId, campusId, entries } = parsed.data;
+
+  // Verify exam is not locked
+  const exam = await prisma.exam.findUnique({ where: { id: examId } });
+  if (!exam) return Response.json({ error: "Exam not found" }, { status: 404 });
+  if (exam.isLocked) return Response.json({ error: "Exam is locked — marks cannot be edited" }, { status: 403 });
+
+  // Upsert each mark entry
+  const results = await Promise.all(
+    entries.map(async (entry) => {
+      const subject = await prisma.subject.findUnique({ where: { id: entry.subjectId } });
+      const grade = calculateGrade(entry.marksObtained, subject?.totalMarks || 100);
+
+      return prisma.mark.upsert({
+        where: {
+          examId_studentId_subjectId: {
+            examId,
+            studentId: entry.studentId,
+            subjectId: entry.subjectId,
+          },
+        },
+        update: { marksObtained: entry.marksObtained, grade, enteredBy: user.userId },
+        create: {
+          campusId,
+          examId,
+          studentId: entry.studentId,
+          subjectId: entry.subjectId,
+          marksObtained: entry.marksObtained,
+          grade,
+          enteredBy: user.userId,
+        },
+      });
+    })
+  );
+
+  return Response.json({ success: true, count: results.length });
 }
 
-// POST — Save marks (single or bulk)
-export async function POST(req: NextRequest) {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export async function GET(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
+  const { searchParams } = new URL(req.url);
+  const examId = searchParams.get("examId");
+  const campusId = searchParams.get("campusId") || user.campusId;
 
-    const body = await req.json();
+  if (!examId) return Response.json({ error: "examId required" }, { status: 400 });
 
-    // Bulk marks
-    if (body.marks) {
-      const parsed = bulkMarksSchema.safeParse(body);
-      if (!parsed.success) {
-        return Response.json(
-          { error: parsed.error.flatten() },
-          { status: 400 }
-        );
-      }
+  const marks = await prisma.mark.findMany({
+    where: { examId, campusId: campusId || undefined },
+    include: {
+      student: { select: { fullName: true, rollNo: true } },
+      subject: { select: { name: true, totalMarks: true } },
+    },
+    orderBy: [{ student: { rollNo: "asc" } }, { subject: { name: "asc" } }],
+  });
 
-      let saved = 0;
-      for (const m of parsed.data.marks) {
-        const pct = (m.marksObtained / m.maxMarks) * 100;
-        const grade = calculateGrade(pct);
-
-        await withTenant(tenant.schemaName, async () => {
-          return tenantExec(
-            `INSERT INTO marks (student_id, subject_id, exam_id, marks_obtained, max_marks, grade, entered_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (student_id, subject_id, exam_id)
-             DO UPDATE SET marks_obtained = $4, max_marks = $5, grade = $6, entered_by = $7, updated_at = NOW()`,
-            [m.studentId, m.subjectId, m.examId, m.marksObtained, m.maxMarks, grade, userId]
-          );
-        });
-        saved++;
-      }
-
-      return Response.json({
-        success: true,
-        message: `${saved} marks saved`,
-      });
-    }
-
-    // Single mark
-    const parsed = markEntrySchema.safeParse(body);
-    if (!parsed.success) {
-      return Response.json(
-        { error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
-    }
-
-    const m = parsed.data;
-    const pct = (m.marksObtained / m.maxMarks) * 100;
-    const grade = calculateGrade(pct);
-
-    const result = await withTenant(tenant.schemaName, async (query) => {
-      return query(
-        `INSERT INTO marks (student_id, subject_id, exam_id, marks_obtained, max_marks, grade, entered_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (student_id, subject_id, exam_id)
-         DO UPDATE SET marks_obtained = $4, max_marks = $5, grade = $6, entered_by = $7, updated_at = NOW()
-         RETURNING *`,
-        [m.studentId, m.subjectId, m.examId, m.marksObtained, m.maxMarks, grade, userId]
-      );
-    });
-
-    return Response.json({ success: true, data: result });
-  } catch (error) {
-    console.error("[marks] POST error:", error);
-    return Response.json({ error: "Failed to save marks" }, { status: 500 });
-  }
+  return Response.json({ success: true, marks });
 }

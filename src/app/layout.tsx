@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
-import SplashScreen from "@/components/SplashScreen";
+import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
 });
 
@@ -32,14 +31,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html
-        lang="en"
-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-        suppressHydrationWarning
-      >
-        <body className="min-h-full flex flex-col">
-          <SplashScreen />
+    <html
+      lang="en"
+      className={`${plusJakartaSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full flex flex-col font-sans">
+        <AppLoaderProvider>
           {children}
           <Toaster
             position="top-right"
@@ -47,11 +45,11 @@ export default function RootLayout({
             closeButton
             toastOptions={{
               duration: 4000,
-              style: { fontFamily: "var(--font-sans)" },
+              style: { fontFamily: "var(--font-plus-jakarta-sans)" },
             }}
           />
-        </body>
-      </html>
-    </ClerkProvider>
+        </AppLoaderProvider>
+      </body>
+    </html>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, useOrganizationList } from "@clerk/nextjs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -25,8 +24,6 @@ import { Building2, Loader2, ArrowRight } from "lucide-react";
 import { slugify } from "@/lib/utils";
 
 export default function OnboardingPage() {
-  const { user } = useUser();
-  const { createOrganization } = useOrganizationList();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +40,7 @@ export default function OnboardingPage() {
       slug: "",
       address: "",
       phone: "",
-      email: user?.emailAddresses?.[0]?.emailAddress || "",
+      email: "",
     },
   });
 
@@ -57,21 +54,27 @@ export default function OnboardingPage() {
   };
 
   const onSubmit = async (data: OnboardingFormData) => {
-    if (!createOrganization) return;
     setIsSubmitting(true);
     try {
-      // 🏫 School Registration Flow - Create Clerk Org
-      await createOrganization({
-        name: data.schoolName,
-        slug: data.slug,
+      // 🏫 School Registration Flow - Custom API
+      const response = await fetch("/api/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
       });
 
-      toast.success("School created successfully! Setting up your dashboard...");
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to create school");
+      }
+
+      toast.success("School created successfully! Setting up your database...");
       
-      // Delay to allow webhook to provision schema
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 2000);
+      // Redirect to the new subdomain if available, or just to dashboard
+      const tenant = await response.json();
+      const redirectUrl = `http://${tenant.slug}.${process.env.NEXT_PUBLIC_APP_DOMAIN || 'localhost:3000'}/dashboard`;
+      
+      router.push(redirectUrl);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Something went wrong"
@@ -88,7 +91,7 @@ export default function OnboardingPage() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
             <Building2 className="h-7 w-7 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Set up your school</CardTitle>
+          <CardTitle className="text-2xl text-foreground">Set up your school</CardTitle>
           <CardDescription>
             Enter your school details to get started with SkooleeAI
           </CardDescription>
@@ -103,7 +106,6 @@ export default function OnboardingPage() {
                 placeholder="Springfield Elementary School"
                 {...register("schoolName")}
                 onChange={handleNameChange}
-                value={schoolName}
               />
               {errors.schoolName && (
                 <p className="text-sm text-destructive">
@@ -173,13 +175,13 @@ export default function OnboardingPage() {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating school...
                 </>
               ) : (
                 <>
                   Create School
-                  <ArrowRight />
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
             </Button>

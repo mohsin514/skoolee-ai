@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
-  BookOpen,
   ClipboardList,
   FileText,
   BarChart3,
@@ -16,7 +15,6 @@ import {
   Sparkles,
   LogOut,
 } from "lucide-react";
-import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +30,15 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login"; // Force full reload to clear any remaining state
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-sidebar-border bg-sidebar-bg">
       {/* ─── Logo ──────────────────────────────────────── */}
@@ -42,24 +49,6 @@ export function Sidebar() {
         <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
           SkooleeAI
         </span>
-      </div>
-
-      {/* ─── Organization Switcher ─────────────────────── */}
-      <div className="border-b border-sidebar-border px-3 py-4">
-        <OrganizationSwitcher
-          hidePersonal
-          afterCreateOrganizationUrl="/dashboard"
-          afterSelectOrganizationUrl="/dashboard"
-          appearance={{
-            elements: {
-              rootBox: "w-full",
-              organizationSwitcherTrigger: "w-full justify-between px-3 py-2 bg-accent/50 hover:bg-accent rounded-lg border border-sidebar-border h-12",
-              organizationPreviewTextContainer: "text-left",
-              organizationPreviewTitle: "text-sm font-semibold text-sidebar-foreground",
-              organizationPreviewSubtitle: "text-xs text-muted-foreground",
-            }
-          }}
-        />
       </div>
 
       {/* ─── Navigation ────────────────────────────────── */}
@@ -101,20 +90,20 @@ export function Sidebar() {
       {/* ─── User Section ──────────────────────────────── */}
       <div className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: "h-9 w-9",
-              },
-            }}
-          />
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
           <div className="flex-1 min-w-0">
             <p className="truncate text-sm font-medium text-sidebar-foreground">
-              School Admin
+              User Profile
             </p>
-            <p className="truncate text-xs text-muted-foreground">
-              Manage account
-            </p>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors mt-0.5"
+            >
+              <LogOut className="h-3 w-3" />
+              Sign out
+            </button>
           </div>
         </div>
       </div>
