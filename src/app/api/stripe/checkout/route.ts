@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       customerId = await createStripeCustomer(
         tenantRecord?.contactEmail || "",
         tenantRecord?.name || "",
-        tenant.id
+        tenant.schoolId
       );
       await prisma.school.update({
         where: { id: tenant.schoolId },
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const url = await createCheckoutSession(customerId, priceId, tenant.id);
+    const url = await createCheckoutSession(customerId, priceId, tenant.schoolId);
     return Response.json({ url });
   } catch (error) {
     console.error("[stripe/checkout] Error:", error);

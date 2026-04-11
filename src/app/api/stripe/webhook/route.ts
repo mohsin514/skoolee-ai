@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
         if (tenant) {
           await prisma.school.update({
-            where: { id: tenant.schoolId },
+            where: { id: tenant.id },
             data: {
               plan: "FREE",
               aiCreditsLimit: 100,
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
 
         if (tenant) {
           await prisma.school.update({
-            where: { id: tenant.schoolId },
+            where: { id: tenant.id },
             data: {
               plan: "FREE",
               aiCreditsLimit: 100,
