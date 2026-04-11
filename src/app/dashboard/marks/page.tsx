@@ -35,6 +35,8 @@ interface Subject {
 
 interface Exam {
   id: string;
+  campusId: string;
+  classId: string;
   title: string;
   term: string;
   academicYear: number;
