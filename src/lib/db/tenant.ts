@@ -198,13 +198,13 @@ export async function getTenantForUser(userId: string) {
  */
 export async function withTenant<T>(
   schemaName: string, 
-  cb: (query: (sql: string, params?: any[]) => Promise<any[]>) => Promise<T>
+  cb: (query: <R>(sql: string, params?: any[]) => Promise<R>) => Promise<T>
 ): Promise<T> {
-  const query = async (sql: string, params: any[] = []) => {
+  const query = async <R>(sql: string, params: any[] = []) => {
     // 1. Switch session to the tenant schema
     await prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);
     // 2. Execute the raw SQL
-    return prisma.$queryRawUnsafe(sql, ...params);
+    return prisma.$queryRawUnsafe(sql, ...params) as Promise<R>;
   };
   return cb(query);
 }
