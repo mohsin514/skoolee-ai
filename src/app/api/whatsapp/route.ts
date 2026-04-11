@@ -9,6 +9,7 @@ import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
 import { sendReportCardNotification } from "@/lib/whatsapp/client";
 import { prisma } from "@/lib/db/prisma";
 import { canUseFeature } from "@/config/plans";
+import { PlanType } from "@/types";
 
 const schema = z.object({
   studentId: z.string().min(1),
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const tenantRecord = await prisma.school.findUnique({
       where: { id: tenant.schoolId },
     });
-    if (!tenantRecord || !canUseFeature(tenantRecord.plan, "whatsappEnabled")) {
+    if (!tenantRecord || !canUseFeature(tenantRecord.plan as PlanType, "whatsappEnabled")) {
       return Response.json(
         { error: "WhatsApp notifications require Basic or Pro plan" },
         { status: 403 }
