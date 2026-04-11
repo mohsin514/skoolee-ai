@@ -116,9 +116,13 @@ export const classSchema = z.object({
 
 export const subjectSchema = z.object({
   name: z.string().min(1, "Subject name required"),
+  code: z.string().min(1, "Subject code required"),
+  description: z.string().optional(),
   classId: z.string().min(1, "Class required"),
   teacherId: z.string().optional(),
-  totalMarks: z.number().int().min(1).default(100),
+  maxMarks: z.number().int().min(1).default(100),
+  passingMarks: z.number().int().min(0).default(33),
+  isOptional: z.boolean().default(false),
 });
 
 export const examSchema = z.object({
