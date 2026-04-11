@@ -21,8 +21,8 @@ export async function POST() {
       return Response.json({ error: "No tenant found" }, { status: 403 });
     }
 
-    const tenantRecord = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
+    const tenantRecord = await prisma.school.findUnique({
+      where: { id: tenant.schoolId },
     });
     if (!tenantRecord?.stripeCustomerId) {
       return Response.json(

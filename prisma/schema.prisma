@@ -17,7 +17,12 @@ model School {
   id            String    @id @default(uuid())
   name          String
   slug          String    @unique // subdomain routing
-  status        String    @default("TRIAL")
+  status        String    @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED
+  plan          String    @default("FREE")  // FREE, BASIC, PRO
+  aiCreditsUsed Int       @default(0)       @map("ai_credits_used")
+  aiCreditsLimit Int      @default(100)     @map("ai_credits_limit")
+  stripeCustomerId String? @unique         @map("stripe_customer_id")
+  stripeSubscriptionId String? @unique      @map("stripe_subscription_id")
   city          String
   contactEmail  String    @unique @map("contact_email")
   createdAt     DateTime  @default(now()) @map("created_at")

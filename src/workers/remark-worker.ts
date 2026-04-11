@@ -33,10 +33,10 @@ const worker = new Worker<RemarkJobData>(
     );
 
     // Check credits
-    const tenant = await prisma.tenant.findUnique({
+    const school = await prisma.school.findUnique({
       where: { id: tenantId },
     });
-    if (!tenant || tenant.aiCreditsUsed >= tenant.aiCreditsLimit) {
+    if (!school || school.aiCreditsUsed >= school.aiCreditsLimit) {
       throw new Error("AI credit limit reached");
     }
 
@@ -90,7 +90,7 @@ const worker = new Worker<RemarkJobData>(
     });
 
     // Deduct credit & log
-    await prisma.tenant.update({
+    await prisma.school.update({
       where: { id: tenantId },
       data: { aiCreditsUsed: { increment: 1 } },
     });

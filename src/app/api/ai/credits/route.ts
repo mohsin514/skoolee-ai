@@ -21,8 +21,8 @@ export async function GET() {
       return Response.json({ error: "No tenant" }, { status: 403 });
     }
 
-    const t = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
+    const s = await prisma.school.findUnique({
+      where: { id: tenant.schoolId },
       select: {
         aiCreditsUsed: true,
         aiCreditsLimit: true,
@@ -33,10 +33,10 @@ export async function GET() {
     return Response.json({
       success: true,
       data: {
-        used: t?.aiCreditsUsed || 0,
-        limit: t?.aiCreditsLimit || 100,
-        remaining: (t?.aiCreditsLimit || 100) - (t?.aiCreditsUsed || 0),
-        plan: t?.plan || "FREE",
+        used: s?.aiCreditsUsed || 0,
+        limit: s?.aiCreditsLimit || 100,
+        remaining: (s?.aiCreditsLimit || 100) - (s?.aiCreditsUsed || 0),
+        plan: s?.plan || "FREE",
       },
     });
   } catch (error) {

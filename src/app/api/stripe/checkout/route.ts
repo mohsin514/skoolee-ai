@@ -47,19 +47,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Get or create Stripe customer
-    const tenantRecord = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
+    const tenantRecord = await prisma.school.findUnique({
+      where: { id: tenant.schoolId },
     });
     let customerId = tenantRecord?.stripeCustomerId;
 
     if (!customerId) {
       customerId = await createStripeCustomer(
-        tenantRecord?.email || "",
+        tenantRecord?.contactEmail || "",
         tenantRecord?.name || "",
         tenant.id
       );
-      await prisma.tenant.update({
-        where: { id: tenant.id },
+      await prisma.school.update({
+        where: { id: tenant.schoolId },
         data: { stripeCustomerId: customerId },
       });
     }

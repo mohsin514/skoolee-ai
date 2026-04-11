@@ -37,11 +37,11 @@ export async function POST(req: NextRequest) {
       // ─── Checkout completed → activate subscription ────
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const tenantId = session.metadata?.tenantId;
+        const schoolId = session.metadata?.schoolId;
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
-        if (!tenantId) break;
+        if (!schoolId) break;
 
         // Determine plan from subscription
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
 
         const aiCreditsLimit = plan === "PRO" ? 5000 : 1000;
 
-        await prisma.tenant.update({
-          where: { id: tenantId },
+        await prisma.school.update({
+          where: { id: schoolId },
           data: {
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
@@ -76,13 +76,13 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
 
-        const tenant = await prisma.tenant.findUnique({
+        const tenant = await prisma.school.findUnique({
           where: { stripeCustomerId: customerId },
         });
 
         if (tenant) {
-          await prisma.tenant.update({
-            where: { id: tenant.id },
+          await prisma.school.update({
+            where: { id: tenant.schoolId },
             data: {
               plan: "FREE",
               aiCreditsLimit: 100,
@@ -101,13 +101,13 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
-        const tenant = await prisma.tenant.findUnique({
+        const tenant = await prisma.school.findUnique({
           where: { stripeCustomerId: customerId },
         });
 
         if (tenant) {
-          await prisma.tenant.update({
-            where: { id: tenant.id },
+          await prisma.school.update({
+            where: { id: tenant.schoolId },
             data: {
               plan: "FREE",
               aiCreditsLimit: 100,

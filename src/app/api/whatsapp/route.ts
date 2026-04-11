@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check plan allows WhatsApp
-    const tenantRecord = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
+    const tenantRecord = await prisma.school.findUnique({
+      where: { id: tenant.schoolId },
     });
     if (!tenantRecord || !canUseFeature(tenantRecord.plan, "whatsappEnabled")) {
       return Response.json(
