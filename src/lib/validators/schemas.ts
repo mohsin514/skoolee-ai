@@ -108,8 +108,10 @@ export const bulkStudentSchema = z.object({
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   section: z.string().optional(),
+  gradeLevel: z.number().int().min(1).max(12).default(1),
   academicYear: z.number().int().min(2000).max(2100),
-  classTeacherId: z.string().optional(),
+  teacherId: z.string().optional(),
+  capacity: z.number().int().min(1).default(40),
 });
 
 export const subjectSchema = z.object({
