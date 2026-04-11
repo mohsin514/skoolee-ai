@@ -36,7 +36,7 @@ const worker = new Worker<NotificationJobData>(
 
     // Log notification
     await withTenant(schemaName, async () => {
-      return tenantExec(
+      return tenantExec(schemaName, 
         `INSERT INTO notifications (student_id, type, recipient, message, attachment_url, status, error)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [studentId, type, recipient, message, attachmentUrl || null, status, error]

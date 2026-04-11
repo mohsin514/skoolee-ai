@@ -81,7 +81,7 @@ const worker = new Worker<RemarkJobData>(
 
     // Store overall remark in report_cards
     await withTenant(schemaName, async () => {
-      return tenantExec(
+      return tenantExec(schemaName, 
         `UPDATE report_cards
          SET overall_remark_en = $1, overall_remark_ur = $2
          WHERE student_id = $3 AND exam_id = $4`,

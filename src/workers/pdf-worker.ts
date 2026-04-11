@@ -102,7 +102,7 @@ const worker = new Worker<BulkPdfJobData>(
 
         // 6. Create/update report card record
         await withTenant(schemaName, async () => {
-          return tenantExec(
+          return tenantExec(schemaName, 
             `INSERT INTO report_cards (student_id, exam_id, total_marks, obtained_marks, percentage, grade, pdf_url, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, 'GENERATED')
              ON CONFLICT (student_id, exam_id)

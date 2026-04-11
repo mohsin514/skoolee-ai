@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     // Log notification
     await withTenant(tenant.schemaName, async () => {
-      return tenantExec(
+      return tenantExec(tenant.schemaName, 
         `INSERT INTO notifications (student_id, type, recipient, message, attachment_url, status)
          VALUES ($1, 'WHATSAPP', $2, $3, $4, $5)`,
         [

@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
       for (const s of parsed.data.students) {
         await withTenant(tenant.schemaName, async () => {
-          return tenantExec(
+          return tenantExec(tenant.schemaName, 
             `INSERT INTO students (registration_no, first_name, last_name, date_of_birth, gender, guardian_name, guardian_phone, guardian_email, guardian_whatsapp, address, class_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
