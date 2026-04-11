@@ -97,7 +97,7 @@ const worker = new Worker<RemarkJobData>(
 
     await prisma.aIUsageLog.create({
       data: {
-        tenantId,
+        schoolId: tenantId,
         action: "batch_remark",
         tokensUsed: result.tokensUsed,
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",

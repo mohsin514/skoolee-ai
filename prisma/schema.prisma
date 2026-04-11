@@ -30,6 +30,7 @@ model School {
   // Relations
   campuses      Campus[]
   users         User[]
+  aiLogs        AIUsageLog[]
 
   @@map("schools")
 }
@@ -278,6 +279,19 @@ model Payment {
   recorder      User?     @relation("RecordedBy", fields: [recordedBy], references: [id])
 
   @@map("payments")
+}
+
+// ─── 14. AI USAGE LOGS ────────────────────────────────────
+model AIUsageLog {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id])
+  action      String   // e.g., "batch_remark"
+  tokensUsed  Int      @default(0) @map("tokens_used")
+  model       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("ai_usage_logs")
 }
 
 // ─── Enums ────────────────────────────────────────────────

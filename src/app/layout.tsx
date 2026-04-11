@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import "./globals.css";
 
@@ -37,18 +38,20 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
-        <AppLoaderProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            richColors
-            closeButton
-            toastOptions={{
-              duration: 4000,
-              style: { fontFamily: "var(--font-plus-jakarta-sans)" },
-            }}
-          />
-        </AppLoaderProvider>
+        <Suspense fallback={null}>
+          <AppLoaderProvider>
+            {children}
+            <Toaster
+              position="top-right"
+              richColors
+              closeButton
+              toastOptions={{
+                duration: 4000,
+                style: { fontFamily: "var(--font-plus-jakarta-sans)" },
+              }}
+            />
+          </AppLoaderProvider>
+        </Suspense>
       </body>
     </html>
   );
