@@ -3,7 +3,7 @@
 // ===========================================
 
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { getAuthUser } from "@/lib/auth";
 import { z } from "zod";
 import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
 import { sendReportCardNotification } from "@/lib/whatsapp/client";
@@ -18,7 +18,8 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getAuthUser();
+    const userId = user?.userId;
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }

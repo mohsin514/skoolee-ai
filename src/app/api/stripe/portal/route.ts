@@ -3,14 +3,15 @@
 // ===========================================
 // Creates a Stripe billing portal session.
 
-import { auth } from "@clerk/nextjs/server";
+import { getAuthUser } from "@/lib/auth";
 import { getTenantForUser } from "@/lib/db/tenant";
 import { prisma } from "@/lib/db/prisma";
 import { createPortalSession } from "@/lib/stripe/server";
 
 export async function POST() {
   try {
-    const { userId } = await auth();
+    const user = await getAuthUser();
+    const userId = user?.userId;
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }

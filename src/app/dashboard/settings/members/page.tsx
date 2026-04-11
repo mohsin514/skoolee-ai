@@ -1,6 +1,6 @@
 "use client";
 
-import { OrganizationProfile } from "@clerk/nextjs";
+// import { OrganizationProfile } from "@clerk/nextjs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 
@@ -19,19 +19,10 @@ export default function MembersPage() {
       </div>
 
       <div className="rounded-xl border border-sidebar-border bg-card overflow-hidden">
-        <OrganizationProfile 
-          routing="hash"
-          appearance={{
-            elements: {
-              rootBox: "w-full",
-              card: "shadow-none border-none w-full max-w-none p-0",
-              navbar: "hidden", // Hide sidebar to integrate into our layout
-              header: "hidden",
-              pageScrollBox: "p-6",
-              organizationProfile: "w-full",
-            }
-          }}
-        />
+        <div className="p-12 text-center text-gray-500 font-medium bg-white italic">
+          <Users className="mx-auto h-12 w-12 text-gray-200 mb-4" />
+          <p>Member management settings are being migrated to the custom auth engine.</p>
+        </div>
       </div>
     </div>
   );

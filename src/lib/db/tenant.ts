@@ -174,3 +174,50 @@ export async function createTenantSchema(schemaName: string, schoolId: string) {
 
   return schemaName;
 }
+
+/**
+ * NEW: Resolves the tenant schema name for the current logged-in user.
+ * With custom auth, we pull schoolId from the JWT.
+ */
+import { getAuthUser } from "../auth";
+
+export async function getTenantForUser(userId: string) {
+  const user = await getAuthUser();
+  if (!user || user.userId !== userId) return null;
+  
+  // The schema name is derived from the schoolId to ensure uniqueness
+  // Sync logic with /api/auth/register
+  return { 
+    schemaName: `school_${user.schoolId.replace(/-/g, "_")}`,
+    schoolId: user.schoolId 
+  };
+}
+
+/**
+ * NEW: Executes a callback in the context of a specific tenant schema.
+ */
+export async function withTenant<T>(
+  schemaName: string, 
+  cb: (query: (sql: string, params?: any[]) => Promise<any[]>) => Promise<T>
+): Promise<T> {
+  const query = async (sql: string, params: any[] = []) => {
+    // 1. Switch session to the tenant schema
+    await prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);
+    // 2. Execute the raw SQL
+    return prisma.$queryRawUnsafe(sql, ...params);
+  };
+  return cb(query);
+}
+
+/**
+ * NEW: Executes a non-returning statement in a specific tenant schema context.
+ */
+export async function tenantExec(
+  schemaName: string, 
+  sql: string, 
+  params: any[] = []
+): Promise<number> {
+  await prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);
+  return prisma.$executeRawUnsafe(sql, ...params);
+}
+

@@ -87,14 +87,23 @@ export const onboardingSchema = z.object({
 // ─── DIAGRAM 3: Academic & Billing Flow ────────────────────
 
 export const studentSchema = z.object({
-  fullName: z.string().min(2, "Full name required"),
-  rollNo: z.string().min(1, "Roll number required"),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]),
-  classId: z.string().min(1, "Class required"),
-  dateOfBirth: z.string().optional(),
-  phone: z.string().optional(),
-  parentUserId: z.string().optional(),
+  registrationNo: z.string().min(1, "Registration # is required"),
+  firstName: z.string().min(2, "First name required"),
+  lastName: z.string().min(1, "Last name required"),
+  dateOfBirth: z.string().optional().nullable(),
+  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
+  guardianName: z.string().optional().nullable(),
+  guardianPhone: z.string().optional().nullable(),
+  guardianEmail: z.string().email().optional().nullable(),
+  guardianWhatsapp: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  classId: z.string().min(1, "Class is required"),
 });
+
+export const bulkStudentSchema = z.object({
+  students: z.array(studentSchema),
+});
+
 
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),

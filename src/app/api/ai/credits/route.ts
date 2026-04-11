@@ -4,13 +4,14 @@
 
 export const dynamic = "force-dynamic";
 
-import { auth } from "@clerk/nextjs/server";
+import { getAuthUser } from "@/lib/auth";
 import { getTenantForUser } from "@/lib/db/tenant";
 import { prisma } from "@/lib/db/prisma";
 
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const user = await getAuthUser();
+    const userId = user?.userId;
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
