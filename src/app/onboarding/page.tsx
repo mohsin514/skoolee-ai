@@ -8,7 +8,7 @@ import {
   ChevronRight, Network, Loader2,
   Shield, Mail, X, Palette, Globe,
   LayoutGrid, LogOut, Phone, Hash,
-  Zap, Info, Trash2
+  Zap, Info, Trash2, LucideIcon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { finishOnboarding, getOnboardingSession } from '@/app/actions/completeOnboarding';
@@ -16,6 +16,29 @@ import { logout } from '@/app/actions/auth/logout';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+interface StepNavProps {
+  active: boolean;
+  done: boolean;
+  num: number;
+  title: string;
+  desc: string;
+}
+
+interface InputFieldProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  icon: LucideIcon;
+  isArea?: boolean;
+}
+
+interface SummaryItemProps {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}
 
 export default function OnboardingWizard() {
   const [step, setStep] = useState(1);
@@ -187,9 +210,9 @@ export default function OnboardingWizard() {
 
                         <div className="grid md:grid-cols-2 gap-8">
                            <div className="space-y-6">
-                              <InputField label="Institution Name" value={schoolData.name} onChange={v => setSchoolData({...schoolData, name: v})} placeholder="Horizon International" icon={Building} />
-                              <InputField label="Primary City" value={schoolData.city} onChange={v => setSchoolData({...schoolData, city: v})} placeholder="London" icon={MapPin} />
-                              <InputField label="Full Address" value={schoolData.address} onChange={v => setSchoolData({...schoolData, address: v})} placeholder="123 Academic St, Zone A" icon={MapPin} isArea />
+                              <InputField label="Institution Name" value={schoolData.name} onChange={(v: string) => setSchoolData({...schoolData, name: v})} placeholder="Horizon International" icon={Building} />
+                              <InputField label="Primary City" value={schoolData.city} onChange={(v: string) => setSchoolData({...schoolData, city: v})} placeholder="London" icon={MapPin} />
+                              <InputField label="Full Address" value={schoolData.address} onChange={(v: string) => setSchoolData({...schoolData, address: v})} placeholder="123 Academic St, Zone A" icon={MapPin} isArea />
                            </div>
                            <div className="space-y-6 bg-[#fbf0fe] p-8 rounded-3xl border border-[#cfc2d6]/20">
                               <div className="flex items-center justify-between mb-2">
@@ -203,7 +226,7 @@ export default function OnboardingWizard() {
                                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8127cf]/40" />
                                  <Input 
                                     value={schoolData.regId} 
-                                    onChange={v => setSchoolData({...schoolData, regId: v.target.value.toUpperCase()})}
+                                    onChange={e => setSchoolData({...schoolData, regId: e.target.value.toUpperCase()})}
                                     readOnly={schoolData.autoId}
                                     placeholder="SKL-XXXX"
                                     className="h-14 pl-12 bg-white rounded-xl font-bold tracking-widest border-0 shadow-sm focus:ring-2 focus:ring-[#8127cf]/20"
@@ -240,12 +263,12 @@ export default function OnboardingWizard() {
                            </div>
                            
                            <div className="space-y-4">
-                              <InputField label="Campus Name" value={newCampus.name} onChange={v => setNewCampus({...newCampus, name: v})} placeholder="e.g. West End Branch" icon={Building} />
+                              <InputField label="Campus Name" value={newCampus.name} onChange={(v: string) => setNewCampus({...newCampus, name: v})} placeholder="e.g. West End Branch" icon={Building} />
                               <div className="grid grid-cols-2 gap-4">
-                                 <InputField label="City" value={newCampus.city} onChange={v => setNewCampus({...newCampus, city: v})} placeholder="London" icon={MapPin} />
-                                 <InputField label="Phone" value={newCampus.phone} onChange={v => setNewCampus({...newCampus, phone: v})} placeholder="+44..." icon={Phone} />
+                                 <InputField label="City" value={newCampus.city} onChange={(v: string) => setNewCampus({...newCampus, city: v})} placeholder="London" icon={MapPin} />
+                                 <InputField label="Phone" value={newCampus.phone} onChange={(v: string) => setNewCampus({...newCampus, phone: v})} placeholder="+44..." icon={Phone} />
                               </div>
-                              <InputField label="Address" value={newCampus.address} onChange={v => setNewCampus({...newCampus, address: v})} placeholder="Branch street location..." icon={MapPin} isArea />
+                              <InputField label="Address" value={newCampus.address} onChange={(v: string) => setNewCampus({...newCampus, address: v})} placeholder="Branch street location..." icon={MapPin} isArea />
                               
                               <div className="grid grid-cols-2 gap-4 items-end">
                                  <div className="space-y-1">
@@ -370,7 +393,7 @@ export default function OnboardingWizard() {
   );
 }
 
-function StepNav({ active, done, num, title, desc }: any) {
+function StepNav({ active, done, num, title, desc }: StepNavProps) {
   return (
     <div className={`p-5 rounded-2xl transition-all duration-500 flex items-center gap-5 border ${active ? 'bg-[#fbf0fe] border-[#8127cf]/20 shadow-lg shadow-[#8127cf]/5' : 'border-transparent'}`}>
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-colors ${active ? 'bg-[#8127cf] text-white' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-[#4d4354]/30'}`}>
@@ -384,7 +407,7 @@ function StepNav({ active, done, num, title, desc }: any) {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, icon: Icon, isArea }: any) {
+function InputField({ label, value, onChange, placeholder, icon: Icon, isArea }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
        <Label className="text-[10px] font-bold text-[#4d4354] uppercase tracking-wider ml-1">{label}</Label>
@@ -402,7 +425,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea }:
                value={value} 
                onChange={e=>onChange(e.target.value)}
                placeholder={placeholder}
-               className="w-full h-14 pl-12 pr-4 bg-[#f3f4f9] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all outline-none shadow-none"
+               className="w-full h-14 pl-12 pr-4 bg-[#f3f4f9] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none"
             />
           )}
        </div>
@@ -410,7 +433,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea }:
   );
 }
 
-function SummaryItem({ icon: Icon, label, value }: any) {
+function SummaryItem({ icon: Icon, label, value }: SummaryItemProps) {
   return (
     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#8127cf] border border-[#cfc2d6]/20 flex-shrink-0">

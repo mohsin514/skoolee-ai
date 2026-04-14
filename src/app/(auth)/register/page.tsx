@@ -6,7 +6,8 @@ import {
   Network, Building2, ChevronRight, Mail, Lock, 
   User as UserIcon, Loader2, GraduationCap, 
   CheckCircle, ShieldCheck, XCircle, AlertCircle,
-  ArrowRight, Hash, Building, Info, ChevronLeft
+  ArrowRight, Hash, Building, Info, ChevronLeft,
+  LucideIcon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { submitSignupStep1, submitSignupStep2 } from '@/app/actions/signup';
@@ -14,6 +15,23 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+interface InputFieldProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (val: string) => void;
+  icon: LucideIcon;
+  type?: string;
+}
+
+interface TypeOptionProps {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+}
 
 export default function SplitSignupFlow() {
   const [step, setStep] = useState(1);
@@ -157,14 +175,14 @@ export default function SplitSignupFlow() {
                 <form className="space-y-5" onSubmit={handleStep2Submit}>
                   {/* Account Owner */}
                   <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Full Name" placeholder="Full Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} icon={UserIcon} />
-                    <InputField label="Work Email" placeholder="email@institution.edu" value={formData.email} onChange={v => setFormData({...formData, email: v})} icon={Mail} />
+                    <InputField label="Full Name" placeholder="Full Name" value={formData.name} onChange={(v: string) => setFormData({...formData, name: v})} icon={UserIcon} />
+                    <InputField label="Work Email" placeholder="email@institution.edu" value={formData.email} onChange={(v: string) => setFormData({...formData, email: v})} icon={Mail} />
                   </div>
 
                   {/* Institutional Global Registry (Synced to Onboarding) */}
                   <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
                      <div className="space-y-1">
-                        <InputField label="Institution / Group Name" placeholder="e.g. Horizon International" value={formData.schoolName} onChange={v => setFormData({...formData, schoolName: v})} icon={Building} />
+                        <InputField label="Institution / Group Name" placeholder="e.g. Horizon International" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} />
                         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-widest pl-1 mt-1 flex items-center gap-1.5 leading-none">
                            <Info className="w-3 h-3 text-[#8127cf]" /> This will be the global entity name.
                         </p>
@@ -196,8 +214,8 @@ export default function SplitSignupFlow() {
 
                   {/* Security Credentials */}
                   <div className="grid grid-cols-2 gap-4">
-                     <InputField label="New Password" type="password" placeholder="••••••••" value={formData.password} onChange={v => setFormData({...formData, password: v})} icon={Lock} />
-                     <InputField label="Verify Password" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={v => setFormData({...formData, confirmPassword: v})} icon={ShieldCheck} />
+                     <InputField label="New Password" type="password" placeholder="••••••••" value={formData.password} onChange={(v: string) => setFormData({...formData, password: v})} icon={Lock} />
+                     <InputField label="Verify Password" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={(v: string) => setFormData({...formData, confirmPassword: v})} icon={ShieldCheck} />
                   </div>
 
                   <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-emerald-100/30">
@@ -251,7 +269,7 @@ export default function SplitSignupFlow() {
   );
 }
 
-function TypeOption({ active, onClick, icon: Icon, title, desc }: any) {
+function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProps) {
   return (
     <div 
       onClick={onClick} 
@@ -273,7 +291,7 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: any) {
   );
 }
 
-function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text" }: any) {
+function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text" }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-[0.1em] ml-1.5">{label}</Label>
