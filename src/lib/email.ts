@@ -5,7 +5,13 @@ import { InviteEmail } from './email/templates/InviteEmail';
 // Ensure RESEND_API_KEY is in your .env file
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_fallback');
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+};
+
+const APP_URL = getBaseUrl();
 const FROM_EMAIL = 'onboarding@resend.dev'; // Use Resend's default testing domain so it works out of the box on free tier
 
 export async function sendVerificationEmail(email: string, userId: string, token: string) {
