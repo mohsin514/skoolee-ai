@@ -1,22 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GraduationCap, Loader2, Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("verified") === "true") {
+      toast.success("Account successfully verified! Please log in.", {
+        duration: 8000,
+      });
+      window.history.replaceState(null, '', '/login');
+    }
+  }, [searchParams]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -33,7 +41,12 @@ export default function LoginPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Login failed");
       toast.success(`Welcome back, ${json.user.fullName}!`);
-      router.push("/dashboard");
+
+      if (json.user.role === 'SUPER_ADMIN') router.push('/super');
+      else if (json.user.role === 'CAMPUS_ADMIN') router.push('/admin');
+      else if (json.user.role === 'PRINCIPAL') router.push('/principal');
+      else if (json.user.role === 'TEACHER') router.push('/teacher');
+      else router.push('/student');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Login failed");
     } finally {
@@ -89,7 +102,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form Section */}
-          <div className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
+          <div className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">Welcome Back!</h2>
               <p className="text-[#4d4354] text-sm mt-1">Please enter your details to access your dashboard.</p>
@@ -120,12 +133,12 @@ export default function LoginPage() {
               {/* Password Input */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="password" className="text-xs font-bold text-[#4d4354] uppercase tracking-wider">
+                  <Label htmlFor="password" title="Enter your account password" className="text-xs font-bold text-[#4d4354] uppercase tracking-wider">
                     Password
                   </Label>
-                  <a href="/forgot-password" className="text-xs font-bold text-[#8127cf] hover:text-[#9c48ea] transition-colors">
+                  <Link href="/forgot-password" size="sm" className="text-xs font-bold text-[#8127cf] hover:text-[#9c48ea] transition-colors">
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative flex items-center">
                   <div className="absolute left-4 text-[#4d4354] pointer-events-none">
@@ -199,14 +212,6 @@ export default function LoginPage() {
               </p>
             </div>
           </div>
-
-          <div className="mt-10 text-center">
-            <p className="text-[#4d4354] text-sm font-medium">
-              New to the platform?
-              <a href="#" className="text-[#8127cf] font-bold hover:underline ml-1">Contact Administration</a>
-            </p>
-          </div>
-
         </div>
       </section>
     </main>

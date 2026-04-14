@@ -44,10 +44,23 @@ export default function RootLayout({
             <Toaster
               position="top-right"
               richColors
+              expand
               closeButton
               toastOptions={{
-                duration: 4000,
-                style: { fontFamily: "var(--font-plus-jakarta-sans)" },
+                duration: 5000,
+                style: { 
+                  fontFamily: "var(--font-plus-jakarta-sans)",
+                  borderRadius: "24px",
+                  padding: "16px 20px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  letterSpacing: "-0.01em",
+                  border: "1px solid rgba(207, 194, 214, 0.3)",
+                  boxShadow: "0 25px 50px -12px rgba(31, 26, 35, 0.1)",
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(8px)",
+                },
+                className: "skoolee-toast",
               }}
             />
           </AppLoaderProvider>

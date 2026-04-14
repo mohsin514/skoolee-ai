@@ -176,3 +176,42 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
+
+/* ─── Skoolee Premium Toasts ───────────────────────────── */
+
+.skoolee-toast {
+  --normal-bg: rgba(255, 255, 255, 0.9);
+  --normal-border: rgba(207, 194, 214, 0.4);
+  --normal-text: #1f1a23;
+  
+  box-shadow: 0 32px 64px -12px rgba(31, 26, 35, 0.12) !important;
+  border: 1px solid var(--normal-border) !important;
+  backdrop-filter: blur(12px) !important;
+  padding: 18px 24px !important;
+}
+
+.skoolee-toast [data-icon] {
+  margin-right: 12px;
+  transform: scale(1.1);
+}
+
+.skoolee-toast [data-title] {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+
+.skoolee-toast [data-description] {
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+[data-sonner-toaster][data-theme='light'] {
+  --success-bg: #ecfdf5;
+  --success-border: #10b981;
+  --success-text: #065f46;
+  
+  --error-bg: #fef2f2;
+  --error-border: #ef4444;
+  --error-text: #991b1b;
+}

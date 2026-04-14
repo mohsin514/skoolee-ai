@@ -9,7 +9,10 @@ import { jwtVerify } from "jose";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/accept-invite", "/api/auth/login", "/api/auth/register", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/", "/login", "/register", "/accept-invite", "/forgot-password",
+  "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/verify"
+];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -43,6 +46,26 @@ export async function proxy(req: NextRequest) {
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { role, onboardingComplete } = payload as any;
+
+    if (!onboardingComplete && !pathname.startsWith("/onboarding") && !pathname.startsWith("/api")) {
+      return NextResponse.redirect(new URL("/onboarding", req.url));
+    }
+
+    if (onboardingComplete && pathname.startsWith("/onboarding")) {
+       if(role === 'SUPER_ADMIN') return NextResponse.redirect(new URL("/super", req.url));
+       if(role === 'CAMPUS_ADMIN') return NextResponse.redirect(new URL("/admin", req.url));
+       if(role === 'PRINCIPAL') return NextResponse.redirect(new URL("/principal", req.url));
+       if(role === 'TEACHER') return NextResponse.redirect(new URL("/teacher", req.url));
+       if(role === 'PARENT' || role === 'STUDENT') return NextResponse.redirect(new URL("/student", req.url));
+    }
+
+    // Role-based routing guard
+    if (pathname.startsWith("/super") && role !== "SUPER_ADMIN") return NextResponse.redirect(new URL("/403", req.url));
+    if (pathname.startsWith("/admin") && role !== "CAMPUS_ADMIN") return NextResponse.redirect(new URL("/403", req.url));
+    if (pathname.startsWith("/principal") && role !== "PRINCIPAL") return NextResponse.redirect(new URL("/403", req.url));
+    if (pathname.startsWith("/teacher") && role !== "TEACHER") return NextResponse.redirect(new URL("/403", req.url));
+    if (pathname.startsWith("/student") && role !== "STUDENT") return NextResponse.redirect(new URL("/403", req.url));
 
     // Inject auth context as headers for server components
     const requestHeaders = new Headers(req.headers);

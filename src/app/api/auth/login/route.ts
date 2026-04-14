@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user.isActive) {
-      return Response.json({ error: "Account is disabled" }, { status: 403 });
+      return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
     }
 
     // 2. Verify password
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       schoolId: user.schoolId,
       campusId: user.campusId,
       schoolSlug: user.school?.slug,
+      onboardingComplete: user.onboardingComplete,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("7d")
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
         campusId: user.campusId,
         schoolName: user.school?.name,
         campusName: user.campus?.name,
+        onboardingComplete: user.onboardingComplete,
       },
     });
 
