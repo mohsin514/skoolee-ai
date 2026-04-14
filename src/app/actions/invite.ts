@@ -15,23 +15,32 @@ const InviteSchema = z.object({
 
 export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && session.role !== 'CAMPUS_ADMIN')) {
+  if (!session || (session.role !== 'SUPER_ADMIN' && session.role !== 'CAMPUS_ADMIN' && session.role !== 'ADMIN')) {
     throw new Error('403 Forbidden');
   }
 
   const valid = InviteSchema.parse(data);
-
-  // If Campus Admin, force their own campus ID
-  const targetCampusId = session.role === 'CAMPUS_ADMIN' ? session.campusId : valid.campusId;
+  const targetCampusId = (session.role === 'CAMPUS_ADMIN' || session.role === 'ADMIN') ? session.campusId : valid.campusId;
   
-  if (!targetCampusId) {
-    throw new Error('Campus ID is required');
+  if (!targetCampusId) throw new Error('Campus ID is required');
+
+  // Enforce Single Admin / Single Principal rule
+  if (valid.role === 'CAMPUS_ADMIN' || valid.role === 'PRINCIPAL') {
+    const existingUser = await prisma.user.findFirst({
+      where: { campusId: targetCampusId, role: valid.role, isActive: true }
+    });
+    const existingInvite = await prisma.staffInvitation.findFirst({
+      where: { campusId: targetCampusId, role: valid.role as any, status: 'pending' }
+    });
+
+    if (existingUser || existingInvite) {
+      throw new Error(`A ${valid.role.replace('_', ' ')} is already assigned or invited to this facility.`);
+    }
   }
 
-  // Create invite token
   const token = randomUUID();
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 48); // 48h expiry
+  expiresAt.setHours(expiresAt.getHours() + 48);
 
   const invite = await prisma.staffInvitation.create({
     data: {
@@ -44,11 +53,29 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   });
 
   const campus = await prisma.campus.findUnique({ where: { id: targetCampusId } });
-  
-  // Here you would integrate Resend or other email provider
   await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token);
 
-  return { success: true, token }; // Returning token for dev/debugging
+  return { success: true };
+}
+
+export async function removeStaff(userId: string) {
+  const session = await getAuthUser();
+  if (!session || (session.role !== 'SUPER_ADMIN' && session.role !== 'CAMPUS_ADMIN' && session.role !== 'ADMIN')) {
+    throw new Error('403 Forbidden');
+  }
+
+  await prisma.user.delete({ where: { id: userId } });
+  return { success: true };
+}
+
+export async function cancelInvitation(inviteId: string) {
+  const session = await getAuthUser();
+  if (!session || (session.role !== 'SUPER_ADMIN' && session.role !== 'CAMPUS_ADMIN' && session.role !== 'ADMIN')) {
+    throw new Error('403 Forbidden');
+  }
+
+  await prisma.staffInvitation.delete({ where: { id: inviteId } });
+  return { success: true };
 }
 
 export async function acceptInvite(token: string, passwordHash: string, fullName: string) {

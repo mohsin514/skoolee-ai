@@ -27,6 +27,13 @@ export async function sendVerificationEmail(email: string, userId: string, token
     });
 
     if (error) {
+      // Handle Resend Free Tier / Sandbox restrictions (403/Validation error)
+      if (error.name === 'validation_error' || (error as any).statusCode === 403) {
+        console.warn("\n [RESEND RESTRICTION] You are on a free tier or sandbox. Email was not sent to recipient.");
+        console.warn(` [FALLBACK] Manual Verification Link: ${actionUrl}\n`);
+        return { success: true, bypass: true };
+      }
+      
       console.error("[EMAIL ERROR] Failed sending verification:", error);
       throw new Error("Email dispatch failed");
     }
@@ -55,6 +62,11 @@ export async function sendInviteEmail(email: string, role: string, campusName: s
     });
 
     if (error) {
+       if (error.name === 'validation_error' || (error as any).statusCode === 403) {
+        console.warn("\n [RESEND RESTRICTION] Sandbox mode. Invite link generated in log.");
+        console.warn(` [FALLBACK] Manual Invite Link: ${actionUrl}\n`);
+        return { success: true, bypass: true };
+      }
       console.error("[EMAIL ERROR] Failed sending invite:", error);
       throw new Error("Email dispatch failed");
     }
@@ -88,7 +100,14 @@ export async function sendPasswordResetEmail(email: string, token: string) {
       `,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+       if (error.name === 'validation_error' || (error as any).statusCode === 403) {
+        console.warn("\n [RESEND RESTRICTION] Sandbox mode. Reset link generated in log.");
+        console.warn(` [FALLBACK] Manual Reset Link: ${actionUrl}\n`);
+        return { success: true, bypass: true };
+      }
+      throw new Error(error.message);
+    }
     return { success: true };
   } catch (err) {
     if (!process.env.RESEND_API_KEY) {

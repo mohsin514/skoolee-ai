@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  LayoutGrid, Users, Bookmark, Star, Zap, 
+  LayoutGrid, Users, Bookmark, Star, Zap, GraduationCap,
   HelpCircle, LogOut, FileText, Bell, Settings,
   Search, Plus, Download, ChevronRight, Share2,
   CheckCircle2, Shield, MessageSquare, Mail, Phone, 
@@ -70,10 +70,10 @@ export default function PrincipalDashboard() {
       <aside className="w-64 bg-white/50 backdrop-blur-md border-r border-[#cfc2d6]/30 flex flex-col p-6 fixed h-full z-50">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-8 w-8 rounded-lg bg-[#8127cf] flex items-center justify-center shadow-lg">
-              <Shield className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
+               <img src="/favicon.svg" alt="Logo" className="h-6 w-6 object-contain brightness-0 invert" />
             </div>
-            <h1 className="font-black text-lg tracking-tighter text-[#8127cf]">Skoolee AI</h1>
+            <h1 className="font-black text-xl tracking-tighter text-[#8127cf]">Skoolee AI</h1>
           </div>
           <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-[0.2em] pl-11">The Joyful Architect</p>
         </div>

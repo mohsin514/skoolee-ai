@@ -16,63 +16,53 @@ export async function getSuperAdminDashboardData() {
 
   const schoolId = String(payload.schoolId);
 
-  // Fetch all campuses
+  // Fetch all campuses with their Admins and Principals
   const campuses = await prisma.campus.findMany({
     where: { schoolId },
     include: {
+      users: {
+        where: { role: { in: ['CAMPUS_ADMIN', 'PRINCIPAL'] } },
+        select: { id: true, fullName: true, email: true, role: true, onboardingComplete: true, isActive: true }
+      },
+      staffInvitations: {
+        where: { role: { in: ['CAMPUS_ADMIN', 'PRINCIPAL'] }, status: 'pending' },
+        select: { id: true, email: true, role: true, status: true, expiresAt: true }
+      },
       _count: {
-        select: { users: true }
+        select: { users: true, classes: true }
       }
     }
   });
 
-  // Fetch School Info
-  const school = await prisma.school.findUnique({
-    where: { id: schoolId }
-  });
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
 
-  // Fetch Admins
-  const admins = await prisma.user.findMany({
-    where: { schoolId, role: 'CAMPUS_ADMIN' },
-    select: { id: true, fullName: true, email: true, isActive: true, campus: { select: { name: true } } }
-  });
+  const formattedCampuses = campuses.map(c => {
+    const admin = c.users.find(u => u.role === 'CAMPUS_ADMIN');
+    const principal = c.users.find(u => u.role === 'PRINCIPAL');
+    const pendingAdmin = c.staffInvitations.find(i => i.role === 'CAMPUS_ADMIN');
+    const pendingPrincipal = c.staffInvitations.find(i => i.role === 'PRINCIPAL');
 
-  // Fetch Pending Invites
-  const pendingInvites = await prisma.staffInvitation.findMany({
-    where: { role: 'CAMPUS_ADMIN', campus: { schoolId } },
-    select: { id: true, email: true, role: true, status: true, campus: { select: { name: true } } }
+    return {
+      id: c.id,
+      name: c.name,
+      city: c.city,
+      status: "Active",
+      studentCount: c._count.users, // This counts all users, for now close enough
+      classCount: c._count.classes,
+      admin: admin ? { ...admin, status: admin.onboardingComplete ? 'Active' : 'Onboarding' } : (pendingAdmin ? { email: pendingAdmin.email, status: 'Invited' } : null),
+      principal: principal ? { ...principal, status: principal.onboardingComplete ? 'Active' : 'Onboarding' } : (pendingPrincipal ? { email: pendingPrincipal.email, status: 'Invited' } : null)
+    };
   });
-
-  // Calculate totals
-  const totalCampuses = campuses.length;
-  const staffCount = await prisma.user.count({
-    where: { schoolId, role: { in: ['TEACHER', 'PRINCIPAL', 'CAMPUS_ADMIN'] } }
-  });
-  const studentCount = await prisma.user.count({
-    where: { schoolId, role: 'STUDENT' }
-  });
-
-  const formattedCampuses = campuses.map(c => ({
-    id: c.id,
-    name: c.name,
-    status: "Active",
-    students: Number(c._count.users),
-    staff: "Varies",
-    fee: 100,
-    marks: 100,
-    color: "emerald"
-  }));
 
   return {
     schoolName: school?.name || "System",
     schoolSlug: school?.slug || "system",
-    totalCampuses,
-    staffCount,
-    studentCount,
-    feeProgress: "100%",
-    campusesList: formattedCampuses,
-    adminsList: admins,
-    invitesList: pendingInvites
+    campuses: formattedCampuses,
+    user: {
+       fullName: String(payload.fullName || "Owner"),
+       email: String(payload.email || ""),
+       role: "Super Admin"
+    }
   };
 }
 
@@ -82,30 +72,45 @@ export async function getCampusDashboardData() {
   if (!token) throw new Error("Unauthorized");
 
   const { payload } = await jwtVerify(token, JWT_SECRET);
-  if (payload.role !== "CAMPUS_ADMIN") throw new Error("Permission Denied");
+  const userRole = String(payload.role);
+  if (userRole !== "CAMPUS_ADMIN" && userRole !== "ADMIN") throw new Error("Permission Denied");
 
   const campusId = String(payload.campusId);
   const schoolId = String(payload.schoolId);
 
-  // Fetch Students in this campus
-  const students = await prisma.user.findMany({
-    where: { campusId, role: 'STUDENT' },
-    select: { id: true, fullName: true, email: true, isActive: true }
+  // Fetch Classes
+  const classes = await prisma.class.findMany({
+    where: { campusId },
+    include: {
+      _count: { select: { students: true } },
+      classTeacher: { select: { fullName: true } }
+    }
   });
 
-  const studentCount = students.length;
+  // Fetch Teachers
+  const teachers = await prisma.user.findMany({
+    where: { campusId, role: 'TEACHER' },
+    select: { id: true, fullName: true, email: true, isActive: true, onboardingComplete: true }
+  });
 
-  // Placeholder for accounting data (we'll implement this properly later)
-  const stats = {
-    totalStudents: studentCount,
-    revenue: 0,
-    recovery: 0,
-    activeInvoices: 0
-  };
+  // Fetch Principal (Max 1)
+  const principal = await prisma.user.findFirst({
+    where: { campusId, role: 'PRINCIPAL' },
+    select: { id: true, fullName: true, email: true, onboardingComplete: true }
+  });
+
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+  const campus = await prisma.campus.findUnique({ where: { id: campusId } });
 
   return {
-    students,
-    stats
+    schoolName: school?.name || "Institution",
+    campusName: campus?.name || "Campus",
+    classes,
+    teachers,
+    principal,
+    adminName: String(payload.fullName || "Administrator"),
+    adminEmail: String(payload.email || ""),
+    roleLabel: "Campus Admin"
   };
 }
 

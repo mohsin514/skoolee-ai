@@ -13,7 +13,7 @@ export async function getOnboardingSession() {
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    if (payload.onboardingComplete) return { redirect: true };
+    if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
     
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
@@ -22,7 +22,7 @@ export async function getOnboardingSession() {
     
     return { user };
   } catch (e) {
-    return null;
+    return { error: true };
   }
 }
 
@@ -46,8 +46,9 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
   });
 
   // 2. Create All Campuses
+  let primaryCampusId = null;
   for (const c of campuses) {
-    await prisma.campus.create({
+    const campus = await prisma.campus.create({
       data: {
         schoolId: schoolId,
         name: c.name,
@@ -58,12 +59,18 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
         board: c.board,
       }
     });
+    if (!primaryCampusId) primaryCampusId = campus.id;
   }
 
   // 3. Finalize User
+  const updateData: any = { onboardingComplete: true };
+  if (payload.role === 'ADMIN' && primaryCampusId) {
+    updateData.campusId = primaryCampusId;
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
-    data: { onboardingComplete: true },
+    data: updateData,
     include: { school: true },
   });
 
@@ -71,8 +78,10 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
   const newToken = await new SignJWT({
     userId: updatedUser.id,
     email: updatedUser.email,
+    fullName: updatedUser.fullName,
     role: updatedUser.role,
     schoolId: updatedUser.schoolId,
+    campusId: updatedUser.campusId, // CRITICAL: Include campusId
     schoolSlug: updatedUser.school?.slug,
     onboardingComplete: true,
   })

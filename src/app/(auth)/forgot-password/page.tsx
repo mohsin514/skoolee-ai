@@ -122,7 +122,7 @@ export default function ForgotPasswordPage() {
       <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#fbf0fe] relative h-screen overflow-y-auto w-full">
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-2xl flex items-center justify-center shadow-lg mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg mb-4">
                <GraduationCap className="h-10 w-10 text-white" />
             </div>
             <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>

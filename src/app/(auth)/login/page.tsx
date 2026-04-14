@@ -43,7 +43,7 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${json.user.fullName}!`);
 
       if (json.user.role === 'SUPER_ADMIN') router.push('/super');
-      else if (json.user.role === 'CAMPUS_ADMIN') router.push('/admin');
+      else if (json.user.role === 'CAMPUS_ADMIN' || json.user.role === 'ADMIN') router.push('/admin');
       else if (json.user.role === 'PRINCIPAL') router.push('/principal');
       else if (json.user.role === 'TEACHER') router.push('/teacher');
       else router.push('/student');
@@ -89,13 +89,8 @@ export default function LoginPage() {
 
           {/* Logo & Brand Header */}
           <div className="flex flex-col items-center mb-10">
-            <div className="relative mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-2xl flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
-                <GraduationCap className="h-10 w-10 text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#b10e6b] rounded-full border-4 border-[#fff7fe] flex items-center justify-center">
-                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-              </div>
+            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg transform rotate-3 mb-4">
+              <GraduationCap className="h-10 w-10 text-white" />
             </div>
             <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>
             <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>

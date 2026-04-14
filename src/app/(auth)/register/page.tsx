@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Network, Building2, ChevronRight, Mail, Lock, 
+  Building2, ChevronRight, Mail, Lock, 
   User as UserIcon, Loader2, GraduationCap, 
-  CheckCircle, ShieldCheck, XCircle, AlertCircle,
+  CheckCircle, ShieldCheck, XCircle,
   ArrowRight, Hash, Building, Info, ChevronLeft,
-  LucideIcon
+  LucideIcon, Network
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { submitSignupStep1, submitSignupStep2 } from '@/app/actions/signup';
@@ -58,10 +58,11 @@ export default function SplitSignupFlow() {
   ];
 
   const handleStep1 = () => {
+    // Re-verify archetype selection and move to Step 2
     setStep(2);
-    // Auto-gen ID for first time if none exists
-    if (!formData.regId && formData.autoId) {
-       setFormData(prev => ({ ...prev, regId: `SKL-${Math.random().toString(36).substring(2, 6).toUpperCase()}` }));
+    // Auto-gen ID for group flow if needed
+    if (type === 'school_group' && !formData.regId && formData.autoId) {
+        setFormData(prev => ({ ...prev, regId: `SKL-${Math.random().toString(36).substring(2, 6).toUpperCase()}` }));
     }
   };
 
@@ -72,14 +73,30 @@ export default function SplitSignupFlow() {
 
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.name || !formData.email) {
+      toast.error("Personal and Work contact details are required.");
+      return;
+    }
+
     const unmet = passwordRequirements.filter(r => !r.met);
     if (unmet.length > 0) {
       toast.error("Please satisfy all security requirements.");
       return;
     }
 
-    if (!formData.schoolName || !formData.regId) {
-      toast.error("Institution Name and Identity ID are required.");
+    // Prepare final data based on archetype
+    let finalSchoolName = formData.schoolName;
+    let finalRegId = formData.regId;
+
+    if (type === 'single_campus') {
+       // Auto-generate hidden group entity for standalone schools
+       finalSchoolName = `${formData.name} Academy`;
+       finalRegId = `SC-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    }
+
+    if (!finalSchoolName || !finalRegId) {
+      toast.error("Institutional Identity is required.");
       return;
     }
 
@@ -94,8 +111,8 @@ export default function SplitSignupFlow() {
         email: formData.email,
         fullName: formData.name,
         password: formData.password,
-        schoolName: formData.schoolName,
-        regId: formData.regId
+        schoolName: finalSchoolName,
+        regId: finalRegId
       });
 
       setStep(3);
@@ -109,26 +126,28 @@ export default function SplitSignupFlow() {
   return (
     <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
       
-      {/* ─── LEFT SIDE: Visual Narrative ─── */}
+      {/* ─── LEFT SIDE ─── */}
       <section className="hidden md:block relative overflow-hidden h-screen">
         <div className="absolute inset-0 bg-[#8127cf]/10 mix-blend-multiply z-10"></div>
         <img src="/login.svg" alt="Skoolee Registration" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/40 to-transparent z-20"></div>
         <div className="absolute bottom-12 left-12 z-30 max-w-md">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-widest text-[#9c48ea] uppercase mb-2 block">Institutional Setup</span>
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"The foundation of every state is the education of its youth."</h2>
-            <p className="text-[#4d4354] font-medium text-sm">Initialize your institution's digital architecture today with Skoolee AI.</p>
+            <span className="text-[12px] font-bold tracking-widest text-[#9c48ea] uppercase mb-2 block">Institutional Phase</span>
+            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">
+               {type === 'school_group' ? "Centralized management for educational networks." : "Professional console for standalone academies."}
+            </h2>
+            <p className="text-[#4d4354] font-medium text-sm">Deploy your architectural layer in minutes.</p>
           </div>
         </div>
       </section>
 
-      {/* ─── RIGHT SIDE: Interaction Canvas ─── */}
+      {/* ─── RIGHT SIDE ─── */}
       <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#fbf0fe] relative h-screen overflow-y-auto w-full">
         <div className="w-full max-w-lg">
           
           <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-2xl flex items-center justify-center shadow-lg transform rotate-3 mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg transform rotate-3 mb-4">
               <GraduationCap className="h-10 w-10 text-white" />
             </div>
             <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>
@@ -138,23 +157,23 @@ export default function SplitSignupFlow() {
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">Select Archetype</h2>
-                  <p className="text-[#4d4354] text-sm mt-1">Determine how your institution will be structured.</p>
+                <div className="mb-8 text-center md:text-left">
+                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">Select Archetype</h2>
+                  <p className="text-[#4d4354]/60 text-sm font-medium mt-1">Determine your institutional structure first.</p>
                 </div>
                 
                 <div className="space-y-4 mb-8">
-                   <TypeOption active={type === 'school_group'} onClick={() => setType('school_group')} icon={Network} title="Multi-Campus Group" desc="Centralized command for chains and franchises." />
-                   <TypeOption active={type === 'single_campus'} onClick={() => setType('single_campus')} icon={Building2} title="Single Campus" desc="Fast configuration for standalone educational nodes." />
+                   <TypeOption active={type === 'school_group'} onClick={() => setType('school_group')} icon={Network} title="Multi-Campus Group" desc="Command center for educational chains." />
+                   <TypeOption active={type === 'single_campus'} onClick={() => setType('single_campus')} icon={Building2} title="Standalone Academy" desc="Direct setup for single-facility schools." />
                 </div>
 
                 <button onClick={handleStep1} className="w-full h-14 bg-[#8127cf] text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 group hover:bg-[#9c48ea] active:scale-[0.98] transition-all">
-                  Proceed to Identity <ArrowRight className="h-5 w-5 group-hover:translate-x-1" />
+                  Initialize Registry <ArrowRight className="h-5 w-5 group-hover:translate-x-1" />
                 </button>
                 
                 <div className="mt-8 pt-6 border-t border-[#cfc2d6]/10 text-center">
                   <p className="text-sm text-[#4d4354] font-medium">
-                    Already have an account? <Link href="/login" className="text-[#8127cf] font-bold hover:underline ml-1">Sign in instead</Link>
+                    Already operational? <Link href="/login" className="text-[#8127cf] font-bold hover:underline ml-1">Log in to console</Link>
                   </p>
                 </div>
               </motion.div>
@@ -164,80 +183,72 @@ export default function SplitSignupFlow() {
               <motion.div key="s2" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
                 <div className="mb-8 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">Establish Identity</h2>
-                    <p className="text-xs font-bold text-[#8127cf] uppercase tracking-wider mt-1">{type.replace('_', ' ')} Setup</p>
+                    <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">Access Authority</h2>
+                    <p className="text-xs font-bold text-[#8127cf] uppercase tracking-wider mt-1">{type.replace('_', ' ')} Phase</p>
                   </div>
-                  <button onClick={() => setStep(1)} type="button" className="text-xs font-bold text-[#4d4354]/40 hover:text-[#8127cf] flex items-center gap-1 transition-colors">
-                    <ChevronLeft className="w-4 h-4" /> Change Type
-                  </button>
+                  <button onClick={() => setStep(1)} className="p-2 bg-[#fbf0fe] rounded-lg text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all"><ArrowRight className="w-4 h-4 rotate-180" /></button>
                 </div>
 
                 <form className="space-y-5" onSubmit={handleStep2Submit}>
-                  {/* Account Owner */}
+                  
+                  {/* Common Personal Details */}
                   <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Full Name" placeholder="Full Name" value={formData.name} onChange={(v: string) => setFormData({...formData, name: v})} icon={UserIcon} />
-                    <InputField label="Work Email" placeholder="email@institution.edu" value={formData.email} onChange={(v: string) => setFormData({...formData, email: v})} icon={Mail} />
+                    <InputField label="Admin Name" placeholder="Your Name" value={formData.name} onChange={(v: string) => setFormData({...formData, name: v})} icon={UserIcon} />
+                    <InputField label="Work Email" placeholder="email@school.edu" value={formData.email} onChange={(v: string) => setFormData({...formData, email: v})} icon={Mail} />
                   </div>
 
-                  {/* Institutional Global Registry (Synced to Onboarding) */}
-                  <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
-                     <div className="space-y-1">
-                        <InputField label="Institution / Group Name" placeholder="e.g. Horizon International" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} />
-                        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-widest pl-1 mt-1 flex items-center gap-1.5 leading-none">
-                           <Info className="w-3 h-3 text-[#8127cf]" /> This will be the global entity name.
-                        </p>
-                     </div>
+                  {/* Archetype Specific Registry */}
+                  {type === 'school_group' && (
+                    <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
+                       <InputField label="Group/Organization Name" placeholder="e.g. Beaconhouse Group" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} />
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-bold text-[#8127cf] tracking-widest uppercase">Global Registry ID (Reg ID)</Label>
+                          <div className="relative">
+                             <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/40" />
+                             <Input 
+                                readOnly={formData.autoId} 
+                                value={formData.regId} 
+                                onChange={e => setFormData({...formData, regId: e.target.value.toUpperCase()})}
+                                className="h-12 pl-11 bg-white border-0 font-bold tracking-widest text-[#1f1a23] rounded-xl" 
+                             />
+                          </div>
+                          <div className="flex gap-2">
+                             <button type="button" onClick={() => handleAutoId(true)} className={`text-[9px] font-black px-2 py-0.5 rounded ${formData.autoId ? 'bg-[#8127cf] text-white' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto-Gen</button>
+                             <button type="button" onClick={() => handleAutoId(false)} className={`text-[9px] font-black px-2 py-0.5 rounded ${!formData.autoId ? 'bg-[#8127cf] text-white' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
+                          </div>
+                       </div>
+                    </div>
+                  )}
 
-                     <div className="space-y-2 pt-2">
-                        <div className="flex justify-between items-center px-1">
-                           <Label className="text-[10px] font-bold text-[#8127cf] tracking-widest uppercase">Global Registry identity (Reg ID)</Label>
-                           <div className="bg-white rounded-lg p-1 flex border border-[#cfc2d6]/30">
-                              <button type="button" onClick={()=>handleAutoId(true)} className={`px-2 py-0.5 text-[9px] font-black rounded-md transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-[#4d4354]/40'}`}>Auto-Gen</button>
-                              <button type="button" onClick={()=>handleAutoId(false)} className={`px-2 py-0.5 text-[9px] font-black rounded-md transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-[#4d4354]/40'}`}>Manual</button>
-                           </div>
-                        </div>
-                        <div className="relative">
-                           <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/40" />
-                           <Input 
-                              readOnly={formData.autoId} 
-                              value={formData.regId} 
-                              onChange={e => setFormData({...formData, regId: e.target.value.toUpperCase()})}
-                              placeholder="SKL-XXXX"
-                              className="h-12 pl-11 bg-white border-0 font-bold tracking-widest text-[#1f1a23] rounded-xl focus:ring-2 focus:ring-[#8127cf]/20 shadow-none text-sm transition-all" 
-                           />
-                        </div>
-                        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-widest pl-1 leading-relaxed">
-                           {formData.autoId ? "System will generate a unique architectural code for you." : "Enter your permanent institutional registration code."}
-                        </p>
-                     </div>
-                  </div>
+                  {type === 'single_campus' && (
+                    <div className="p-5 bg-emerald-50/50 rounded-2xl border border-emerald-100 flex items-center gap-4">
+                       <ShieldCheck className="w-8 h-8 text-emerald-500" />
+                       <div>
+                          <p className="text-xs font-bold text-[#1f1a23]">Simplified Setup Enabled</p>
+                          <p className="text-[10px] text-[#4d4354]/60">Your institutional group layer will be auto-instantiated.</p>
+                       </div>
+                    </div>
+                  )}
 
-                  {/* Security Credentials */}
+                  {/* Security */}
                   <div className="grid grid-cols-2 gap-4">
-                     <InputField label="New Password" type="password" placeholder="••••••••" value={formData.password} onChange={(v: string) => setFormData({...formData, password: v})} icon={Lock} />
+                     <InputField label="Choose Password" type="password" placeholder="••••••••" value={formData.password} onChange={(v: string) => setFormData({...formData, password: v})} icon={Lock} />
                      <InputField label="Verify Password" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={(v: string) => setFormData({...formData, confirmPassword: v})} icon={ShieldCheck} />
                   </div>
 
-                  <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-emerald-100/30">
-                     <div className="grid grid-cols-2 gap-y-1.5">
-                        {passwordRequirements.map((r, i) => (
-                          <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
-                             {r.met ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />} {r.label}
-                          </div>
-                        ))}
-                     </div>
+                  {/* Password Feedback */}
+                  <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-emerald-100/30 grid grid-cols-2 gap-y-1.5">
+                      {passwordRequirements.map((r, i) => (
+                        <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+                           {r.met ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />} {r.label}
+                        </div>
+                      ))}
                   </div>
 
-                  <div className="flex gap-4 items-center">
-                    <button 
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="h-14 px-6 border border-[#cfc2d6]/30 text-[#4d4354]/60 rounded-xl font-bold flex items-center justify-center hover:bg-white transition-all"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
+                  <div className="flex gap-4">
+                    <button type="button" onClick={() => setStep(1)} className="h-14 px-6 border border-[#cfc2d6]/30 text-[#4d4354]/60 rounded-xl font-bold hover:bg-white transition-all"><ChevronLeft className="w-5 h-5" /></button>
                     <button type="submit" disabled={loading} className="flex-1 h-14 bg-[#8127cf] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#9c48ea] shadow-lg shadow-[#8127cf]/20 transition-all active:scale-[0.98]">
-                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Complete Identity Phase <ArrowRight className="h-5 w-5" /></>}
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Complete Enrollment <ArrowRight className="h-5 w-5" /></>}
                     </button>
                   </div>
                 </form>
@@ -249,17 +260,13 @@ export default function SplitSignupFlow() {
                 <div className="w-20 h-20 bg-emerald-50 rounded-[28px] flex items-center justify-center mx-auto mb-8 text-emerald-500 shadow-inner">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-3 tracking-tighter">Identity Dispatched</h2>
+                <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-3 tracking-tighter text-center">Credentials Dispatched</h2>
                 <p className="text-sm font-medium text-[#4d4354]/60 mb-10 leading-relaxed px-4">
-                  We've successfully created your institutional registry. A secure verification pass has been sent to your inbox. Please follow the link to confirm your authority and begin onboarding.
+                  We've successfully created your institutional account. Please check your registry email to verify access and start onboarding.
                 </p>
-                <Link href="/login" className="inline-flex w-full h-16 bg-emerald-500 text-white rounded-2xl font-extrabold tracking-tight items-center justify-center hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-200/50">
-                  Return to Login Screen
+                <Link href="/login" className="inline-flex w-full h-16 bg-emerald-500 text-white rounded-2xl font-extrabold items-center justify-center hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-200/50">
+                  Return to Console Login
                 </Link>
-                <div className="mt-8 flex items-center justify-center gap-2">
-                   <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                   <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Awaiting Verification</p>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -279,8 +286,8 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-tight">{title}</h3>
-        <p className="text-[10px] text-[#4d4354]/60 font-semibold leading-tight mt-1">{desc}</p>
+        <h3 className="text-sm font-black text-[#1f1a23] tracking-tight text-left">{title}</h3>
+        <p className="text-[10px] text-[#4d4354]/60 font-semibold leading-tight mt-1 text-left">{desc}</p>
       </div>
       {active && (
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-[#8127cf] text-white p-1 rounded-full border-2 border-white absolute top-4 right-4 shadow-md">

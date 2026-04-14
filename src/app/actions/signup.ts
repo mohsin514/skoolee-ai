@@ -64,7 +64,7 @@ export async function submitSignupStep2(data: z.infer<typeof SignupStep2Schema>)
   if (existingSchool) throw new Error("This Identity Code (Reg ID) is already registered.");
 
   const hashedPassword = await bcrypt.hash(valid.password, 10);
-  const role = pending.registrationType === 'school_group' ? 'SUPER_ADMIN' : 'CAMPUS_ADMIN';
+  const role = pending.registrationType === 'school_group' ? 'SUPER_ADMIN' : 'ADMIN';
 
   // Create school with actual user-provided name and RegID
   const school = await prisma.school.create({

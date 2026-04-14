@@ -59,10 +59,10 @@ export default function StudentDashboard() {
       <aside className="w-64 bg-white/50 backdrop-blur-md border-r border-[#cfc2d6]/30 flex flex-col p-6 fixed h-full z-50">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-8 w-8 rounded-lg bg-[#8127cf] flex items-center justify-center shadow-lg">
-              <Shield className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
+               <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <h1 className="font-black text-lg tracking-tighter text-[#8127cf]">Skoolee AI</h1>
+            <h1 className="font-black text-xl tracking-tighter text-[#8127cf]">Skoolee AI</h1>
           </div>
           <p className="text-[10px] font-bold text-[#b10e6b] uppercase tracking-wider pl-11">The Joyful Architect</p>
         </div>
