@@ -134,7 +134,7 @@ export async function getPrincipalDashboardData() {
     if (!session || session.role !== 'PRINCIPAL') throw new Error("Unauthorized");
 
     const totalStudents = await prisma.user.count({ where: { campusId: session.campusId, role: 'STUDENT' } });
-    const pendingRemarkReviews = await prisma.mark.count({ where: { campusId: session.campusId, aiRemark: { not: null } } });
+    const pendingRemarkReviews = 0; // @todo: Link to AI Remarks feature when implemented
 
     return {
         totalStudents,
@@ -147,12 +147,7 @@ export async function getStudentDashboardData() {
     if (!session || session.role !== 'STUDENT') throw new Error("Unauthorized");
 
     const user = await prisma.user.findUnique({
-        where: { id: session.userId },
-        include: {
-            marks: {
-                include: { subject: true, exam: true }
-            }
-        }
+        where: { id: session.userId }
     });
 
     return {

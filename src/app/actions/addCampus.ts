@@ -7,7 +7,7 @@ import { inviteStaff } from "./invite";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-export async function addCampus(name: string, location: string, board: string, adminEmail: string) {
+export async function addCampus(name: string, location: string, board: string, adminEmail: string, regId?: string) {
   const cookieStore = await cookies();
   const token = cookieStore.get("skoolee_token")?.value;
   if (!token) throw new Error("Unauthorized");
@@ -21,13 +21,17 @@ export async function addCampus(name: string, location: string, board: string, a
   const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (existingUser) throw new Error("Admin email already exists in system");
 
+  // Validate or Generate regId
+  const finalRegId = regId || `BR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
   const newCampus = await prisma.campus.create({
     data: {
       name,
-      slug: name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString().slice(-4),
+      regId: finalRegId,
       schoolId: schoolId,
       city: location,
       address: location,
+      board: board,
     }
   });
 

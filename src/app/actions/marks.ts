@@ -84,7 +84,7 @@ export async function saveMarks(data: z.infer<typeof MarksSchema>) {
     data: {
       tableName: 'marks',
       recordId: newMark.id,
-      oldValue: existingMark ? { marksObtained: existingMark.marksObtained } : null,
+      oldValue: existingMark ? { marksObtained: existingMark.marksObtained } : undefined,
       newValue: { marksObtained: valid.marks_obtained },
       userId: session.userId,
     }

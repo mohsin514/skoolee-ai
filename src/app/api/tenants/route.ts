@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       data: {
         name: schoolName,
         slug: slug,
+        regId: `SKL-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         city: address || "Pending", // Mapping address to city for now
         contactEmail: email || `admin@${slug}.com`,
         status: "TRIAL",
