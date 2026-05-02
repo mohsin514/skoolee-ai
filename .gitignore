@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.codex-deps
 /.pnp
 .pnp.*
 .yarn/*
@@ -41,3 +42,4 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+.env*.local

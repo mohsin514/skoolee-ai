@@ -4,16 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  ClipboardList,
-  FileText,
   BarChart3,
+  ClipboardList,
   CreditCard,
-  Settings,
-  Sparkles,
+  FileText,
+  GraduationCap,
+  LayoutDashboard,
   LogOut,
+  MessageCircle,
+  Settings,
+  Users,
 } from "lucide-react";
 
 const navItems = [
@@ -22,6 +22,7 @@ const navItems = [
   { href: "/dashboard/classes", label: "Classes", icon: GraduationCap },
   { href: "/dashboard/marks", label: "Marks Entry", icon: ClipboardList },
   { href: "/dashboard/reports", label: "Reports", icon: FileText },
+  { href: "/dashboard/communications", label: "Communications", icon: MessageCircle },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -33,26 +34,88 @@ export function Sidebar() {
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login"; // Force full reload to clear any remaining state
+      window.location.href = "/login";
     } catch (error) {
       console.error("Logout failed:", error);
     }
   };
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-sidebar-border bg-sidebar-bg">
-      {/* ─── Logo ──────────────────────────────────────── */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Sparkles className="h-4 w-4 text-primary-foreground" />
-        </div>
-        <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
-          SkooleeAI
-        </span>
-      </div>
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[#cfc2d6]/25 bg-white/72 p-5 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
+        <Link href="/dashboard" className="mb-8 flex cursor-pointer items-center gap-3 rounded-[22px] p-1 transition-all hover:bg-white/70">
+          <div className="flex h-11 w-11 rotate-3 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
+            <GraduationCap className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <span className="block text-xl font-black leading-none text-[#8127cf]">
+              Skoolee AI
+            </span>
+            <span className="mt-1 block text-[10px] font-black text-[#b10e6b]/70">
+              Campus Console
+            </span>
+          </div>
+        </Link>
 
-      {/* ─── Navigation ────────────────────────────────── */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="custom-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">
+          {navItems.map((item) => {
+            const isActive =
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "group flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]",
+                  isActive
+                    ? "bg-white text-[#8127cf] shadow-lg shadow-[#8127cf]/10"
+                    : "text-[#4d4354]/70 hover:bg-white/75 hover:text-[#1f1a23] hover:shadow-sm"
+                )}
+              >
+                <item.icon
+                  className={cn(
+                    "h-4 w-4 shrink-0 transition-colors",
+                    isActive
+                      ? "text-[#8127cf]"
+                      : "text-[#4d4354]/55 group-hover:text-[#8127cf]"
+                  )}
+                />
+                <span className="truncate">{item.label}</span>
+                {isActive && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-[#8127cf]" />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-6 rounded-[24px] border border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[#8127cf] shadow-sm">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black text-[#1f1a23]">
+                Account
+              </p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-1 flex cursor-pointer items-center gap-1.5 rounded-lg text-xs font-bold text-[#4d4354]/60 transition-colors hover:text-rose-500"
+              >
+                <LogOut className="h-3 w-3" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <nav className="fixed bottom-3 left-3 right-3 z-50 flex gap-2 overflow-x-auto rounded-[24px] border border-[#cfc2d6]/25 bg-white/92 p-2 shadow-2xl backdrop-blur-xl md:hidden">
         {navItems.map((item) => {
           const isActive =
             item.href === "/dashboard"
@@ -63,50 +126,21 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                "flex min-w-[64px] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-black transition-all active:scale-95",
                 isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
+                  : "text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
               )}
+              title={item.label}
             >
-              <item.icon
-                className={cn(
-                  "h-4.5 w-4.5 shrink-0 transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground group-hover:text-accent-foreground"
-                )}
-              />
-              {item.label}
-              {isActive && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
-              )}
+              <item.icon className="h-4 w-4" />
+              <span className="max-w-[54px] truncate">{item.label}</span>
             </Link>
           );
         })}
       </nav>
-
-      {/* ─── User Section ──────────────────────────────── */}
-      <div className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <Users className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="truncate text-sm font-medium text-sidebar-foreground">
-              User Profile
-            </p>
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors mt-0.5"
-            >
-              <LogOut className="h-3 w-3" />
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-    </aside>
+    </>
   );
 }

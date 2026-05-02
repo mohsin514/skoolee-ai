@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { randomUUID } from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
+import bcrypt from "bcryptjs";
 
 export async function requestPasswordReset(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });
@@ -45,7 +46,6 @@ export async function resetPassword(token: string, newPassword: string) {
     throw new Error("Invalid or expired token");
   }
 
-  const bcrypt = require('bcryptjs');
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
   await prisma.user.update({

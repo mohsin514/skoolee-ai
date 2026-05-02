@@ -1,0 +1,199 @@
+import type { Prisma } from "@prisma/client";
+import { PLANS, canUseFeature, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
+import { prisma } from "@/lib/db/prisma";
+import type { PlanType } from "@/types";
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
+type LimitMetric = "students" | "teachers" | "campuses";
+
+const ACTIVE_SCHOOL_STATUSES = new Set(["ACTIVE", "TRIAL"]);
+
+export class BillingAccessError extends Error {
+  status: number;
+
+  constructor(message: string, status = 402) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function limitLabel(metric: LimitMetric) {
+  if (metric === "students") return "student";
+  if (metric === "teachers") return "teacher";
+  return "campus";
+}
+
+function metricLimit(plan: PlanType, metric: LimitMetric) {
+  const limits = getPlanLimits(plan);
+  if (metric === "students") return limits.maxStudents;
+  if (metric === "teachers") return limits.maxTeachers;
+  return limits.maxCampuses;
+}
+
+async function currentUsage(client: DbClient, schoolId: string, metric: LimitMetric) {
+  if (metric === "students") {
+    return client.student.count({ where: { campus: { schoolId } } });
+  }
+
+  if (metric === "teachers") {
+    const [activeTeachers, pendingTeacherInvites] = await Promise.all([
+      client.user.count({ where: { schoolId, role: "TEACHER", isActive: true } }),
+      client.staffInvitation.count({
+        where: { role: "TEACHER", status: "pending", campus: { schoolId } },
+      }),
+    ]);
+
+    return activeTeachers + pendingTeacherInvites;
+  }
+
+  return client.campus.count({ where: { schoolId } });
+}
+
+export function isSchoolOperational(status: string | null | undefined) {
+  return ACTIVE_SCHOOL_STATUSES.has(String(status || "").toUpperCase());
+}
+
+export function stripeStatusToSchoolStatus(status: string | null | undefined) {
+  if (status === "trialing") return "TRIAL";
+  if (status === "active") return "ACTIVE";
+  return "SUSPENDED";
+}
+
+export async function assertSchoolOperational(schoolId: string, client: DbClient = prisma) {
+  const school = await client.school.findUnique({
+    where: { id: schoolId },
+    select: { status: true },
+  });
+
+  if (!school) throw new BillingAccessError("School not found", 404);
+  if (!isSchoolOperational(school.status)) {
+    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+  }
+
+  return school;
+}
+
+export async function assertPlanCapacity({
+  schoolId,
+  metric,
+  increment = 1,
+  client = prisma,
+}: {
+  schoolId: string;
+  metric: LimitMetric;
+  increment?: number;
+  client?: DbClient;
+}) {
+  const school = await client.school.findUnique({
+    where: { id: schoolId },
+    select: { plan: true, status: true },
+  });
+
+  if (!school) throw new BillingAccessError("School not found", 404);
+  if (!isSchoolOperational(school.status)) {
+    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+  }
+
+  const plan = normalizePlan(school.plan);
+  const limit = metricLimit(plan, metric);
+  if (limit < 0) return { plan, limit, current: 0 };
+
+  const current = await currentUsage(client, schoolId, metric);
+  if (current + increment > limit) {
+    const label = limitLabel(metric);
+    throw new BillingAccessError(
+      `${getPlanLimits(plan).name} allows ${limit.toLocaleString()} ${label}${limit === 1 ? "" : "s"}. Upgrade to add more.`,
+      402
+    );
+  }
+
+  return { plan, limit, current };
+}
+
+export async function assertFeatureEnabled(schoolId: string, feature: PlanFeature, client: DbClient = prisma) {
+  const school = await client.school.findUnique({
+    where: { id: schoolId },
+    select: { plan: true, status: true },
+  });
+
+  if (!school) throw new BillingAccessError("School not found", 404);
+  if (!isSchoolOperational(school.status)) {
+    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+  }
+
+  const plan = normalizePlan(school.plan);
+  if (!canUseFeature(plan, feature)) {
+    throw new BillingAccessError(`${getPlanLimits(plan).name} does not include this feature. Upgrade to continue.`, 403);
+  }
+
+  return { plan, feature };
+}
+
+export async function getBillingSnapshot(schoolId: string, client: DbClient = prisma) {
+  const school = await client.school.findUnique({
+    where: { id: schoolId },
+    select: {
+      id: true,
+      name: true,
+      plan: true,
+      status: true,
+      aiCreditsUsed: true,
+      aiCreditsLimit: true,
+      stripeCustomerId: true,
+      stripeSubscriptionId: true,
+    },
+  });
+
+  if (!school) throw new BillingAccessError("School not found", 404);
+
+  const plan = normalizePlan(school.plan);
+  const limits = getPlanLimits(plan);
+  const [students, teachers, campuses] = await Promise.all([
+    currentUsage(client, schoolId, "students"),
+    currentUsage(client, schoolId, "teachers"),
+    currentUsage(client, schoolId, "campuses"),
+  ]);
+
+  return {
+    school: {
+      ...school,
+      plan,
+      aiCreditsLimit: limits.aiCredits,
+    },
+    limits,
+    usage: {
+      students,
+      teachers,
+      campuses,
+      aiCredits: school.aiCreditsUsed,
+    },
+    plans: PLANS,
+    isOperational: isSchoolOperational(school.status),
+  };
+}
+
+export function planFromStripePriceId(priceId: string | null | undefined): PlanType | null {
+  if (!priceId) return null;
+
+  for (const plan of Object.values(PLANS)) {
+    if (plan.stripePriceEnv && process.env[plan.stripePriceEnv] === priceId) {
+      return plan.type;
+    }
+  }
+
+  return null;
+}
+
+export async function applySchoolPlan(schoolId: string, plan: PlanType, status: string, stripeSubscriptionId?: string | null) {
+  const limits = getPlanLimits(plan);
+
+  return prisma.school.update({
+    where: { id: schoolId },
+    data: {
+      plan,
+      status,
+      aiCreditsLimit: limits.aiCredits,
+      ...(stripeSubscriptionId !== undefined ? { stripeSubscriptionId } : {}),
+    },
+  });
+}

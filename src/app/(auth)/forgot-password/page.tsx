@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/40 to-transparent z-20"></div>
         <div className="absolute bottom-12 left-12 z-30 max-w-md">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-widest text-[#9c48ea] uppercase mb-2 block">Security Recovery</span>
+            <span className="text-[12px] font-bold tracking-normal text-[#9c48ea] uppercase mb-2 block">Security Recovery</span>
             <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"Security is not a product, but a process."</h2>
             <p className="text-[#4d4354] font-medium">Reset your secure credentials to continue managing your institution.</p>
           </div>
@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
             <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg mb-4">
                <GraduationCap className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>
+            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
             <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>
           </div>
 
@@ -136,13 +136,13 @@ export default function ForgotPasswordPage() {
               !isSubmitted ? (
                 <>
                   <div className="mb-8 text-left">
-                    <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">Recover Account</h2>
+                    <h2 className="text-2xl font-bold text-[#1f1a23] tracking-normal">Recover Account</h2>
                     <p className="text-[#4d4354] text-sm mt-1">Enter your registered email below to receive a reset link.</p>
                   </div>
 
                   <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-6">
                     <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-wider">Email Identity</Label>
+                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">Email Identity</Label>
                        <div className="relative">
                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
                           <Input placeholder="admin@horizon.edu" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20" {...requestForm.register("email")} />
@@ -176,19 +176,19 @@ export default function ForgotPasswordPage() {
             ) : isValidToken === null ? (
                <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <Loader2 className="h-10 w-10 text-[#8127cf] animate-spin" />
-                  <p className="text-xs font-bold text-[#4d4354] uppercase tracking-wider">Verifying path...</p>
+                  <p className="text-xs font-bold text-[#4d4354] uppercase tracking-normal">Verifying path...</p>
                </div>
             ) : (
               // RESET PASSWORD UI
               <>
                 <div className="mb-8 text-left">
-                  <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">New Password</h2>
+                  <h2 className="text-2xl font-bold text-[#1f1a23] tracking-normal">New Password</h2>
                   <p className="text-[#4d4354] text-sm mt-1">Please define your new institutional access code.</p>
                 </div>
 
                 <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-5">
                    <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-wider">New Password</Label>
+                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">New Password</Label>
                        <div className="relative">
                           <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
                           <Input type="password" placeholder="••••••••" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20" {...resetForm.register("password")} />
@@ -196,7 +196,7 @@ export default function ForgotPasswordPage() {
                        {resetForm.formState.errors.password && <p className="text-xs text-red-500 font-medium px-1">{(resetForm.formState.errors.password as any).message}</p>}
                    </div>
                    <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-wider">Confirm Identity Code</Label>
+                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">Confirm Identity Code</Label>
                        <div className="relative">
                           <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
                           <Input type="password" placeholder="••••••••" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20" {...resetForm.register("confirmPassword")} />
@@ -205,7 +205,7 @@ export default function ForgotPasswordPage() {
                    </div>
 
                    <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-[#cfc2d6]/20">
-                       <p className="text-[10px] font-bold text-[#8127cf] uppercase tracking-wider mb-2">Security Checklist</p>
+                       <p className="text-[10px] font-bold text-[#8127cf] uppercase tracking-normal mb-2">Security Checklist</p>
                        <div className="grid grid-cols-2 gap-y-1.5">
                           {passwordRequirements.map((r, i) => (
                             <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/40'}`}>
@@ -216,7 +216,7 @@ export default function ForgotPasswordPage() {
                        </div>
                     </div>
 
-                   <button type="submit" className="w-full h-14 bg-[#1f1a23] text-white rounded-xl text-lg font-black italic tracking-tighter shadow-lg hover:bg-[#322a38] transition-all flex items-center justify-center gap-2" disabled={isLoading}>
+                   <button type="submit" className="w-full h-14 bg-[#1f1a23] text-white rounded-xl text-lg font-black italic tracking-normal shadow-lg hover:bg-[#322a38] transition-all flex items-center justify-center gap-2" disabled={isLoading}>
                       {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Save New Credentials <ArrowRight className="h-5 w-5" /></>}
                    </button>
                 </form>

@@ -16,10 +16,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SkooleeAI — AI-Powered School Management",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  title: {
+    default: "SkooleeAI - AI School Management Software",
+    template: "%s | SkooleeAI",
+  },
   description:
-    "Manage students, enter marks, generate AI-powered report card remarks in Urdu & English, and send results to parents via WhatsApp.",
-  keywords: ["school management", "AI report cards", "Pakistan", "Urdu", "WhatsApp"],
+    "AI school management software for students, teachers, campuses, fees, Urdu and English report cards, WhatsApp updates, and performance analytics.",
+  keywords: [
+    "AI school management software",
+    "AI report cards in Urdu and English",
+    "WhatsApp report card software",
+    "multi-campus school ERP",
+    "school fee management software",
+    "AI student performance analytics",
+  ],
+  openGraph: {
+    title: "SkooleeAI - AI School Management Software",
+    description:
+      "Manage school operations, AI report cards, WhatsApp parent updates, fees, campuses, and analytics in one SaaS platform.",
+    url: "/ai-school-management-software",
+    siteName: "SkooleeAI",
+    type: "website",
+  },
   icons: {
     icon: "/favicon.svg",
     apple: "/favicon.svg",
@@ -46,19 +65,21 @@ export default function RootLayout({
               richColors
               expand
               closeButton
+              visibleToasts={4}
               toastOptions={{
                 duration: 5000,
                 style: { 
                   fontFamily: "var(--font-plus-jakarta-sans)",
-                  borderRadius: "24px",
-                  padding: "16px 20px",
+                  borderRadius: "28px",
+                  padding: "18px 20px",
                   fontSize: "13px",
                   fontWeight: "700",
-                  letterSpacing: "-0.01em",
-                  border: "1px solid rgba(207, 194, 214, 0.3)",
-                  boxShadow: "0 25px 50px -12px rgba(31, 26, 35, 0.1)",
-                  background: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(8px)",
+                  letterSpacing: "0",
+                  color: "#1f1a23",
+                  border: "1px solid rgba(207, 194, 214, 0.36)",
+                  boxShadow: "0 28px 70px -18px rgba(31, 26, 35, 0.28)",
+                  background: "rgba(255, 255, 255, 0.96)",
+                  backdropFilter: "blur(14px)",
                 },
                 className: "skoolee-toast",
               }}

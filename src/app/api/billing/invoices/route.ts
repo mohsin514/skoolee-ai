@@ -1,35 +1,61 @@
-// GET /api/billing/invoices — List invoices for current campus
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
+import {
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
+
+const INVOICE_STATUSES = new Set(["PENDING", "PARTIAL", "PAID", "CANCELLED"]);
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const user = await requireAuthUser();
+    const { searchParams } = new URL(req.url);
+    const requestedCampusId = searchParams.get("campusId");
+    const status = searchParams.get("status")?.toUpperCase();
+    const term = searchParams.get("term");
+    const classId = searchParams.get("classId");
+    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
+      ? null
+      : await resolveCampusId(user, requestedCampusId);
 
-  const { searchParams } = new URL(req.url);
-  const campusId = searchParams.get("campusId") || user.campusId;
-  const status = searchParams.get("status");
-  const term = searchParams.get("term");
-
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      campusId: campusId || undefined,
-      ...(status ? { status: status as any } : {}),
-      ...(term ? { term } : {}),
-    },
-    include: {
-      student: {
-        select: {
-          fullName: true,
-          rollNo: true,
-          class: { select: { name: true } },
-        },
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        ...scopedCampusWhere(user, campusId),
+        ...(term ? { term } : {}),
+        ...(status && INVOICE_STATUSES.has(status) ? { status: status as any } : {}),
+        ...(status === "DUE" ? { status: { in: ["PENDING", "PARTIAL"] as any }, dueDate: { lt: new Date() } } : {}),
+        ...(classId ? { student: { classId } } : {}),
       },
-      payments: { select: { amountPaid: true, method: true, paidAt: true } },
-    },
-    orderBy: { generatedAt: "desc" },
-  });
+      include: {
+        student: {
+          select: {
+            fullName: true,
+            rollNo: true,
+            guardianName: true,
+            guardianPhone: true,
+            class: { select: { id: true, name: true, section: true } },
+          },
+        },
+        campus: { select: { id: true, name: true } },
+        payments: { select: { id: true, amountPaid: true, method: true, receiptNo: true, paidAt: true } },
+      },
+      orderBy: [{ dueDate: "asc" }, { generatedAt: "desc" }],
+    });
 
-  return Response.json({ success: true, invoices });
+    const withBalances = invoices.map((invoice) => {
+      const paidAmount = invoice.payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+      return {
+        ...invoice,
+        paidAmount,
+        balanceDue: Math.max(invoice.totalAmount - paidAmount, 0),
+      };
+    });
+
+    return Response.json({ success: true, invoices: withBalances });
+  } catch (error) {
+    return errorResponse(error, "[billing/invoices] GET failed");
+  }
 }

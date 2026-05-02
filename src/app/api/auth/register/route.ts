@@ -18,53 +18,67 @@ export async function POST(req: NextRequest) {
     if (type === "school-group") {
       const { schoolName, city, contactEmail, slug, campusName, campusCity, board, ownerName, ownerEmail, password, regId } = data;
 
-      const [slugExists, emailExists] = await Promise.all([
+      if (!schoolName || !city || !contactEmail || !slug || !campusName || !campusCity || !ownerName || !ownerEmail || !password) {
+        return Response.json({ error: "Missing required registration fields" }, { status: 400 });
+      }
+
+      const [slugExists, emailExists, userExists] = await Promise.all([
         prisma.school.findUnique({ where: { slug } }),
         prisma.school.findUnique({ where: { contactEmail } }),
+        prisma.user.findUnique({ where: { email: ownerEmail } }),
       ]);
       if (slugExists) return Response.json({ error: "Subdomain slug already taken" }, { status: 409 });
       if (emailExists) return Response.json({ error: "Email already registered" }, { status: 409 });
+      if (userExists) return Response.json({ error: "Owner email already has an account" }, { status: 409 });
 
       const hashed = await bcrypt.hash(password, 12);
 
-      // Create School with mandatory regId
-      const school = await prisma.school.create({
-        data: { 
-          name: schoolName, 
-          slug, 
-          city, 
-          contactEmail, 
-          status: "TRIAL",
-          regId: regId || genRegId('SKL') 
-        },
-      });
+      const { school, campus, user } = await prisma.$transaction(async (tx) => {
+        const createdSchool = await tx.school.create({
+          data: {
+            name: schoolName,
+            slug,
+            city,
+            contactEmail,
+            status: "TRIAL",
+            regId: regId || genRegId('SKL')
+          },
+        });
 
-      // Create first Campus with mandatory regId
-      const campus = await prisma.campus.create({
-        data: { 
-          schoolId: school.id, 
-          name: campusName, 
-          city: campusCity, 
-          board,
-          regId: genRegId('BR')
-        },
-      });
+        const createdCampus = await tx.campus.create({
+          data: {
+            schoolId: createdSchool.id,
+            name: campusName,
+            city: campusCity,
+            board,
+            regId: genRegId('BR')
+          },
+        });
 
-      const user = await prisma.user.create({
-        data: {
-          schoolId: school.id,
-          campusId: campus.id,
-          email: ownerEmail,
-          fullName: ownerName,
-          password: hashed,
-          role: "SUPER_ADMIN",
-        },
+        const createdUser = await tx.user.create({
+          data: {
+            schoolId: createdSchool.id,
+            campusId: createdCampus.id,
+            email: ownerEmail,
+            fullName: ownerName,
+            password: hashed,
+            role: "SUPER_ADMIN",
+          },
+        });
+
+        return { school: createdSchool, campus: createdCampus, user: createdUser };
       });
 
       const schemaName = `school_${school.id.replace(/-/g, "_")}`;
-      await createTenantSchema(schemaName, school.id);
+      let tenantSchemaReady = true;
+      try {
+        await createTenantSchema(schemaName, school.id);
+      } catch (error) {
+        tenantSchemaReady = false;
+        console.warn("[auth/register] tenant schema creation skipped", error);
+      }
 
-      return Response.json({ success: true, schoolId: school.id, campusId: campus.id, userId: user.id });
+      return Response.json({ success: true, schoolId: school.id, campusId: campus.id, userId: user.id, tenantSchemaReady });
 
     } else if (type === "standalone") {
       const { campusName, city, board, logoUrl, password, adminEmail, ownerEmail, adminName, ownerName, regId } = data;
@@ -72,60 +86,78 @@ export async function POST(req: NextRequest) {
       const finalName = adminName || ownerName;
 
       if (!finalEmail) return Response.json({ error: "Email is required" }, { status: 400 });
+      if (!campusName || !city || !board || !password || !finalName) {
+        return Response.json({ error: "Missing required registration fields" }, { status: 400 });
+      }
 
       const slug = campusName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const [slugExists, emailExists] = await Promise.all([
+      const [slugExists, emailExists, userExists] = await Promise.all([
         prisma.school.findFirst({ where: { slug } }),
         prisma.school.findFirst({ where: { contactEmail: finalEmail } }),
+        prisma.user.findUnique({ where: { email: finalEmail } }),
       ]);
 
       if (emailExists) return Response.json({ error: "This email is already registered to a school" }, { status: 409 });
+      if (userExists) return Response.json({ error: "This email already has an account" }, { status: 409 });
       const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
       const hashed = await bcrypt.hash(password, 12);
 
-      const school = await prisma.school.create({
-        data: { 
-          name: campusName, 
-          slug: finalSlug, 
-          city, 
-          contactEmail: finalEmail, 
-          status: "TRIAL",
-          regId: regId || genRegId('SKL')
-        },
-      });
+      const { school, campus, user } = await prisma.$transaction(async (tx) => {
+        const createdSchool = await tx.school.create({
+          data: {
+            name: campusName,
+            slug: finalSlug,
+            city,
+            contactEmail: finalEmail,
+            status: "TRIAL",
+            regId: regId || genRegId('SKL')
+          },
+        });
 
-      const campus = await prisma.campus.create({
-        data: { 
-          schoolId: school.id, 
-          name: campusName, 
-          city, 
-          board, 
-          logoUrl: logoUrl || null,
-          regId: genRegId('BR')
-        },
-      });
+        const createdCampus = await tx.campus.create({
+          data: {
+            schoolId: createdSchool.id,
+            name: campusName,
+            city,
+            board,
+            logoUrl: logoUrl || null,
+            regId: genRegId('BR')
+          },
+        });
 
-      const user = await prisma.user.create({
-        data: {
-          schoolId: school.id,
-          campusId: campus.id,
-          email: finalEmail,
-          fullName: finalName,
-          password: hashed,
-          role: "ADMIN",
-        },
+        const createdUser = await tx.user.create({
+          data: {
+            schoolId: createdSchool.id,
+            campusId: createdCampus.id,
+            email: finalEmail,
+            fullName: finalName,
+            password: hashed,
+            role: "ADMIN",
+          },
+        });
+
+        return { school: createdSchool, campus: createdCampus, user: createdUser };
       });
 
       const schemaName = `school_${school.id.replace(/-/g, "_")}`;
-      await createTenantSchema(schemaName, school.id);
+      let tenantSchemaReady = true;
+      try {
+        await createTenantSchema(schemaName, school.id);
+      } catch (error) {
+        tenantSchemaReady = false;
+        console.warn("[auth/register] tenant schema creation skipped", error);
+      }
 
-      return Response.json({ success: true, schoolId: school.id, campusId: campus.id, userId: user.id });
+      return Response.json({ success: true, schoolId: school.id, campusId: campus.id, userId: user.id, tenantSchemaReady });
     }
 
     return Response.json({ error: "Invalid registration type" }, { status: 400 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[auth/register]", error);
+    if (error?.code === "P2002") {
+      return Response.json({ error: "A school, campus, or user with these details already exists" }, { status: 409 });
+    }
     return Response.json({ error: "Registration failed" }, { status: 500 });
   }
 }

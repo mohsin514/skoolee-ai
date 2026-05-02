@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { z } from "zod";
 
 const MarksSchema = z.object({
@@ -17,6 +18,10 @@ export async function saveMarks(data: z.infer<typeof MarksSchema>) {
   if (!session || session.role !== 'TEACHER') {
     throw new Error('403 Forbidden');
   }
+  await assertSchoolOperational(session.schoolId);
+  if (!session.campusId) {
+    throw new Error('Campus ID is required');
+  }
 
   const valid = MarksSchema.parse(data);
 
@@ -25,7 +30,7 @@ export async function saveMarks(data: z.infer<typeof MarksSchema>) {
     where: { 
       id: valid.subject_id, 
       teacherId: session.userId,
-      campusId: session.campusId || "", 
+      campusId: session.campusId, 
     } 
   });
 
@@ -39,6 +44,7 @@ export async function saveMarks(data: z.infer<typeof MarksSchema>) {
   const exam = await prisma.exam.findFirst({
     where: { 
       id: valid.exam_id, 
+      campusId: session.campusId,
       isLocked: false 
     } 
   });
@@ -70,7 +76,7 @@ export async function saveMarks(data: z.infer<typeof MarksSchema>) {
       enteredBy: session.userId,
     },
     create: {
-      campusId: session.campusId || "",
+      campusId: session.campusId,
       examId: valid.exam_id,
       studentId: valid.student_id,
       subjectId: valid.subject_id,

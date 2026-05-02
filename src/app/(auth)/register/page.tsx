@@ -10,7 +10,6 @@ import {
   LucideIcon, Network
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { submitSignupStep1, submitSignupStep2 } from '@/app/actions/signup';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
@@ -102,18 +101,31 @@ export default function SplitSignupFlow() {
 
     setLoading(true);
     try {
-      await submitSignupStep1({
-        email: formData.email,
-        registrationType: type,
+      const step1Res = await fetch("/api/auth/signup-step1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          registrationType: type,
+        }),
       });
+      const step1 = await step1Res.json();
+      if (!step1.success) throw new Error(step1.error || "Could not start registration");
 
-      await submitSignupStep2({
-        email: formData.email,
-        fullName: formData.name,
-        password: formData.password,
-        schoolName: finalSchoolName,
-        regId: finalRegId
+      const step2Res = await fetch("/api/auth/signup-step2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          fullName: formData.name,
+          password: formData.password,
+          schoolName: finalSchoolName,
+          regId: finalRegId
+        }),
       });
+      const step2 = await step2Res.json();
+      if (!step2.success) throw new Error(step2.error || "Registration failed");
+      if (step2.warning) toast.warning(step2.warning);
 
       setStep(3);
     } catch (error: any) {
@@ -133,7 +145,7 @@ export default function SplitSignupFlow() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/40 to-transparent z-20"></div>
         <div className="absolute bottom-12 left-12 z-30 max-w-md">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-widest text-[#9c48ea] uppercase mb-2 block">Institutional Phase</span>
+            <span className="text-[12px] font-bold tracking-normal text-[#9c48ea] uppercase mb-2 block">Institutional Phase</span>
             <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">
                {type === 'school_group' ? "Centralized management for educational networks." : "Professional console for standalone academies."}
             </h2>
@@ -150,7 +162,7 @@ export default function SplitSignupFlow() {
             <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg transform rotate-3 mb-4">
               <GraduationCap className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>
+            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
             <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>
           </div>
 
@@ -158,7 +170,7 @@ export default function SplitSignupFlow() {
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
                 <div className="mb-8 text-center md:text-left">
-                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">Select Archetype</h2>
+                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Select Archetype</h2>
                   <p className="text-[#4d4354]/60 text-sm font-medium mt-1">Determine your institutional structure first.</p>
                 </div>
                 
@@ -183,8 +195,8 @@ export default function SplitSignupFlow() {
               <motion.div key="s2" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
                 <div className="mb-8 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">Access Authority</h2>
-                    <p className="text-xs font-bold text-[#8127cf] uppercase tracking-wider mt-1">{type.replace('_', ' ')} Phase</p>
+                    <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Access Authority</h2>
+                    <p className="text-xs font-bold text-[#8127cf] uppercase tracking-normal mt-1">{type.replace('_', ' ')} Phase</p>
                   </div>
                   <button onClick={() => setStep(1)} className="p-2 bg-[#fbf0fe] rounded-lg text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all"><ArrowRight className="w-4 h-4 rotate-180" /></button>
                 </div>
@@ -202,14 +214,14 @@ export default function SplitSignupFlow() {
                     <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
                        <InputField label="Group/Organization Name" placeholder="e.g. Beaconhouse Group" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} />
                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold text-[#8127cf] tracking-widest uppercase">Global Registry ID (Reg ID)</Label>
+                          <Label className="text-[10px] font-bold text-[#8127cf] tracking-normal uppercase">Global Registry ID (Reg ID)</Label>
                           <div className="relative">
                              <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/40" />
                              <Input 
                                 readOnly={formData.autoId} 
                                 value={formData.regId} 
                                 onChange={e => setFormData({...formData, regId: e.target.value.toUpperCase()})}
-                                className="h-12 pl-11 bg-white border-0 font-bold tracking-widest text-[#1f1a23] rounded-xl" 
+                                className="h-12 pl-11 bg-white border-0 font-bold tracking-normal text-[#1f1a23] rounded-xl" 
                              />
                           </div>
                           <div className="flex gap-2">
@@ -260,7 +272,7 @@ export default function SplitSignupFlow() {
                 <div className="w-20 h-20 bg-emerald-50 rounded-[28px] flex items-center justify-center mx-auto mb-8 text-emerald-500 shadow-inner">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-3 tracking-tighter text-center">Credentials Dispatched</h2>
+                <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-3 tracking-normal text-center">Credentials Dispatched</h2>
                 <p className="text-sm font-medium text-[#4d4354]/60 mb-10 leading-relaxed px-4">
                   We've successfully created your institutional account. Please check your registry email to verify access and start onboarding.
                 </p>
@@ -286,7 +298,7 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-tight text-left">{title}</h3>
+        <h3 className="text-sm font-black text-[#1f1a23] tracking-normal text-left">{title}</h3>
         <p className="text-[10px] text-[#4d4354]/60 font-semibold leading-tight mt-1 text-left">{desc}</p>
       </div>
       {active && (
@@ -301,7 +313,7 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
 function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text" }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-[0.1em] ml-1.5">{label}</Label>
+      <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-normal ml-1.5">{label}</Label>
       <div className="relative group flex items-center">
         <Icon className="absolute left-4 w-4 h-4 text-[#4d4354]/40 group-focus-within:text-[#8127cf] transition-colors" />
         <Input 

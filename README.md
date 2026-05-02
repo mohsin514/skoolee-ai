@@ -12,6 +12,24 @@ npx prisma generate
 npm run dev
 ```
 
+## Email Delivery
+
+Email now uses SMTP instead of Resend, so Gmail plus-addresses like `mohsin.ali14993+test@gmail.com` are sent as normal recipients.
+
+For Gmail SMTP, add these values to `.env`:
+
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=mohsin.ali14993@gmail.com
+SMTP_PASS=your_google_app_password
+SMTP_FROM_EMAIL=mohsin.ali14993@gmail.com
+SMTP_FROM_NAME="Skoolee AI"
+```
+
+Use a Google app password for `SMTP_PASS`; the normal Gmail password will not work.
+
 ## Workers (separate terminal)
 
 ```bash

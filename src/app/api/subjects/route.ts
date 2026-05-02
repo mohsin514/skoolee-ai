@@ -1,70 +1,176 @@
-// ===========================================
-// CRUD /api/subjects
-// ===========================================
-
 import { NextRequest } from "next/server";
-import { getAuthUser } from "@/lib/auth";
-import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
+import { prisma } from "@/lib/db/prisma";
 import { subjectSchema } from "@/lib/validators/schemas";
+import {
+  ApiError,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
-export async function GET() {
+async function getScopedClass(classId: string, userCampusId: string | null, schoolId: string) {
+  const cls = await prisma.class.findFirst({
+    where: {
+      id: classId,
+      campus: { schoolId },
+      ...(userCampusId ? { campusId: userCampusId } : {}),
+    },
+    select: { id: true, campusId: true },
+  });
+
+  if (!cls) throw new ApiError("Class not found", 404);
+  return cls;
+}
+
+async function assertTeacher(teacherId: string | null | undefined, campusId: string, schoolId: string) {
+  if (!teacherId) return null;
+
+  const teacher = await prisma.user.findFirst({
+    where: { id: teacherId, campusId, schoolId, role: "TEACHER", isActive: true },
+    select: { id: true },
+  });
+
+  if (!teacher) throw new ApiError("Teacher is not active in this campus", 400);
+  return teacher.id;
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    const userId = user?.userId;
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await requireAuthUser();
+    const { searchParams } = new URL(req.url);
+    const requestedCampusId = searchParams.get("campusId");
+    const classId = searchParams.get("classId");
+    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
+      ? null
+      : await resolveCampusId(user, requestedCampusId);
 
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
-
-    const subjects = await withTenant(tenant.schemaName, async (query) => {
-      return query(`SELECT * FROM subjects ORDER BY name ASC`);
+    const subjects = await prisma.subject.findMany({
+      where: {
+        ...scopedCampusWhere(user, campusId),
+        ...(classId ? { classId } : {}),
+      },
+      include: {
+        class: { select: { id: true, name: true, section: true, academicYear: true } },
+        teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true, isActive: true } },
+      },
+      orderBy: [{ class: { name: "asc" } }, { name: "asc" }],
     });
 
     return Response.json({ success: true, data: subjects });
   } catch (error) {
-    console.error("[subjects] GET error:", error);
-    return Response.json({ error: "Failed to fetch subjects" }, { status: 500 });
+    return errorResponse(error, "[subjects] GET failed");
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    const userId = user?.userId;
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
+    const user = await requireAuthUser();
+    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
     const parsed = subjectSchema.safeParse(body);
     if (!parsed.success) {
-      return Response.json(
-        { error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
+      return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const s = parsed.data;
-    const result = await withTenant(tenant.schemaName, async (query) => {
-      return query(
-        `INSERT INTO subjects (name, code, description, max_marks, passing_marks, is_optional)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [s.name, s.code, s.description || null, s.maxMarks, s.passingMarks, s.isOptional]
-      );
+    const cls = await getScopedClass(
+      parsed.data.classId,
+      user.role === "SUPER_ADMIN" ? body.campusId || null : user.campusId,
+      user.schoolId
+    );
+    const teacherId = await assertTeacher(parsed.data.teacherId, cls.campusId, user.schoolId);
+    const totalMarks = parsed.data.totalMarks || parsed.data.maxMarks || 100;
+    const existing = await prisma.subject.findFirst({
+      where: {
+        campusId: cls.campusId,
+        classId: parsed.data.classId,
+        name: { equals: parsed.data.name.trim(), mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (existing) throw new ApiError("This subject already exists in the selected section", 409);
+
+    const subject = await prisma.subject.create({
+      data: {
+        campusId: cls.campusId,
+        classId: parsed.data.classId,
+        name: parsed.data.name.trim(),
+        teacherId,
+        totalMarks,
+      },
+      include: {
+        class: { select: { id: true, name: true, section: true } },
+        teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
+      },
     });
 
-    return Response.json({ success: true, data: result }, { status: 201 });
+    return Response.json({ success: true, data: subject }, { status: 201 });
   } catch (error) {
-    console.error("[subjects] POST error:", error);
-    return Response.json({ error: "Failed to create subject" }, { status: 500 });
+    return errorResponse(error, "[subjects] POST failed");
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await requireAuthUser();
+    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+
+    const body = await req.json();
+    if (!body.id) throw new ApiError("Subject id is required", 400);
+
+    const existing = await prisma.subject.findFirst({
+      where: { id: body.id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
+      select: { id: true, campusId: true },
+    });
+    if (!existing) throw new ApiError("Subject not found", 404);
+
+    const data: any = {};
+    if (body.name !== undefined) data.name = String(body.name).trim();
+    if (body.totalMarks !== undefined) data.totalMarks = Number(body.totalMarks);
+    if (body.teacherId !== undefined) data.teacherId = await assertTeacher(body.teacherId, existing.campusId, user.schoolId);
+    if (body.classId !== undefined) {
+      const cls = await getScopedClass(body.classId, existing.campusId, user.schoolId);
+      data.classId = cls.id;
+    }
+
+    const subject = await prisma.subject.update({
+      where: { id: body.id },
+      data,
+      include: {
+        class: { select: { id: true, name: true, section: true } },
+        teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
+      },
+    });
+
+    return Response.json({ success: true, data: subject });
+  } catch (error) {
+    return errorResponse(error, "[subjects] PATCH failed");
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuthUser();
+    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) throw new ApiError("Subject id is required", 400);
+
+    const subject = await prisma.subject.findFirst({
+      where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
+      include: { _count: { select: { marks: true } } },
+    });
+    if (!subject) throw new ApiError("Subject not found", 404);
+    if (subject._count.marks > 0) {
+      throw new ApiError("Subjects with marks cannot be deleted", 409);
+    }
+
+    await prisma.subject.delete({ where: { id } });
+    return Response.json({ success: true });
+  } catch (error) {
+    return errorResponse(error, "[subjects] DELETE failed");
   }
 }

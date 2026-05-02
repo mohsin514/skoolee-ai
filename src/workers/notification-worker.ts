@@ -1,53 +1,111 @@
 // ===========================================
 // SkooleeAI - Notification Worker
 // ===========================================
-// Processes WhatsApp/Email notification jobs.
+// Processes WhatsApp, email, and automation jobs.
 
 import { Worker, Job } from "bullmq";
 import { redis } from "@/lib/queue/connection";
-import { withTenant, tenantExec } from "@/lib/db/tenant";
+import { prisma } from "@/lib/db/prisma";
+import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
+import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
+import {
+  parseNotificationTemplateKey,
+  sendTemplatedCommunication,
+} from "@/lib/notifications/service";
 import type { NotificationJobData } from "@/lib/queue/queues";
 
 const worker = new Worker<NotificationJobData>(
   "notifications",
   async (job: Job<NotificationJobData>) => {
-    const { schemaName, studentId, type, recipient, message, attachmentUrl } =
-      job.data;
+    const data = job.data;
 
-    console.log(
-      `[Notification Worker] Sending ${type} to ${recipient}`
-    );
-
-    let status = "FAILED";
-    let error: string | null = null;
-
-    if (type === "WHATSAPP") {
-      const result = await sendWhatsAppMessage({
-        to: recipient,
-        text: message,
-        pdfUrl: attachmentUrl,
+    if ("kind" in data && data.kind === "RUN_AUTOMATION") {
+      const results = await runNotificationAutomationSweep({
+        schoolId: data.schoolId,
+        campusId: data.campusId,
+        trigger: data.trigger,
       });
-      status = result.success ? "SENT" : "FAILED";
-      error = result.error || null;
+      return { processed: results.length };
     }
 
-    // TODO: Add email sending logic here for type === "EMAIL"
+    if ("kind" in data && data.kind === "SEND_TEMPLATE") {
+      const templateKey = parseNotificationTemplateKey(data.templateKey);
+      if (!templateKey) throw new Error(`Unknown notification template: ${data.templateKey}`);
 
-    // Log notification
-    await withTenant(schemaName, async () => {
-      return tenantExec(schemaName, 
-        `INSERT INTO notifications (student_id, type, recipient, message, attachment_url, status, error)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [studentId, type, recipient, message, attachmentUrl || null, status, error]
-      );
-    });
+      const communication = await sendTemplatedCommunication({
+        key: templateKey,
+        channel: data.channel,
+        context: data.context || {},
+        target: {
+          schoolId: data.schoolId,
+          campusId: data.campusId,
+          studentId: data.studentId,
+          parentUserId: data.parentUserId,
+          recipientName: data.recipientName,
+          recipient: data.recipient,
+        },
+        attachmentUrl: data.attachmentUrl,
+        relatedType: data.relatedType,
+        relatedId: data.relatedId,
+        approvedData: Boolean(data.approvedData),
+        idempotencyKey: data.idempotencyKey,
+        metadata: data.metadata,
+      });
 
-    if (status === "FAILED") {
-      throw new Error(error || "Notification failed");
+      if (communication.status === "FAILED") {
+        throw new Error(communication.failedReason || "Notification failed");
+      }
+
+      return { status: communication.status, communicationId: communication.id };
     }
 
-    return { status };
+    const legacyData = data as Extract<NotificationJobData, { type: "WHATSAPP" | "EMAIL" }>;
+    const result =
+      legacyData.type === "WHATSAPP"
+        ? await sendWhatsAppMessage({
+            to: legacyData.recipient,
+            text: legacyData.message,
+            pdfUrl: legacyData.attachmentUrl,
+          })
+        : await sendEmailMessage({
+            to: legacyData.recipient,
+            subject: "School notification",
+            text: legacyData.message,
+          });
+
+    if (legacyData.tenantId) {
+      const student = legacyData.studentId
+        ? await prisma.student.findUnique({ where: { id: legacyData.studentId }, select: { campusId: true, parentUserId: true } })
+        : null;
+
+      await prisma.parentCommunication.create({
+        data: {
+          schoolId: legacyData.tenantId,
+          campusId: student?.campusId || null,
+          studentId: legacyData.studentId || null,
+          parentUserId: student?.parentUserId || null,
+          templateKey: "LEGACY_MESSAGE",
+          channel: legacyData.type,
+          recipient: legacyData.recipient,
+          subject: legacyData.type === "EMAIL" ? "School notification" : null,
+          body: legacyData.message,
+          attachmentUrl: legacyData.attachmentUrl || null,
+          status: result.success ? "SENT" : "FAILED",
+          providerMessageId: result.messageId || null,
+          failedReason: result.success ? null : result.error || "Delivery failed",
+          approvedData: false,
+          sentAt: result.success ? new Date() : null,
+          metadata: { queueJobId: job.id },
+        },
+      });
+    }
+
+    if (!result.success) {
+      throw new Error(result.error || "Notification failed");
+    }
+
+    return { status: "SENT" };
   },
   {
     connection: redis,

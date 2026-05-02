@@ -19,6 +19,7 @@
 //   last_name TEXT NOT NULL,
 //   date_of_birth DATE,
 //   gender TEXT CHECK (gender IN ('MALE', 'FEMALE', 'OTHER')),
+//   phone TEXT,
 //   guardian_name TEXT,
 //   guardian_phone TEXT,
 //   guardian_email TEXT,

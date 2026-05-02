@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
@@ -34,6 +35,7 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
   const { payload } = await jwtVerify(token, JWT_SECRET);
   const userId = String(payload.userId);
   const schoolId = String(payload.schoolId);
+  await assertPlanCapacity({ schoolId, metric: "campuses", increment: campuses.length });
 
   // 1. Update School Info (Branding & RegId)
   await prisma.school.update({
@@ -81,9 +83,10 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
     fullName: updatedUser.fullName,
     role: updatedUser.role,
     schoolId: updatedUser.schoolId,
-    campusId: updatedUser.campusId, // CRITICAL: Include campusId
-    schoolSlug: updatedUser.school?.slug,
-    onboardingComplete: true,
+      campusId: updatedUser.campusId, // CRITICAL: Include campusId
+      schoolSlug: updatedUser.school?.slug,
+      schoolStatus: updatedUser.school?.status,
+      onboardingComplete: true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")

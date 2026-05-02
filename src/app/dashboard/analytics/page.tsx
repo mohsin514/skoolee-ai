@@ -1,5 +1,5 @@
-"use client";
-
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import {
   Card,
@@ -7,9 +7,61 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { BarChart3, TrendingUp, TrendingDown, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getAuthUser } from "@/lib/auth";
+import { getBillingSnapshot } from "@/lib/billing/entitlements";
+import { BarChart3, TrendingUp, TrendingDown, Users, Lock, ArrowUpRight } from "lucide-react";
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const session = await getAuthUser();
+  if (!session) redirect("/login");
+
+  const billing = await getBillingSnapshot(session.schoolId);
+  if (!billing.isOperational || !billing.limits.analyticsEnabled) {
+    const isSuspended = !billing.isOperational;
+    return (
+      <>
+        <Header
+          title="Analytics"
+          description="School performance insights and AI usage metrics"
+        />
+        <div className="p-6">
+          <Card className="border-amber-200 bg-amber-50/60 shadow-none">
+            <CardContent className="p-6">
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <Badge className="mb-3 bg-white text-amber-700">
+                      {isSuspended ? "Billing paused" : "Pro feature"}
+                    </Badge>
+                    <h2 className="text-xl font-bold tracking-normal">
+                      {isSuspended ? "Restore billing to use analytics" : "Analytics unlocks on Pro"}
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                      {isSuspended
+                        ? "Subscription access is paused. Restore billing before using analytics and other operational workflows."
+                        : `Your current ${billing.limits.name} plan includes core records, but AI performance analytics, cohort trends, and intervention summaries require Pro or Enterprise.`}
+                    </p>
+                  </div>
+                </div>
+                <Link href="/dashboard/billing">
+                  <Button>
+                    Upgrade
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <Header
@@ -30,7 +82,7 @@ export default function AnalyticsPage() {
                   <p className="text-sm text-muted-foreground">
                     Avg. Class Performance
                   </p>
-                  <p className="text-2xl font-bold">—%</p>
+                  <p className="text-2xl font-bold">N/A</p>
                 </div>
               </div>
             </CardContent>
@@ -45,7 +97,7 @@ export default function AnalyticsPage() {
                   <p className="text-sm text-muted-foreground">
                     Pass Rate
                   </p>
-                  <p className="text-2xl font-bold">—%</p>
+                  <p className="text-2xl font-bold">N/A</p>
                 </div>
               </div>
             </CardContent>
@@ -60,7 +112,7 @@ export default function AnalyticsPage() {
                   <p className="text-sm text-muted-foreground">
                     Students Needing Attention
                   </p>
-                  <p className="text-2xl font-bold">—</p>
+                  <p className="text-2xl font-bold">N/A</p>
                 </div>
               </div>
             </CardContent>

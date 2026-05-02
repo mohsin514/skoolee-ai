@@ -5,11 +5,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { billingAccessResponse } from "@/lib/billing/response";
 import { firstClassSchema } from "@/lib/validators/schemas";
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const billingBlocked = await billingAccessResponse(user.schoolId);
+  if (billingBlocked) return billingBlocked;
 
   const body = await req.json();
   const parsed = firstClassSchema.safeParse(body);

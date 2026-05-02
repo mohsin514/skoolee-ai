@@ -4,29 +4,29 @@
 /* ─── shadcn/ui Design Tokens ───────────────────────────── */
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  --background: 287 88% 97%;
+  --foreground: 273 15% 12%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 273 15% 12%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 262 83% 58%;
+  --popover-foreground: 273 15% 12%;
+  --primary: 273 68% 48%;
   --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --secondary: 287 88% 97%;
+  --secondary-foreground: 273 15% 12%;
+  --muted: 230 33% 96%;
+  --muted-foreground: 278 11% 30%;
+  --accent: 287 88% 97%;
+  --accent-foreground: 273 15% 12%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 262 83% 58%;
-  --radius: 0.75rem;
-  --sidebar-bg: 240 5% 96%;
-  --sidebar-foreground: 240 10% 3.9%;
-  --sidebar-border: 240 5.9% 90%;
+  --border: 278 17% 80%;
+  --input: 278 17% 80%;
+  --ring: 273 68% 48%;
+  --radius: 1.5rem;
+  --sidebar-bg: 287 88% 97%;
+  --sidebar-foreground: 273 15% 12%;
+  --sidebar-border: 278 17% 80%;
   --success: 142 76% 36%;
   --warning: 38 92% 50%;
 }
@@ -106,6 +106,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button:not(:disabled),
+a[href],
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: rgb(129 39 207 / 0.18);
+}
+
 /* ─── Animations ─────────────────────────────────────────── */
 
 @keyframes fade-in {
@@ -177,17 +192,82 @@ body {
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(207 194 214 / 0.75);
+  border-radius: 999px;
+}
+
+.skoolee-dashboard-main {
+  background:
+    linear-gradient(180deg, #fbf0fe 0%, #f3f4f9 48%, #fff7fe 100%);
+}
+
+.skoolee-dashboard-main table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.skoolee-dashboard-main thead tr {
+  background: rgb(243 244 249 / 0.7);
+}
+
+.skoolee-dashboard-main th {
+  color: rgb(77 67 84 / 0.72);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.skoolee-dashboard-main tbody tr {
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.skoolee-dashboard-main tbody tr:hover {
+  background: rgb(251 240 254 / 0.48);
+}
+
+.skoolee-dashboard-main .rounded-md {
+  border-radius: 0.75rem;
+}
+
+.skoolee-dashboard-main .rounded-lg {
+  border-radius: 1rem;
+}
+
+.skoolee-dashboard-main .rounded-xl {
+  border-radius: 1.35rem;
+}
+
+.skoolee-dashboard-main .border-border,
+.skoolee-dashboard-main .border-sidebar-border {
+  border-color: rgb(207 194 214 / 0.2);
+}
+
+.skoolee-dashboard-main .bg-muted\/30,
+.skoolee-dashboard-main .bg-muted\/50 {
+  background-color: rgb(243 244 249 / 0.62);
+}
+
 /* ─── Skoolee Premium Toasts ───────────────────────────── */
 
 .skoolee-toast {
-  --normal-bg: rgba(255, 255, 255, 0.9);
+  --normal-bg: rgba(255, 255, 255, 0.96);
   --normal-border: rgba(207, 194, 214, 0.4);
   --normal-text: #1f1a23;
   
-  box-shadow: 0 32px 64px -12px rgba(31, 26, 35, 0.12) !important;
+  box-shadow: 0 28px 70px -18px rgba(31, 26, 35, 0.28) !important;
   border: 1px solid var(--normal-border) !important;
-  backdrop-filter: blur(12px) !important;
-  padding: 18px 24px !important;
+  backdrop-filter: blur(14px) !important;
+  padding: 18px 20px !important;
+  border-radius: 28px !important;
 }
 
 .skoolee-toast [data-icon] {
@@ -196,14 +276,28 @@ body {
 }
 
 .skoolee-toast [data-title] {
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 900;
+  letter-spacing: 0;
   margin-bottom: 2px;
 }
 
 .skoolee-toast [data-description] {
-  font-weight: 500;
-  opacity: 0.7;
+  color: rgb(77 67 84 / 0.72);
+  font-weight: 650;
+  opacity: 1;
+}
+
+.skoolee-toast [data-close-button] {
+  border-color: rgb(207 194 214 / 0.45) !important;
+  background: white !important;
+  color: #8127cf !important;
+}
+
+.skoolee-toast [data-button] {
+  border-radius: 14px !important;
+  background: #8127cf !important;
+  color: white !important;
+  font-weight: 900 !important;
 }
 
 [data-sonner-toaster][data-theme='light'] {

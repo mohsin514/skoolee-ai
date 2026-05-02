@@ -1,40 +1,54 @@
-// ===========================================
-// POST /api/whatsapp/send – Send WhatsApp notifications
-// ===========================================
-
 import { NextRequest } from "next/server";
-import { getAuthUser } from "@/lib/auth";
 import { z } from "zod";
-import { getTenantForUser, withTenant, tenantExec } from "@/lib/db/tenant";
-import { sendReportCardNotification } from "@/lib/whatsapp/client";
 import { prisma } from "@/lib/db/prisma";
 import { canUseFeature } from "@/config/plans";
-import { PlanType } from "@/types";
+import { isCampusAdminRole } from "@/lib/roles";
+import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import {
+  DEFAULT_NOTIFICATION_TEMPLATES,
+  type NotificationTemplateKey,
+} from "@/lib/notifications/templates";
+import {
+  parseNotificationTemplateKey,
+  sendReportCardPublishedNotifications,
+  sendStudentTemplatedCommunication,
+} from "@/lib/notifications/service";
 
-const schema = z.object({
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const sendWhatsAppSchema = z.object({
   studentId: z.string().min(1),
-  examId: z.string().min(1),
-  pdfUrl: z.string().url().optional(),
+  templateKey: z.string().optional(),
+  examId: z.string().optional(),
+  reportCardId: z.string().optional(),
+  context: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  relatedType: z.string().optional(),
+  relatedId: z.string().optional(),
+  attachmentUrl: z.string().url().optional(),
+  approvedSchoolData: z.boolean().optional(),
 });
+
+function canSendParentMessages(role: string) {
+  return role === "SUPER_ADMIN" || role === "PRINCIPAL" || isCampusAdminRole(role);
+}
+
+export async function GET() {
+  return Response.json({
+    success: true,
+    templates: DEFAULT_NOTIFICATION_TEMPLATES.filter((template) => template.channel === "WHATSAPP"),
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    const userId = user?.userId;
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await requireAuthUser();
+    if (!canSendParentMessages(user.role)) {
+      return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
-
-    // Check plan allows WhatsApp
-    const tenantRecord = await prisma.school.findUnique({
-      where: { id: tenant.schoolId },
-    });
-    if (!tenantRecord || !canUseFeature(tenantRecord.plan as PlanType, "whatsappEnabled")) {
+    const school = await prisma.school.findUnique({ where: { id: user.schoolId } });
+    if (!school || !canUseFeature(school.plan, "whatsappEnabled")) {
       return Response.json(
         { error: "WhatsApp notifications require Basic or Pro plan" },
         { status: 403 }
@@ -42,86 +56,62 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const parsed = schema.safeParse(body);
+    const parsed = sendWhatsAppSchema.safeParse(body);
     if (!parsed.success) {
-      return Response.json(
-        { error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
+      return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { studentId, examId, pdfUrl } = parsed.data;
-
-    // Fetch student + guardian info
-    const students = await withTenant(tenant.schemaName, async (query) => {
-      return query<
-        Array<{
-          first_name: string;
-          last_name: string;
-          guardian_whatsapp: string | null;
-        }>
-      >(
-        `SELECT first_name, last_name, guardian_whatsapp FROM students WHERE id = $1`,
-        [studentId]
-      );
+    const student = await prisma.student.findFirst({
+      where: {
+        id: parsed.data.studentId,
+        campus: { schoolId: user.schoolId },
+        ...(user.campusId ? { campusId: user.campusId } : {}),
+      },
+      select: { id: true },
     });
+    if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
 
-    const student = Array.isArray(students) ? students[0] : null;
-    if (!student?.guardian_whatsapp) {
-      return Response.json(
-        { error: "Student has no guardian WhatsApp number" },
-        { status: 400 }
-      );
+    if (parsed.data.reportCardId || parsed.data.examId) {
+      const reportCard = await prisma.reportCard.findFirst({
+        where: {
+          ...(parsed.data.reportCardId ? { id: parsed.data.reportCardId } : {}),
+          ...(parsed.data.examId ? { examId: parsed.data.examId } : {}),
+          studentId: student.id,
+          campus: { schoolId: user.schoolId },
+        },
+        select: { id: true },
+      });
+
+      if (!reportCard) return Response.json({ error: "Report card not found" }, { status: 404 });
+
+      const communications = await sendReportCardPublishedNotifications({
+        reportCardId: reportCard.id,
+        channels: ["WHATSAPP"],
+        createdById: user.userId,
+      });
+
+      return Response.json({ success: true, communications });
     }
 
-    // Fetch exam name
-    const exams = await withTenant(tenant.schemaName, async (query) => {
-      return query<Array<{ name: string }>>(
-        `SELECT name FROM exams WHERE id = $1`,
-        [examId]
-      );
-    });
-    const examName = Array.isArray(exams) && exams[0] ? exams[0].name : "Exam";
+    const key = parseNotificationTemplateKey(parsed.data.templateKey || "GENERAL_ANNOUNCEMENT");
+    if (!key) return Response.json({ error: "Unknown notification template" }, { status: 400 });
 
-    // Send WhatsApp
-    const result = await sendReportCardNotification(
-      student.guardian_whatsapp,
-      `${student.first_name} ${student.last_name}`,
-      examName,
-      pdfUrl
-    );
-
-    // Log notification
-    await withTenant(tenant.schemaName, async () => {
-      return tenantExec(tenant.schemaName, 
-        `INSERT INTO notifications (student_id, type, recipient, message, attachment_url, status)
-         VALUES ($1, 'WHATSAPP', $2, $3, $4, $5)`,
-        [
-          studentId,
-          student.guardian_whatsapp,
-          `Report card sent for ${examName}`,
-          pdfUrl || null,
-          result.success ? "SENT" : "FAILED",
-        ]
-      );
+    const communications = await sendStudentTemplatedCommunication({
+      studentId: student.id,
+      key: key as NotificationTemplateKey,
+      channels: ["WHATSAPP"],
+      context: parsed.data.context || {},
+      createdById: user.userId,
+      attachmentUrl: parsed.data.attachmentUrl,
+      relatedType: parsed.data.relatedType || "MANUAL",
+      relatedId: parsed.data.relatedId || undefined,
+      approvedData: parsed.data.approvedSchoolData === true,
+      idempotencyBase: parsed.data.relatedId ? `manual-whatsapp:${key}:${parsed.data.relatedId}` : undefined,
+      metadata: { source: "api_whatsapp" },
     });
 
-    if (!result.success) {
-      return Response.json(
-        { error: result.error || "Failed to send WhatsApp" },
-        { status: 500 }
-      );
-    }
-
-    return Response.json({
-      success: true,
-      data: { messageId: result.messageId },
-    });
+    return Response.json({ success: true, communications });
   } catch (error) {
-    console.error("[whatsapp/send] Error:", error);
-    return Response.json(
-      { error: "Failed to send notification" },
-      { status: 500 }
-    );
+    return errorResponse(error, "[whatsapp] send failed");
   }
 }

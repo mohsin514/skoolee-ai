@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import { getAuthUser } from "@/lib/auth";
 import { getTenantForUser } from "@/lib/db/tenant";
 import { prisma } from "@/lib/db/prisma";
+import { getAICreditSnapshot } from "@/lib/ai/openai";
 
 export async function GET() {
   try {
@@ -21,26 +22,43 @@ export async function GET() {
       return Response.json({ error: "No tenant" }, { status: 403 });
     }
 
-    const s = await prisma.school.findUnique({
-      where: { id: tenant.schoolId },
-      select: {
-        aiCreditsUsed: true,
-        aiCreditsLimit: true,
-        plan: true,
-      },
-    });
+    const [snapshot, usageByFeature, pendingReviews] = await Promise.all([
+      getAICreditSnapshot(tenant.schoolId),
+      prisma.aIUsageLog.groupBy({
+        by: ["feature"],
+        where: { schoolId: tenant.schoolId },
+        _count: { _all: true },
+        _sum: { tokensUsed: true },
+      }),
+      prisma.aIReviewItem.count({
+        where: {
+          schoolId: tenant.schoolId,
+          status: "PENDING",
+          ...(user.campusId ? { campusId: user.campusId } : {}),
+        },
+      }),
+    ]);
 
     return Response.json({
       success: true,
       data: {
-        used: s?.aiCreditsUsed || 0,
-        limit: s?.aiCreditsLimit || 100,
-        remaining: (s?.aiCreditsLimit || 100) - (s?.aiCreditsUsed || 0),
-        plan: s?.plan || "FREE",
+        used: snapshot.used,
+        limit: snapshot.limit,
+        remaining: snapshot.remaining,
+        plan: snapshot.plan,
+        pendingReviews,
+        usageByFeature: usageByFeature.map((row) => ({
+          feature: row.feature || "legacy",
+          requests: row._count._all,
+          tokensUsed: row._sum.tokensUsed || 0,
+        })),
       },
     });
   } catch (error) {
     console.error("[ai/credits] Error:", error);
+    if (error instanceof Error && "status" in error && typeof error.status === "number") {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     return Response.json(
       { error: "Failed to fetch credits" },
       { status: 500 }

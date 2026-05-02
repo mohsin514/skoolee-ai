@@ -2,13 +2,15 @@
 // SkooleeAI - Core Type Definitions
 // ===========================================
 
-export type UserRole = "SUPER_ADMIN" | "ADMIN" | "TEACHER" | "PARENT";
-export type PlanType = "FREE" | "BASIC" | "PRO";
+import type { UserRole } from "@/lib/roles";
+
+export type { UserRole } from "@/lib/roles";
+export type PlanType = "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
 export type TenantStatus = "ACTIVE" | "SUSPENDED" | "TRIAL" | "CANCELLED";
 export type StudentStatus = "ACTIVE" | "INACTIVE" | "GRADUATED" | "TRANSFERRED";
 export type ExamType = "MONTHLY" | "MIDTERM" | "FINAL" | "UNIT_TEST" | "CUSTOM";
 export type ExamStatus = "DRAFT" | "ACTIVE" | "COMPLETED" | "PUBLISHED";
-export type ReportCardStatus = "DRAFT" | "GENERATED" | "SENT";
+export type ReportCardStatus = "DRAFT" | "GENERATED" | "REVIEWED" | "PUBLISHED" | "SENT";
 export type NotificationType = "WHATSAPP" | "EMAIL" | "SMS";
 export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "DELIVERED" | "READ";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
@@ -33,13 +35,67 @@ export interface Tenant {
   updatedAt: Date;
 }
 
+// Central MVP models mirror prisma/schema.prisma and should be the default
+// data contract for new dashboard work. Tenant-schema types remain below only
+// where legacy /dashboard routes still need them.
+
+export interface School {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  plan: PlanType;
+  aiCreditsUsed: number;
+  aiCreditsLimit: number;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  city: string;
+  address?: string | null;
+  regId: string;
+  contactEmail: string;
+  createdAt: Date;
+}
+
+export interface Campus {
+  id: string;
+  schoolId: string;
+  name: string;
+  city: string;
+  address?: string | null;
+  phone?: string | null;
+  regId: string;
+  board?: string | null;
+  logoUrl?: string | null;
+  createdAt: Date;
+}
+
+export interface User {
+  id: string;
+  campusId?: string | null;
+  schoolId: string;
+  email: string;
+  username?: string | null;
+  fullName: string;
+  role: UserRole;
+  phone?: string | null;
+  isActive: boolean;
+  onboardingComplete: boolean;
+  createdAt: Date;
+}
+
 // ─── Student ───────────────────────────────────────────
 
 export interface Student {
   id: string;
-  registrationNo: string;
-  firstName: string;
-  lastName: string;
+  campusId?: string;
+  classId?: string | null;
+  parentUserId?: string | null;
+  fullName?: string;
+  rollNo?: string;
+  phone?: string | null;
+  registrationNo?: string;
+  firstName?: string;
+  lastName?: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
   guardianName?: string | null;
@@ -48,62 +104,74 @@ export interface Student {
   guardianWhatsapp?: string | null;
   address?: string | null;
   photoUrl?: string | null;
-  classId?: string | null;
-  status: StudentStatus;
-  createdAt: Date;
-  updatedAt: Date;
+  status?: StudentStatus;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // ─── Class ─────────────────────────────────────────────
 
 export interface Class {
   id: string;
+  campusId?: string;
   name: string;
   section?: string | null;
-  gradeLevel: number;
-  academicYear: string;
+  classTeacherId?: string | null;
+  gradeLevel?: number;
+  academicYear: number | string;
   teacherId?: string | null;
-  capacity: number;
-  createdAt: Date;
-  updatedAt: Date;
+  capacity?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // ─── Subject ───────────────────────────────────────────
 
 export interface Subject {
   id: string;
+  campusId?: string;
+  classId?: string;
   name: string;
-  code: string;
+  code?: string;
   description?: string | null;
-  maxMarks: number;
-  passingMarks: number;
-  isOptional: boolean;
-  createdAt: Date;
+  teacherId?: string | null;
+  totalMarks?: number;
+  maxMarks?: number;
+  passingMarks?: number;
+  isOptional?: boolean;
+  createdAt?: Date;
 }
 
 // ─── Exam ──────────────────────────────────────────────
 
 export interface Exam {
   id: string;
-  name: string;
-  type: ExamType;
-  academicYear: string;
+  campusId?: string;
+  classId?: string;
+  title?: string;
+  name?: string;
+  type?: ExamType;
+  academicYear: number | string;
   term?: string | null;
   startDate?: Date | null;
   endDate?: Date | null;
-  status: ExamStatus;
-  createdAt: Date;
+  isLocked?: boolean;
+  lockedBy?: string | null;
+  lockedAt?: Date | null;
+  status?: ExamStatus;
+  createdAt?: Date;
 }
 
 // ─── Marks ─────────────────────────────────────────────
 
 export interface Mark {
   id: string;
+  campusId?: string;
   studentId: string;
   subjectId: string;
   examId: string;
   marksObtained: number;
-  maxMarks: number;
+  maxMarks?: number;
   grade?: string | null;
   remarks?: string | null;
   aiRemarkEn?: string | null;
@@ -117,20 +185,57 @@ export interface Mark {
 
 export interface ReportCard {
   id: string;
+  campusId?: string;
   studentId: string;
   examId: string;
-  totalMarks: number;
-  obtainedMarks: number;
-  percentage: number;
+  totalMarks?: number;
+  obtainedMarks?: number;
+  percentage?: number;
   grade?: string | null;
   rank?: number | null;
+  remarksEn?: string | null;
+  remarksUr?: string | null;
   overallRemarkEn?: string | null;
   overallRemarkUr?: string | null;
   pdfUrl?: string | null;
-  status: ReportCardStatus;
+  isSent?: boolean;
+  status?: ReportCardStatus;
   sentVia?: "WHATSAPP" | "EMAIL" | "BOTH" | null;
   sentAt?: Date | null;
-  createdAt: Date;
+  generatedAt?: Date;
+  createdAt?: Date;
+}
+
+export interface Attendance {
+  id: string;
+  campusId: string;
+  studentId: string;
+  date: Date;
+  status: "PRESENT" | "ABSENT" | "LEAVE";
+  markedBy?: string | null;
+}
+
+export interface Invoice {
+  id: string;
+  campusId: string;
+  studentId: string;
+  term: string;
+  academicYear: number;
+  totalAmount: number;
+  dueDate: Date;
+  status: "PENDING" | "PAID" | "PARTIAL" | "CANCELLED";
+  challanUrl?: string | null;
+  generatedAt: Date;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amountPaid: number;
+  method: string;
+  receiptNo?: string | null;
+  paidAt: Date;
+  recordedBy?: string | null;
 }
 
 // ─── API Response Types ────────────────────────────────
@@ -170,6 +275,27 @@ export interface AIRemarkResponse {
   remarkEn?: string;
   remarkUr?: string;
   tokensUsed: number;
+  model?: string;
+  promptVersion?: string;
+}
+
+export interface AIInsight {
+  id: string;
+  schoolId: string;
+  campusId?: string | null;
+  userId: string;
+  role: UserRole | string;
+  feature: string;
+  action: string;
+  title: string;
+  summary: string;
+  output?: unknown;
+  promptVersion: string;
+  model: string;
+  tokensUsed: number;
+  approvalStatus: string;
+  status: string;
+  createdAt: Date;
 }
 
 // ─── Dashboard Analytics ───────────────────────────────
@@ -197,11 +323,17 @@ export interface DashboardStats {
 export interface PlanDetails {
   type: PlanType;
   name: string;
-  price: number;
+  price: number | null;
+  priceLabel: string;
+  stripePriceEnv?: string;
+  isCustom?: boolean;
   features: string[];
   aiCredits: number;
   maxStudents: number;
   maxTeachers: number;
+  maxCampuses: number;
   whatsappEnabled: boolean;
+  pdfExportEnabled: boolean;
   pdfBulkExport: boolean;
+  analyticsEnabled: boolean;
 }

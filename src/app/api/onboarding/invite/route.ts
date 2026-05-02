@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { teacherInviteSchema } from "@/lib/validators/schemas";
 import { randomBytes } from "crypto";
+import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
 export async function POST(req: NextRequest) {
   const authUser = await getAuthUser();
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, fullName } = parsed.data;
+  await assertPlanCapacity({ schoolId: authUser.schoolId, metric: "teachers" });
 
   // Check if user already exists
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Build the magic link
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = req.nextUrl.origin;
   const magicLink = `${baseUrl}/accept-invite?token=${token}&userId=${newUser.id}`;
 
   // In production: send via email. For now log it.

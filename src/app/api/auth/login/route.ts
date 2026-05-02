@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       schoolId: user.schoolId,
       campusId: user.campusId,
       schoolSlug: user.school?.slug,
+      schoolStatus: user.school?.status,
       onboardingComplete: user.onboardingComplete,
     })
       .setProtectedHeader({ alg: "HS256" })
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         campusId: user.campusId,
         schoolName: user.school?.name,
         campusName: user.campus?.name,
+        schoolStatus: user.school?.status,
         onboardingComplete: user.onboardingComplete,
       },
     });

@@ -12,9 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Brain, Loader2, Check, AlertCircle } from "lucide-react";
+import { Loader2, Check, AlertCircle } from "lucide-react";
 import { calculateGrade } from "@/lib/utils";
-import { toast } from "sonner";
 
 interface StudentMark {
   studentId: string;
@@ -37,7 +36,6 @@ interface MarksEntryTableProps {
 }
 
 export function MarksEntryTable({
-  classId,
   subjectId,
   examId,
 }: MarksEntryTableProps) {
@@ -85,7 +83,59 @@ export function MarksEntryTable({
     [students.length]
   );
 
-  // ─── Handle marks change with debounced AI remark ──────
+  // Generate AI remarks for a single student.
+  const generateRemarkForStudent = useCallback(
+    async (index: number, marksObtained: number | null) => {
+      setStudents((prev) => {
+        const updated = [...prev];
+        updated[index] = { ...updated[index], isGenerating: true };
+        return updated;
+      });
+
+      try {
+        const student = students[index];
+        if (!student) return;
+
+        const res = await fetch("/api/ai/generate-remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId: student.studentId,
+            subjectId,
+            examId,
+            marks: marksObtained,
+            maxMarks: student.maxMarks,
+            language: remarkLanguage,
+            tone: "formal",
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setStudents((prev) => {
+            const updated = [...prev];
+            updated[index] = {
+              ...updated[index],
+              remarkEn: data.data?.remarkEn || "",
+              remarkUr: data.data?.remarkUr || "",
+              isGenerating: false,
+            };
+            return updated;
+          });
+        } else {
+          throw new Error("API error");
+        }
+      } catch {
+        setStudents((prev) => {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], isGenerating: false };
+          return updated;
+        });
+      }
+    },
+    [examId, remarkLanguage, students, subjectId]
+  );
+
   const handleMarksChange = useCallback(
     (index: number, value: string) => {
       const numValue = value === "" ? null : Number(value);
@@ -115,63 +165,15 @@ export function MarksEntryTable({
 
       if (numValue !== null && numValue >= 0) {
         const timer = setTimeout(() => {
-          generateRemarkForStudent(index);
+          generateRemarkForStudent(index, numValue);
         }, 500);
         debounceTimers.current.set(studentId, timer);
       }
     },
-    [students]
+    [generateRemarkForStudent, students]
   );
 
-  // ─── Generate AI remark for a single student ───────────
-  const generateRemarkForStudent = async (index: number) => {
-    setStudents((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], isGenerating: true };
-      return updated;
-    });
-
-    try {
-      const student = students[index];
-      const res = await fetch("/api/ai/generate-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: student.studentId,
-          subjectId,
-          examId,
-          marks: student.marksObtained,
-          maxMarks: student.maxMarks,
-          language: remarkLanguage,
-          tone: "formal",
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setStudents((prev) => {
-          const updated = [...prev];
-          updated[index] = {
-            ...updated[index],
-            remarkEn: data.data?.remarkEn || "",
-            remarkUr: data.data?.remarkUr || "",
-            isGenerating: false,
-          };
-          return updated;
-        });
-      } else {
-        throw new Error("API error");
-      }
-    } catch {
-      setStudents((prev) => {
-        const updated = [...prev];
-        updated[index] = { ...updated[index], isGenerating: false };
-        return updated;
-      });
-      // Silently fail for individual remarks — user can retry
-    }
-  };
-
+  // Handle marks change with debounced AI remark.
   // ─── Handle Enter/Tab key for fast navigation ──────────
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
@@ -185,8 +187,9 @@ export function MarksEntryTable({
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const timers = debounceTimers.current;
     return () => {
-      debounceTimers.current.forEach((timer) => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer));
     };
   }, []);
 

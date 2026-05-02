@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GraduationCap, Loader2, Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
 import Link from "next/link";
+import { dashboardPathForRole } from "@/lib/roles";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,6 +21,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (searchParams.get("verified") === "true") {
       toast.success("Account successfully verified! Please log in.", {
+        duration: 8000,
+      });
+      window.history.replaceState(null, '', '/login');
+    } else if (searchParams.get("invite") === "accepted") {
+      toast.success("Invitation accepted. Please log in with your new password.", {
         duration: 8000,
       });
       window.history.replaceState(null, '', '/login');
@@ -42,11 +48,7 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(json.error || "Login failed");
       toast.success(`Welcome back, ${json.user.fullName}!`);
 
-      if (json.user.role === 'SUPER_ADMIN') router.push('/super');
-      else if (json.user.role === 'CAMPUS_ADMIN' || json.user.role === 'ADMIN') router.push('/admin');
-      else if (json.user.role === 'PRINCIPAL') router.push('/principal');
-      else if (json.user.role === 'TEACHER') router.push('/teacher');
-      else router.push('/student');
+      router.push(dashboardPathForRole(json.user.role));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Login failed");
     } finally {
@@ -69,7 +71,7 @@ export default function LoginPage() {
 
         <div className="absolute bottom-12 left-12 z-30 max-w-md">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-widest text-[#9c48ea] uppercase mb-2 block">Empowering Education</span>
+            <span className="text-[12px] font-bold tracking-normal text-[#9c48ea] uppercase mb-2 block">Empowering Education</span>
             <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"The best way to predict the future is to create it."</h2>
             <p className="text-[#4d4354] font-medium">Join thousands of educators managing their campus with Skoolee's joyful architecture.</p>
           </div>
@@ -92,14 +94,14 @@ export default function LoginPage() {
             <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg transform rotate-3 mb-4">
               <GraduationCap className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tighter text-[#1f1a23] mb-2">Skoolee AI</h1>
+            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
             <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>
           </div>
 
           {/* Form Section */}
-          <div className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
+          <div className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#1f1a23] tracking-tight">Welcome Back!</h2>
+              <h2 className="text-2xl font-bold text-[#1f1a23] tracking-normal">Welcome Back!</h2>
               <p className="text-[#4d4354] text-sm mt-1">Please enter your details to access your dashboard.</p>
             </div>
 
@@ -107,7 +109,7 @@ export default function LoginPage() {
 
               {/* Email Input */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-wider">
+                <Label htmlFor="email" className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">
                   Work Email
                 </Label>
                 <div className="relative flex items-center">
@@ -118,7 +120,7 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     placeholder="principal@institution.edu"
-                    className="w-full h-14 pl-12 pr-4 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-[#ffffff] transition-all placeholder:text-[#outline/50] text-[#1f1a23] font-medium shadow-none"
+                    className="w-full h-14 pl-12 pr-4 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-[#ffffff] transition-all placeholder:text-[#4d4354]/35 text-[#1f1a23] font-medium shadow-none"
                     {...register("email")}
                   />
                 </div>
@@ -128,7 +130,7 @@ export default function LoginPage() {
               {/* Password Input */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="password" title="Enter your account password" className="text-xs font-bold text-[#4d4354] uppercase tracking-wider">
+                  <Label htmlFor="password" title="Enter your account password" className="text-xs font-bold text-[#4d4354] uppercase tracking-normal">
                     Password
                   </Label>
                   <Link href="/forgot-password" className="text-xs font-bold text-[#8127cf] hover:text-[#9c48ea] transition-colors">
@@ -143,7 +145,7 @@ export default function LoginPage() {
                     id="password"
                     type={showPass ? "text" : "password"}
                     placeholder="••••••••"
-                    className="w-full h-14 pl-12 pr-12 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-[#ffffff] transition-all placeholder:text-[#outline/50] text-[#1f1a23] font-medium shadow-none tracking-widest"
+                    className="w-full h-14 pl-12 pr-12 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-[#ffffff] transition-all placeholder:text-[#4d4354]/35 text-[#1f1a23] font-medium shadow-none tracking-normal"
                     {...register("password")}
                   />
                   <button
@@ -174,7 +176,7 @@ export default function LoginPage() {
                 <div className="w-full border-t border-[#cfc2d6]/30"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="px-4 bg-[#ffffff] text-[#4d4354] font-bold tracking-widest">Or continue with</span>
+                <span className="px-4 bg-[#ffffff] text-[#4d4354] font-bold tracking-normal">Or continue with</span>
               </div>
             </div>
 
@@ -202,7 +204,7 @@ export default function LoginPage() {
 
             <div className="mt-6 pt-6 border-t border-[#cfc2d6]/10 text-center">
               <p className="text-sm text-[#4d4354] font-medium">
-                Don't have an account?
+                Do not have an account?
                 <Link href="/register" className="text-[#8127cf] font-bold hover:underline ml-1">Create New Account</Link>
               </p>
             </div>

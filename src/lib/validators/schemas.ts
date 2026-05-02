@@ -56,7 +56,7 @@ export const standaloneCampusSchema = z.object({
 export const firstClassSchema = z.object({
   name: z.string().min(1, "Class name required"),
   section: z.string().optional(),
-  academicYear: z.number().int().min(2000).max(2100),
+  academicYear: z.coerce.number().int().min(2000).max(2100),
 });
 
 // Onboarding: teacher invite
@@ -86,19 +86,65 @@ export const onboardingSchema = z.object({
 
 // ─── DIAGRAM 3: Academic & Billing Flow ────────────────────
 
+const optionalText = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().trim().optional().nullable()
+).optional();
+
+const optionalEmail = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().email().optional().nullable()
+).optional();
+
 export const studentSchema = z.object({
-  registrationNo: z.string().min(1, "Registration # is required"),
-  firstName: z.string().min(2, "First name required"),
-  lastName: z.string().min(1, "Last name required"),
-  dateOfBirth: z.string().optional().nullable(),
+  fullName: optionalText,
+  firstName: optionalText,
+  lastName: optionalText,
+  rollNo: optionalText,
+  registrationNo: optionalText,
+  dateOfBirth: optionalText,
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
-  guardianName: z.string().optional().nullable(),
-  guardianPhone: z.string().optional().nullable(),
-  guardianEmail: z.string().email().optional().nullable(),
-  guardianWhatsapp: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
+  phone: optionalText,
+  guardianName: optionalText,
+  guardianPhone: optionalText,
+  guardianEmail: optionalEmail,
+  guardianWhatsapp: optionalText,
+  studentEmail: optionalEmail,
+  address: optionalText,
   classId: z.string().min(1, "Class is required"),
-});
+}).superRefine((data, ctx) => {
+  const fullName = data.fullName || [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+  const rollNo = data.rollNo || data.registrationNo;
+
+  if (!fullName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["fullName"],
+      message: "Student name is required",
+    });
+  }
+
+  if (!rollNo) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["rollNo"],
+      message: "Roll number is required",
+    });
+  }
+}).transform((data) => ({
+  fullName: data.fullName || [data.firstName, data.lastName].filter(Boolean).join(" ").trim(),
+  rollNo: data.rollNo || data.registrationNo || "",
+  dateOfBirth: data.dateOfBirth || null,
+  gender: data.gender || "OTHER",
+  phone: data.phone || null,
+  guardianName: data.guardianName || null,
+  guardianPhone: data.guardianPhone || null,
+  guardianEmail: data.guardianEmail || null,
+  guardianWhatsapp: data.guardianWhatsapp || null,
+  studentEmail: data.studentEmail || null,
+  address: data.address || null,
+  classId: data.classId,
+}));
 
 export const bulkStudentSchema = z.object({
   students: z.array(studentSchema),
@@ -107,29 +153,45 @@ export const bulkStudentSchema = z.object({
 
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
-  section: z.string().optional(),
-  gradeLevel: z.number().int().min(1).max(12).default(1),
-  academicYear: z.number().int().min(2000).max(2100),
+  section: optionalText,
+  gradeLevel: z.coerce.number().int().min(1).max(12).default(1),
+  academicYear: z.coerce.number().int().min(2000).max(2100),
   teacherId: z.string().optional(),
-  capacity: z.number().int().min(1).default(40),
+  classTeacherId: z.string().optional(),
+  capacity: z.coerce.number().int().min(1).default(40),
 });
 
 export const subjectSchema = z.object({
   name: z.string().min(1, "Subject name required"),
-  code: z.string().min(1, "Subject code required"),
-  description: z.string().optional(),
+  code: z.string().optional(),
+  description: optionalText,
   classId: z.string().min(1, "Class required"),
   teacherId: z.string().optional(),
-  maxMarks: z.number().int().min(1).default(100),
-  passingMarks: z.number().int().min(0).default(33),
+  totalMarks: z.coerce.number().int().min(1).default(100),
+  maxMarks: z.coerce.number().int().min(1).default(100),
+  passingMarks: z.coerce.number().int().min(0).default(33),
   isOptional: z.boolean().default(false),
+});
+
+export const attendanceSchema = z.object({
+  classId: z.string().min(1, "Class is required"),
+  date: z.string().min(1, "Date is required"),
+  entries: z.array(z.object({
+    studentId: z.string().min(1),
+    status: z.enum(["PRESENT", "ABSENT", "LEAVE"]),
+  })).min(1, "At least one attendance entry is required"),
 });
 
 export const examSchema = z.object({
   title: z.string().min(1, "Exam title required"),
   term: z.string().min(1, "Term required"),
   classId: z.string().min(1, "Class required"),
-  academicYear: z.number().int().min(2000).max(2100),
+  academicYear: z.coerce.number().int().min(2000).max(2100),
+});
+
+export const examStatusSchema = z.object({
+  id: z.string().min(1, "Exam id required"),
+  status: z.enum(["DRAFT", "ACTIVE", "MARKS_ENTRY", "PRINCIPAL_REVIEWED", "PUBLISHED"]),
 });
 
 // Single mark entry
@@ -137,17 +199,17 @@ export const markEntrySchema = z.object({
   studentId: z.string().min(1),
   subjectId: z.string().min(1),
   examId: z.string().min(1),
-  marksObtained: z.number().min(0),
+  marksObtained: z.coerce.number().min(0),
 });
 
 // Bulk marks (teacher enters entire class)
 export const bulkMarksSchema = z.object({
   examId: z.string().min(1),
-  campusId: z.string().min(1),
+  campusId: z.string().min(1).optional(),
   entries: z.array(z.object({
     studentId: z.string(),
     subjectId: z.string(),
-    marksObtained: z.number().min(0),
+    marksObtained: z.coerce.number().min(0),
   })).min(1),
 });
 
@@ -161,16 +223,63 @@ export const lockExamSchema = z.object({
 export const remarkRequestSchema = z.object({
   studentId: z.string().min(1),
   examId: z.string().min(1),
-  campusId: z.string().min(1),
+  campusId: z.string().min(1).optional(),
   language: z.enum(["en", "ur", "both"]).default("both"),
   tone: z.enum(["formal", "encouraging", "constructive"]).default("encouraging"),
 });
 
 export const batchRemarkSchema = z.object({
   examId: z.string().min(1),
-  campusId: z.string().min(1),
+  campusId: z.string().min(1).optional(),
   language: z.enum(["en", "ur", "both"]).default("both"),
   tone: z.enum(["formal", "encouraging", "constructive"]).default("encouraging"),
+});
+
+export const aiFeatureRequestSchema = z.object({
+  feature: z.enum([
+    "generate_remarks",
+    "rewrite_remark",
+    "translate_remark",
+    "weak_topics",
+    "homework_suggestions",
+    "lesson_plan",
+    "at_risk_students",
+    "class_performance_summary",
+    "teacher_class_comparison",
+    "intervention_suggestions",
+    "pending_review_queue",
+    "campus_comparison",
+    "weak_campuses",
+    "ai_usage_by_campus",
+    "fee_recovery_insights",
+    "academic_trend_summary",
+    "explain_report_card",
+    "study_plan",
+    "school_faq",
+  ]),
+  campusId: z.string().min(1).optional(),
+  studentId: z.string().min(1).optional(),
+  examId: z.string().min(1).optional(),
+  classId: z.string().min(1).optional(),
+  subjectId: z.string().min(1).optional(),
+  reportCardId: z.string().min(1).optional(),
+  tone: z.enum(["formal", "encouraging", "constructive"]).optional(),
+  targetLanguage: z.enum(["en", "ur"]).optional(),
+  text: z.string().max(5000).optional(),
+  question: z.string().max(1000).optional(),
+  topic: z.string().max(500).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const reportActionSchema = z.object({
+  examId: z.string().min(1),
+  action: z.enum(["generate", "pdf", "review", "publish", "send"]),
+});
+
+export const reportRemarkSchema = z.object({
+  remarksEn: z.string().optional().nullable(),
+  remarksUr: z.string().optional().nullable(),
+  approve: z.boolean().optional(),
 });
 
 // Fee structure
@@ -178,10 +287,10 @@ export const feeStructureSchema = z.object({
   campusId: z.string().min(1),
   classId: z.string().min(1),
   term: z.string().min(1),
-  tuitionMonthly: z.number().int().min(0),
-  examFee: z.number().int().min(0).default(0),
-  annualFee: z.number().int().min(0).default(0),
-  monthsCount: z.number().int().min(1).default(1),
+  tuitionMonthly: z.coerce.number().int().min(0),
+  examFee: z.coerce.number().int().min(0).default(0),
+  annualFee: z.coerce.number().int().min(0).default(0),
+  monthsCount: z.coerce.number().int().min(1).default(1),
 });
 
 // Generate invoices for all students in a class/term
@@ -189,14 +298,14 @@ export const generateInvoicesSchema = z.object({
   campusId: z.string().min(1),
   classId: z.string().min(1),
   term: z.string().min(1),
-  academicYear: z.number().int(),
+  academicYear: z.coerce.number().int(),
   dueDate: z.string().min(1),
 });
 
 // Record a payment
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
-  amountPaid: z.number().int().min(1),
+  amountPaid: z.coerce.number().int().min(1),
   method: z.enum(["CASH", "JAZZCASH", "EASYPAISA", "BANK_TRANSFER"]),
   receiptNo: z.string().optional(),
 });
@@ -214,6 +323,8 @@ export type StudentFormData = z.infer<typeof studentSchema>;
 export type ClassFormData = z.infer<typeof classSchema>;
 export type SubjectFormData = z.infer<typeof subjectSchema>;
 export type ExamFormData = z.infer<typeof examSchema>;
+export type ExamStatusData = z.infer<typeof examStatusSchema>;
+export type AttendanceFormData = z.infer<typeof attendanceSchema>;
 export type MarkEntryData = z.infer<typeof markEntrySchema>;
 export type BulkMarksData = z.infer<typeof bulkMarksSchema>;
 export type FeeStructureFormData = z.infer<typeof feeStructureSchema>;

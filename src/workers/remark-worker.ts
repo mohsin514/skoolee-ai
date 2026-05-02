@@ -1,108 +1,132 @@
-// ===========================================
-// SkooleeAI - AI Remark Worker
-// ===========================================
-// Processes batch AI remark generation jobs.
-
 import { Worker, Job } from "bullmq";
+import type { Prisma } from "@prisma/client";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
-import { withTenant, tenantExec } from "@/lib/db/tenant";
-import { generateRemark } from "@/lib/ai/openai";
+import { consumeAICreditAndLog, ensureAICreditsAvailable, generateRemark } from "@/lib/ai/openai";
+import { isLockedStatus } from "@/lib/academic/report-cards";
 import type { RemarkJobData } from "@/lib/queue/queues";
 
-interface StudentData {
-  id: string;
-  first_name: string;
-  last_name: string;
-}
-
-interface MarkData {
-  subject_name: string;
-  marks_obtained: number;
-  max_marks: number;
-  grade: string;
+function jsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
 const worker = new Worker<RemarkJobData>(
   "ai-remarks",
   async (job: Job<RemarkJobData>) => {
-    const { tenantId, schemaName, studentId, examId, language, tone } = job.data;
+    const { tenantId, userId, studentId, examId, language, tone } = job.data;
 
-    console.log(
-      `[Remark Worker] Generating for student ${studentId}, exam ${examId}`
-    );
+    await ensureAICreditsAvailable(tenantId);
 
-    // Check credits
-    const school = await prisma.school.findUnique({
-      where: { id: tenantId },
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      include: { class: { select: { name: true, section: true } } },
     });
-    if (!school || school.aiCreditsUsed >= school.aiCreditsLimit) {
-      throw new Error("AI credit limit reached");
+    if (!exam) throw new Error("Exam not found");
+    if (!exam.isLocked && !isLockedStatus(exam.status)) {
+      throw new Error("Generate remarks after exam lock");
     }
 
-    // Fetch student
-    const students = await withTenant(schemaName, async (query) => {
-      return query<StudentData[]>(
-        `SELECT id, first_name, last_name FROM students WHERE id = $1`,
-        [studentId]
-      );
-    });
-    const student = Array.isArray(students) ? students[0] : null;
-    if (!student) throw new Error(`Student ${studentId} not found`);
-
-    // Fetch marks
-    const marks = await withTenant(schemaName, async (query) => {
-      return query<MarkData[]>(
-        `SELECT sub.name as subject_name, m.marks_obtained, m.max_marks, m.grade
-         FROM marks m
-         JOIN subjects sub ON sub.id = m.subject_id
-         WHERE m.student_id = $1 AND m.exam_id = $2`,
-        [studentId, examId]
-      );
-    });
-
-    if (!Array.isArray(marks) || marks.length === 0) {
-      throw new Error("No marks found for student");
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
+    if (!student || student.campusId !== exam.campusId) {
+      throw new Error(`Student ${studentId} not found`);
     }
 
-    // Generate remark
+    const marks = await prisma.mark.findMany({
+      where: { studentId, examId },
+      include: { subject: { select: { name: true, totalMarks: true } } },
+      orderBy: { subject: { name: "asc" } },
+    });
+
+    if (marks.length === 0) throw new Error("No marks found for student");
+
     const result = await generateRemark({
-      studentName: `${student.first_name} ${student.last_name}`,
-      className: "Class",
-      subjects: marks.map((m) => ({
-        name: m.subject_name,
-        marksObtained: Number(m.marks_obtained),
-        maxMarks: Number(m.max_marks),
-        grade: m.grade,
+      studentName: student.fullName,
+      className: [exam.class.name, exam.class.section].filter(Boolean).join(" - "),
+      subjects: marks.map((mark) => ({
+        name: mark.subject.name,
+        marksObtained: mark.marksObtained,
+        maxMarks: mark.subject.totalMarks,
+        grade: mark.grade || "",
       })),
       language,
       tone,
     });
 
-    // Store overall remark in report_cards
-    await withTenant(schemaName, async () => {
-      return tenantExec(schemaName, 
-        `UPDATE report_cards
-         SET overall_remark_en = $1, overall_remark_ur = $2
-         WHERE student_id = $3 AND exam_id = $4`,
-        [result.remarkEn || null, result.remarkUr || null, studentId, examId]
-      );
-    });
-
-    // Deduct credit & log
-    await prisma.school.update({
-      where: { id: tenantId },
-      data: { aiCreditsUsed: { increment: 1 } },
-    });
-
-    await prisma.aIUsageLog.create({
-      data: {
+    await consumeAICreditAndLog(
+      {
         schoolId: tenantId,
+        campusId: exam.campusId,
+        userId: userId || null,
+        feature: "generate_remarks",
         action: "batch_remark",
+        promptVersion: result.promptVersion,
+        model: result.model,
         tokensUsed: result.tokensUsed,
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        approvalStatus: "PENDING_REVIEW",
+        output: jsonValue({ remarkEn: result.remarkEn, remarkUr: result.remarkUr }),
+        metadata: jsonValue({ studentId, examId, queueJobId: job.id }),
       },
-    });
+      async (tx) => {
+        const reportCard = await tx.reportCard.upsert({
+          where: { studentId_examId: { studentId, examId } },
+          update: {
+            remarksEn: result.remarkEn,
+            remarksUr: result.remarkUr,
+            remarksApproved: false,
+            approvedBy: null,
+            approvedAt: null,
+            pdfUrl: null,
+            status: "GENERATED",
+          },
+          create: {
+            campusId: exam.campusId,
+            studentId,
+            examId,
+            remarksEn: result.remarkEn,
+            remarksUr: result.remarkUr,
+            remarksApproved: false,
+            status: "GENERATED",
+          },
+        });
+
+        await tx.aIReviewItem.create({
+          data: {
+            schoolId: tenantId,
+            campusId: exam.campusId,
+            userId: userId || null,
+            feature: "generate_remarks",
+            relatedType: "REPORT_CARD",
+            relatedId: reportCard.id,
+            title: `${student.fullName} report remark draft`,
+            draft: jsonValue({ remarkEn: result.remarkEn, remarkUr: result.remarkUr }),
+            status: "PENDING",
+            promptVersion: result.promptVersion,
+            model: result.model,
+            tokensUsed: result.tokensUsed,
+          },
+        });
+
+        await tx.aIInsight.create({
+          data: {
+            schoolId: tenantId,
+            campusId: exam.campusId,
+            userId: userId || "system",
+            role: "WORKER",
+            feature: "generate_remarks",
+            action: "batch_remark",
+            title: `${student.fullName} report remark draft`,
+            summary: result.remarkEn || result.remarkUr || "Report remark draft generated",
+            output: jsonValue({ remarkEn: result.remarkEn, remarkUr: result.remarkUr }),
+            promptVersion: result.promptVersion || "phase4-ai-v1",
+            model: result.model || process.env.OPENAI_MODEL || "gpt-4o-mini",
+            tokensUsed: result.tokensUsed,
+            approvalStatus: "PENDING_REVIEW",
+          },
+        });
+
+        return reportCard;
+      }
+    );
 
     return { remarkEn: result.remarkEn, remarkUr: result.remarkUr };
   },

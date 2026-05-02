@@ -19,7 +19,13 @@ export async function sendWhatsAppMessage(
   message: WhatsAppMessage
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    // Send text message
+    if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+      return {
+        success: false,
+        error: "WhatsApp credentials are not configured",
+      };
+    }
+
     const textResponse = await fetch(
       `${WHATSAPP_API_URL}/${PHONE_NUMBER_ID}/messages`,
       {
@@ -47,25 +53,35 @@ export async function sendWhatsAppMessage(
 
     const textResult = await textResponse.json();
 
-    // If there's a PDF attachment, send it as a document
     if (message.pdfUrl) {
-      await fetch(`${WHATSAPP_API_URL}/${PHONE_NUMBER_ID}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: message.to,
-          type: "document",
-          document: {
-            link: message.pdfUrl,
-            caption: "Report Card",
-            filename: "report-card.pdf",
+      const documentResponse = await fetch(
+        `${WHATSAPP_API_URL}/${PHONE_NUMBER_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
           },
-        }),
-      });
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: message.to,
+            type: "document",
+            document: {
+              link: message.pdfUrl,
+              caption: "Report Card",
+              filename: "report-card.pdf",
+            },
+          }),
+        }
+      );
+
+      if (!documentResponse.ok) {
+        const err = await documentResponse.json();
+        return {
+          success: false,
+          error: err?.error?.message || "WhatsApp text sent, but document delivery failed",
+        };
+      }
     }
 
     return {
@@ -89,9 +105,9 @@ export async function sendReportCardNotification(
   examName: string,
   pdfUrl?: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const text = `📋 Report Card Ready!\n\nDear Parent,\n\nThe report card for *${studentName}* for *${examName}* is now ready.\n\n${
-    pdfUrl ? "📎 Download the report card from the attached document." : "Please log in to the portal to view results."
-  }\n\n— SkooleeAI`;
+  const text = `Report Card Ready\n\nDear Parent,\n\nThe report card for *${studentName}* for *${examName}* is now ready.\n\n${
+    pdfUrl ? "Download the report card from the attached document." : "Please log in to the portal to view results."
+  }\n\n- SkooleeAI`;
 
   return sendWhatsAppMessage({
     to: parentPhone,

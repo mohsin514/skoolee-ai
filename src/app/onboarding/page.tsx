@@ -15,6 +15,7 @@ import { logout } from '@/app/actions/auth/logout';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { dashboardPathForRole } from "@/lib/roles";
 
 interface StepNavProps {
   active: boolean;
@@ -22,6 +23,8 @@ interface StepNavProps {
   num: number;
   title: string;
   desc: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 
 interface InputFieldProps {
@@ -74,8 +77,7 @@ export default function OnboardingWizard() {
     getOnboardingSession().then((res: any) => {
       if (!res || res.error) router.push('/login');
       else if (res.redirect) {
-        const role = res.role;
-        router.push(role === 'SUPER_ADMIN' ? '/super' : '/admin');
+        router.push(dashboardPathForRole(res.role));
       }
       else {
         const user = res.user;
@@ -163,8 +165,8 @@ export default function OnboardingWizard() {
     try {
       const res = await finishOnboarding(schoolData, campuses);
       if (res.success) {
-        toast.success("Done!");
-        router.push(res.role === 'SUPER_ADMIN' ? '/super' : '/admin');
+        toast.success("Onboarding complete. Opening your dashboard...");
+        router.push(dashboardPathForRole(res.role));
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -176,7 +178,7 @@ export default function OnboardingWizard() {
   if (!session) return (
     <div className="h-screen w-full flex flex-col items-center justify-center bg-[#fff7fe] gap-4">
        <GraduationCap className="h-10 w-10 text-[#8127cf] animate-bounce" />
-       <p className="text-[10px] font-black text-[#1f1a23] uppercase tracking-widest leading-none">Accessing Institutional Node...</p>
+       <p className="text-[10px] font-black text-[#1f1a23] uppercase tracking-normal leading-none">Accessing Institutional Node...</p>
     </div>
   );
 
@@ -190,9 +192,9 @@ export default function OnboardingWizard() {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
                <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <h1 className="font-black text-xl tracking-tighter text-[#8127cf]">Skoolee AI</h1>
+            <h1 className="font-black text-xl tracking-normal text-[#8127cf]">Skoolee AI</h1>
           </div>
-          <p className="text-[10px] font-bold text-[#b10e6b] uppercase tracking-wider pl-11 leading-none">Joyful Setup</p>
+          <p className="text-[10px] font-bold text-[#b10e6b] uppercase tracking-normal pl-11 leading-none">Joyful Setup</p>
         </div>
 
         <nav className="flex-1 space-y-3">
@@ -202,9 +204,10 @@ export default function OnboardingWizard() {
               num={1} 
               title={isStandalone ? "Campus Identity" : "Group Registry"} 
               desc="Set core details" 
+              onClick={() => setStep(1)}
            />
            {!isStandalone && (
-             <StepNav active={step === 2} done={step > 2} num={2} title="Branch Network" desc="Map campus nodes" />
+             <StepNav active={step === 2} done={step > 2} num={2} title="Branch Network" desc="Map campus nodes" disabled={step < 2} onClick={() => setStep(2)} />
            )}
            <StepNav 
               active={step === 3} 
@@ -212,6 +215,8 @@ export default function OnboardingWizard() {
               num={isStandalone ? 2 : 3} 
               title="Launch Console" 
               desc="Deploy to cloud" 
+              disabled={step < 3}
+              onClick={() => setStep(3)}
            />
         </nav>
 
@@ -223,7 +228,7 @@ export default function OnboardingWizard() {
       <main className="flex-1 lg:ml-72 min-h-screen flex flex-col bg-[#fbf0fe]/50">
         
         <header className="px-10 py-5 flex items-center justify-between bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-[#cfc2d6]/10">
-           <div className="flex items-center gap-2 text-[10px] font-black text-[#8127cf] uppercase tracking-[0.15em]">
+           <div className="flex items-center gap-2 text-[10px] font-black text-[#8127cf] uppercase tracking-normal">
               <Shield className="w-3.5 h-3.5" />
               {isStandalone ? 'Facility Setup Node' : 'Institutional Setup Hub'}
            </div>
@@ -245,7 +250,7 @@ export default function OnboardingWizard() {
                               <Building className="w-8 h-8" />
                            </div>
                            <div>
-                              <h2 className="text-3xl font-black text-[#1f1a23] tracking-tight leading-none">
+                              <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal leading-none">
                                  {isStandalone ? "Campus Identity" : "Group Registry"}
                               </h2>
                               <p className="text-[#4d4354]/60 font-semibold text-sm mt-1.5 italic">
@@ -264,7 +269,7 @@ export default function OnboardingWizard() {
                            <div className="space-y-6">
                               <div className="bg-[#fbf0fe] p-8 rounded-[32px] border border-[#cfc2d6]/20">
                                  <div className="flex items-center justify-between mb-5">
-                                    <Label className="text-[10px] font-black text-[#8127cf] uppercase tracking-widest pl-1">{isStandalone ? 'Campus Key' : 'Group Key'}</Label>
+                                    <Label className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal pl-1">{isStandalone ? 'Campus Key' : 'Group Key'}</Label>
                                     <div className="bg-white rounded-lg p-1 flex border border-[#cfc2d6]/10 shadow-sm">
                                        <button onClick={() => isStandalone ? handleCampusIdToggle(true) : handleSchoolIdToggle(true)} className={`px-3 py-1 text-[9px] font-black rounded-md transition-all cursor-pointer ${isStandalone ? (newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400') : (schoolData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400')}`}>Auto</button>
                                        <button onClick={() => isStandalone ? handleCampusIdToggle(false) : handleSchoolIdToggle(false)} className={`px-3 py-1 text-[9px] font-black rounded-md transition-all cursor-pointer ${isStandalone ? (!newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400') : (!schoolData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400')}`}>Manual</button>
@@ -274,7 +279,7 @@ export default function OnboardingWizard() {
                                     value={isStandalone ? newCampus.regId : schoolData.regId} 
                                     onChange={e => isStandalone ? setNewCampus({...newCampus, regId: e.target.value.toUpperCase()}) : setSchoolData({...schoolData, regId: e.target.value.toUpperCase()})}
                                     readOnly={isStandalone ? newCampus.autoId : schoolData.autoId}
-                                    className="h-14 bg-white rounded-xl font-black text-lg tracking-[0.2em] border-0 text-center shadow-sm"
+                                    className="h-14 bg-white rounded-xl font-black text-lg tracking-normal border-0 text-center shadow-sm"
                                  />
                                  <p className="text-[10px] text-[#4d4354]/40 mt-4 pl-1 font-bold italic">Encrypted key for institutional synchronization.</p>
                               </div>
@@ -282,7 +287,7 @@ export default function OnboardingWizard() {
                               <div className="p-5 bg-emerald-50 rounded-[24px] border border-emerald-100 flex items-center gap-4">
                                  <Shield className="w-7 h-7 text-emerald-500" />
                                  <div>
-                                    <p className="text-[9px] font-black text-emerald-900 uppercase tracking-widest leading-none mb-1">Session Secured</p>
+                                    <p className="text-[9px] font-black text-emerald-900 uppercase tracking-normal leading-none mb-1">Session Secured</p>
                                     <p className="text-[9px] font-bold text-emerald-600/70 leading-none">Your identity is verified.</p>
                                  </div>
                               </div>
@@ -302,7 +307,7 @@ export default function OnboardingWizard() {
                   <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid lg:grid-cols-5 gap-8">
                      <div className="lg:col-span-3 space-y-6">
                         <div className="bg-white rounded-[40px] p-10 shadow-xl border border-[#cfc2d6]/10">
-                           <h2 className="text-2xl font-black text-[#1f1a23] mb-6 tracking-tight">Branch Network Modeling</h2>
+                           <h2 className="text-2xl font-black text-[#1f1a23] mb-6 tracking-normal">Branch Network Modeling</h2>
                            <div className="space-y-5">
                               <InputField label="Campus Name" value={newCampus.name} onChange={(v: string) => setNewCampus({...newCampus, name: v})} placeholder="e.g. West Campus" icon={Building} />
                               <div className="grid grid-cols-2 gap-5">
@@ -314,7 +319,7 @@ export default function OnboardingWizard() {
                               <div className="grid grid-cols-2 gap-5 items-end pt-2">
                                  <div className="space-y-1.5">
                                     <div className="flex justify-between items-center px-1 mb-1">
-                                       <Label className="text-[9px] font-black text-[#8127cf] uppercase tracking-widest pl-1">NODE KEY</Label>
+                                       <Label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal pl-1">NODE KEY</Label>
                                        <div className="flex bg-[#f3f4f9] p-0.5 rounded-lg border border-[#cfc2d6]/10 scale-90 origin-right shadow-sm">
                                           <button 
                                              onClick={() => handleCampusIdToggle(true)} 
@@ -337,7 +342,7 @@ export default function OnboardingWizard() {
                                        readOnly={newCampus.autoId} 
                                        onChange={e=>setNewCampus({...newCampus, regId: e.target.value.toUpperCase()})} 
                                        placeholder="BR-XXXX"
-                                       className="h-12 bg-[#fbf0fe] border-0 font-black tracking-[0.2em] rounded-xl text-center focus:ring-2 focus:ring-[#8127cf]/10 transition-all text-sm" 
+                                       className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center focus:ring-2 focus:ring-[#8127cf]/10 transition-all text-sm" 
                                     />
                                  </div>
                                  <button onClick={addCampus} className="h-12 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
@@ -357,10 +362,10 @@ export default function OnboardingWizard() {
                      <div className="lg:col-span-2">
                         <div className="bg-white rounded-[40px] p-8 h-full min-h-[450px] flex flex-col border border-[#cfc2d6]/10 shadow-2xl relative">
                            <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-50 text-[#1f1a23]">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                              <h3 className="text-[10px] font-black uppercase tracking-normal flex items-center gap-2">
                                  <Network className="w-4 h-4 text-[#8127cf]" /> Network Map
                               </h3>
-                              <span className="text-[9px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full uppercase tracking-widest">{campuses.length} Facilities</span>
+                              <span className="text-[9px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full uppercase tracking-normal">{campuses.length} Facilities</span>
                            </div>
 
                            <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
@@ -370,7 +375,7 @@ export default function OnboardingWizard() {
                                       <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#8127cf] font-black text-[10px] shadow-sm">{i+1}</div>
                                       <div>
                                          <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">{c.name}</p>
-                                         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-widest">{c.regId}</p>
+                                         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-normal">{c.regId}</p>
                                       </div>
                                    </div>
                                    <button onClick={() => setCampuses(campuses.filter(x => x.id !== c.id))} className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
@@ -381,7 +386,7 @@ export default function OnboardingWizard() {
                               {campuses.length === 0 && (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20 pt-16">
                                    <Zap className="w-12 h-12 animate-pulse mb-3" />
-                                   <p className="text-[9px] font-black uppercase tracking-widest">No nodes defined</p>
+                                   <p className="text-[9px] font-black uppercase tracking-normal">No nodes defined</p>
                                 </div>
                               )}
                            </div>
@@ -397,7 +402,7 @@ export default function OnboardingWizard() {
                      </div>
 
                      <div className="space-y-3">
-                        <h2 className="text-4xl font-black text-[#1f1a23] tracking-tighter italic">System Ready.</h2>
+                        <h2 className="text-4xl font-black text-[#1f1a23] tracking-normal italic">System Ready.</h2>
                         <p className="text-base font-semibold text-[#4d4354]/60 italic max-w-sm mx-auto">Confirm your final architecture parameters before activation.</p>
                      </div>
 
@@ -432,24 +437,29 @@ export default function OnboardingWizard() {
   );
 }
 
-function StepNav({ active, done, num, title, desc }: StepNavProps) {
+function StepNav({ active, done, num, title, desc, disabled, onClick }: StepNavProps) {
   return (
-    <div className={`p-5 rounded-[24px] transition-all duration-700 flex items-center gap-5 border ${active ? 'bg-[#fbf0fe] border-[#8127cf]/10 shadow-xl shadow-[#8127cf]/5' : 'border-transparent'}`}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`w-full text-left p-5 rounded-[24px] transition-all duration-300 flex items-center gap-5 border ${active ? 'bg-[#fbf0fe] border-[#8127cf]/10 shadow-xl shadow-[#8127cf]/5' : 'border-transparent hover:bg-white/65 hover:border-[#cfc2d6]/20'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:-translate-y-0.5'}`}
+    >
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500 shadow-md ${active ? 'bg-[#8127cf] text-white scale-110' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-[#4d4354]/30'}`}>
         {done ? <CheckCircle2 className="w-5 h-5" /> : num}
       </div>
       <div className="overflow-hidden">
         <h4 className={`text-sm font-black text-[#1f1a23] leading-none mb-1.5 truncate ${!active && !done && 'opacity-40'}`}>{title}</h4>
-        <p className={`text-[10px] font-bold text-[#4d4354]/60 tracking-wider truncate ${!active && 'opacity-40'}`}>{desc}</p>
+        <p className={`text-[10px] font-bold text-[#4d4354]/60 tracking-normal truncate ${!active && 'opacity-40'}`}>{desc}</p>
       </div>
-    </div>
+    </button>
   );
 }
 
 function InputField({ label, value, onChange, placeholder, icon: Icon, isArea }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-       <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-widest ml-1">{label}</Label>
+       <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal ml-1">{label}</Label>
        <div className="relative group flex items-center">
           <Icon className="absolute left-4 w-4 h-4 text-[#4d4354]/20 group-focus-within:text-[#8127cf] transition-colors" />
           {isArea ? (
@@ -479,7 +489,7 @@ function SummaryItem({ icon: Icon, label, value }: SummaryItemProps) {
           <Icon className="w-5 h-5" />
        </div>
        <div className="overflow-hidden">
-          <p className="text-[9px] font-black text-[#4d4354]/40 uppercase tracking-widest mb-1">{label}</p>
+          <p className="text-[9px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-1">{label}</p>
           <p className="text-xs font-black text-[#1f1a23] truncate pr-2">{value || '...'}</p>
        </div>
     </div>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { inviteStaff } from "./invite";
+import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
@@ -16,6 +17,7 @@ export async function addCampus(name: string, location: string, board: string = 
   if (payload.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
 
   const schoolId = String(payload.schoolId);
+  await assertPlanCapacity({ schoolId, metric: "campuses" });
 
   // Validate or Generate regId
   const finalRegId = regId || `BR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;

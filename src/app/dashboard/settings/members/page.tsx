@@ -1,29 +1,32 @@
 "use client";
 
-// import { OrganizationProfile } from "@clerk/nextjs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Header } from "@/components/layout/header";
+import { Card, CardContent } from "@/components/ui/card";
 import { Users } from "lucide-react";
 
 export default function MembersPage() {
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-sidebar-foreground">
-            Member Management
-          </h2>
-          <p className="text-muted-foreground">
-            Manage your school staff, teachers, and administrators.
-          </p>
-        </div>
-      </div>
+    <>
+      <Header
+        title="Member Management"
+        description="Manage school staff, teachers, and administrators"
+      />
 
-      <div className="rounded-xl border border-sidebar-border bg-card overflow-hidden">
-        <div className="p-12 text-center text-gray-500 font-medium bg-white italic">
-          <Users className="mx-auto h-12 w-12 text-gray-200 mb-4" />
-          <p>Member management settings are being migrated to the custom auth engine.</p>
-        </div>
+      <div className="p-6">
+        <Card className="max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[22px] bg-[#fbf0fe] text-[#8127cf] shadow-inner">
+              <Users className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-black text-[#1f1a23]">
+              Member tools are moving to custom auth
+            </h2>
+            <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-[#4d4354]/65">
+              Staff, teacher, and administrator access will live here once the custom auth engine migration is complete.
+            </p>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </>
   );
 }
