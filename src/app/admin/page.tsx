@@ -57,6 +57,12 @@ type StudentFormState = {
   guardianPhone: string;
   guardianEmail: string;
 };
+type ClassGroup = {
+  key: string;
+  name: string;
+  academicYear: number | string;
+  sections: any[];
+};
 
 const viewCopy: Record<AdminView, { title: string; description: string }> = {
   leadership: {
@@ -118,11 +124,11 @@ function classGroupKey(item: any) {
 }
 
 function groupClasses(classes: any[]) {
-  const groups = new Map<string, { key: string; name: string; academicYear: number | string; sections: any[] }>();
+  const groups = new Map<string, ClassGroup>();
 
   for (const cls of classes || []) {
     const key = classGroupKey(cls);
-    const group = groups.get(key) || {
+    const group: ClassGroup = groups.get(key) || {
       key,
       name: cls.name || "Class",
       academicYear: cls.academicYear || "N/A",
@@ -1465,7 +1471,8 @@ function inferTeachingMode(cls: any): "single" | "subject" {
 }
 
 function subjectTeacherDefaults(cls: any) {
-  return (cls.subjects || []).reduce<Record<string, string>>((acc, subject: any) => {
+  const subjects: any[] = cls.subjects || [];
+  return subjects.reduce<Record<string, string>>((acc, subject) => {
     acc[subject.id] = subject.teacher?.id || "";
     return acc;
   }, {});

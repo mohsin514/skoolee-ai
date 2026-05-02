@@ -597,20 +597,6 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        if (feature === "school_faq") {
-          await tx.parentConversation.create({
-            data: {
-              schoolId: user.schoolId,
-              campusId,
-              userId: user.userId,
-              studentId: data.studentId || null,
-              question: data.question || data.text || "",
-              answer: result.text,
-              status: "DRAFT",
-            },
-          });
-        }
-
         return insight;
       }
     );

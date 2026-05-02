@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap');
 @import "tailwindcss";
 
 /* ─── shadcn/ui Design Tokens ───────────────────────────── */
@@ -29,6 +28,8 @@
   --sidebar-border: 278 17% 80%;
   --success: 142 76% 36%;
   --warning: 38 92% 50%;
+  --font-plus-jakarta-sans: "Segoe UI", "Inter", Arial, sans-serif;
+  --font-geist-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 }
 
 .dark {

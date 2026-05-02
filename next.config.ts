@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable Turbopack for faster dev builds
   // (enabled via `next dev --turbopack`)
+  turbopack: {
+    root: process.cwd(),
+  },
 
   images: {
     remotePatterns: [

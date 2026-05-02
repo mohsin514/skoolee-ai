@@ -61,19 +61,16 @@ export async function POST(req: NextRequest) {
     }
 
     const campusId = await resolveCampusId(user, body.campusId);
-    const rawSections = Array.isArray(body.sections)
+    const rawSections: unknown[] = Array.isArray(body.sections)
       ? body.sections
       : typeof parsed.data.section === "string"
         ? parsed.data.section.split(/[,\n]/)
         : [];
-    const sections = [
-      ...new Set(
-        rawSections
-          .map((section: unknown) => String(section || "").trim())
-          .filter(Boolean)
-      ),
-    ];
-    const targetSections = sections.length ? sections : [null];
+    const normalizedSections = rawSections
+      .map((section: unknown) => String(section || "").trim())
+      .filter((section: string) => section.length > 0);
+    const sections: string[] = Array.from(new Set(normalizedSections));
+    const targetSections: Array<string | null> = sections.length ? sections : [null];
     const classTeacherId = await assertTeacherInCampus(
       parsed.data.classTeacherId || parsed.data.teacherId,
       campusId,

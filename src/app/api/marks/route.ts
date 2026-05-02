@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
           data: {
             tableName: "marks",
             recordId: mark.id,
-            oldValue: oldMark ? markSnapshot(oldMark) : null,
+            oldValue: oldMark ? markSnapshot(oldMark) : Prisma.JsonNull,
             newValue: markSnapshot(mark),
             userId: user.userId,
             ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
