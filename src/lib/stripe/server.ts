@@ -6,8 +6,14 @@ import Stripe from "stripe";
 import { getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 
+type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
+
+const stripeApiVersion = (
+  process.env.STRIPE_API_VERSION || "2026-04-22.dahlia"
+) as StripeConfig["apiVersion"];
+
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-03-25.dahlia",
+  apiVersion: stripeApiVersion,
   typescript: true,
 });
 
