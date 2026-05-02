@@ -2,7 +2,7 @@ import { Worker, Job } from "bullmq";
 import type { Prisma } from "@prisma/client";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
-import { consumeAICreditAndLog, ensureAICreditsAvailable, generateRemark } from "@/lib/ai/openai";
+import { consumeAICreditAndLog, ensureAICreditsAvailable, generateRemark, getAIModel } from "@/lib/ai/openai";
 import { isLockedStatus } from "@/lib/academic/report-cards";
 import type { RemarkJobData } from "@/lib/queue/queues";
 
@@ -118,7 +118,7 @@ const worker = new Worker<RemarkJobData>(
             summary: result.remarkEn || result.remarkUr || "Report remark draft generated",
             output: jsonValue({ remarkEn: result.remarkEn, remarkUr: result.remarkUr }),
             promptVersion: result.promptVersion || "phase4-ai-v1",
-            model: result.model || process.env.OPENAI_MODEL || "gpt-4o-mini",
+            model: result.model || getAIModel(),
             tokensUsed: result.tokensUsed,
             approvalStatus: "PENDING_REVIEW",
           },

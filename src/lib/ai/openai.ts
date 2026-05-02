@@ -6,20 +6,320 @@ import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 
-const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+type AIProvider = "pollinations" | "openai" | "ollama";
+type ChatRole = "system" | "user" | "assistant";
+
+interface ChatMessage {
+  role: ChatRole;
+  content: string;
+}
+
+interface ProviderResult {
+  text: string;
+  tokensUsed: number;
+  model: string;
+}
+
+interface OpenAICompatibleResponse {
+  choices?: Array<{
+    message?: { content?: string | null };
+    text?: string | null;
+  }>;
+  usage?: { total_tokens?: number | null };
+  response?: string;
+  text?: string;
+}
+
+interface OllamaResponse {
+  message?: { content?: string };
+  response?: string;
+  prompt_eval_count?: number;
+  eval_count?: number;
+}
+
+const PROVIDERS: AIProvider[] = ["pollinations", "openai", "ollama"];
+const OPENAI_MODEL = process.env.OPENAI_MODEL || process.env.AI_MODEL || "gpt-4o-mini";
+const POLLINATIONS_MODEL = process.env.POLLINATIONS_MODEL || process.env.AI_MODEL || "openai";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || process.env.AI_MODEL || "llama3.2";
+const POLLINATIONS_API_URL =
+  process.env.POLLINATIONS_API_URL || "https://gen.pollinations.ai/v1/chat/completions";
+const POLLINATIONS_PUBLIC_FALLBACK_URL = "https://text.pollinations.ai/openai";
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(
+  /\/+$/,
+  ""
+);
+
 let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    throw new Error(
+      "OPENAI_API_KEY is not configured. Set AI_PROVIDER=pollinations for the free no-key provider, or add a valid OpenAI key."
+    );
   }
 
   openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return openaiClient;
 }
 
+function normalizeProvider(value: string | undefined): AIProvider | "auto" {
+  const provider = value?.trim().toLowerCase();
+  if (!provider || provider === "auto") return "auto";
+  if (PROVIDERS.includes(provider as AIProvider)) return provider as AIProvider;
+  return "auto";
+}
+
+function providerOrder() {
+  const configuredProvider = normalizeProvider(process.env.AI_PROVIDER);
+  if (configuredProvider !== "auto") return [configuredProvider];
+
+  const configuredOrder = (process.env.AI_PROVIDER_ORDER || "pollinations,ollama")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  const ordered = configuredOrder.filter((item): item is AIProvider =>
+    PROVIDERS.includes(item as AIProvider)
+  );
+
+  return ordered.length ? ordered : PROVIDERS;
+}
+
+function modelForProvider(provider: AIProvider) {
+  switch (provider) {
+    case "openai":
+      return OPENAI_MODEL;
+    case "ollama":
+      return OLLAMA_MODEL;
+    case "pollinations":
+    default:
+      return POLLINATIONS_MODEL;
+  }
+}
+
+function modelLabel(provider: AIProvider) {
+  return `${provider}:${modelForProvider(provider)}`;
+}
+
 export function getAIModel() {
-  return MODEL;
+  const [provider] = providerOrder();
+  return modelLabel(provider);
+}
+
+export function getAIProvider() {
+  return providerOrder()[0];
+}
+
+function estimateTokens(messages: ChatMessage[], output = "") {
+  const text = `${messages.map((message) => message.content).join("\n")}\n${output}`;
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function trimProviderError(text: string) {
+  return text.replace(/\s+/g, " ").slice(0, 240);
+}
+
+async function parseTextResponse(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return (await response.json()) as OpenAICompatibleResponse;
+  }
+
+  const text = await response.text();
+  return { text };
+}
+
+function extractText(payload: OpenAICompatibleResponse) {
+  return (
+    payload.choices?.[0]?.message?.content?.trim() ||
+    payload.choices?.[0]?.text?.trim() ||
+    payload.response?.trim() ||
+    payload.text?.trim() ||
+    ""
+  );
+}
+
+async function failFromResponse(provider: AIProvider, response: Response) {
+  const body = trimProviderError(await response.text().catch(() => ""));
+  throw new Error(
+    `${provider} returned ${response.status}${body ? `: ${body}` : ""}`
+  );
+}
+
+async function responseErrorSummary(response: Response) {
+  const body = trimProviderError(await response.text().catch(() => ""));
+  return `${response.status}${body ? `: ${body}` : ""}`;
+}
+
+async function completeWithOpenAI({
+  messages,
+  temperature,
+  maxTokens,
+}: {
+  messages: ChatMessage[];
+  temperature: number;
+  maxTokens: number;
+}): Promise<ProviderResult> {
+  const response = await getOpenAIClient().chat.completions.create({
+    model: OPENAI_MODEL,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  });
+
+  const text = response.choices[0]?.message?.content?.trim() || "";
+  if (!text) throw new Error("OpenAI returned an empty response");
+
+  return {
+    text,
+    tokensUsed: response.usage?.total_tokens || estimateTokens(messages, text),
+    model: modelLabel("openai"),
+  };
+}
+
+async function completeWithPollinations({
+  messages,
+  temperature,
+  maxTokens,
+}: {
+  messages: ChatMessage[];
+  temperature: number;
+  maxTokens: number;
+}): Promise<ProviderResult> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain",
+  };
+
+  if (process.env.POLLINATIONS_API_KEY) {
+    headers.Authorization = `Bearer ${process.env.POLLINATIONS_API_KEY}`;
+  }
+
+  const urls =
+    process.env.POLLINATIONS_API_URL || process.env.POLLINATIONS_API_KEY
+      ? [POLLINATIONS_API_URL]
+      : [POLLINATIONS_PUBLIC_FALLBACK_URL];
+
+  const failures: string[] = [];
+
+  for (const url of urls) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: POLLINATIONS_MODEL,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      failures.push(`${url} -> ${await responseErrorSummary(response)}`);
+      continue;
+    }
+
+    const payload = await parseTextResponse(response);
+    const text = extractText(payload);
+    if (!text) {
+      failures.push(`${url} -> empty response`);
+      continue;
+    }
+
+    return {
+      text,
+      tokensUsed: payload.usage?.total_tokens || estimateTokens(messages, text),
+      model: modelLabel("pollinations"),
+    };
+  }
+
+  throw new Error(`Pollinations failed. ${failures.join(" | ")}`);
+}
+
+async function completeWithOllama({
+  messages,
+  temperature,
+  maxTokens,
+}: {
+  messages: ChatMessage[];
+  temperature: number;
+  maxTokens: number;
+}): Promise<ProviderResult> {
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      messages,
+      stream: false,
+      options: {
+        temperature,
+        num_predict: maxTokens,
+      },
+    }),
+  });
+
+  if (!response.ok) await failFromResponse("ollama", response);
+
+  const payload = (await response.json()) as OllamaResponse;
+  const text = payload.message?.content?.trim() || payload.response?.trim() || "";
+  if (!text) throw new Error("Ollama returned an empty response");
+
+  return {
+    text,
+    tokensUsed:
+      (payload.prompt_eval_count || 0) + (payload.eval_count || 0) ||
+      estimateTokens(messages, text),
+    model: modelLabel("ollama"),
+  };
+}
+
+async function completeWithProvider(
+  provider: AIProvider,
+  input: {
+    messages: ChatMessage[];
+    temperature: number;
+    maxTokens: number;
+  }
+) {
+  switch (provider) {
+    case "openai":
+      return completeWithOpenAI(input);
+    case "ollama":
+      return completeWithOllama(input);
+    case "pollinations":
+    default:
+      return completeWithPollinations(input);
+  }
+}
+
+async function completeChat({
+  messages,
+  temperature,
+  maxTokens,
+}: {
+  messages: ChatMessage[];
+  temperature: number;
+  maxTokens: number;
+}): Promise<ProviderResult> {
+  const failures: string[] = [];
+
+  for (const provider of providerOrder()) {
+    try {
+      return await completeWithProvider(provider, { messages, temperature, maxTokens });
+    } catch (error) {
+      failures.push(`${provider}: ${trimProviderError(errorMessage(error))}`);
+      if (normalizeProvider(process.env.AI_PROVIDER) !== "auto") break;
+    }
+  }
+
+  throw new Error(
+    `AI provider failed. Tried ${providerOrder().join(", ")}. ${failures.join(" | ")}`
+  );
 }
 
 export interface AIDraftResult {
@@ -114,7 +414,7 @@ export async function consumeAICreditAndLog<T = null>(
         feature: input.feature,
         action: input.action,
         promptVersion: input.promptVersion || AI_PROMPT_VERSION,
-        model: input.model || MODEL,
+        model: input.model || getAIModel(),
         tokensUsed: input.tokensUsed,
         approvalStatus: input.approvalStatus || "DRAFT",
         output: input.output,
@@ -138,20 +438,19 @@ export async function generateAIDraft({
   temperature?: number;
   maxTokens?: number;
 }): Promise<AIDraftResult> {
-  const response = await getOpenAIClient().chat.completions.create({
-    model: MODEL,
+  const result = await completeChat({
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
     temperature,
-    max_tokens: maxTokens,
+    maxTokens,
   });
 
   return {
-    text: response.choices[0]?.message?.content?.trim() || "",
-    tokensUsed: response.usage?.total_tokens || 0,
-    model: MODEL,
+    text: result.text,
+    tokensUsed: result.tokensUsed,
+    model: result.model,
     promptVersion: AI_PROMPT_VERSION,
   };
 }
@@ -164,8 +463,7 @@ export async function generateRemark(
 ): Promise<AIRemarkResponse> {
   const prompt = buildRemarkPrompt(request);
 
-  const response = await getOpenAIClient().chat.completions.create({
-    model: MODEL,
+  const result = await completeChat({
     messages: [
       {
         role: "system",
@@ -178,28 +476,25 @@ export async function generateRemark(
       { role: "user", content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: 500,
+    maxTokens: 500,
   });
 
-  const text = response.choices[0]?.message?.content?.trim() || "";
-  const tokensUsed = response.usage?.total_tokens || 0;
-
   if (request.language === "both") {
-    const parts = text.split("---").map((s) => s.trim());
+    const parts = result.text.split("---").map((s) => s.trim()).filter(Boolean);
     return {
-      remarkEn: parts[0] || text,
+      remarkEn: parts[0] || result.text,
       remarkUr: parts[1] || "",
-      tokensUsed,
-      model: MODEL,
+      tokensUsed: result.tokensUsed,
+      model: result.model,
       promptVersion: AI_PROMPT_VERSION,
     };
   }
 
   return {
-    remarkEn: request.language === "en" ? text : undefined,
-    remarkUr: request.language === "ur" ? text : undefined,
-    tokensUsed,
-    model: MODEL,
+    remarkEn: request.language === "en" ? result.text : undefined,
+    remarkUr: request.language === "ur" ? result.text : undefined,
+    tokensUsed: result.tokensUsed,
+    model: result.model,
     promptVersion: AI_PROMPT_VERSION,
   };
 }

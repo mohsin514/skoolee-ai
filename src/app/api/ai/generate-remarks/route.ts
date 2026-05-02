@@ -10,6 +10,7 @@ import {
   AICreditError,
   consumeAICreditAndLog,
   ensureAICreditsAvailable,
+  getAIModel,
   generateRemark,
 } from "@/lib/ai/openai";
 
@@ -218,7 +219,7 @@ async function saveRemarkDraft({
           summary: result.remarkEn || result.remarkUr || "Report remark draft generated",
           output: jsonValue(output),
           promptVersion: result.promptVersion || "phase4-ai-v1",
-          model: result.model || process.env.OPENAI_MODEL || "gpt-4o-mini",
+          model: result.model || getAIModel(),
           tokensUsed: result.tokensUsed,
           approvalStatus: "PENDING_REVIEW",
         },

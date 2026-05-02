@@ -172,7 +172,7 @@ export default function TeacherDashboard() {
     } finally {
       setMarksLoading(false);
     }
-  }, [data?.exams, selectedExamId]);
+  }, [data, selectedExamId]);
 
   useEffect(() => {
     loadMarks();
