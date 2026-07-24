@@ -12,8 +12,28 @@ import { assertPlanCapacity } from "@/lib/billing/entitlements";
 export async function POST(req: NextRequest) {
   const authUser = await getAuthUser();
   if (!authUser) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Ensure client sent JSON; if not, log a helpful error and return 400.
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    // Try to capture the raw payload for debugging (may be RSC/Flight frames)
+    let raw = undefined;
+    try {
+      raw = await req.text();
+    } catch (e) {
+      raw = "<unreadable body>";
+    }
+    console.error("[ONBOARDING/INVITE] Unexpected non-JSON request body:", raw?.slice?.(0, 1000) ?? raw);
+    return Response.json({ error: "Invalid request: expected JSON body (Content-Type: application/json)" }, { status: 400 });
+  }
 
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch (err) {
+    console.error("[ONBOARDING/INVITE] Failed to parse JSON body:", err);
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const parsed = teacherInviteSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });

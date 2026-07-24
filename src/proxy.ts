@@ -49,6 +49,9 @@ export async function proxy(req: NextRequest) {
   const token = req.cookies.get("skoolee_token")?.value;
 
   if (!token) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
@@ -129,6 +132,9 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch {
     // Invalid or expired token
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+    }
     const loginUrl = new URL("/login", req.url);
     const res = NextResponse.redirect(loginUrl);
     res.cookies.set("skoolee_token", "", { maxAge: 0, path: "/" });
