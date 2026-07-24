@@ -12,10 +12,19 @@ const stripeApiVersion = (
   process.env.STRIPE_API_VERSION || "2026-04-22.dahlia"
 ) as StripeConfig["apiVersion"];
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: stripeApiVersion,
-  typescript: true,
-});
+export const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: stripeApiVersion,
+      typescript: true,
+    })
+  : null;
+
+function requireStripe(): Stripe {
+  if (!stripe) {
+    throw new Error("Stripe is not configured");
+  }
+  return stripe;
+}
 
 export function appUrl() {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
@@ -31,7 +40,7 @@ export async function createStripeCustomer(
   name: string,
   schoolId: string
 ): Promise<string> {
-  const customer = await stripe.customers.create({
+  const customer = await requireStripe().customers.create({
     email,
     name,
     metadata: { schoolId },
@@ -48,7 +57,7 @@ export async function createCheckoutSession(
   schoolId: string,
   plan: Exclude<PlanType, "FREE" | "ENTERPRISE">
 ): Promise<string> {
-  const session = await stripe.checkout.sessions.create({
+  const session = await requireStripe().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
@@ -70,7 +79,7 @@ export async function createCheckoutSession(
 export async function createPortalSession(
   customerId: string
 ): Promise<string> {
-  const session = await stripe.billingPortal.sessions.create({
+  const session = await requireStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: `${appUrl()}/dashboard/billing`,
   });

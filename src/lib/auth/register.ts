@@ -125,7 +125,16 @@ export async function completeSignupStep2(data: SignupStep2Input): Promise<Signu
 
   const token = randomUUID();
   try {
-    await sendVerificationEmail(user.email, user.id, token);
+    const delivery = await sendVerificationEmail(user.email, user.id, token);
+    if ("bypass" in delivery && delivery.bypass && process.env.NODE_ENV !== "production") {
+      return {
+        success: true,
+        warning: `Email delivery is disabled in development. Verify your account here: ${
+          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/verify?id=${user.id}&token=${token}`
+        }`,
+        user: { id: user.id, email: user.email },
+      };
+    }
   } catch (error) {
     console.error("[signup-email]", error);
     return {

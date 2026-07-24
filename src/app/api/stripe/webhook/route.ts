@@ -91,6 +91,9 @@ export async function POST(req: NextRequest) {
   if (!webhookSecret || !signature) {
     return Response.json({ error: "Stripe webhook is not configured" }, { status: 503 });
   }
+  if (!stripe) {
+    return Response.json({ error: "Stripe is not configured" }, { status: 503 });
+  }
 
   let event: Stripe.Event;
   try {

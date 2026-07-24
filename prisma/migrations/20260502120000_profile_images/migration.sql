@@ -1,5 +1,5 @@
-ALTER TABLE "users"
+ALTER TABLE IF EXISTS "users"
   ADD COLUMN IF NOT EXISTS "profile_image_url" TEXT;
 
-ALTER TABLE "students"
+ALTER TABLE IF EXISTS "students"
   ADD COLUMN IF NOT EXISTS "profile_image_url" TEXT;
