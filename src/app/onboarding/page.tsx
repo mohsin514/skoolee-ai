@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { finishOnboarding, getOnboardingSession } from '@/app/actions/completeOnboarding';
 import { logout } from '@/app/actions/auth/logout';
 import { toast } from 'sonner';
+import { getPlanLimits } from '@/config/plans';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -116,6 +117,18 @@ export default function OnboardingWizard() {
       toast.error("Required fields missing.");
       return;
     }
+      // Enforce plan limits client-side for a friendlier UX (pre-check before server call)
+      try {
+         const plan = session?.school?.plan;
+         const maxCampuses = getPlanLimits(plan).maxCampuses;
+         if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
+            const planName = getPlanLimits(plan).name || 'your plan';
+            toast.error(`${planName} allows ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Upgrade to add more.`);
+            return;
+         }
+      } catch (err) {
+         // Fallback: ignore client-side check if anything goes wrong and let server validate
+      }
     setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
     setNewCampus({
       name: '',
