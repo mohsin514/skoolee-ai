@@ -95,7 +95,6 @@ export default function SuperAdminDashboard() {
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showClassModal, setShowClassModal] = useState(false);
-  const [movingStudent, setMovingStudent] = useState<any>(null);
   const [newCampusData, setNewCampusData] = useState({ name: "", location: "", regId: "", autoId: true });
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
@@ -107,9 +106,7 @@ export default function SuperAdminDashboard() {
     academicYear: new Date().getFullYear(),
     classTeacherId: "",
   });
-  const [moveClassId, setMoveClassId] = useState("");
   const [savingClass, setSavingClass] = useState(false);
-  const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -219,12 +216,6 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const openMoveStudent = (student: any) => {
-    if (!selectedCampus) return;
-    setMovingStudent(student);
-    setMoveClassId(student.class?.id || selectedCampus.classes?.[0]?.id || "");
-  };
-
   const handleCreateClass = async () => {
     if (!selectedCampus) return;
     if (!classForm.name.trim()) return toast.error("Class name is required");
@@ -251,28 +242,6 @@ export default function SuperAdminDashboard() {
       toast.error(error instanceof Error ? error.message : "Class could not be created");
     } finally {
       setSavingClass(false);
-    }
-  };
-
-  const handleMoveStudent = async () => {
-    if (!selectedCampus || !movingStudent || !moveClassId) return;
-    setMovingStudentBusy(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: movingStudent.id, campusId: selectedCampus.id, classId: moveClassId }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Student could not be moved");
-      toast.success("Student moved");
-      setMovingStudent(null);
-      setMoveClassId("");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Student could not be moved");
-    } finally {
-      setMovingStudentBusy(false);
     }
   };
 
@@ -552,11 +521,33 @@ export default function SuperAdminDashboard() {
                 <InfoPill label="Staff" value={selectedCampus.staffCount} active />
               </div>
 
-              <CampusOwnerSnapshot
-                campus={selectedCampus}
-                onAddClass={() => setShowClassModal(true)}
-                onMoveStudent={openMoveStudent}
-              />
+              <div className="mt-8 rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <PanelTitle icon={Mail} title="Pending Access Invitations" />
+                  <SuperStatusPill status={`${selectedCampus.pendingInvitations.length} Pending`} />
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {selectedCampus.pendingInvitations.map((invite: any) => (
+                    <div key={invite.inviteId} className="rounded-[22px] bg-[#fbf0fe]/60 px-4 py-3">
+                      <p className="truncate text-sm font-black text-[#1f1a23]">{invite.email}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap gap-2">
+                          <SuperStatusPill status={invite.status} />
+                          {invite.role ? <SuperStatusPill status={String(invite.role)} /> : null}
+                        </div>
+                        <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                          {new Date(invite.expiresAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedCampus.pendingInvitations.length === 0 ? (
+                    <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">
+                      No pending invitations for this campus.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -653,17 +644,6 @@ export default function SuperAdminDashboard() {
       ) : null}
       {showActivityLogModal ? (
         <ActivityLogModal onClose={() => setShowActivityLogModal(false)} />
-      ) : null}
-      {movingStudent && selectedCampus ? (
-        <MoveStudentModal
-          student={movingStudent}
-          classes={selectedCampus.classes || []}
-          classId={moveClassId}
-          busy={movingStudentBusy}
-          onClassChange={setMoveClassId}
-          onClose={() => setMovingStudent(null)}
-          onSave={handleMoveStudent}
-        />
       ) : null}
       <ConfirmAction
         open={Boolean(confirmAction)}

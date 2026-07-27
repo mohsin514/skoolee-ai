@@ -650,9 +650,6 @@ export default function CampusAdminDashboard() {
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openInvite("TEACHER")}>
             Invite Teacher
           </BrandButton>
-          <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
-            Activity Log
-          </BrandButton>
         </div>
       }
     >
@@ -687,9 +684,6 @@ export default function CampusAdminDashboard() {
             <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openInvite("TEACHER")}>
               Invite Teacher
             </BrandButton>
-            <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
-              Activity Log
-            </BrandButton>
           </div>
         </div>
 
@@ -711,6 +705,7 @@ export default function CampusAdminDashboard() {
               onRemove={handleRemove}
               onResend={handleResendInvite}
               onCancel={handleCancelInvite}
+              onActivityLog={() => setShowActivityLogModal(true)}
             />
           ) : null}
 
@@ -904,6 +899,7 @@ function LeadershipPanel({
   onRemove,
   onResend,
   onCancel,
+  onActivityLog,
 }: {
   data: any;
   onInviteAdmin: () => void;
@@ -911,6 +907,7 @@ function LeadershipPanel({
   onRemove: (id: string, label: string) => void;
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
+  onActivityLog: () => void;
 }) {
   return (
     <div className="space-y-8">
@@ -941,13 +938,13 @@ function LeadershipPanel({
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.9fr] gap-8">
         <AdminTeamPanel data={data} onInvite={onInviteAdmin} onRemove={onRemove} onResend={onResend} onCancel={onCancel} />
-        <CampusIdentityPanel data={data} />
+        <CampusIdentityPanel data={data} onActivityLog={onActivityLog} />
       </div>
     </div>
   );
 }
 
-function CampusIdentityPanel({ data }: { data: any }) {
+function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActivityLog: () => void }) {
   return (
     <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -959,6 +956,11 @@ function CampusIdentityPanel({ data }: { data: any }) {
         <IdentityRow label="School" value={data.schoolName} />
         <IdentityRow label="City" value={data.campusCity || "Not set"} />
         <IdentityRow label="Reg ID" value={data.campusRegId || "Not set"} />
+      </div>
+      <div className="mt-5">
+        <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={onActivityLog} className="w-full">
+          Activity Log
+        </BrandButton>
       </div>
     </div>
   );
