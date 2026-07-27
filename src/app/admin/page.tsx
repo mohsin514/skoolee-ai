@@ -37,6 +37,8 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type AdminView = "leadership" | "classes" | "teachers" | "students" | "ai";
@@ -2181,12 +2183,9 @@ function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) 
 
 function SnapshotColumn({ icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
   return (
-    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <PanelTitle icon={icon} title={title} />
-      </div>
+    <CollapsiblePanel icon={icon} title={title} defaultOpen>
       <div className="space-y-3">{children}</div>
-    </div>
+    </CollapsiblePanel>
   );
 }
 

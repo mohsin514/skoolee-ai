@@ -21,6 +21,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getPrincipalDashboardData } from "@/app/actions/dashboard";
@@ -332,32 +333,32 @@ function OverviewPanel({
 }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      <div className="xl:col-span-2 bg-[#fbf0fe]/30 border border-[#cfc2d6]/10 rounded-[32px] p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-2xl font-black tracking-normal text-[#1f1a23]">Report Card Queue</h3>
-            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-normal mt-1">
-              Recent generated academic records
-            </p>
-          </div>
-          <BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>
-            Open Review
-          </BrandButton>
-        </div>
-
-        {data.recentReportCards.length > 0 ? (
-          <div className="space-y-3">
-            {data.recentReportCards.slice(0, 6).map((card: any) => (
-              <ReportRow key={card.id} report={card} compact />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={FileText}
-            title="No report cards yet"
-            description="Locked exams and generated marks will appear here for academic review."
-          />
-        )}
+      <div className="xl:col-span-2">
+        <CollapsiblePanel
+          icon={FileText}
+          title="Report Card Queue"
+          subtitle="Recent generated academic records"
+          headerRight={
+            <BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>
+              Open Review
+            </BrandButton>
+          }
+          defaultOpen
+        >
+          {data.recentReportCards.length > 0 ? (
+            <div className="space-y-3">
+              {data.recentReportCards.slice(0, 6).map((card: any) => (
+                <ReportRow key={card.id} report={card} compact />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={FileText}
+              title="No report cards yet"
+              description="Locked exams and generated marks will appear here for academic review."
+            />
+          )}
+        </CollapsiblePanel>
       </div>
 
       <div className="space-y-6">

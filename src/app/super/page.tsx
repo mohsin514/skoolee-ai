@@ -44,6 +44,7 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 function formatStatus(status?: string) {
@@ -76,6 +77,8 @@ function hasActiveSlot(slot: any) {
   return Boolean(slot && slot.status !== "Invited" && slot.status !== "Expired");
 }
 
+const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
 type SuperView = "schools" | "billing";
 type ClassFormState = {
   name: string;
@@ -83,16 +86,6 @@ type ClassFormState = {
   academicYear: number;
   classTeacherId: string;
 };
-type StudentFormState = {
-  fullName: string;
-  rollNo: string;
-  gender: "MALE" | "FEMALE" | "OTHER";
-  classId: string;
-  guardianName: string;
-  guardianPhone: string;
-  guardianEmail: string;
-};
-
 export default function SuperAdminDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -102,7 +95,6 @@ export default function SuperAdminDashboard() {
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showClassModal, setShowClassModal] = useState(false);
-  const [showStudentModal, setShowStudentModal] = useState(false);
   const [movingStudent, setMovingStudent] = useState<any>(null);
   const [newCampusData, setNewCampusData] = useState({ name: "", location: "", regId: "", autoId: true });
   const [addingCampus, setAddingCampus] = useState(false);
@@ -115,18 +107,8 @@ export default function SuperAdminDashboard() {
     academicYear: new Date().getFullYear(),
     classTeacherId: "",
   });
-  const [studentForm, setStudentForm] = useState<StudentFormState>({
-    fullName: "",
-    rollNo: "",
-    gender: "OTHER",
-    classId: "",
-    guardianName: "",
-    guardianPhone: "",
-    guardianEmail: "",
-  });
   const [moveClassId, setMoveClassId] = useState("");
   const [savingClass, setSavingClass] = useState(false);
-  const [savingStudent, setSavingStudent] = useState(false);
   const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -222,7 +204,7 @@ export default function SuperAdminDashboard() {
         newCampusData.location,
         "Default",
         undefined,
-        newCampusData.autoId ? undefined : newCampusData.regId
+        newCampusData.autoId ? newCampusData.regId || undefined : newCampusData.regId
       );
       toast.success("New campus created");
       setShowAddCampusModal(false);
@@ -233,24 +215,6 @@ export default function SuperAdminDashboard() {
     } finally {
       setAddingCampus(false);
     }
-  };
-
-  const openStudentModal = () => {
-    if (!selectedCampus) return;
-    if (!selectedCampus.classes?.length) {
-      toast.info("Create a class before adding students.");
-      return;
-    }
-    setStudentForm({
-      fullName: "",
-      rollNo: "",
-      gender: "OTHER",
-      classId: selectedCampus.classes[0]?.id || "",
-      guardianName: "",
-      guardianPhone: "",
-      guardianEmail: "",
-    });
-    setShowStudentModal(true);
   };
 
   const openMoveStudent = (student: any) => {
@@ -285,51 +249,6 @@ export default function SuperAdminDashboard() {
       toast.error(error instanceof Error ? error.message : "Class could not be created");
     } finally {
       setSavingClass(false);
-    }
-  };
-
-  const handleCreateStudent = async () => {
-    if (!selectedCampus) return;
-    if (!studentForm.fullName.trim()) return toast.error("Student name is required");
-    if (!studentForm.rollNo.trim()) return toast.error("Roll number is required");
-    if (!studentForm.classId) return toast.error("Select a class first");
-
-    const guardianEmail = studentForm.guardianEmail.trim();
-    if (guardianEmail && !isValidEmail(guardianEmail)) {
-      return toast.error("Enter a valid guardian email or leave it blank");
-    }
-
-    setSavingStudent(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: studentForm.fullName.trim(),
-          rollNo: studentForm.rollNo.trim(),
-          gender: studentForm.gender,
-          classId: studentForm.classId,
-          dateOfBirth: null,
-          phone: null,
-          guardianName: studentForm.guardianName.trim() || null,
-          guardianPhone: studentForm.guardianPhone.trim() || null,
-          guardianWhatsapp: null,
-          guardianEmail: guardianEmail || null,
-          address: null,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Student could not be created");
-      toast.success(result.message || "Student added");
-      if (result.guardianInviteFailures?.length) {
-        toast.warning("Student was created, but the guardian invite email could not be sent.");
-      }
-      setShowStudentModal(false);
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Student could not be created");
-    } finally {
-      setSavingStudent(false);
     }
   };
 
@@ -588,14 +507,6 @@ export default function SuperAdminDashboard() {
                 <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>
                   Add Class
                 </BrandButton>
-                <BrandButton
-                  variant="soft"
-                  icon={<GraduationCap className="w-4 h-4" />}
-                  onClick={openStudentModal}
-                  disabled={!selectedCampus.classes?.length}
-                >
-                  Add Student
-                </BrandButton>
                 <SuperStatusPill status={hasActiveSlot(selectedCampus.admin) && hasActiveSlot(selectedCampus.principal) ? "ACTIVE" : "MISSING"} />
               </div>
             </div>
@@ -639,7 +550,6 @@ export default function SuperAdminDashboard() {
               <CampusOwnerSnapshot
                 campus={selectedCampus}
                 onAddClass={() => setShowClassModal(true)}
-                onAddStudent={openStudentModal}
                 onMoveStudent={openMoveStudent}
               />
             </div>
@@ -693,7 +603,13 @@ export default function SuperAdminDashboard() {
               <div className="flex items-center justify-between mb-4">
                 <label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal">Campus Key</label>
                 <button
-                  onClick={() => setNewCampusData({ ...newCampusData, autoId: !newCampusData.autoId, regId: "" })}
+                  onClick={() =>
+                    setNewCampusData({
+                      ...newCampusData,
+                      autoId: !newCampusData.autoId,
+                      regId: !newCampusData.autoId ? generateRegId() : ""
+                    })
+                  }
                   className="text-[9px] font-black uppercase tracking-normal px-3 py-1 rounded-lg bg-white text-[#8127cf] border border-[#8127cf]/20"
                 >
                   {newCampusData.autoId ? "Auto" : "Manual"}
@@ -728,17 +644,6 @@ export default function SuperAdminDashboard() {
           onChange={setClassForm}
           onClose={() => setShowClassModal(false)}
           onSave={handleCreateClass}
-        />
-      ) : null}
-      {showStudentModal && selectedCampus ? (
-        <StudentModal
-          campusName={selectedCampus.name}
-          form={studentForm}
-          classes={selectedCampus.classes || []}
-          busy={savingStudent}
-          onChange={setStudentForm}
-          onClose={() => setShowStudentModal(false)}
-          onSave={handleCreateStudent}
         />
       ) : null}
       {movingStudent && selectedCampus ? (
@@ -826,80 +731,6 @@ function ClassModal({
   );
 }
 
-function StudentModal({
-  campusName,
-  form,
-  classes,
-  busy,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  campusName: string;
-  form: StudentFormState;
-  classes: any[];
-  busy: boolean;
-  onChange: (form: StudentFormState) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalFrame title="Add Student" onClose={onClose}>
-      <CampusContext name={campusName} />
-      <div className="space-y-4">
-        <FormSelect label="Class / Section" value={form.classId} onChange={(value) => onChange({ ...form, classId: value })}>
-          <option value="">Select class</option>
-          {classes.map((cls) => (
-            <option key={cls.id} value={cls.id}>
-              {classLabel(cls)} - {cls.academicYear}
-            </option>
-          ))}
-        </FormSelect>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput
-            label="Student Name"
-            value={form.fullName}
-            placeholder="Full name"
-            onChange={(value) => onChange({ ...form, fullName: value })}
-          />
-          <FormInput
-            label="Roll No"
-            value={form.rollNo}
-            placeholder="e.g. 08-A-12"
-            onChange={(value) => onChange({ ...form, rollNo: value })}
-          />
-        </div>
-        <FormSelect label="Gender" value={form.gender} onChange={(value) => onChange({ ...form, gender: value as StudentFormState["gender"] })}>
-          <option value="OTHER">Other</option>
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-        </FormSelect>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput
-            label="Guardian Name"
-            value={form.guardianName}
-            placeholder="Parent / guardian"
-            onChange={(value) => onChange({ ...form, guardianName: value })}
-          />
-          <FormInput
-            label="Guardian Phone"
-            value={form.guardianPhone}
-            placeholder="+92..."
-            onChange={(value) => onChange({ ...form, guardianPhone: value })}
-          />
-        </div>
-        <FormInput
-          label="Guardian Email"
-          type="email"
-          value={form.guardianEmail}
-          placeholder="parent@example.com"
-          onChange={(value) => onChange({ ...form, guardianEmail: value })}
-        />
-      </div>
-      <ModalActions busy={busy} busyLabel="Adding" actionLabel="Add Student" onClose={onClose} onSave={onSave} />
-    </ModalFrame>
-  );
-}
 
 function MoveStudentModal({
   student,
@@ -1125,12 +956,10 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
 function CampusOwnerSnapshot({
   campus,
   onAddClass,
-  onAddStudent,
   onMoveStudent,
 }: {
   campus: any;
   onAddClass: () => void;
-  onAddStudent: () => void;
   onMoveStudent: (student: any) => void;
 }) {
   return (
@@ -1142,15 +971,6 @@ function CampusOwnerSnapshot({
             <div className="flex flex-wrap gap-2">
               <BrandButton variant="soft" icon={<School className="h-4 w-4" />} onClick={onAddClass} className="min-h-9 rounded-xl px-3 text-[10px]">
                 Add Class
-              </BrandButton>
-              <BrandButton
-                variant="soft"
-                icon={<GraduationCap className="h-4 w-4" />}
-                onClick={onAddStudent}
-                disabled={!campus.classes.length}
-                className="min-h-9 rounded-xl px-3 text-[10px]"
-              >
-                Add Student
               </BrandButton>
               <SuperStatusPill status={`${campus.classCount} Classes`} />
             </div>
@@ -1244,21 +1064,7 @@ function CampusOwnerSnapshot({
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <SnapshotColumn
-          icon={Users}
-          title="Student Profiles"
-          action={
-            <BrandButton
-              variant="soft"
-              icon={<Plus className="h-4 w-4" />}
-              onClick={onAddStudent}
-              disabled={!campus.classes.length}
-              className="min-h-9 rounded-xl px-3 text-[10px]"
-            >
-              Add Student
-            </BrandButton>
-          }
-        >
+        <SnapshotColumn icon={Users} title="Student Profiles">
           {campus.students.map((student: any) => {
             const latestReport = student.reportCards?.[0];
             return (
@@ -1393,13 +1199,9 @@ function SnapshotColumn({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <PanelTitle icon={Icon} title={title} />
-        {action}
-      </div>
+    <CollapsiblePanel icon={Icon} title={title} defaultOpen headerRight={action}>
       <div className="space-y-3">{children}</div>
-    </div>
+    </CollapsiblePanel>
   );
 }
 

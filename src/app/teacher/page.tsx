@@ -22,6 +22,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getTeacherDashboardData } from "@/app/actions/dashboard";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { Select } from "@/components/ui/select";
 import {
   AiActionPanel,
@@ -342,93 +343,258 @@ export default function TeacherDashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
             <div className="space-y-8">
               <section id="teacher-academics" className="scroll-mt-6">
-                <PanelHeader icon={BookOpen} title="Classes & Subjects" status={`${classHubs.length} Hubs`} />
-                {classHubs.length ? (
-                  <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {classHubs.map((cls: any) => (
-                      <ClassHubCard key={cls.id} cls={cls} students={data.students.filter((student: any) => student.class?.id === cls.id)} />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={BookOpen}
-                    title="No academic hub assigned"
-                    description="Classes appear here when you are the class teacher or when a subject is assigned to you."
-                  />
-                )}
-              </section>
-
-              <section id="teacher-attendance" className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg scroll-mt-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <PanelHeader icon={CalendarCheck} title="Daily Attendance" status={selectedAttendanceClass ? classLabel(selectedAttendanceClass) : "No class"} />
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[460px]">
-                    <label className="block">
-                      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Class</span>
-                      <Select value={attendanceClassId} onChange={(event) => setAttendanceClassId(event.target.value)}>
-                        {classHubs.map((cls: any) => (
-                          <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
-                        ))}
-                        {!classHubs.length ? <option value="">No classes</option> : null}
-                      </Select>
-                    </label>
-                    <label className="block">
-                      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Date</span>
-                      <input
-                        type="date"
-                        value={attendanceDate}
-                        onChange={(event) => setAttendanceDate(event.target.value)}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <MiniMetric label="Total" value={attendanceStats.total} />
-                  <MiniMetric label="Present" value={attendanceStats.present} active />
-                  <MiniMetric label="Absent" value={attendanceStats.absent} danger />
-                  <MiniMetric label="Leave" value={attendanceStats.leave} />
-                  <MiniMetric label="Unmarked" value={attendanceStats.unmarked} />
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-[26px] border border-[#f3f4f9]">
-                  {attendanceLoading ? (
-                    <LoadingBlock label="Loading attendance..." />
-                  ) : attendanceRows.length ? (
-                    <div className="divide-y divide-[#f3f4f9]">
-                      {attendanceRows.map((student) => (
-                        <div key={student.id} className="grid grid-cols-1 gap-3 px-5 py-4 sm:grid-cols-[1fr_180px] sm:items-center">
-                          <StudentMini student={student} />
-                          <Select
-                            value={student.status}
-                            onChange={(event) =>
-                              setAttendanceRows((rows) =>
-                                rows.map((row) => row.id === student.id ? { ...row, status: event.target.value as AttendanceStatus } : row)
-                              )
-                            }
-                          >
-                            <option value="PRESENT">Present</option>
-                            <option value="ABSENT">Absent</option>
-                            <option value="LEAVE">Leave</option>
-                          </Select>
-                        </div>
+                <CollapsiblePanel icon={BookOpen} title="Classes & Subjects" subtitle={`${classHubs.length} Hubs`} defaultOpen>
+                  {classHubs.length ? (
+                    <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      {classHubs.map((cls: any) => (
+                        <ClassHubCard key={cls.id} cls={cls} students={data.students.filter((student: any) => student.class?.id === cls.id)} />
                       ))}
                     </div>
                   ) : (
-                    <EmptyInline text="No students are available for this attendance roster." />
+                    <EmptyState
+                      icon={BookOpen}
+                      title="No academic hub assigned"
+                      description="Classes appear here when you are the class teacher or when a subject is assigned to you."
+                    />
                   )}
-                </div>
+                </CollapsiblePanel>
+              </section>
 
-                <div className="mt-5 flex justify-end">
-                  <BrandButton
-                    variant="dark"
-                    icon={attendanceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
-                    onClick={saveAttendance}
-                    disabled={attendanceSaving || !attendanceRows.length}
-                  >
-                    {attendanceSaving ? "Saving" : "Save Attendance"}
-                  </BrandButton>
-                </div>
+              <section id="teacher-attendance" className="scroll-mt-6">
+                <CollapsiblePanel icon={CalendarCheck} title="Daily Attendance" subtitle={selectedAttendanceClass ? classLabel(selectedAttendanceClass) : "No class"} defaultOpen>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[460px]">
+                      <label className="block">
+                        <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Class</span>
+                        <Select value={attendanceClassId} onChange={(event) => setAttendanceClassId(event.target.value)}>
+                          {classHubs.map((cls: any) => (
+                            <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
+                          ))}
+                          {!classHubs.length ? <option value="">No classes</option> : null}
+                        </Select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Date</span>
+                        <input
+                          type="date"
+                          value={attendanceDate}
+                          onChange={(event) => setAttendanceDate(event.target.value)}
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <MiniMetric label="Total" value={attendanceStats.total} />
+                    <MiniMetric label="Present" value={attendanceStats.present} active />
+                    <MiniMetric label="Absent" value={attendanceStats.absent} danger />
+                    <MiniMetric label="Leave" value={attendanceStats.leave} />
+                    <MiniMetric label="Unmarked" value={attendanceStats.unmarked} />
+                  </div>
+
+                  <div className="mt-5 overflow-hidden rounded-[26px] border border-[#f3f4f9]">
+                    {attendanceLoading ? (
+                      <LoadingBlock label="Loading attendance..." />
+                    ) : attendanceRows.length ? (
+                      <div className="divide-y divide-[#f3f4f9]">
+                        {attendanceRows.map((student) => (
+                          <div key={student.id} className="grid grid-cols-1 gap-3 px-5 py-4 sm:grid-cols-[1fr_180px] sm:items-center">
+                            <StudentMini student={student} />
+                            <Select
+                              value={student.status}
+                              onChange={(event) =>
+                                setAttendanceRows((rows) =>
+                                  rows.map((row) => (row.id === student.id ? { ...row, status: event.target.value as AttendanceStatus } : row))
+                                )
+                              }
+                            >
+                              <option value="PRESENT">Present</option>
+                              <option value="ABSENT">Absent</option>
+                              <option value="LEAVE">Leave</option>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyInline text="No students are available for this attendance roster." />
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex justify-end">
+                    <BrandButton
+                      variant="dark"
+                      icon={attendanceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
+                      onClick={saveAttendance}
+                      disabled={attendanceSaving || !attendanceRows.length}
+                    >
+                      {attendanceSaving ? "Saving" : "Save Attendance"}
+                    </BrandButton>
+                  </div>
+                </CollapsiblePanel>
+              </section>
+
+              <section id="teacher-marks" className="scroll-mt-6">
+                <CollapsiblePanel icon={Star} title="Tests, Exams & Marks" subtitle={`${data.exams?.length || 0} Cycles`} defaultOpen>
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="w-full lg:w-[360px]">
+                      <Select value={selectedExamId} onChange={(event) => setSelectedExamId(event.target.value)}>
+                        {(data.exams || []).map((exam: any) => (
+                          <option key={exam.id} value={exam.id}>
+                            {exam.title} - {classLabel(exam.class)}
+                          </option>
+                        ))}
+                        {!data.exams?.length ? <option value="">No exams</option> : null}
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {(data.exams || []).slice(0, 6).map((exam: any) => (
+                      <button
+                        type="button"
+                        key={exam.id}
+                        onClick={() => setSelectedExamId(exam.id)}
+                        className={`cursor-pointer rounded-[24px] border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+                          selectedExamId === exam.id ? "border-[#8127cf]/30 bg-[#fbf0fe]" : "border-[#cfc2d6]/10 bg-[#fbf0fe]/35"
+                        }`}
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-[#1f1a23]">{exam.title}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{classLabel(exam.class)}</p>
+                          </div>
+                          <StatusPill status={exam.status} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <MiniMetric label="Entered" value={exam.enteredMarks || 0} active />
+                          <MiniMetric label="Missing" value={exam.missingMarks || 0} danger={exam.missingMarks > 0} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 overflow-auto rounded-[26px] border border-[#f3f4f9]">
+                    {marksLoading ? (
+                      <LoadingBlock label="Loading marks..." />
+                    ) : markSheet?.subjects?.length && markSheet?.students?.length ? (
+                      <table className="w-full min-w-[720px] text-left">
+                        <thead>
+                          <tr className="bg-[#f3f4f9]/45 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+                            <th className="px-5 py-4">Student</th>
+                            {markSheet.subjects.map((subject: any) => (
+                              <th key={subject.id} className="px-4 py-4 text-center">{subject.name}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#f3f4f9]">
+                          {markSheet.students.map((student: any) => (
+                            <tr key={student.id}>
+                              <td className="px-5 py-4">
+                                <StudentMini student={student} />
+                              </td>
+                              {markSheet.subjects.map((subject: any) => {
+                                const key = `${student.id}:${subject.id}`;
+                                return (
+                                  <td key={subject.id} className="px-4 py-4">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={subject.totalMarks || 100}
+                                      value={marksByKey[key] || ""}
+                                      disabled={activeExam?.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(activeExam?.status || "")}
+                                      onChange={(event) => setMarksByKey((current) => ({ ...current, [key]: event.target.value }))}
+                                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/45 px-3 text-center text-sm font-black outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white disabled:opacity-50"
+                                    />
+                                    <p className="mt-1 text-center text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/35">
+                                      / {subject.totalMarks || 100}
+                                    </p>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <EmptyInline text="No editable subjects are available for this exam. Assign subjects to this teacher first." />
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-[#4d4354]/50">
+                      {activeExam ? `${activeExam.enteredMarks || 0}/${activeExam.expectedMarks || 0} marks entered for your assigned subjects.` : "Select an exam to enter marks."}
+                    </p>
+                    <BrandButton
+                      variant="dark"
+                      icon={marksSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      onClick={saveMarks}
+                      disabled={marksSaving || !markSheet?.subjects?.length || activeExam?.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(activeExam?.status || "")}
+                    >
+                      {marksSaving ? "Saving" : "Save Marks"}
+                    </BrandButton>
+                  </div>
+                </CollapsiblePanel>
+              </section>
+
+              <section id="teacher-reports" className="scroll-mt-6">
+                <CollapsiblePanel icon={FileText} title="Report Cards & Remarks" subtitle={`${data.recentReportCards?.length || 0} Recent`} defaultOpen>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Select value={selectedReportExamId} onChange={(event) => setSelectedReportExamId(event.target.value)}>
+                        {(data.lockedExams || []).map((exam: any) => (
+                          <option key={exam.id} value={exam.id}>{exam.title} - {classLabel(exam.class)}</option>
+                        ))}
+                        {!data.lockedExams?.length ? <option value="">No locked exams</option> : null}
+                      </Select>
+                      <BrandButton
+                        variant="soft"
+                        icon={remarkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4" />}
+                        onClick={() => handleGenerateRemarks()}
+                        disabled={remarkBusy || !selectedReportExamId}
+                      >
+                        Draft Remarks
+                      </BrandButton>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {(data.lockedExams || []).slice(0, 6).map((exam: any) => (
+                      <div key={exam.id} className="rounded-[24px] bg-[#fbf0fe]/45 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-[#1f1a23]">{exam.title}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                              {classLabel(exam.class)} - {exam.reportCards || 0} cards
+                            </p>
+                          </div>
+                          <StatusPill status={exam.status} />
+                        </div>
+                      </div>
+                    ))}
+                    {!data.lockedExams?.length ? <EmptyInline text="Locked exams will appear here for remarks and report-card work." /> : null}
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    {(data.recentReportCards || []).slice(0, 8).map((report: any) => (
+                      <div key={report.id} className="flex flex-col gap-3 rounded-[22px] bg-[#fbf0fe]/45 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                            {report.exam?.title || "Report"} - {classLabel(report.student?.class)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-[#8127cf]">
+                            {Math.round(report.percentage || 0)}%
+                          </span>
+                          <StatusPill status={report.status} />
+                        </div>
+                      </div>
+                    ))}
+                    {!data.recentReportCards?.length ? <EmptyInline text="Report cards will appear after exams are processed." /> : null}
+                  </div>
+                </CollapsiblePanel>
               </section>
 
               <section id="teacher-marks" className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg scroll-mt-6">

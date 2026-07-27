@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -25,6 +25,9 @@ export default function AcceptInvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
+  const [inviteStatus, setInviteStatus] = useState<"pending" | "accepted" | "cancelled" | "expired" | "invalid" | null>(null);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,13 +44,56 @@ export default function AcceptInvitePage() {
     [confirmPassword, password]
   );
 
-  const canSubmit = token && fullName.trim() && passwordChecks.every((item) => item.met);
+  useEffect(() => {
+    if (!token) {
+      setInviteLoading(false);
+      setInviteStatus("invalid");
+      setInviteMessage("This invitation link is missing its secure token.");
+      return;
+    }
+
+    const loadInviteStatus = async () => {
+      try {
+        const res = await fetch(`/api/invite/status?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          setInviteStatus("invalid");
+          setInviteMessage("This invitation link is invalid or no longer available.");
+        } else {
+          setInviteStatus(data.status || "invalid");
+          if (data.status === "expired") {
+            setInviteMessage("This invitation has expired. Please request a new invite.");
+          } else if (data.status === "cancelled") {
+            setInviteMessage("This invitation has been cancelled. Please ask your administrator to resend it.");
+          } else if (data.status === "accepted") {
+            setInviteMessage("This invitation has already been accepted. Please log in.");
+          } else {
+            setInviteMessage("");
+          }
+        }
+      } catch (error) {
+        setInviteStatus("invalid");
+        setInviteMessage("Unable to validate invitation status. Please try again later.");
+      } finally {
+        setInviteLoading(false);
+      }
+    };
+
+    loadInviteStatus();
+  }, [token]);
+
+  const canSubmit = token && inviteStatus === "pending" && fullName.trim() && passwordChecks.every((item) => item.met);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!token) {
       toast.error("This invitation link is missing its secure token.");
+      return;
+    }
+    if (inviteStatus !== "pending") {
+      toast.error("This invitation is no longer active.");
       return;
     }
     if (!fullName.trim()) {
@@ -63,6 +109,7 @@ export default function AcceptInvitePage() {
     try {
       await acceptInvite(token, password, fullName);
       toast.success("Invitation accepted. Please log in.");
+      await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not accept invitation");
@@ -121,7 +168,18 @@ export default function AcceptInvitePage() {
                 This invitation link is incomplete. Please open the latest invite email or ask your administrator to resend it.
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <>
+                {inviteStatus && inviteStatus !== "pending" ? (
+                  <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-sm font-bold text-rose-600 mb-5">
+                    {inviteMessage || "This invitation is no longer valid."}
+                  </div>
+                ) : null}
+                {inviteLoading ? (
+                  <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5 text-sm font-semibold text-slate-700">
+                    Validating invitation status...
+                  </div>
+                ) : null}
+                <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="fullName" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
                     Full Name
@@ -194,7 +252,7 @@ export default function AcceptInvitePage() {
                   ))}
                 </div>
 
-                <Button type="submit" disabled={!canSubmit || loading} className="h-14 w-full rounded-xl text-base">
+                <Button type="submit" disabled={!canSubmit || loading || inviteStatus !== "pending" || inviteLoading} className="h-14 w-full rounded-xl text-base">
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <span>Activate Account</span>}
                   {!loading ? <ArrowRight className="h-5 w-5" /> : null}
                 </Button>

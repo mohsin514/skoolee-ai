@@ -51,11 +51,15 @@ export default function OnboardingWizard() {
 
   const isStandalone = session?.role === 'ADMIN';
 
+  const generateId = (prefix: string) => {
+    return `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+  };
+
   const [schoolData, setSchoolData] = useState({
     name: '',
     city: '',
     address: '',
-    regId: '', 
+    regId: '',
     autoId: true
   });
 
@@ -65,22 +69,10 @@ export default function OnboardingWizard() {
     city: '',
     address: '',
     phone: '',
-    regId: '',
+    regId: generateId('BR'),
     autoId: true,
     board: 'Federal Board'
   });
-
-  const generateId = (prefix: string) => {
-    return `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-  };
-
-  useLayoutEffect(() => {
-    getOnboardingSession().then((res: any) => {
-      if (!res || res.error) router.push('/login');
-      else if (res.redirect) {
-        router.push(dashboardPathForRole(res.role));
-      }
-      else {
         const user = res.user;
         setSession(user);
         setSchoolData(prev => ({ 

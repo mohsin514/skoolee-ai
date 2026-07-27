@@ -22,6 +22,7 @@ interface InputFieldProps {
   onChange: (val: string) => void;
   icon: LucideIcon;
   type?: string;
+  className?: string;
 }
 
 interface TypeOptionProps {
@@ -212,7 +213,7 @@ export default function SplitSignupFlow() {
                   {/* Archetype Specific Registry */}
                   {type === 'school_group' && (
                     <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
-                       <InputField label="Group/Organization Name" placeholder="e.g. Beaconhouse Group" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} />
+                       <InputField label="Group/Organization Name" placeholder="e.g. Beaconhouse Group" value={formData.schoolName} onChange={(v: string) => setFormData({...formData, schoolName: v})} icon={Building} className="bg-white" />
                        <div className="space-y-2">
                           <Label className="text-[10px] font-bold text-[#8127cf] tracking-normal uppercase">Global Registry ID (Reg ID)</Label>
                           <div className="relative">
@@ -310,7 +311,7 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
   );
 }
 
-function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text" }: InputFieldProps) {
+function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text", className = "" }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-normal ml-1.5">{label}</Label>
@@ -321,7 +322,7 @@ function InputField({ label, placeholder, value, onChange, icon: Icon, type = "t
           placeholder={placeholder} 
           value={value} 
           onChange={e => onChange(e.target.value)}
-          className="h-12 pl-11 bg-[#f3f4f9] border-0 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/30"
+          className={`h-12 pl-11 bg-[#f3f4f9] border-0 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/30 ${className}`}
         />
       </div>
     </div>
