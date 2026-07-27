@@ -44,7 +44,6 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 function formatStatus(status?: string) {
@@ -80,12 +79,6 @@ function hasActiveSlot(slot: any) {
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
 type SuperView = "schools" | "billing";
-type ClassFormState = {
-  name: string;
-  section: string;
-  academicYear: number;
-  classTeacherId: string;
-};
 export default function SuperAdminDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -94,19 +87,11 @@ export default function SuperAdminDashboard() {
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showClassModal, setShowClassModal] = useState(false);
   const [newCampusData, setNewCampusData] = useState({ name: "", location: "", regId: "", autoId: true });
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
-  const [classForm, setClassForm] = useState<ClassFormState>({
-    name: "",
-    section: "",
-    academicYear: new Date().getFullYear(),
-    classTeacherId: "",
-  });
-  const [savingClass, setSavingClass] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -213,35 +198,6 @@ export default function SuperAdminDashboard() {
       toast.error(error.message);
     } finally {
       setAddingCampus(false);
-    }
-  };
-
-  const handleCreateClass = async () => {
-    if (!selectedCampus) return;
-    if (!classForm.name.trim()) return toast.error("Class name is required");
-    setSavingClass(true);
-    try {
-      const res = await fetch("/api/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campusId: selectedCampus.id,
-          name: classForm.name.trim(),
-          section: classForm.section.trim(),
-          academicYear: classForm.academicYear,
-          classTeacherId: classForm.classTeacherId || undefined,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Class could not be created");
-      toast.success("Class created");
-      setShowClassModal(false);
-      setClassForm({ name: "", section: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Class could not be created");
-    } finally {
-      setSavingClass(false);
     }
   };
 
@@ -475,9 +431,6 @@ export default function SuperAdminDashboard() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3">
-                <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>
-                  Add Class
-                </BrandButton>
                 <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
                   Activity Log
                 </BrandButton>
@@ -631,17 +584,6 @@ export default function SuperAdminDashboard() {
           </div>
         </ModalFrame>
       )}
-      {showClassModal && selectedCampus ? (
-        <ClassModal
-          campusName={selectedCampus.name}
-          form={classForm}
-          teachers={selectedCampus.teachers || []}
-          busy={savingClass}
-          onChange={setClassForm}
-          onClose={() => setShowClassModal(false)}
-          onSave={handleCreateClass}
-        />
-      ) : null}
       {showActivityLogModal ? (
         <ActivityLogModal onClose={() => setShowActivityLogModal(false)} />
       ) : null}
@@ -656,114 +598,6 @@ export default function SuperAdminDashboard() {
         onConfirm={runConfirmedAction}
       />
     </RoleShell>
-  );
-}
-
-function ClassModal({
-  campusName,
-  form,
-  teachers,
-  busy,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  campusName: string;
-  form: ClassFormState;
-  teachers: any[];
-  busy: boolean;
-  onChange: (form: ClassFormState) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalFrame title="Add Class / Section" onClose={onClose}>
-      <CampusContext name={campusName} />
-      <div className="space-y-4">
-        <FormInput
-          label="Class Name"
-          value={form.name}
-          placeholder="e.g. Grade 8"
-          onChange={(value) => onChange({ ...form, name: value })}
-        />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput
-            label="Section"
-            value={form.section}
-            placeholder="A"
-            onChange={(value) => onChange({ ...form, section: value })}
-          />
-          <FormInput
-            label="Academic Year"
-            type="number"
-            value={String(form.academicYear)}
-            placeholder="2026"
-            onChange={(value) => onChange({ ...form, academicYear: Number(value) || new Date().getFullYear() })}
-          />
-        </div>
-        <FormSelect
-          label="Class Teacher"
-          value={form.classTeacherId}
-          onChange={(value) => onChange({ ...form, classTeacherId: value })}
-        >
-          <option value="">Unassigned</option>
-          {teachers.map((teacher) => (
-            <option key={teacher.id} value={teacher.id}>
-              {teacher.fullName}
-            </option>
-          ))}
-        </FormSelect>
-      </div>
-      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Class" onClose={onClose} onSave={onSave} />
-    </ModalFrame>
-  );
-}
-
-
-function MoveStudentModal({
-  student,
-  classes,
-  classId,
-  busy,
-  onClassChange,
-  onClose,
-  onSave,
-}: {
-  student: any;
-  classes: any[];
-  classId: string;
-  busy: boolean;
-  onClassChange: (value: string) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalFrame title="Move Student" onClose={onClose}>
-      <div className="mb-5 rounded-3xl bg-[#fbf0fe]/65 p-5">
-        <p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-          Current: {classLabel(student.class)}
-        </p>
-      </div>
-      <FormSelect label="New Class / Section" value={classId} onChange={onClassChange}>
-        <option value="">Select class</option>
-        {classes.map((cls) => (
-          <option key={cls.id} value={cls.id}>
-            {classLabel(cls)} - {cls.academicYear}
-          </option>
-        ))}
-      </FormSelect>
-      <ModalActions busy={busy} busyLabel="Moving" actionLabel="Move Student" onClose={onClose} onSave={onSave} />
-    </ModalFrame>
-  );
-}
-
-function CampusContext({ name }: { name: string }) {
-  return (
-    <div className="mb-5 rounded-3xl bg-[#fbf0fe]/65 p-4">
-      <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Campus</p>
-      <p className="mt-1 truncate text-sm font-black text-[#1f1a23]">{name}</p>
-    </div>
   );
 }
 
@@ -941,199 +775,6 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
   );
 }
 
-function CampusOwnerSnapshot({
-  campus,
-  onAddClass,
-  onMoveStudent,
-}: {
-  campus: any;
-  onAddClass: () => void;
-  onMoveStudent: (student: any) => void;
-}) {
-  return (
-    <div className="mt-8 space-y-6">
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <PanelTitle icon={School} title="Academic Structure" />
-            <div className="flex flex-wrap gap-2">
-              <BrandButton variant="soft" icon={<School className="h-4 w-4" />} onClick={onAddClass} className="min-h-9 rounded-xl px-3 text-[10px]">
-                Add Class
-              </BrandButton>
-              <SuperStatusPill status={`${campus.classCount} Classes`} />
-            </div>
-          </div>
-          <div className="space-y-3">
-              {campus.classes.map((cls: any) => (
-              <div key={cls.id} className="rounded-[22px] bg-[#fbf0fe]/60 px-4 py-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p>
-                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                      {cls.classTeacher?.fullName || "No class teacher"} - {cls.academicYear}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <SuperStatusPill status={`${cls._count?.subjects || 0} Subjects`} />
-                    <SuperStatusPill status={`${cls._count?.students || 0} Students`} />
-                  </div>
-                </div>
-              </div>
-            ))}
-            {campus.classes.length === 0 ? (
-              <div className="rounded-2xl bg-[#fbf0fe]/60 p-4">
-                <p className="text-sm font-semibold text-[#4d4354]/55">No classes have been created for this campus yet.</p>
-                <BrandButton variant="soft" icon={<Plus className="h-4 w-4" />} onClick={onAddClass} className="mt-4 min-h-9 rounded-xl px-3 text-[10px]">
-                  Add First Class
-                </BrandButton>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <PanelTitle icon={Users} title="Teacher Coverage" />
-            <SuperStatusPill status={`${campus.teacherCount} Teachers`} />
-          </div>
-          <div className="space-y-3">
-            {campus.teachers.map((teacher: any) => (
-              <div key={teacher.id} className="flex items-center justify-between gap-3 rounded-[22px] bg-[#fbf0fe]/60 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{teacher.fullName}</p>
-                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{teacher.email}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-black text-[#8127cf]">{teacher._count?.taughtSubjects || 0}</p>
-                  <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">Subjects</p>
-                </div>
-              </div>
-            ))}
-            {campus.teachers.length === 0 ? (
-              <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">
-                No active teachers are assigned to this campus yet.
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <SnapshotColumn icon={FileText} title="Reports & Exams">
-          {campus.recentExams.map((exam: any) => (
-            <div key={exam.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{exam.title}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {exam.term} - {classLabel(exam.class)}
-                  </p>
-                </div>
-                <SuperStatusPill status={exam.status} />
-              </div>
-            </div>
-          ))}
-          {campus.recentExams.length === 0 ? <EmptySnapshot text="No exams available yet." /> : null}
-        </SnapshotColumn>
-
-        <SnapshotColumn icon={MessageSquare} title="Parent Engagement">
-          <SignalRow label="Sent" value={campus.communicationSummary.SENT || 0} tone="green" />
-          <SignalRow label="Failed" value={campus.communicationSummary.FAILED || 0} tone="rose" />
-          <SignalRow label="Blocked" value={campus.communicationSummary.BLOCKED || 0} tone="rose" />
-          <SignalRow label="No Recipient" value={campus.communicationSummary.NO_RECIPIENT || 0} tone="amber" />
-        </SnapshotColumn>
-
-        <SnapshotColumn icon={CreditCard} title="Fee & AI Signals">
-          <SignalRow label="Paid invoices" value={campus.invoiceSummary.PAID?.count || 0} tone="green" />
-          <SignalRow label="Pending invoices" value={campus.invoiceSummary.PENDING?.count || 0} tone="amber" />
-          <SignalRow label="Partial invoices" value={campus.invoiceSummary.PARTIAL?.count || 0} tone="purple" />
-          <SignalRow label="AI runs" value={campus.aiUsage.runs} tone="purple" />
-        </SnapshotColumn>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <SnapshotColumn icon={Users} title="Student Profiles">
-          {campus.students.map((student: any) => {
-            const latestReport = student.reportCards?.[0];
-            return (
-              <div key={student.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                      {student.rollNo} - {classLabel(student.class)}
-                    </p>
-                    <p className="mt-1 truncate text-[10px] font-semibold text-[#4d4354]/45">
-                      Guardian: {student.guardianName || "Not provided"}
-                    </p>
-                  </div>
-                  <SuperStatusPill status={latestReport ? latestReport.status : "NO_REPORT"} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onMoveStudent(student)}
-                  className="mt-4 flex h-10 w-full cursor-pointer items-center justify-center rounded-xl bg-white text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
-                >
-                  Move Class / Section
-                </button>
-              </div>
-            );
-          })}
-          {campus.students.length === 0 ? <EmptySnapshot text="No student profiles are available yet." /> : null}
-        </SnapshotColumn>
-
-        <SnapshotColumn icon={FileText} title="Recent Report Cards">
-          {campus.recentReportCards.map((report: any) => (
-            <div key={report.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{report.student.fullName}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {report.exam.title} - {report.exam.term} - {classLabel(report.student.class)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <SuperStatusPill status={report.remarksApproved ? "APPROVED" : "REVIEW"} />
-                  <SuperStatusPill status={report.isSent ? "SENT" : report.deliveryStatus} />
-                </div>
-              </div>
-            </div>
-          ))}
-          {campus.recentReportCards.length === 0 ? <EmptySnapshot text="No report cards have been generated yet." /> : null}
-        </SnapshotColumn>
-      </div>
-
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <PanelTitle icon={Mail} title="Pending Access Invitations" />
-          <SuperStatusPill status={`${campus.pendingInvitations.length} Pending`} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {campus.pendingInvitations.map((invite: any) => (
-            <div key={invite.inviteId} className="rounded-[22px] bg-[#fbf0fe]/60 px-4 py-3">
-              <p className="truncate text-sm font-black text-[#1f1a23]">{invite.email}</p>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <SuperStatusPill status={invite.status} />
-                  {invite.role ? <SuperStatusPill status={String(invite.role)} /> : null}
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                  {new Date(invite.expiresAt).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-          ))}
-          {campus.pendingInvitations.length === 0 ? (
-            <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">
-              No pending invitations for this campus.
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function OwnerMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
   return (
     <div className="rounded-[24px] bg-white p-4 shadow-sm">
@@ -1173,52 +814,6 @@ function SummaryBucket({
       <p className="text-xl font-black text-[#1f1a23]">{value}</p>
     </div>
   );
-}
-
-function SnapshotColumn({
-  icon: Icon,
-  title,
-  action,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <CollapsiblePanel icon={Icon} title={title} defaultOpen headerRight={action}>
-      <div className="space-y-3">{children}</div>
-    </CollapsiblePanel>
-  );
-}
-
-function SignalRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "green" | "rose" | "purple" | "amber";
-}) {
-  const toneClass = {
-    green: "text-emerald-600 bg-emerald-50",
-    rose: "text-rose-600 bg-rose-50",
-    purple: "text-[#8127cf] bg-[#fbf0fe]",
-    amber: "text-amber-600 bg-amber-50",
-  }[tone];
-
-  return (
-    <div className="flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-      <span className="text-[10px] font-black uppercase tracking-normal text-[#4d4354]/45">{label}</span>
-      <span className={`rounded-full px-3 py-1 text-[10px] font-black ${toneClass}`}>{value}</span>
-    </div>
-  );
-}
-
-function EmptySnapshot({ text }: { text: string }) {
-  return <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">{text}</p>;
 }
 
 function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
