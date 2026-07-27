@@ -257,6 +257,7 @@ export default function AcceptInvitePage() {
                   {!loading ? <ArrowRight className="h-5 w-5" /> : null}
                 </Button>
               </form>
+            </>
             )}
 
             <div className="mt-6 border-t border-[#cfc2d6]/10 pt-6 text-center">

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building, GraduationCap, MapPin, 
@@ -69,23 +69,33 @@ export default function OnboardingWizard() {
     city: '',
     address: '',
     phone: '',
-    regId: generateId('BR'),
+    regId: '',
     autoId: true,
     board: 'Federal Board'
   });
+
+  useEffect(() => {
+    const loadSession = async () => {
+      const res = await getOnboardingSession();
+
+      if (res?.user) {
         const user = res.user;
         setSession(user);
-        setSchoolData(prev => ({ 
-          ...prev, 
-          name: user?.school?.name || '', 
+        setSchoolData((prev) => ({
+          ...prev,
+          name: user?.school?.name || '',
           city: user?.school?.city || '',
-          regId: user?.school?.regId || generateId('SKL')
+          regId: user?.school?.regId || generateId('SKL'),
         }));
-        if (user?.role === 'ADMIN') {
-           setNewCampus(prev => ({ ...prev, regId: generateId('BR') }));
-        }
+
+        setNewCampus((prev) => ({
+          ...prev,
+          regId: user?.role === 'ADMIN' ? generateId('BR') : prev.regId || generateId('BR'),
+        }));
       }
-    });
+    };
+
+    loadSession();
   }, []);
 
   const handleSchoolIdToggle = (auto: boolean) => {

@@ -38,7 +38,6 @@ import {
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type AdminView = "leadership" | "classes" | "teachers" | "students" | "ai";
