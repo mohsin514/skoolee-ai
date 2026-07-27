@@ -73,6 +73,9 @@ export default function TeacherDashboard() {
   const [attendanceSummary, setAttendanceSummary] = useState<any>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [attendanceHistoryLoading, setAttendanceHistoryLoading] = useState(false);
+  const [attendanceExists, setAttendanceExists] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState("");
   const [markSheet, setMarkSheet] = useState<any>(null);
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
@@ -111,6 +114,7 @@ export default function TeacherDashboard() {
   const selectedAttendanceClass = classHubs.find((cls: any) => cls.id === attendanceClassId);
   const missingMarksTotal = (data?.activeExams || []).reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
   const aiCampusId = teacherSubjects[0]?.campusId || classHubs[0]?.campusId;
+  const isEditingAttendance = attendanceExists && attendanceDate !== todayIso();
 
   const attendanceStats = useMemo(() => {
     const summary = attendanceSummary || data?.attendanceSummary || {};
@@ -137,6 +141,7 @@ export default function TeacherDashboard() {
           status: (student.attendance?.status || "PRESENT") as AttendanceStatus,
         }))
       );
+      setAttendanceExists((result.summary?.unmarked ?? 0) < (result.summary?.total ?? 0));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Attendance could not be loaded");
     } finally {
@@ -147,6 +152,25 @@ export default function TeacherDashboard() {
   useEffect(() => {
     loadAttendance();
   }, [loadAttendance]);
+
+  const loadAttendanceHistory = useCallback(async () => {
+    if (!attendanceClassId) return;
+    setAttendanceHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/attendance/history?classId=${encodeURIComponent(attendanceClassId)}`);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "History could not be loaded");
+      setAttendanceHistory(result.history || []);
+    } catch {
+      setAttendanceHistory([]);
+    } finally {
+      setAttendanceHistoryLoading(false);
+    }
+  }, [attendanceClassId]);
+
+  useEffect(() => {
+    loadAttendanceHistory();
+  }, [loadAttendanceHistory]);
 
   const loadMarks = useCallback(async () => {
     if (!selectedExamId) return;
@@ -208,6 +232,7 @@ export default function TeacherDashboard() {
       if (!res.ok) throw new Error(result.error || "Attendance could not be saved");
       toast.success(`Attendance saved for ${result.summary?.total || attendanceRows.length} students`);
       await loadAttendance();
+      await loadAttendanceHistory();
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Attendance could not be saved");
@@ -362,6 +387,14 @@ export default function TeacherDashboard() {
 
               <section id="teacher-attendance" className="scroll-mt-6">
                 <CollapsiblePanel icon={CalendarCheck} title="Daily Attendance" subtitle={selectedAttendanceClass ? classLabel(selectedAttendanceClass) : "No class"} defaultOpen>
+                  {isEditingAttendance && (
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-2.5">
+                      <History className="h-4 w-4 text-[#8127cf]" />
+                      <p className="text-xs font-black text-[#8127cf]">Editing past attendance</p>
+                      <span className="text-[9px] font-bold text-[#4d4354]/50">— {attendanceDate}</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[460px]">
                       <label className="block">
@@ -428,9 +461,52 @@ export default function TeacherDashboard() {
                       onClick={saveAttendance}
                       disabled={attendanceSaving || !attendanceRows.length}
                     >
-                      {attendanceSaving ? "Saving" : "Save Attendance"}
+                      {attendanceSaving ? "Saving" : isEditingAttendance ? "Update Attendance" : "Save Attendance"}
                     </BrandButton>
                   </div>
+
+                  {attendanceHistory.length > 0 && (
+                    <div className="mt-6">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Recent Attendance</p>
+                        {attendanceHistoryLoading && <Loader2 className="h-3 w-3 animate-spin text-[#8127cf]" />}
+                      </div>
+                      <div className="overflow-hidden rounded-[26px] border border-[#f3f4f9]">
+                        <div className="divide-y divide-[#f3f4f9]">
+                          {attendanceHistory.slice(0, 10).map((entry) => {
+                            const isSelected = entry.date === attendanceDate;
+                            return (
+                              <button
+                                key={entry.date}
+                                type="button"
+                                onClick={() => setAttendanceDate(entry.date)}
+                                className={`w-full cursor-pointer px-5 py-3 text-left transition-all hover:bg-[#fbf0fe]/50 ${isSelected ? "bg-[#fbf0fe]" : ""}`}
+                              >
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isSelected ? "bg-[#8127cf] text-white" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                                      <CalendarCheck className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-black text-[#1f1a23]">{entry.date}</p>
+                                      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/40">
+                                        {entry.marked ? "Complete" : `${entry.unmarked} unmarked`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[8px] font-black text-emerald-600">{entry.present}P</span>
+                                    <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-[8px] font-black text-rose-600">{entry.absent}A</span>
+                                    <span className="rounded-full bg-[#fbf0fe] px-2.5 py-0.5 text-[8px] font-black text-[#8127cf]">{entry.leave}L</span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CollapsiblePanel>
               </section>
 
