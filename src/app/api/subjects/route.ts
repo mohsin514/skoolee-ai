@@ -106,6 +106,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await prisma.auditLog.create({
+      data: {
+        tableName: 'subject',
+        recordId: subject.id,
+        newValue: { name: subject.name, totalMarks: subject.totalMarks },
+        userId: user.userId,
+      }
+    });
+
     return Response.json({ success: true, data: subject }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[subjects] POST failed");
@@ -122,7 +131,7 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.subject.findFirst({
       where: { id: body.id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-      select: { id: true, campusId: true },
+      select: { id: true, campusId: true, name: true },
     });
     if (!existing) throw new ApiError("Subject not found", 404);
 
@@ -142,6 +151,16 @@ export async function PATCH(req: NextRequest) {
         class: { select: { id: true, name: true, section: true } },
         teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
       },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        tableName: 'subject',
+        recordId: body.id,
+        oldValue: { name: existing.name },
+        newValue: { name: subject.name, teacherId: subject.teacher?.id || null },
+        userId: user.userId,
+      }
     });
 
     return Response.json({ success: true, data: subject });
@@ -169,6 +188,16 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.subject.delete({ where: { id } });
+
+    await prisma.auditLog.create({
+      data: {
+        tableName: 'subject',
+        recordId: id,
+        oldValue: { name: subject.name, deleted: true },
+        userId: user.userId,
+      }
+    });
+
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[subjects] DELETE failed");

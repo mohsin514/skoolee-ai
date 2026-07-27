@@ -183,6 +183,15 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
     }
   });
 
+  await prisma.auditLog.create({
+    data: {
+      tableName: 'staff_invitation',
+      recordId: invite.id,
+      newValue: { email: valid.email, role: valid.role },
+      userId: session.userId,
+    }
+  });
+
   const campus = await prisma.campus.findUnique({ where: { id: targetCampusId } });
   await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, await getRequestBaseUrl());
 

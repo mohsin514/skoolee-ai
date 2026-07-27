@@ -369,6 +369,17 @@ export async function POST(req: NextRequest) {
       return createdStudents;
     });
 
+    for (const s of created) {
+      await prisma.auditLog.create({
+        data: {
+          tableName: 'student',
+          recordId: s.id,
+          newValue: { fullName: s.fullName, rollNo: s.rollNo },
+          userId: user.userId,
+        }
+      });
+    }
+
     const guardianInviteFailures: string[] = [];
     const studentInviteFailures: string[] = [];
     const baseUrl = requestBaseUrl(req);
@@ -435,7 +446,7 @@ export async function PATCH(req: NextRequest) {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true },
+      select: { id: true, campusId: true, classId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -468,6 +479,16 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data,
       include: { class: { select: { id: true, name: true, section: true } } },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        tableName: 'student',
+        recordId: id,
+        oldValue: { classId: existing.classId },
+        newValue: { classId: updates.classId || existing.classId },
+        userId: user.userId,
+      }
     });
 
     return Response.json({ success: true, data: student });

@@ -114,6 +114,17 @@ export async function POST(req: NextRequest) {
       )
     );
 
+    for (const cls of classes) {
+      await prisma.auditLog.create({
+        data: {
+          tableName: 'class',
+          recordId: cls.id,
+          newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear },
+          userId: user.userId,
+        }
+      });
+    }
+
     return Response.json(
       { success: true, data: classes.length === 1 ? classes[0] : classes, count: classes.length },
       { status: 201 }
@@ -134,7 +145,7 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.class.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-      select: { id: true, campusId: true },
+      select: { id: true, campusId: true, classTeacherId: true },
     });
     if (!existing) throw new ApiError("Class not found", 404);
 
@@ -154,6 +165,18 @@ export async function PATCH(req: NextRequest) {
         _count: { select: { students: true, subjects: true } },
       },
     });
+
+    if (body.classTeacherId !== undefined || body.teacherId !== undefined) {
+      await prisma.auditLog.create({
+        data: {
+          tableName: 'class',
+          recordId: id,
+          oldValue: { classTeacherId: existing.classTeacherId },
+          newValue: { classTeacherId: cls.classTeacher?.id || null },
+          userId: user.userId,
+        }
+      });
+    }
 
     return Response.json({ success: true, data: cls });
   } catch (error) {
