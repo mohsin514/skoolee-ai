@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ClipboardList,
   CreditCard,
-  Download,
   FileText,
   GraduationCap,
   HelpCircle,
@@ -111,9 +110,6 @@ export default function SuperAdminDashboard() {
   const [moveClassId, setMoveClassId] = useState("");
   const [savingClass, setSavingClass] = useState(false);
   const [movingStudentBusy, setMovingStudentBusy] = useState(false);
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [subjectModalClass, setSubjectModalClass] = useState<any>(null);
-  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -155,30 +151,6 @@ export default function SuperAdminDashboard() {
     router.push("/login");
   };
 
-  const exportStudentsCSV = (campus: any) => {
-    if (!campus?.students?.length) return toast.error("No student data to export");
-    const headers = ["Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email"];
-    const rows = campus.students.map((s: any) =>
-      [
-        `"${s.fullName}"`,
-        s.rollNo,
-        s.gender || "MALE",
-        s.class ? `${s.class.name} ${s.class.section || ""}`.trim() : "",
-        `"${s.guardianName || ""}"`,
-        s.guardianPhone || "",
-        s.guardianEmail || "",
-      ].join(",")
-    );
-    const csv = [...headers, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${campus.name.replace(/\s+/g, "_")}_students.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`${campus.students.length} students exported`);
-  };
   const syncSuperUrl = (view: SuperView) => {
     window.history.replaceState(null, "", view === "billing" ? "/super?view=billing" : "/super");
   };
@@ -537,14 +509,8 @@ export default function SuperAdminDashboard() {
                 <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>
                   Add Class
                 </BrandButton>
-                <BrandButton variant="soft" icon={<Users className="w-4 h-4" />} onClick={() => setShowBulkImportModal(true)}>
-                  Bulk Import
-                </BrandButton>
                 <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
                   Activity Log
-                </BrandButton>
-                <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={() => exportStudentsCSV(selectedCampus)}>
-                  Export CSV
                 </BrandButton>
                 <SuperStatusPill status={hasActiveSlot(selectedCampus.admin) && hasActiveSlot(selectedCampus.principal) ? "ACTIVE" : "MISSING"} />
               </div>
@@ -589,8 +555,6 @@ export default function SuperAdminDashboard() {
               <CampusOwnerSnapshot
                 campus={selectedCampus}
                 onAddClass={() => setShowClassModal(true)}
-                onManageSubjects={(cls) => { setSubjectModalClass(cls); setShowSubjectModal(true); }}
-                onBulkImport={() => setShowBulkImportModal(true)}
                 onMoveStudent={openMoveStudent}
               />
             </div>
@@ -685,24 +649,6 @@ export default function SuperAdminDashboard() {
           onChange={setClassForm}
           onClose={() => setShowClassModal(false)}
           onSave={handleCreateClass}
-        />
-      ) : null}
-      {showSubjectModal && selectedCampus && subjectModalClass ? (
-        <SubjectManager
-          classItem={subjectModalClass}
-          campusId={selectedCampus.id}
-          teachers={selectedCampus.teachers || []}
-          onClose={() => { setShowSubjectModal(false); setSubjectModalClass(null); }}
-          onComplete={loadData}
-        />
-      ) : null}
-      {showBulkImportModal && selectedCampus ? (
-        <BulkStudentImport
-          campusId={selectedCampus.id}
-          campusName={selectedCampus.name}
-          classes={selectedCampus.classes || []}
-          onClose={() => setShowBulkImportModal(false)}
-          onComplete={loadData}
         />
       ) : null}
       {showActivityLogModal ? (
@@ -1018,14 +964,10 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
 function CampusOwnerSnapshot({
   campus,
   onAddClass,
-  onManageSubjects,
-  onBulkImport,
   onMoveStudent,
 }: {
   campus: any;
   onAddClass: () => void;
-  onManageSubjects: (cls: any) => void;
-  onBulkImport: () => void;
   onMoveStudent: (student: any) => void;
 }) {
   return (
@@ -1052,13 +994,7 @@ function CampusOwnerSnapshot({
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onManageSubjects(cls)}
-                      className="cursor-pointer rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
-                    >
-                      {cls._count?.subjects || 0} Subjects
-                    </button>
+                    <SuperStatusPill status={`${cls._count?.subjects || 0} Subjects`} />
                     <SuperStatusPill status={`${cls._count?.students || 0} Students`} />
                   </div>
                 </div>
@@ -1557,377 +1493,6 @@ function CampusInput({
         />
       </div>
     </div>
-  );
-}
-
-function SubjectManager({
-  classItem,
-  campusId,
-  teachers,
-  onClose,
-  onComplete,
-}: {
-  classItem: any;
-  campusId: string;
-  teachers: any[];
-  onClose: () => void;
-  onComplete: () => Promise<void>;
-}) {
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newMarks, setNewMarks] = useState("100");
-  const [newTeacherId, setNewTeacherId] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editMarks, setEditMarks] = useState("");
-  const [editTeacherId, setEditTeacherId] = useState("");
-
-  const loadSubjects = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/subjects?classId=${classItem.id}&campusId=${campusId}`);
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to load");
-      setSubjects(result.data || []);
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [classItem.id, campusId]);
-
-  useEffect(() => {
-    loadSubjects();
-  }, [loadSubjects]);
-
-  const handleAdd = async () => {
-    if (!newName.trim()) return toast.error("Subject name is required");
-    setSaving(true);
-    try {
-      const res = await fetch("/api/subjects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName.trim(),
-          totalMarks: Number(newMarks) || 100,
-          classId: classItem.id,
-          teacherId: newTeacherId || undefined,
-          campusId,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create");
-      toast.success("Subject added");
-      setNewName("");
-      setNewMarks("100");
-      setNewTeacherId("");
-      await loadSubjects();
-      await onComplete();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleEdit = async (subjectId: string) => {
-    if (!editName.trim()) return toast.error("Subject name is required");
-    setSaving(true);
-    try {
-      const res = await fetch("/api/subjects", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: subjectId,
-          name: editName.trim(),
-          totalMarks: Number(editMarks) || 100,
-          teacherId: editTeacherId || null,
-          campusId,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to update");
-      toast.success("Subject updated");
-      setEditingId(null);
-      await loadSubjects();
-      await onComplete();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (subjectId: string) => {
-    if (!window.confirm("Delete this subject? Students' marks for this subject will be preserved.")) return;
-    try {
-      const res = await fetch(`/api/subjects?id=${subjectId}`, { method: "DELETE" });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to delete");
-      toast.success("Subject deleted");
-      await loadSubjects();
-      await onComplete();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  return (
-    <ModalFrame title={`Subjects: ${classLabel(classItem)}`} onClose={onClose} wide>
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-        </div>
-      ) : (
-        <>
-          <div className="space-y-3 mb-6 max-h-64 overflow-y-auto custom-scrollbar">
-            {subjects.length === 0 ? (
-              <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No subjects assigned yet.</p>
-            ) : (
-              subjects.map((subject) => (
-                <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-                  {editingId === subject.id ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-[1fr_100px] gap-3">
-                        <input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none"
-                          placeholder="Subject name"
-                        />
-                        <input
-                          type="number"
-                          value={editMarks}
-                          onChange={(e) => setEditMarks(e.target.value)}
-                          className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none text-center"
-                        />
-                      </div>
-                      <FormSelect label="Teacher" value={editTeacherId} onChange={setEditTeacherId}>
-                        <option value="">Unassigned</option>
-                        {teachers.map((t) => (
-                          <option key={t.id} value={t.id}>{t.fullName}</option>
-                        ))}
-                      </FormSelect>
-                      <div className="flex gap-2">
-                        <BrandButton variant="soft" className="flex-1 h-9 text-xs" onClick={() => setEditingId(null)}>Cancel</BrandButton>
-                        <BrandButton variant="dark" className="flex-1 h-9 text-xs" onClick={() => handleEdit(subject.id)} disabled={saving}>
-                          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                        </BrandButton>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                        <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                          {subject.teacher?.fullName || "No teacher"} — {subject.totalMarks} marks
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingId(subject.id);
-                            setEditName(subject.name);
-                            setEditMarks(String(subject.totalMarks || 100));
-                            setEditTeacherId(subject.teacher?.id || "");
-                          }}
-                          className="cursor-pointer rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(subject.id)}
-                          className="cursor-pointer rounded-full bg-rose-50 px-3 py-1 text-[8px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-600 hover:text-white"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="rounded-3xl bg-[#fbf0fe]/40 p-5 border border-[#cfc2d6]/10">
-            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Add Subject</p>
-            <div className="grid grid-cols-[1fr_100px] gap-3 mb-3">
-              <FormInput label="Subject Name" value={newName} placeholder="e.g. Mathematics" onChange={setNewName} />
-              <FormInput label="Total Marks" value={newMarks} placeholder="100" onChange={setNewMarks} />
-            </div>
-            <FormSelect label="Teacher (optional)" value={newTeacherId} onChange={setNewTeacherId}>
-              <option value="">Unassigned</option>
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>{t.fullName}</option>
-              ))}
-            </FormSelect>
-            <div className="mt-4 flex justify-end">
-              <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={handleAdd} disabled={saving || !newName.trim()} className="h-11">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Subject"}
-              </BrandButton>
-            </div>
-          </div>
-        </>
-      )}
-    </ModalFrame>
-  );
-}
-
-function BulkStudentImport({
-  campusId,
-  campusName,
-  classes,
-  onClose,
-  onComplete,
-}: {
-  campusId: string;
-  campusName: string;
-  classes: any[];
-  onClose: () => void;
-  onComplete: () => Promise<void>;
-}) {
-  const [csvText, setCsvText] = useState("");
-  const [preview, setPreview] = useState<any[]>([]);
-  const [parsedError, setParsedError] = useState("");
-  const [importing, setImporting] = useState(false);
-
-  const parseCSV = (text: string) => {
-    setParsedError("");
-    const lines = text.trim().split("\n").filter(Boolean);
-    if (lines.length < 2) {
-      setPreview([]);
-      return;
-    }
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const nameIdx = headers.findIndex((h) => h.includes("name") || h === "fullname" || h === "full_name");
-    const rollIdx = headers.findIndex((h) => h.includes("roll") || h === "rollno" || h === "roll_no");
-    const genderIdx = headers.findIndex((h) => h.includes("gender"));
-    const classIdx = headers.findIndex((h) => h.includes("class"));
-    const guardianIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("name"));
-    const guardianPhoneIdx = headers.findIndex((h) => h.includes("guardian") && (h.includes("phone") || h.includes("whatsapp")));
-    const guardianEmailIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("email"));
-
-    if (nameIdx === -1 || rollIdx === -1) {
-      setParsedError("CSV must have at least \"Full Name\" and \"Roll No\" columns");
-      setPreview([]);
-      return;
-    }
-
-    const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim());
-      const name = cols[nameIdx] || "";
-      const rollNo = cols[rollIdx] || "";
-      if (!name || !rollNo) continue;
-
-      const className = classIdx >= 0 ? cols[classIdx] || "" : "";
-      const matchedClass = className
-        ? classes.find((c) => `${c.name} ${c.section || ""}`.trim().toLowerCase() === className.toLowerCase())
-        : null;
-
-      rows.push({
-        fullName: name,
-        rollNo,
-        gender: genderIdx >= 0 ? (cols[genderIdx]?.toUpperCase() === "F" || cols[genderIdx]?.toUpperCase() === "FEMALE" ? "FEMALE" : cols[genderIdx]?.toUpperCase() === "OTHER" ? "OTHER" : "MALE") : "MALE",
-        classId: matchedClass?.id || (classIdx >= 0 ? "__unknown__" : classes[0]?.id || ""),
-        className: matchedClass ? `${matchedClass.name} ${matchedClass.section || ""}`.trim() : className || (classes[0] ? `${classes[0].name} ${classes[0].section || ""}`.trim() : "Unknown"),
-        guardianName: guardianIdx >= 0 ? cols[guardianIdx] || "" : "",
-        guardianPhone: guardianPhoneIdx >= 0 ? cols[guardianPhoneIdx] || "" : "",
-        guardianEmail: guardianEmailIdx >= 0 ? cols[guardianEmailIdx] || "" : "",
-        _unknownClass: !matchedClass && className ? className : "",
-      });
-    }
-    setPreview(rows);
-  };
-
-  const handleImport = async () => {
-    if (preview.length === 0) return toast.error("No valid rows to import");
-    const unknownClasses = [...new Set(preview.filter((r) => r._unknownClass).map((r) => r._unknownClass))];
-    if (unknownClasses.length > 0) {
-      return toast.error(`Unknown classes: ${unknownClasses.join(", ")}. Check the class names or add them first.`);
-    }
-    setImporting(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          students: preview.map(({ _unknownClass, className, ...rest }) => rest),
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Import failed");
-      toast.success(result.message || `${preview.length} students imported`);
-      setCsvText("");
-      setPreview([]);
-      await onComplete();
-      onClose();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <ModalFrame title={`Bulk Import Students — ${campusName}`} onClose={onClose} wide>
-      <div className="mb-4 rounded-2xl bg-[#fbf0fe]/60 p-4">
-        <p className="text-[10px] font-bold text-[#4d4354]/60">
-          Paste CSV data with columns: Full Name, Roll No, Gender (MALE/FEMALE/OTHER), Class (e.g. &quot;Grade 8 A&quot;), Guardian Name, Guardian Phone, Guardian Email
-        </p>
-      </div>
-      <textarea
-        value={csvText}
-        onChange={(e) => { setCsvText(e.target.value); parseCSV(e.target.value); }}
-        placeholder={`Full Name, Roll No, Gender, Class, Guardian Name, Guardian Phone, Guardian Email\nJohn Doe, 101, MALE, Grade 8 A, Jane Doe, +923001234567, jane@example.com`}
-        className="h-40 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-4 text-sm font-bold outline-none resize-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
-      />
-      {parsedError ? (
-        <p className="mt-2 text-xs font-bold text-rose-600">{parsedError}</p>
-      ) : null}
-      {preview.length > 0 ? (
-        <div className="mt-4">
-          <p className="mb-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
-            Preview: {preview.length} students
-          </p>
-          <div className="max-h-48 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
-            <table className="w-full text-left text-[11px]">
-              <thead>
-                <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
-                  <th className="px-4 py-2">Name</th>
-                  <th className="px-4 py-2">Roll</th>
-                  <th className="px-4 py-2">Class</th>
-                  <th className="px-4 py-2">Guardian</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f3f4f9]">
-                {preview.slice(0, 20).map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-2 font-bold text-[#1f1a23]">{row.fullName}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.rollNo}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.className}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.guardianName || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {preview.length > 20 ? (
-              <p className="p-3 text-center text-[10px] font-bold text-[#4d4354]/40">+{preview.length - 20} more rows</p>
-            ) : null}
-          </div>
-          <div className="mt-5 flex justify-end gap-3">
-            <BrandButton variant="soft" onClick={() => { setCsvText(""); setPreview([]); }}>Clear</BrandButton>
-            <BrandButton variant="dark" onClick={handleImport} disabled={importing}>
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Import ${preview.length} Students`}
-            </BrandButton>
-          </div>
-        </div>
-      ) : null}
-    </ModalFrame>
   );
 }
 

@@ -5,7 +5,9 @@ import type { ReactNode } from "react";
 import {
   BookOpen,
   Building,
+  ClipboardList,
   Clock,
+  Download,
   FileText,
   GraduationCap,
   HelpCircle,
@@ -199,6 +201,8 @@ export default function CampusAdminDashboard() {
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
   const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
   const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     description: string;
@@ -228,6 +232,32 @@ export default function CampusAdminDashboard() {
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
+  };
+
+  const exportStudentsCSV = () => {
+    const students = data?.students || [];
+    if (!students.length) return toast.error("No student data to export");
+    const headers = ["Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email"];
+    const rows = students.map((s: any) =>
+      [
+        `"${s.fullName}"`,
+        s.rollNo,
+        s.gender || "MALE",
+        s.class ? `${s.class.name} ${s.class.section || ""}`.trim() : "",
+        `"${s.guardianName || ""}"`,
+        s.guardianPhone || "",
+        s.guardianEmail || "",
+      ].join(",")
+    );
+    const csv = [...headers, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${data.campusName.replace(/\s+/g, "_")}_students.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${students.length} students exported`);
   };
 
   const openInvite = (role: InviteRole) => {
@@ -620,6 +650,9 @@ export default function CampusAdminDashboard() {
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openInvite("TEACHER")}>
             Invite Teacher
           </BrandButton>
+          <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
+            Activity Log
+          </BrandButton>
         </div>
       }
     >
@@ -653,6 +686,9 @@ export default function CampusAdminDashboard() {
             ) : null}
             <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openInvite("TEACHER")}>
               Invite Teacher
+            </BrandButton>
+            <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
+              Activity Log
             </BrandButton>
           </div>
         </div>
@@ -708,6 +744,8 @@ export default function CampusAdminDashboard() {
               onAddStudent={openStudentModal}
               onMoveStudent={openMoveStudent}
               onViewStudent={setSelectedStudent}
+              onBulkImport={() => setShowBulkImportModal(true)}
+              onExport={exportStudentsCSV}
             />
           ) : null}
 
@@ -830,6 +868,19 @@ export default function CampusAdminDashboard() {
 
       {selectedTeacher ? (
         <TeacherDetailModal teacher={selectedTeacher} onClose={() => setSelectedTeacher(null)} />
+      ) : null}
+
+      {showBulkImportModal ? (
+        <BulkStudentImport
+          campusName={data.campusName}
+          classes={data.classes || []}
+          onClose={() => setShowBulkImportModal(false)}
+          onComplete={loadData}
+        />
+      ) : null}
+
+      {showActivityLogModal ? (
+        <ActivityLogModal onClose={() => setShowActivityLogModal(false)} />
       ) : null}
 
       <ConfirmAction
@@ -1100,12 +1151,16 @@ function StudentsPanel({
   onAddStudent,
   onMoveStudent,
   onViewStudent,
+  onBulkImport,
+  onExport,
 }: {
   students: any[];
   classes: any[];
   onAddStudent: (classId?: string) => void;
   onMoveStudent: (student: any) => void;
   onViewStudent: (student: any) => void;
+  onBulkImport?: () => void;
+  onExport?: () => void;
 }) {
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
@@ -1160,6 +1215,16 @@ function StudentsPanel({
           <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
             Add Student
           </BrandButton>
+          {onBulkImport ? (
+            <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={onBulkImport}>
+              Bulk Import
+            </BrandButton>
+          ) : null}
+          {onExport ? (
+            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={onExport}>
+              Export CSV
+            </BrandButton>
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -2228,5 +2293,208 @@ function EmptyInline({ text }: { text: string }) {
     <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">
       {text}
     </p>
+  );
+}
+
+function BulkStudentImport({
+  campusName,
+  classes,
+  onClose,
+  onComplete,
+}: {
+  campusName: string;
+  classes: any[];
+  onClose: () => void;
+  onComplete: () => Promise<any>;
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [preview, setPreview] = useState<any[]>([]);
+  const [parsedError, setParsedError] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const parseCSV = (text: string) => {
+    setParsedError("");
+    const lines = text.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) {
+      setPreview([]);
+      return;
+    }
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const nameIdx = headers.findIndex((h) => h.includes("name") || h === "fullname" || h === "full_name");
+    const rollIdx = headers.findIndex((h) => h.includes("roll") || h === "rollno" || h === "roll_no");
+    const genderIdx = headers.findIndex((h) => h.includes("gender"));
+    const classIdx = headers.findIndex((h) => h.includes("class"));
+    const guardianIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("name"));
+    const guardianPhoneIdx = headers.findIndex((h) => h.includes("guardian") && (h.includes("phone") || h.includes("whatsapp")));
+    const guardianEmailIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("email"));
+
+    if (nameIdx === -1 || rollIdx === -1) {
+      setParsedError("CSV must have at least \"Full Name\" and \"Roll No\" columns");
+      setPreview([]);
+      return;
+    }
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",").map((c) => c.trim());
+      const name = cols[nameIdx] || "";
+      const rollNo = cols[rollIdx] || "";
+      if (!name || !rollNo) continue;
+
+      const className = classIdx >= 0 ? cols[classIdx] || "" : "";
+      const matchedClass = className
+        ? classes.find((c) => `${c.name} ${c.section || ""}`.trim().toLowerCase() === className.toLowerCase())
+        : null;
+
+      rows.push({
+        fullName: name,
+        rollNo,
+        gender: genderIdx >= 0 ? (cols[genderIdx]?.toUpperCase() === "F" || cols[genderIdx]?.toUpperCase() === "FEMALE" ? "FEMALE" : cols[genderIdx]?.toUpperCase() === "OTHER" ? "OTHER" : "MALE") : "MALE",
+        classId: matchedClass?.id || (classIdx >= 0 ? "__unknown__" : classes[0]?.id || ""),
+        className: matchedClass ? `${matchedClass.name} ${matchedClass.section || ""}`.trim() : className || (classes[0] ? `${classes[0].name} ${classes[0].section || ""}`.trim() : "Unknown"),
+        guardianName: guardianIdx >= 0 ? cols[guardianIdx] || "" : "",
+        guardianPhone: guardianPhoneIdx >= 0 ? cols[guardianPhoneIdx] || "" : "",
+        guardianEmail: guardianEmailIdx >= 0 ? cols[guardianEmailIdx] || "" : "",
+        _unknownClass: !matchedClass && className ? className : "",
+      });
+    }
+    setPreview(rows);
+  };
+
+  const handleImport = async () => {
+    if (preview.length === 0) return toast.error("No valid rows to import");
+    const unknownClasses = [...new Set(preview.filter((r) => r._unknownClass).map((r) => r._unknownClass))];
+    if (unknownClasses.length > 0) {
+      return toast.error(`Unknown classes: ${unknownClasses.join(", ")}. Check the class names or add them first.`);
+    }
+    setImporting(true);
+    try {
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          students: preview.map(({ _unknownClass, className, ...rest }) => rest),
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Import failed");
+      toast.success(result.message || `${preview.length} students imported`);
+      setCsvText("");
+      setPreview([]);
+      await onComplete();
+      onClose();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <ModalFrame title={`Bulk Import Students — ${campusName}`} eyebrow="Student enrollment" onClose={onClose} wide>
+      <div className="mb-4 rounded-2xl bg-[#fbf0fe]/60 p-4">
+        <p className="text-[10px] font-bold text-[#4d4354]/60">
+          Paste CSV data with columns: Full Name, Roll No, Gender (MALE/FEMALE/OTHER), Class (e.g. &quot;Grade 8 A&quot;), Guardian Name, Guardian Phone, Guardian Email
+        </p>
+      </div>
+      <textarea
+        value={csvText}
+        onChange={(e) => { setCsvText(e.target.value); parseCSV(e.target.value); }}
+        placeholder={`Full Name, Roll No, Gender, Class, Guardian Name, Guardian Phone, Guardian Email\nJohn Doe, 101, MALE, Grade 8 A, Jane Doe, +923001234567, jane@example.com`}
+        className="h-40 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-4 text-sm font-bold outline-none resize-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
+      />
+      {parsedError ? (
+        <p className="mt-2 text-xs font-bold text-rose-600">{parsedError}</p>
+      ) : null}
+      {preview.length > 0 ? (
+        <div className="mt-4">
+          <p className="mb-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            Preview: {preview.length} students
+          </p>
+          <div className="max-h-48 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
+            <table className="w-full text-left text-[11px]">
+              <thead>
+                <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
+                  <th className="px-4 py-2">Name</th>
+                  <th className="px-4 py-2">Roll</th>
+                  <th className="px-4 py-2">Class</th>
+                  <th className="px-4 py-2">Guardian</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f3f4f9]">
+                {preview.slice(0, 20).map((row, i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-2 font-bold text-[#1f1a23]">{row.fullName}</td>
+                    <td className="px-4 py-2 text-[#4d4354]/60">{row.rollNo}</td>
+                    <td className="px-4 py-2 text-[#4d4354]/60">{row.className}</td>
+                    <td className="px-4 py-2 text-[#4d4354]/60">{row.guardianName || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {preview.length > 20 ? (
+              <p className="p-3 text-center text-[10px] font-bold text-[#4d4354]/40">+{preview.length - 20} more rows</p>
+            ) : null}
+          </div>
+          <div className="mt-5 flex justify-end gap-3">
+            <BrandButton variant="soft" onClick={() => { setCsvText(""); setPreview([]); }}>Clear</BrandButton>
+            <BrandButton variant="dark" onClick={handleImport} disabled={importing}>
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Import ${preview.length} Students`}
+            </BrandButton>
+          </div>
+        </div>
+      ) : null}
+    </ModalFrame>
+  );
+}
+
+function ActivityLogModal({ onClose }: { onClose: () => void }) {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/audit-log?limit=50");
+        const result = await res.json();
+        if (res.ok) setLogs(result.data || []);
+      } catch {
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <ModalFrame title="Activity Log" eyebrow="Campus audit trail" onClose={onClose} wide>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+        </div>
+      ) : logs.length === 0 ? (
+        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>
+      ) : (
+        <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
+          {logs.map((log) => (
+            <div key={log.id} className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-[#1f1a23]">
+                    {log.tableName.replace(/_/g, " ")} — {log.recordId?.slice(0, 8) || "N/A"}
+                  </p>
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                    by {log.userId?.slice(0, 8) || "system"}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[9px] font-bold text-[#4d4354]/40">
+                  {new Date(log.createdAt).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalFrame>
   );
 }
