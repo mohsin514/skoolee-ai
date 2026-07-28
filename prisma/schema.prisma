@@ -67,6 +67,7 @@ model Campus {
   staffInvitations StaffInvitation[]
   notificationTemplates NotificationTemplate[]
   parentCommunications  ParentCommunication[]
+  gradeWeightConfigs GradeWeightConfig[]
 
   @@map("campuses")
 }
@@ -119,6 +120,7 @@ model Class {
   subjects       Subject[]
   exams          Exam[]
   feeStructures  FeeStructure[]
+  gradeWeightConfigs GradeWeightConfig[]
 
   @@map("classes")
 }
@@ -171,6 +173,7 @@ model Subject {
 
   // Relations
   marks         Mark[]
+  exams         Exam[]
 
   @@map("subjects")
 }
@@ -182,9 +185,13 @@ model Exam {
   campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId       String    @map("class_id")
   class         Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  title         String    // e.g., "First Term", "Mids"
+  title         String
   term          String
   academicYear  Int       @map("academic_year")
+  examType      String    @default("CLASS_TEST") @map("exam_type") // QUIZ, CLASS_TEST, MID_TERM, FINAL, CUSTOM
+  subjectId     String?   @map("subject_id")      // if set, exam covers only this subject; null = all class subjects
+  subject       Subject?  @relation(fields: [subjectId], references: [id])
+  totalMarks    Int       @default(0) @map("total_marks") // computed sum of subject totalMarks
   status        String    @default("DRAFT") // DRAFT, ACTIVE, MARKS_ENTRY, LOCKED, PRINCIPAL_REVIEWED, PUBLISHED
   isLocked      Boolean   @default(false) @map("is_locked")
   lockedBy      String?   @map("locked_by")
@@ -201,6 +208,31 @@ model Exam {
   reportCards   ReportCard[]
 
   @@map("exams")
+}
+
+model GradeWeightConfig {
+  id            String   @id @default(uuid())
+  campusId      String   @map("campus_id")
+  campus        Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String   @map("class_id")
+  class         Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYear  Int      @map("academic_year")
+  quizWeight    Float    @default(10)    @map("quiz_weight")
+  classTestWeight Float  @default(20)    @map("class_test_weight")
+  midTermWeight Float    @default(30)    @map("mid_term_weight")
+  finalWeight   Float    @default(40)    @map("final_weight")
+  passingPercentage Float @default(50)   @map("passing_percentage")
+  gradeAplus    Float    @default(90)    @map("grade_aplus")
+  gradeA        Float    @default(80)    @map("grade_a")
+  gradeB        Float    @default(70)    @map("grade_b")
+  gradeC        Float    @default(60)    @map("grade_c")
+  gradeD        Float    @default(50)    @map("grade_d")
+  isActive      Boolean  @default(true)  @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+
+  @@unique([classId, academicYear])
+  @@map("grade_weight_configs")
 }
 
 // ─── 8. MARKS ─────────────────────────────────────────────

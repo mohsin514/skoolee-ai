@@ -351,6 +351,9 @@ export async function getCampusDashboardData() {
     studentCount,
     aiInsights,
     pendingAIReviewItems,
+    attendanceRecords,
+    invoiceTotals,
+    invoiceGroups,
   ] = await Promise.all([
     prisma.class.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
@@ -446,6 +449,10 @@ export async function getCampusDashboardData() {
         profileImageUrl: true,
         studentUser: { select: { email: true, isActive: true } },
         class: { select: { id: true, name: true, section: true, academicYear: true } },
+        attendance: {
+          select: { id: true, status: true, date: true },
+          orderBy: { date: "desc" },
+        },
         reportCards: {
           select: {
             id: true,
@@ -477,7 +484,6 @@ export async function getCampusDashboardData() {
         _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-      take: 8,
     }),
     prisma.reportCard.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
@@ -499,20 +505,37 @@ export async function getCampusDashboardData() {
         exam: { select: { title: true, term: true, status: true } },
       },
       orderBy: { generatedAt: "desc" },
-      take: 8,
     }),
     prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
     prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
-      take: 4,
     }),
     prisma.aIReviewItem.findMany({
       where: { schoolId: session.schoolId, campusId, status: "PENDING" },
       select: aiReviewSelect(),
       orderBy: { createdAt: "asc" },
-      take: 5,
+    }),
+    prisma.attendance.findMany({
+      where: { campusId, date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        student: { select: { fullName: true, rollNo: true, classId: true } },
+      },
+    }),
+    prisma.invoice.aggregate({
+      where: { campusId, campus: { schoolId: session.schoolId } },
+      _sum: { totalAmount: true },
+      _count: true,
+    }),
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { campusId, campus: { schoolId: session.schoolId } },
+      _count: true,
+      _sum: { totalAmount: true },
     }),
   ]);
 
@@ -542,6 +565,17 @@ export async function getCampusDashboardData() {
     studentCount,
     aiInsights,
     pendingAIReviewItems,
+    attendanceRecords,
+    attendanceSummary: {
+      present: attendanceRecords.filter((r: any) => r.status === "PRESENT").length,
+      absent: attendanceRecords.filter((r: any) => r.status === "ABSENT").length,
+      leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
+    },
+    invoiceSummary: {
+      total: invoiceTotals._count || 0,
+      totalAmount: invoiceTotals._sum?.totalAmount || 0,
+      byStatus: invoiceGroups,
+    },
     adminName: session.fullName || "Administrator",
     adminEmail: session.email,
     roleLabel: roleLabel(session.role),
@@ -593,27 +627,22 @@ export async function getTeacherDashboardData() {
 
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
   const subjectIds = subjects.map((subject) => subject.id);
-  const markInclude = {
-    ...(subjectIds.length ? { where: { subjectId: { in: subjectIds } } } : {}),
-    include: { subject: { select: { name: true, totalMarks: true } } },
-  } as const;
 
   const [students, exams, attendanceToday, recentReportCards] = classIds.length
     ? await Promise.all([
         prisma.student.findMany({
           where: { campusId, classId: { in: classIds }, campus: { schoolId: session.schoolId } },
-          include: {
+          select: {
+            id: true,
+            fullName: true,
+            rollNo: true,
+            gender: true,
+            profileImageUrl: true,
+            guardianName: true,
+            guardianPhone: true,
+            guardianWhatsapp: true,
+            classId: true,
             class: { select: { id: true, name: true, section: true } },
-            marks: markInclude,
-            attendance: {
-              orderBy: { date: "desc" },
-              take: 10,
-            },
-            reportCards: {
-              include: { exam: { select: { title: true, term: true, status: true } } },
-              orderBy: { generatedAt: "desc" },
-              take: 2,
-            },
           },
           orderBy: { rollNo: "asc" },
         }),
@@ -636,8 +665,9 @@ export async function getTeacherDashboardData() {
                 },
               },
             },
+            subject: { select: { id: true, name: true } },
             marks: {
-              select: { id: true, studentId: true, subjectId: true, marksObtained: true, grade: true, enteredBy: true },
+              select: { id: true, studentId: true, subjectId: true },
             },
             _count: { select: { reportCards: true } },
           },
@@ -700,12 +730,19 @@ export async function getTeacherDashboardData() {
   }, {});
 
   const examSummaries = exams.map((exam) => {
-    const editableSubjects = exam.class.subjects.filter((subject) =>
+    // If exam is for a single subject, restrict to that subject only
+    const classSubjects = exam.class.subjects;
+    const relevantClassSubjects = exam.subjectId
+      ? classSubjects.filter((s) => s.id === exam.subjectId)
+      : classSubjects;
+
+    const editableSubjects = relevantClassSubjects.filter((subject) =>
       subject.teacherId === session.userId || (ledClassIds.has(exam.class.id) && (!subject.teacherId || subject.teacherId === session.userId))
     );
     const editableSubjectIds = new Set(editableSubjects.map((subject) => subject.id));
     const relevantMarks = exam.marks.filter((mark) => editableSubjectIds.has(mark.subjectId));
-    const expectedMarks = (studentsByClass[exam.class.id] || exam.class._count.students || 0) * editableSubjects.length;
+    const studentCount = studentsByClass[exam.class.id] || exam.class._count.students || 0;
+    const expectedMarks = studentCount * editableSubjects.length;
 
     return {
       id: exam.id,
@@ -716,6 +753,8 @@ export async function getTeacherDashboardData() {
       isLocked: exam.isLocked,
       classId: exam.classId,
       class: exam.class,
+      subject: exam.subject || null,
+      subjectId: exam.subjectId,
       editableSubjects,
       enteredMarks: relevantMarks.length,
       expectedMarks,
@@ -755,6 +794,8 @@ export async function getPrincipalDashboardData() {
 
   const campusId = requireCampusId(session);
 
+  const today = new Date(new Date().setHours(0, 0, 0, 0));
+
   const [
     campus,
     totalStudents,
@@ -775,6 +816,11 @@ export async function getPrincipalDashboardData() {
     recentCommunications,
     aiInsights,
     markAverage,
+    attendanceRecords,
+    invoiceTotals,
+    invoiceGroups,
+    pendingInvitations,
+    campusCount,
   ] = await Promise.all([
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }),
     prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
@@ -875,7 +921,11 @@ export async function getPrincipalDashboardData() {
         guardianEmail: true,
         profileImageUrl: true,
         parent: { select: { fullName: true, email: true, phone: true, profileImageUrl: true } },
-        class: { select: { name: true, section: true, academicYear: true } },
+        class: { select: { id: true, name: true, section: true, academicYear: true } },
+        attendance: {
+          select: { id: true, status: true, date: true },
+          orderBy: { date: "desc" },
+        },
         reportCards: {
           select: {
             id: true,
@@ -1001,12 +1051,47 @@ export async function getPrincipalDashboardData() {
       where: { campusId, campus: { schoolId: session.schoolId } },
       _avg: { marksObtained: true },
     }),
+    prisma.attendance.findMany({
+      where: { campusId, date: { gte: today } },
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        student: { select: { fullName: true, rollNo: true, classId: true } },
+      },
+    }),
+    prisma.invoice.aggregate({
+      where: { campusId, campus: { schoolId: session.schoolId } },
+      _sum: { totalAmount: true },
+      _count: true,
+    }),
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { campusId, campus: { schoolId: session.schoolId } },
+      _count: true,
+      _sum: { totalAmount: true },
+    }),
+    prisma.staffInvitation.findMany({
+      where: {
+        campusId,
+        status: "pending",
+        role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL"] },
+        campus: { schoolId: session.schoolId },
+      },
+      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.campus.count({ where: { schoolId: session.schoolId } }),
   ]);
 
   return {
     principalName: session.fullName || "Principal",
     campusName: campus?.name || "Campus",
+    campusCity: campus?.city || "",
+    campusRegId: campus?.regId || "",
     schoolName: campus?.school.name || "Institution",
+    currentUserId: session.userId,
+    campusId,
     totalStudents,
     totalTeachers,
     totalClasses,
@@ -1020,14 +1105,35 @@ export async function getPrincipalDashboardData() {
     teachers,
     campusAdmins,
     reviewExams,
-    averageMarks: Math.round(markAverage._avg.marksObtained || 0),
+    recentExams: reviewExams,
     recentReportCards,
+    averageMarks: Math.round(markAverage._avg.marksObtained || 0),
     communicationSummary: communicationSummary.reduce<Record<string, number>>((acc, item) => {
       acc[item.status] = item._count._all;
       return acc;
     }, {}),
     recentCommunications,
     aiInsights,
+    attendanceRecords,
+    attendanceSummary: {
+      present: attendanceRecords.filter((r: any) => r.status === "PRESENT").length,
+      absent: attendanceRecords.filter((r: any) => r.status === "ABSENT").length,
+      leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
+    },
+    invoiceSummary: {
+      total: invoiceTotals._count || 0,
+      totalAmount: invoiceTotals._sum?.totalAmount || 0,
+      byStatus: invoiceGroups,
+    },
+    pendingInvitations: pendingInvitations.map(formatPendingInvite),
+    pendingInviteCount: pendingInvitations.length,
+    pendingAdminInvitations: pendingInvitations.filter((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN"),
+    pendingTeacherInvitations: pendingInvitations.filter((invite) => invite.role === "TEACHER"),
+    isStandaloneCampus: campusCount === 1,
+    canInviteAdmins: campusCount === 1,
+    adminName: session.fullName || "Principal",
+    adminEmail: session.email,
+    roleLabel: "Principal",
   };
 }
 

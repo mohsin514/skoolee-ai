@@ -1,64 +1,37 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  FileText,
-  GraduationCap,
-  HelpCircle,
-  LayoutGrid,
-  Loader2,
-  LogOut,
-  MessageSquare,
-  Pencil,
-  School,
-  Send,
-  ShieldCheck,
-  Sparkles,
-  TrendingUp,
-  Upload,
-  Users,
+  AlertCircle, BookOpen, Building, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
+  GraduationCap, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MessageSquare, Pencil, Plus, School, Send,
+  Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, Users, X, type LucideIcon,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getPrincipalDashboardData } from "@/app/actions/dashboard";
+import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
-  AiActionPanel,
-  AIReviewQueue,
-  BrandButton,
-  EmptyState,
-  RoleShell,
-  StatCard,
-  type RoleNavItem,
+  AiActionPanel, AIReviewQueue, BrandButton, EmptyState, ManagementCard, RoleShell, StatCard, type RoleNavItem,
 } from "@/components/role-dashboard";
+import { cn } from "@/lib/utils";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
-type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement";
+type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "ai";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
+type InviteRole = "CAMPUS_ADMIN" | "PRINCIPAL" | "TEACHER";
+type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
+type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
 
 const viewCopy: Record<PrincipalView, { title: string; description: string }> = {
-  overview: {
-    title: "Academic Review",
-    description: "Live review of students, teachers, exams, report cards, engagement, and AI drafts.",
-  },
-  academics: {
-    title: "Academic Plan",
-    description: "Review class structure, class teachers, subjects, enrollment, and locked assessment flow.",
-  },
-  faculty: {
-    title: "Faculty Review",
-    description: "Inspect active teachers, subject ownership, and class leadership for this campus.",
-  },
-  reports: {
-    title: "Reports Hub",
-    description: "Approve remarks, mark exams reviewed, publish report cards, and send parent delivery.",
-  },
-  engagement: {
-    title: "Parent Engagement",
-    description: "Track parent communication delivery, blocked messages, no-contact records, and automation runs.",
-  },
+  overview: { title: "Academic Review", description: "Live review of students, teachers, exams, report cards, engagement, and AI drafts." },
+  academics: { title: "Academic Plan", description: "Manage class structure, teachers, subjects, enrollment, attendance, and fees." },
+  faculty: { title: "Faculty Review", description: "Inspect and manage teachers, subject ownership, and class leadership." },
+  reports: { title: "Reports Hub", description: "Approve remarks, mark exams reviewed, publish report cards, and send parent delivery." },
+  engagement: { title: "Parent Engagement", description: "Track parent communication delivery, blocked messages, no-contact records, and automation runs." },
+  students: { title: "Student Directory", description: "Search, filter, and manage student profiles across classes and sections." },
+  ai: { title: "AI Insights", description: "AI-powered analysis and review items for academic oversight." },
 };
 
 const principalAIFeatures = [
@@ -77,23 +50,23 @@ function statusTone(status?: string) {
   return "bg-[#f3f4f9] text-[#4d4354]/70";
 }
 
-function formatStatus(status?: string) {
-  return (status || "Pending").replaceAll("_", " ");
+function formatStatus(status?: string) { return (status || "Pending").replaceAll("_", " "); }
+function formatDate(value?: string | Date | null) { if (!value) return "Not yet"; return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+function sectionLabel(cls: any) { if (!cls) return ""; return [cls.name, cls.section].filter(Boolean).join(" - "); }
+function classLabel(item: any) { if (!item) return "Unassigned"; return [item.name, item.section].filter(Boolean).join(" "); }
+function classGroupKey(item: any) { return `${item?.academicYear || ""}::${item?.name || ""}`; }
+function groupClasses(classes: any[]) {
+  const groups = new Map<string, { key: string; name: string; academicYear: number | string; sections: any[] }>();
+  for (const cls of classes || []) {
+    const key = classGroupKey(cls);
+    const existing = groups.get(key);
+    if (existing) { existing.sections.push(cls); }
+    else { groups.set(key, { key, name: cls.name || "Class", academicYear: cls.academicYear || "N/A", sections: [cls] }); }
+  }
+  return [...groups.values()].map((group) => ({ ...group, sections: group.sections.sort((a, b) => sectionLabel(a).localeCompare(sectionLabel(b))) }));
 }
-
-function formatDate(value?: string | Date | null) {
-  if (!value) return "Not yet";
-  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function classLabel(item: any) {
-  if (!item) return "Unassigned";
-  return [item.name, item.section].filter(Boolean).join(" ");
-}
-
-function percentLabel(value?: number | null) {
-  return `${Number(value || 0).toFixed(1)}%`;
-}
+function percentLabel(value?: number | null) { return `${Number(value || 0).toFixed(1)}%`; }
+function formatPendingInviteFromInvite(invite: any) { return { inviteId: invite.id, email: invite.email, role: invite.role, status: new Date() > invite.expiresAt ? "Expired" : "Invited", expiresAt: invite.expiresAt }; }
 
 export default function PrincipalDashboard() {
   const router = useRouter();
@@ -103,1064 +76,619 @@ export default function PrincipalDashboard() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editedRemarks, setEditedRemarks] = useState({ en: "", ur: "" });
+  const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [showMoveStudentModal, setShowMoveStudentModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showActivityLogModal, setShowActivityLogModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [inviteRole, setInviteRole] = useState<InviteRole>("TEACHER");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [classForm, setClassForm] = useState<ClassFormState>({ name: "", section: "", sections: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
+  const [studentForm, setStudentForm] = useState<StudentFormState>({ fullName: "", rollNo: "", gender: "MALE", classId: "", guardianName: "", guardianPhone: "", guardianEmail: "" });
+  const [moveClassId, setMoveClassId] = useState("");
+  const [savingClass, setSavingClass] = useState(false);
+  const [savingStudent, setSavingStudent] = useState(false);
+  const [movingStudentBusy, setMovingStudentBusy] = useState(false);
+  const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
+  const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
+  const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
+  const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [savingClassUpdate, setSavingClassUpdate] = useState(false);
+  const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
+  const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    try {
-      setData(await getPrincipalDashboardData());
-    } catch (error: any) {
-      toast.error(`Dashboard failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+    try { const nextData = await getPrincipalDashboardData(); setData(nextData); return nextData; }
+    catch (error: any) { toast.error(error.message); return null; }
+    finally { setLoading(false); }
   }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const handleLogout = async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); };
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+  const exportStudentsCSV = () => {
+    const students = data?.students || [];
+    if (!students.length) return toast.error("No student data to export");
+    const headers = ["Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email"];
+    const rows = students.map((s: any) => [`"${s.fullName}"`, s.rollNo, s.gender || "MALE", s.class ? `${s.class.name} ${s.class.section || ""}`.trim() : "", `"${s.guardianName || ""}"`, s.guardianPhone || "", s.guardianEmail || ""].join(","));
+    const csv = [...headers, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${data.campusName.replace(/\s+/g, "_")}_students.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast.success("CSV exported");
+  };
+
+  const handleCreateClass = async () => {
+    if (!classForm.name) return toast.error("Class name is required");
+    setSavingClass(true);
+    try {
+      const sectionList = classForm.sections ? classForm.sections.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean) : classForm.section ? [classForm.section.trim()] : [""];
+      const res = await fetch("/api/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: classForm.name, sections: sectionList, academicYear: classForm.academicYear, classTeacherId: classForm.classTeacherId || undefined }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to create class");
+      toast.success(`Created ${sectionList.length} section(s)`);
+      setShowClassModal(false);
+      setClassForm({ name: "", section: "", sections: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
+      await loadData();
+    } catch (error: any) { toast.error(error.message); } finally { setSavingClass(false); }
+  };
+
+  const handleCreateStudent = async () => {
+    if (!studentForm.fullName || !studentForm.classId) return toast.error("Name and class are required");
+    setSavingStudent(true);
+    try {
+      const res = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: studentForm.fullName, rollNo: studentForm.rollNo ? Number(studentForm.rollNo) : undefined, gender: studentForm.gender, classId: studentForm.classId, guardianName: studentForm.guardianName || undefined, guardianPhone: studentForm.guardianPhone || undefined, guardianEmail: studentForm.guardianEmail || undefined }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to create student");
+      toast.success("Student created");
+      setShowStudentModal(false);
+      setStudentForm({ fullName: "", rollNo: "", gender: "MALE", classId: "", guardianName: "", guardianPhone: "", guardianEmail: "" });
+      await loadData();
+    } catch (error: any) { toast.error(error.message); } finally { setSavingStudent(false); }
+  };
+
+  const handleMoveStudent = async () => {
+    if (!selectedStudent || !moveClassId) return;
+    setMovingStudentBusy(true);
+    try {
+      const res = await fetch(`/api/students/${selectedStudent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: moveClassId }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to move student"); toast.success("Student moved"); setShowMoveStudentModal(false); setSelectedStudent(null); await loadData();
+    } catch (error: any) { toast.error(error.message); } finally { setMovingStudentBusy(false); }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail) return toast.error("Email required");
+    if (!data.canInviteAdmins && (inviteRole === "CAMPUS_ADMIN" || inviteRole === "PRINCIPAL")) return toast.error("Cannot invite admins for this campus");
+    setInviting(true);
+    try { await inviteStaff({ email: inviteEmail, role: inviteRole }); toast.success(`Invitation sent for ${inviteRole}`); setShowInviteModal(false); setInviteEmail(""); await loadData(); }
+    catch (error: any) { toast.error(error.message); } finally { setInviting(false); }
+  };
+
+  const handleRemove = async (userId: string, label: string) => {
+    setConfirmAction({ title: `Remove ${label}`, description: `Are you sure you want to remove this ${label.toLowerCase()}? This action cannot be undone.`, confirmLabel: "Remove", run: async () => { setConfirmBusy(true); try { await removeStaff(userId); toast.success(`${label} removed`); await loadData(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  };
+
+  const handleResendInvite = async (inviteId: string) => { try { await resendInvitation(inviteId); toast.success("Invitation resent"); await loadData(); } catch (error: any) { toast.error(error.message); } };
+  const handleCancelInvite = async (inviteId: string) => { try { await cancelInvitation(inviteId); toast.success("Invitation cancelled"); await loadData(); } catch (error: any) { toast.error(error.message); } };
+
+  const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
+    setSavingClassTeacherId(classId);
+    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class teacher"); toast.success("Class teacher updated"); await loadData(); }
+    catch (error: any) { toast.error(error.message); } finally { setSavingClassTeacherId(null); }
+  };
+
+  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
+    setSavingClassUpdate(true);
+    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class"); toast.success("Class updated"); await loadData(); }
+    catch (error: any) { toast.error(error.message); } finally { setSavingClassUpdate(false); }
+  };
+
+  const handleUpdateStudent = async (studentId: string, updates: { fullName?: string; rollNo?: number; guardianName?: string; guardianPhone?: string; guardianEmail?: string }) => {
+    setSavingStudentUpdate(true);
+    try { const res = await fetch(`/api/students/${studentId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update student"); toast.success("Student updated"); await loadData(); }
+    catch (error: any) { toast.error(error.message); } finally { setSavingStudentUpdate(false); }
+  };
+
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+    setSavingSubjectUpdateId(subjectId);
+    try { const res = await fetch(`/api/subjects/${subjectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...updates, classId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update subject"); toast.success("Subject updated"); await loadData(); }
+    catch (error: any) { toast.error(error.message); } finally { setSavingSubjectUpdateId(null); }
+  };
+
+  const handleDeleteClass = (cls: any) => {
+    const studentCount = cls._count?.students || 0;
+    setConfirmAction({ title: "Delete Class", description: `Delete "${cls.name}${cls.section ? ` - ${cls.section}` : ""}"? This affects ${studentCount} student(s) and all subjects/exams.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/classes/${cls.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete class"); toast.success("Class deleted"); await loadData(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  };
+
+  const handleDeleteStudent = (student: any) => {
+    setConfirmAction({ title: "Delete Student", description: `Delete "${student.fullName}" (Roll: ${student.rollNo})? All associated records will be removed.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/students/${student.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete student"); toast.success("Student deleted"); await loadData(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  };
+
+  const handleDeleteSubject = (subject: any) => {
+    setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects/${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await loadData(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  };
+
+  const handleUpdateTeacher = async (teacherId: string, updates: { fullName?: string; phone?: string }) => {
+    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update teacher"); toast.success("Teacher updated"); await loadData(); }
+    catch (error: any) { toast.error(error.message); }
   };
 
   const runReportAction = async (examId: string, action: ReportAction, successMessage: string) => {
     setBusyAction(`${action}-${examId}`);
-    try {
-      const res = await fetch("/api/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId, action }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Report action failed");
-      toast.success(successMessage);
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Report action failed");
-    } finally {
-      setBusyAction(null);
-    }
+    try { const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ examId, action }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Report action failed"); toast.success(successMessage); await loadData(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Report action failed"); } finally { setBusyAction(null); }
   };
 
   const runRemarkDrafts = async (examId: string) => {
     setBusyAction(`ai-remarks-${examId}`);
-    try {
-      const res = await fetch("/api/ai/generate-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch: true, examId, language: "both", tone: "encouraging" }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Remark generation failed");
-      toast.success(`Generated ${result.succeeded || 0} remark drafts`);
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Remark generation failed");
-    } finally {
-      setBusyAction(null);
-    }
+    try { const res = await fetch("/api/ai/generate-remarks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batch: true, examId, language: "both", tone: "encouraging" }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Remark generation failed"); toast.success(`Generated ${result.succeeded || 0} remark drafts`); await loadData(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Remark generation failed"); } finally { setBusyAction(null); }
   };
 
   const saveRemark = async (report: any, approve = false) => {
     setBusyAction(`remark-${report.id}`);
-    try {
-      const res = await fetch(`/api/reports/${report.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remarksEn: editedRemarks.en, remarksUr: editedRemarks.ur, approve }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Could not save remarks");
-      toast.success(approve ? "Remarks approved" : "Remarks saved");
-      setEditingReportId(null);
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save remarks");
-    } finally {
-      setBusyAction(null);
-    }
+    try { const res = await fetch(`/api/reports/${report.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remarksEn: editedRemarks.en, remarksUr: editedRemarks.ur, approve }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Could not save remarks"); toast.success(approve ? "Remarks approved" : "Remarks saved"); setEditingReportId(null); await loadData(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not save remarks"); } finally { setBusyAction(null); }
   };
 
   const runAutomation = async () => {
     setBusyAction("communications");
-    try {
-      const res = await fetch("/api/communications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "run-automation" }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Automation failed");
-      toast.success(`Processed ${result.processed} communication actions`);
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Automation failed");
-    } finally {
-      setBusyAction(null);
-    }
+    try { const res = await fetch("/api/communications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run-automation" }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Automation failed"); toast.success(`Processed ${result.processed} communication actions`); await loadData(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Automation failed"); } finally { setBusyAction(null); }
   };
+
+  const openStudentModal = (classId?: string) => { setStudentForm({ ...studentForm, classId: classId || "" }); setShowStudentModal(true); };
+  const openInvite = (role: InviteRole) => { setInviteRole(role); setInviteEmail(""); setShowInviteModal(true); };
 
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
-    { icon: School, label: "Academic Plan", active: activeView === "academics", onClick: () => setActiveView("academics") },
+    { icon: School, label: "Academics", active: activeView === "academics", onClick: () => setActiveView("academics") },
     { icon: Users, label: "Faculty", active: activeView === "faculty", onClick: () => setActiveView("faculty") },
-    { icon: FileText, label: "Reports Hub", active: activeView === "reports", onClick: () => setActiveView("reports") },
+    { icon: GraduationCap, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
+    { icon: FileText, label: "Reports", active: activeView === "reports", onClick: () => setActiveView("reports") },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
+    { icon: Sparkles, label: "AI Insights", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
   const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Support", onClick: () => toast.info("Academic support is available from this role workspace.") },
+    { icon: HelpCircle, label: "Help", onClick: () => setShowHelpModal(true) },
     { icon: LogOut, label: "Logout", onClick: handleLogout },
   ];
+  const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
 
-  const communicationTotals = useMemo(() => {
-    const summary = data?.communicationSummary || {};
-    return {
-      sent: summary.SENT || 0,
-      failed: summary.FAILED || 0,
-      blocked: summary.BLOCKED || 0,
-      noContact: summary.NO_RECIPIENT || 0,
-    };
-  }, [data]);
-
-  if (loading && !data) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f3f4f9] gap-4 text-center px-6">
-        <Loader2 className="h-12 w-12 text-[#8127cf] animate-spin" />
-        <p className="text-sm font-black text-[#1f1a23] uppercase tracking-normal leading-relaxed">
-          Accessing Academic Hub...
-        </p>
-      </div>
-    );
-  }
-
+  if (loading && !data) return ( <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f3f4f9] gap-4 text-center px-6"><Loader2 className="h-12 w-12 text-[#8127cf] animate-spin" /><p className="text-sm font-black text-[#1f1a23] uppercase tracking-normal leading-relaxed">Accessing Academic Hub...</p></div> );
   if (!data) return null;
 
+  const totalCollected = data.invoiceSummary?.byStatus?.reduce((sum: number, g: any) => { const paid = g.status === "PAID" || g.status === "PARTIAL"; return paid ? sum + (g._sum?.totalAmount || 0) : sum; }, 0) || 0;
+
   return (
-    <RoleShell
-      navItems={navItems}
-      bottomItems={bottomItems}
-      eyebrow="Campus Academic Control"
-      userName={data.principalName}
-      userRole="Principal Authority"
-      avatarSeed={data.principalName}
-      dashboardHref="/principal"
-    >
+    <RoleShell navItems={navItems} bottomItems={bottomItems} eyebrow={`${data.schoolName} - ${data.campusName}`} userName={data.principalName} userRole="Principal Authority" avatarSeed={data.principalName} dashboardHref="/principal">
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 p-8 overflow-y-auto custom-scrollbar">
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-8">
           <div>
-            <p className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal mb-3">
-              {data.schoolName} - {data.campusName}
-            </p>
+            <p className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal mb-3">{data.schoolName} - {data.campusName}</p>
             <h2 className="text-4xl font-black tracking-normal text-[#1f1a23]">{viewCopy[activeView].title}</h2>
-            <p className="text-sm font-semibold text-[#4d4354]/60 mt-3 max-w-2xl leading-relaxed">
-              {viewCopy[activeView].description}
-            </p>
+            <p className="text-sm font-semibold text-[#4d4354]/60 mt-3 max-w-2xl leading-relaxed">{viewCopy[activeView].description}</p>
           </div>
-          <BrandButton
-            icon={<Sparkles className="w-4 h-4" />}
-            onClick={() => setActiveView("reports")}
-          >
-            Review Reports
-          </BrandButton>
+          <div className="flex flex-wrap gap-2">
+            {activeView === "academics" || activeView === "overview" ? <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>Add Class</BrandButton> : null}
+            {activeView === "students" || activeView === "overview" ? <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openStudentModal()} disabled={data.classes.length === 0}>Add Student</BrandButton> : null}
+          </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
-          <StatCard icon={GraduationCap} label="Students" value={data.totalStudents} />
-          <StatCard icon={Users} label="Teachers" value={data.totalTeachers} tone="green" />
-          <StatCard icon={School} label="Classes" value={data.totalClasses} tone="rose" />
-          <StatCard icon={FileText} label="Pending Reviews" value={data.pendingRemarkReviews} tone="dark" />
-          <StatCard icon={Sparkles} label="AI Review Queue" value={data.pendingAIReviews || 0} tone="green" />
+          <StatCard icon={GraduationCap} label="Students" value={data.totalStudents} tone="green" onClick={() => setActiveView("students")} />
+          <StatCard icon={Users} label="Teachers" value={data.totalTeachers} tone="purple" onClick={() => setActiveView("faculty")} />
+          <StatCard icon={School} label="Classes" value={data.totalClasses} tone="rose" onClick={() => setActiveView("academics")} />
+          <StatCard icon={FileText} label="Pending Reviews" value={data.pendingRemarkReviews} tone="dark" onClick={() => setActiveView("reports")} />
+          <StatCard icon={Sparkles} label="AI Queue" value={data.pendingAIReviews || 0} tone="green" onClick={() => setActiveView("ai")} />
         </div>
-
-        {activeView === "overview" ? (
-          <OverviewPanel
-            data={data}
-            communicationTotals={communicationTotals}
-            onViewReports={() => setActiveView("reports")}
-            onViewEngagement={() => setActiveView("engagement")}
-            onComplete={loadData}
-          />
-        ) : null}
-
-        {activeView === "academics" ? <AcademicsPanel data={data} /> : null}
-
-        {activeView === "faculty" ? <FacultyPanel data={data} /> : null}
-
-        {activeView === "reports" ? (
-          <ReportsPanel
-            data={data}
-            busyAction={busyAction}
-            editingReportId={editingReportId}
-            editedRemarks={editedRemarks}
-            onRunAction={runReportAction}
-            onGenerateRemarks={runRemarkDrafts}
-            onEdit={(report) => {
-              setEditingReportId(report.id);
-              setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" });
-            }}
-            onCancelEdit={() => setEditingReportId(null)}
-            onRemarkChange={setEditedRemarks}
-            onSaveRemark={saveRemark}
-          />
-        ) : null}
-
-        {activeView === "engagement" ? (
-          <EngagementPanel
-            data={data}
-            totals={communicationTotals}
-            busy={busyAction === "communications"}
-            onRunAutomation={runAutomation}
-          />
-        ) : null}
+        {activeView === "overview" ? <OverviewPanel data={data} communicationTotals={communicationTotals} onViewReports={() => setActiveView("reports")} onViewEngagement={() => setActiveView("engagement")} onComplete={() => { loadData(); }} /> : null}
+        {activeView === "academics" ? <AcademicPanel classes={data.classes} exams={data.recentExams} reports={data.recentReportCards} teachers={data.teachers} students={data.students} attendanceRecords={data.attendanceRecords} attendanceSummary={data.attendanceSummary} invoiceSummary={data.invoiceSummary} campusName={data.campusName} onAddClass={() => setShowClassModal(true)} onAddStudent={openStudentModal} onViewClass={setSelectedClass} onChangeTeacher={handleChangeClassTeacher} onDeleteClass={handleDeleteClass} onUpdateClass={handleUpdateClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} /> : null}
+        {activeView === "faculty" ? <FacultyPanel teachers={data.teachers} pendingInvites={data.pendingTeacherInvitations} campusAdmins={data.campusAdmins} pendingAdminInvites={data.pendingAdminInvitations} onInvite={(role) => openInvite(role)} onRemove={(id, label) => handleRemove(id, label)} onViewTeacher={setSelectedTeacher} onResend={handleResendInvite} onCancel={handleCancelInvite} /> : null}
+        {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openStudentModal} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(student.class?.id || ""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
+        {activeView === "reports" ? <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} /> : null}
+        {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
+        {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { loadData(); }} /> : null}
       </section>
+
+      <ClassModal open={showClassModal} onClose={() => setShowClassModal(false)} form={classForm} onChange={setClassForm} onSave={handleCreateClass} saving={savingClass} teachers={data.teachers} />
+      <StudentModal open={showStudentModal} onClose={() => setShowStudentModal(false)} form={studentForm} onChange={setStudentForm} onSave={handleCreateStudent} saving={savingStudent} classes={data.classes} />
+      {selectedStudent && showMoveStudentModal ? <MoveStudentModal student={selectedStudent} classes={data.classes} selectedClassId={moveClassId} onSelectClass={setMoveClassId} onMove={handleMoveStudent} busy={movingStudentBusy} onClose={() => { setShowMoveStudentModal(false); setSelectedStudent(null); }} /> : null}
+      {selectedClass ? <ClassDetailModal cls={selectedClass} teachers={data.teachers} onChangeTeacher={handleChangeClassTeacher} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} onClose={() => setSelectedClass(null)} /> : null}
+      {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(selectedStudent.class?.id || ""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
+      {selectedTeacher ? <TeacherDetailModal teacher={selectedTeacher} onUpdate={handleUpdateTeacher} onClose={() => setSelectedTeacher(null)} /> : null}
+      <InviteModal open={showInviteModal} role={inviteRole} email={inviteEmail} onEmailChange={setInviteEmail} busy={inviting} onInvite={handleInvite} onClose={() => setShowInviteModal(false)} canInviteAdmins={data.canInviteAdmins} />
+      {showBulkImportModal ? <BulkStudentImport campusName={data.campusName} classes={data.classes} onComplete={async () => { setShowBulkImportModal(false); await loadData(); }} onClose={() => setShowBulkImportModal(false)} /> : null}
+      {showActivityLogModal ? <ActivityLogModal onClose={() => setShowActivityLogModal(false)} /> : null}
+      {showHelpModal ? <HelpModal onClose={() => setShowHelpModal(false)} /> : null}
+      <ConfirmAction open={!!confirmAction} title={confirmAction?.title || ""} description={confirmAction?.description || ""} confirmLabel={confirmAction?.confirmLabel} busy={confirmBusy} onConfirm={async () => { if (confirmAction) { await confirmAction.run(); setConfirmAction(null); } }} onCancel={() => setConfirmAction(null)} />
     </RoleShell>
   );
 }
 
-function OverviewPanel({
-  data,
-  communicationTotals,
-  onViewReports,
-  onViewEngagement,
-  onComplete,
-}: {
-  data: any;
-  communicationTotals: { sent: number; failed: number; blocked: number; noContact: number };
-  onViewReports: () => void;
-  onViewEngagement: () => void;
-  onComplete: () => void | Promise<void>;
+function OverviewPanel({ data, communicationTotals, onViewReports, onViewEngagement, onComplete }: {
+  data: any; communicationTotals: { sent: number; failed: number; blocked: number; noContact: number };
+  onViewReports: () => void; onViewEngagement: () => void; onComplete: () => void | Promise<void>;
 }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
       <div className="xl:col-span-2">
-        <CollapsiblePanel
-          icon={FileText}
-          title="Report Card Queue"
-          subtitle="Recent generated academic records"
-          headerRight={
-            <BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>
-              Open Review
-            </BrandButton>
-          }
-          defaultOpen
-        >
-          {data.recentReportCards.length > 0 ? (
-            <div className="space-y-3">
-              {data.recentReportCards.slice(0, 6).map((card: any) => (
-                <ReportRow key={card.id} report={card} compact />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={FileText}
-              title="No report cards yet"
-              description="Locked exams and generated marks will appear here for academic review."
-            />
-          )}
+        <CollapsiblePanel icon={FileText} title="Report Card Queue" subtitle="Recent generated academic records"
+          headerRight={<BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>Open Review</BrandButton>} defaultOpen>
+          {data.recentReportCards.length > 0 ? (<div className="space-y-3">{data.recentReportCards.slice(0, 6).map((card: any) => (<div key={card.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/55 px-4 py-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23] truncate">{card.student?.fullName || "Student"}</p><p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{card.exam?.title} · {card.grade || `${Math.round(card.percentage || 0)}%`}</p></div><StatusPill status={card.status} /></div>))}</div>) : (<EmptyState icon={FileText} title="No report cards yet" description="Locked exams and generated marks will appear here for academic review." />)}
         </CollapsiblePanel>
       </div>
-
       <div className="space-y-6">
         <div className="bg-white p-6 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-5 h-5 text-[#8127cf]" />
-              <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">Parent Engagement</p>
-            </div>
-            <button
-              type="button"
-              onClick={onViewEngagement}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-normal text-[#8127cf] hover:text-[#9c48ea]"
-            >
-              View
-            </button>
-          </div>
-          <div className="space-y-3">
-            <EngagementMetric icon={CheckCircle2} label="Sent" value={communicationTotals.sent} />
-            <EngagementMetric icon={AlertCircle} label="Needs Attention" value={communicationTotals.failed + communicationTotals.blocked + communicationTotals.noContact} />
-            <EngagementMetric icon={Sparkles} label="AI Review" value={data.pendingAIReviews || 0} />
-          </div>
+          <div className="flex items-center justify-between mb-5"><div className="flex items-center gap-3"><MessageSquare className="w-5 h-5 text-[#8127cf]" /><p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">Parent Engagement</p></div><button type="button" onClick={onViewEngagement} className="cursor-pointer text-[10px] font-black uppercase tracking-normal text-[#8127cf] hover:text-[#9c48ea]">View</button></div>
+          <div className="space-y-3"><EngagementMetric icon={CheckCircle2} label="Sent" value={communicationTotals.sent} /><EngagementMetric icon={AlertCircle} label="Needs Attention" value={communicationTotals.failed + communicationTotals.blocked + communicationTotals.noContact} /><EngagementMetric icon={Sparkles} label="AI Review" value={data.pendingAIReviews || 0} /></div>
         </div>
-
-        <div className="bg-white p-6 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
-          <AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} />
-        </div>
-
-        <div className="bg-[#fbf0fe]/40 p-6 rounded-[28px] border border-[#8127cf]/10 shadow-lg">
-          <div className="flex items-center gap-3 mb-5">
-            <Sparkles className="w-5 h-5 text-[#8127cf]" />
-            <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">AI Review</p>
-          </div>
-          <AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} />
-        </div>
-
-        <div className="bg-[#1f1a23] p-8 rounded-[32px] text-white shadow-2xl">
-          <p className="text-[10px] font-black uppercase tracking-normal text-white/50 mb-5">Campus Yield</p>
-          <div className="flex items-end gap-3 mb-4">
-            <span className="text-5xl font-black tracking-normal">{data.averageMarks}%</span>
-            <TrendingUp className="w-8 h-8 text-emerald-400 mb-1" />
-          </div>
-          <p className="text-[10px] font-bold text-white/40 uppercase tracking-normal">
-            Average marks across submitted assessments
-          </p>
-        </div>
+        <div className="bg-white p-6 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg"><AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} /></div>
+        <div className="bg-[#fbf0fe]/40 p-6 rounded-[28px] border border-[#8127cf]/10 shadow-lg"><div className="flex items-center gap-3 mb-5"><Sparkles className="w-5 h-5 text-[#8127cf]" /><p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">AI Review</p></div><AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} /></div>
+        <div className="bg-[#1f1a23] p-8 rounded-[32px] text-white shadow-2xl"><p className="text-[10px] font-black uppercase tracking-normal text-white/50 mb-5">Campus Yield</p><div className="flex items-end gap-3 mb-4"><span className="text-5xl font-black tracking-normal">{data.averageMarks}%</span><TrendingUp className="w-8 h-8 text-emerald-400 mb-1" /></div><p className="text-[10px] font-bold text-white/40 uppercase tracking-normal">Average marks across submitted assessments</p></div>
       </div>
     </div>
   );
 }
 
-function AcademicsPanel({ data }: { data: any }) {
+function AcademicPanel({ classes, exams, reports, teachers, students, attendanceRecords, attendanceSummary, invoiceSummary, campusName, onAddClass, onAddStudent, onViewClass, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
+  classes: any[]; exams: any[]; reports: any[]; teachers: any[]; students?: any[]; attendanceRecords?: any[]; attendanceSummary?: { present: number; absent: number; leave: number }; invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] }; campusName?: string; onAddClass: () => void; onAddStudent: (classId?: string) => void; onViewClass: (cls: any) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+}) {
+  const classGroups = groupClasses(classes);
+  const [showAllExams, setShowAllExams] = useState(false);
+  const [showAllReports, setShowAllReports] = useState(false);
+  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
+  const lockedExams = exams.filter((e) => e.isLocked);
+  const displayExams = showAllExams ? exams : exams.slice(0, 6);
+  const displayReports = showAllReports ? reports : reports.slice(0, 6);
+  const totalCollected = invoiceSummary?.byStatus?.reduce((sum: number, g: any) => { const paid = g.status === "PAID" || g.status === "PARTIAL"; return paid ? sum + (g._sum?.totalAmount || 0) : sum; }, 0) || 0;
+  const generateReportCards = async (examId: string) => {
+    setGeneratingExamId(examId);
+    try { const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", examId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Generation failed"); toast.success("Report cards generated"); }
+    catch (error: any) { toast.error(error.message); } finally { setGeneratingExamId(null); }
+  };
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.55fr] gap-8">
-      <div className="space-y-5">
-        {data.classes.map((cls: any) => (
-          <div key={cls.id} className="rounded-[32px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">
-                  Academic year {cls.academicYear}
-                </p>
-                <h3 className="mt-1 text-xl font-black text-[#1f1a23]">{classLabel(cls)}</h3>
-                <p className="mt-2 max-w-xl text-xs font-semibold leading-relaxed text-[#4d4354]/55">
-                  {cls.classTeacher?.fullName || "No class teacher assigned"} owns this class record. Students, subjects,
-                  report cards, and review states below are scoped to this campus.
-                </p>
-              </div>
-              <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-72">
-                <MiniMetricCompact label="Students" value={cls._count?.students || 0} />
-                <MiniMetricCompact label="Subjects" value={cls._count?.subjects || 0} />
-                <MiniMetricCompact label="Exams" value={cls.exams?.length || 0} />
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-              <div className="space-y-4">
-                <div className="rounded-[24px] bg-white p-5">
-                  <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Class Teacher</p>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] shadow-inner">
-                      <img
-                        src={cls.classTeacher?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cls.classTeacher?.fullName || classLabel(cls))}`}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#1f1a23]">{cls.classTeacher?.fullName || "Unassigned"}</p>
-                      <p className="truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                        {cls.classTeacher?.email || "No teacher email"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] bg-white p-5">
-                  <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subjects & Teachers</p>
-                  <div className="space-y-2">
-                    {cls.subjects.map((subject: any) => (
-                      <SubjectTeacherRow key={subject.id} subject={subject} />
-                    ))}
-                    {cls.subjects.length === 0 ? (
-                      <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-xs font-semibold text-[#4d4354]/55">
-                        No subjects are attached to this class yet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] bg-white p-5">
-                  <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Exam Review Trail</p>
-                  <div className="space-y-2">
-                    {cls.exams.map((exam: any) => (
-                      <ClassExamRow key={exam.id} exam={exam} />
-                    ))}
-                    {cls.exams.length === 0 ? (
-                      <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-xs font-semibold text-[#4d4354]/55">
-                        No exams are available for this class yet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] bg-white p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Student Profiles & Reports</p>
-                  <StatusPill status={`${cls.students.length} Students`} />
-                </div>
-                <div className="space-y-3">
-                  {cls.students.map((student: any) => (
-                    <StudentProfileRow key={student.id} student={student} />
-                  ))}
-                  {cls.students.length === 0 ? (
-                    <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-xs font-semibold text-[#4d4354]/55">
-                      No students have been enrolled in this class yet.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-        {data.classes.length === 0 ? (
-          <EmptyState icon={School} title="No classes yet" description="Class structure will appear here once campus setup is complete." />
-        ) : null}
-      </div>
-
-      <div className="space-y-5">
-        <PanelTitle icon={ShieldCheck} title="Locked Assessments" />
-        {data.reviewExams.map((exam: any) => (
-          <div key={exam.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h4 className="text-sm font-black text-[#1f1a23]">{exam.title}</h4>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                  {exam.term} - {classLabel(exam.class)}
-                </p>
-              </div>
-              <StatusPill status={exam.status} />
-            </div>
-            <div className="mt-4 flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-              <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Report Cards</span>
-              <span className="text-base font-black text-[#8127cf]">{exam._count?.reportCards || 0}</span>
-            </div>
-          </div>
-        ))}
-        {data.reviewExams.length === 0 ? (
-          <p className="rounded-[24px] bg-[#fbf0fe]/50 p-5 text-sm font-semibold text-[#4d4354]/55">
-            No locked exams are waiting for review yet.
-          </p>
-        ) : null}
-
-        <PanelTitle icon={Users} title="Student Roster" />
-        <div className="space-y-3">
-          {data.students.map((student: any) => (
-            <div key={student.id} className="rounded-[22px] border border-[#cfc2d6]/10 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {student.rollNo} - {classLabel(student.class)}
-                  </p>
-                </div>
-                <StatusPill status={student.guardianWhatsapp || student.guardianEmail ? "CONNECTED" : "NO_RECIPIENT"} />
-              </div>
-              <p className="mt-3 truncate text-[10px] font-semibold text-[#4d4354]/45">
-                Guardian: {student.guardianName || "Not provided"}
-              </p>
-              {student.reportCards?.[0] ? (
-                <div className="mt-3 rounded-2xl bg-[#fbf0fe]/70 px-4 py-3">
-                  <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Latest Report</p>
-                  <p className="mt-1 text-xs font-black text-[#1f1a23]">
-                    {student.reportCards[0].exam.title} - {percentLabel(student.reportCards[0].percentage)}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          ))}
-          {data.students.length === 0 ? (
-            <p className="rounded-[24px] bg-white p-5 text-sm font-semibold text-[#4d4354]/55">
-              No student roster records are available yet.
-            </p>
-          ) : null}
-        </div>
+    <div className="space-y-8">
+      <div className="flex flex-wrap justify-end gap-3"><BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={onAddClass}>Add Class</BrandButton><BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => onAddStudent()} disabled={classes.length === 0}>Add Student</BrandButton></div>
+      <AttendanceView attendanceRecords={attendanceRecords || []} classes={classes} students={students || []} invoiceSummary={invoiceSummary} totalCollected={totalCollected} />
+      {classGroups.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">{classGroups.map((group) => (<ClassGroupCard key={group.key} group={group} teachers={teachers} onAddStudent={onAddStudent} onViewClass={onViewClass} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>
+      ) : (<EmptyState icon={BookOpen} title="No classes defined" description="Create classes during onboarding or from the class management flow." action={<BrandButton onClick={onAddClass}>Add Class</BrandButton>} />)}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+        <SnapshotColumn icon={FileText} title="Exam Cycles" after={exams.length > 6 ? (<button type="button" onClick={() => setShowAllExams(!showAllExams)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{showAllExams ? "Show Less" : `View All (${exams.length})`}</button>) : null}>
+          {displayExams.map((exam: any) => (<div key={exam.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-black text-[#1f1a23]">{exam.title}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{exam.term} - {classLabel(exam.class)}</p></div><div className="flex items-center gap-2 shrink-0"><StatusPill status={exam.status} />{exam.isLocked && exam._count?.reportCards === 0 ? (<button type="button" onClick={() => generateReportCards(exam.id)} disabled={generatingExamId === exam.id} className="flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2 text-[8px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50">{generatingExamId === exam.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate"}</button>) : null}</div></div></div>))}
+          {exams.length === 0 ? <EmptyInline text="No exam cycles available yet." /> : null}
+        </SnapshotColumn>
+        <SnapshotColumn icon={GraduationCap} title="Report Cards" after={reports.length > 6 ? (<button type="button" onClick={() => setShowAllReports(!showAllReports)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{showAllReports ? "Show Less" : `View All (${reports.length})`}</button>) : null}>
+          {displayReports.map((report: any) => (<div key={report.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}</p></div><StatusPill status={report.status} /></div></div>))}
+          {reports.length === 0 ? <EmptyInline text="Report cards will appear after exams are processed." /> : null}
+        </SnapshotColumn>
       </div>
     </div>
   );
 }
 
-function SubjectTeacherRow({ subject }: { subject: any }) {
+function AttendanceView({ attendanceRecords, classes, students, invoiceSummary, totalCollected }: {
+  attendanceRecords: any[]; classes: any[]; students: any[]; invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] }; totalCollected: number;
+}) {
+  const sections = useMemo(() => classes.map((c) => ({ id: c.id, label: `${c.name} ${c.section || ""}`.trim() })), [classes]);
+  const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
+  useEffect(() => { setSelectedSectionId((prev: string) => sections.some((s) => s.id === prev) ? prev : sections[0]?.id || ""); }, [sections]);
+  const [open, setOpen] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateAttendance, setDateAttendance] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [loadingAtt, setLoadingAtt] = useState(false);
+  const sectionStudents = useMemo(() => students.filter((s) => s.class?.id === selectedSectionId), [students, selectedSectionId]);
+  const fetchAttendance = useCallback(async (classId: string, date: string) => { setLoadingAtt(true); try { const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`); const json = await res.json(); if (json.success) setDateAttendance(json.students || []); } catch {} finally { setLoadingAtt(false); } }, []);
+  const fetchInvoices = useCallback(async (classId: string) => { try { const res = await fetch(`/api/billing/invoices?classId=${classId}`); const json = await res.json(); if (json.success) setInvoices(json.invoices || []); } catch {} }, []);
+  useEffect(() => { if (selectedSectionId) { fetchAttendance(selectedSectionId, selectedDate); fetchInvoices(selectedSectionId); } }, [selectedSectionId, selectedDate, fetchAttendance, fetchInvoices]);
+  const roster = dateAttendance;
+  const present = roster.filter((s: any) => s.attendance?.status === "PRESENT").length;
+  const absent = roster.filter((s: any) => s.attendance?.status === "ABSENT").length;
+  const leave = roster.filter((s: any) => s.attendance?.status === "LEAVE").length;
+  const unmarked = roster.filter((s: any) => !s.attendance).length;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-      <div className="min-w-0">
-        <p className="truncate text-xs font-black text-[#1f1a23]">{subject.name}</p>
-        <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-          {subject.teacher?.fullName || "Teacher not assigned"}
-        </p>
-      </div>
-      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
-        {subject.totalMarks} marks
-      </span>
-    </div>
-  );
-}
-
-function ClassExamRow({ exam }: { exam: any }) {
-  return (
-    <div className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-black text-[#1f1a23]">{exam.title}</p>
-          <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-            {exam.term} - {exam._count?.reportCards || 0} report cards
-          </p>
+    <div className={cn("rounded-[32px] border bg-white shadow-lg transition-all", open ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl" : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10")}>
+      <button type="button" onClick={() => setOpen((v) => !v)} className={cn("flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all", open ? "p-5" : "px-4 py-3")} aria-expanded={open}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn("flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all", open ? "h-10 w-10" : "h-8 w-8")}><Users className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} /></div>
+          <div className="min-w-0"><p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>Attendance &amp; Fees</p>{open ? <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{sections.find((s) => s.id === selectedSectionId)?.label || "Select a section"}</p> : null}</div>
         </div>
-        <StatusPill status={exam.status} />
-      </div>
-    </div>
-  );
-}
-
-function StudentProfileRow({ student }: { student: any }) {
-  const latestReport = student.reportCards?.[0];
-
-  return (
-    <div className="rounded-[22px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/45 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-            Roll {student.rollNo} - {student.gender || "Profile"}
-          </p>
-          <p className="mt-2 truncate text-[10px] font-semibold text-[#4d4354]/55">
-            Guardian: {student.guardianName || student.parent?.fullName || "Not provided"}
-          </p>
+        <div className="flex shrink-0 items-center gap-3">
+          {sections.length > 1 ? (<select value={selectedSectionId} onChange={(e) => { e.stopPropagation(); setSelectedSectionId(e.target.value); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer border border-[#cfc2d6]/10">{sections.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}</select>) : null}
+          <ChevronDown className={cn("text-[#8127cf] transition-all duration-200 shrink-0", open ? "h-5 w-5 rotate-180" : "h-4 w-4")} />
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-          <StatusPill status={student.guardianWhatsapp || student.guardianEmail || student.parent?.email ? "CONNECTED" : "NO_RECIPIENT"} />
-          <StatusPill status={latestReport ? latestReport.status : "NO_REPORT"} />
-        </div>
-      </div>
-
-      {latestReport ? (
-        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-          <MiniMetricCompact label="Latest %" value={Math.round(Number(latestReport.percentage || 0))} />
-          <div className="rounded-2xl bg-white px-4 py-3">
-            <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">Grade</p>
-            <p className="mt-1 text-xl font-black text-[#1f1a23]">{latestReport.grade || "-"}</p>
+      </button>
+      {open ? (<div className="border-t border-[#cfc2d6]/10 px-5 pb-5 pt-4 space-y-6">
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Attendance</p><input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} onClick={(e) => e.stopPropagation()} className="h-8 rounded-lg border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer" /></div>
+            {loadingAtt ? (<Loader2 className="h-4 w-4 animate-spin text-[#8127cf]" />) : (<div className="flex items-center gap-2"><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-emerald-700">P {present}</span><span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-rose-700">A {absent}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-amber-700">L {leave}</span><span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">? {unmarked}</span></div>)}
           </div>
-          <div className="rounded-2xl bg-white px-4 py-3 md:col-span-2">
-            <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">Report Card</p>
-            <p className="mt-1 truncate text-xs font-black text-[#1f1a23]">
-              {latestReport.exam.title} - {latestReport.exam.term}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <StatusPill status={latestReport.remarksApproved ? "APPROVED" : "REVIEW"} />
-              <StatusPill status={latestReport.isSent ? "SENT" : latestReport.deliveryStatus} />
-            </div>
-          </div>
+          {selectedSectionId && roster.length > 0 ? (<div className="max-h-80 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 divide-y divide-[#cfc2d6]/5">
+            <div className="flex items-center gap-2 bg-[#fbf0fe]/40 px-4 py-2 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60 sticky top-0"><span className="w-7 text-center">#</span><span className="flex-[2]">Student</span><span className="w-14 text-center">Date</span><span className="w-12 text-center">%</span><span className="w-20 text-center">Fee</span><span className="w-16 text-center">Balance</span></div>
+            {roster.map((entry: any, i: number) => { const student = sectionStudents.find((s) => s.id === entry.id); const totalAtt = student?.attendance?.length || 0; const presentAtt = student?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0; const pct = totalAtt ? Math.round((presentAtt / totalAtt) * 100) : null; const inv = invoices.find((inv) => inv.studentId === entry.id); return (<div key={entry.id} className="flex items-center gap-2 px-4 py-2.5 text-xs"><span className="w-7 text-center text-[#4d4354]/40 font-black">{i + 1}</span><span className="flex-[2] font-black text-[#1f1a23] truncate">{entry.fullName}</span><span className="w-14 flex justify-center">{entry.attendance ? (<span className={cn("rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-normal", entry.attendance.status === "PRESENT" && "bg-emerald-50 text-emerald-700", entry.attendance.status === "ABSENT" && "bg-rose-50 text-rose-700", entry.attendance.status === "LEAVE" && "bg-amber-50 text-amber-700")}>{entry.attendance.status === "PRESENT" ? "P" : entry.attendance.status === "ABSENT" ? "A" : "L"}</span>) : (<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>)}</span><span className="w-12 flex justify-center"><span className={cn("rounded-full px-1.5 py-0.5 text-[8px] font-black", pct === null ? "text-[#4d4354]/30" : pct >= 80 ? "bg-emerald-50 text-emerald-700" : pct >= 60 ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700")}>{pct !== null ? `${pct}%` : "—"}</span></span><span className="w-20 flex justify-center">{inv ? (<StatusPill status={inv.status} />) : (<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>)}</span><span className="w-16 text-right font-black text-[#1f1a23]">{inv ? (inv.balanceDue || 0).toLocaleString() : "—"}</span></div>); })}
+          </div>) : selectedSectionId ? (<div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-6 text-center"><p className="text-[10px] font-bold text-[#4d4354]/45">{loadingAtt ? "Loading..." : "No students enrolled in this section."}</p></div>) : null}
         </div>
-      ) : (
-        <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-semibold text-[#4d4354]/55">
-          No report card has been generated for this student yet.
-        </p>
-      )}
+        <div className="border-t border-[#cfc2d6]/10 pt-4">
+          <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 mb-3">Fee Summary</p>
+          <div className="grid grid-cols-2 gap-4"><div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Invoices</p><p className="mt-1 text-xl font-black text-[#1f1a23]">{invoiceSummary?.total ?? "—"}</p></div><div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Collected</p><p className="mt-1 text-xl font-black text-[#1f1a23]">{totalCollected ? `${(totalCollected / 100).toLocaleString()}` : "—"}</p></div></div>
+          {invoiceSummary?.byStatus?.length ? (<div className="mt-3 flex flex-wrap gap-2">{invoiceSummary.byStatus.map((g: any) => (<div key={g.status} className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2"><p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">{g.status}</p><p className="text-xs font-black text-[#1f1a23]">{g._count} ({((g._sum?.totalAmount || 0) / 100).toLocaleString()})</p></div>))}</div>) : null}
+        </div>
+      </div>) : null}
     </div>
   );
 }
 
-function FacultyPanel({ data }: { data: any }) {
+function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvites, onInvite, onRemove, onViewTeacher, onResend, onCancel }: {
+  teachers: any[]; pendingInvites: any[]; campusAdmins: any[]; pendingAdminInvites: any[];
+  onInvite: (role: InviteRole) => void; onRemove: (id: string, label: string) => void; onViewTeacher: (teacher: any) => void; onResend: (id: string) => void; onCancel: (id: string) => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const filtered = teachers.filter((t) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q); });
+  if (teachers.length === 0 && pendingInvites.length === 0 && campusAdmins.length === 0 && pendingAdminInvites.length === 0) return (<EmptyState icon={Users} title="No faculty records found" description="Invite teachers so subjects and classes can be assigned from the central model." action={<BrandButton onClick={() => onInvite("TEACHER")}>Invite Teacher</BrandButton>} />);
   return (
     <div className="space-y-8">
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <PanelTitle icon={ShieldCheck} title="Campus Admin Profiles" />
-          <StatusPill status={`${data.campusAdmins.length} Admins`} />
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.campusAdmins.map((admin: any) => (
-            <div key={admin.id} className="rounded-[26px] bg-white p-5 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] shadow-inner">
-                  <img src={admin.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.fullName)}`} alt="" className="h-full w-full object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-black text-[#1f1a23]">{admin.fullName}</h3>
-                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{admin.email}</p>
-                </div>
-              </div>
-              <div className="mt-5 flex items-center justify-between rounded-2xl bg-[#fbf0fe]/70 px-4 py-3">
-                <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">{formatStatus(admin.role)}</span>
-                <StatusPill status={admin.onboardingComplete ? "ACTIVE" : "ONBOARDING"} />
-              </div>
-            </div>
-          ))}
-          {data.campusAdmins.length === 0 ? (
-            <div className="md:col-span-2 xl:col-span-3">
-              <EmptyState icon={ShieldCheck} title="No active admins" description="Campus admin profiles will appear here when assigned." />
-            </div>
-          ) : null}
-        </div>
+        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"><BrandButton variant="soft" onClick={() => onInvite("CAMPUS_ADMIN")}>Invite Admin</BrandButton><BrandButton variant="soft" onClick={() => onInvite("PRINCIPAL")}>Invite Principal</BrandButton></div></div>
+        {campusAdmins.length > 0 ? (<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{campusAdmins.map((admin: any) => (<AdminRow key={admin.id} admin={admin} onRemove={admin.id ? () => onRemove(admin.id, "Admin") : undefined} />))}</div>) : null}
+        {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
+        {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (<p className="rounded-2xl bg-white/70 px-4 py-3 text-[10px] font-bold text-[#4d4354]/45">No admins yet. Invite campus administrators to manage this campus.</p>) : null}
       </div>
-
       <div>
-        <div className="mb-5 flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <PanelTitle icon={Users} title="Teacher Profiles" />
-          <StatusPill status={`${data.teachers.length} Teachers`} />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-3 h-9"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 text-[#4d4354]/40"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-40 bg-transparent border-none outline-none text-[10px] font-bold placeholder:text-[#4d4354]/35" /></div>
+            <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Invite Teacher</BrandButton>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {data.teachers.map((teacher: any) => (
-            <div key={teacher.id} className="rounded-[30px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] shadow-inner">
-                  <img src={teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`} alt="" className="h-full w-full object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-black text-[#1f1a23]">{teacher.fullName}</h3>
-                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{teacher.email}</p>
-                  <p className="mt-1 truncate text-[10px] font-semibold text-[#4d4354]/40">{teacher.phone || "No phone on profile"}</p>
-                </div>
-              </div>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <MiniMetricCompact label="Subjects" value={teacher._count?.taughtSubjects || 0} />
-                <MiniMetricCompact label="Classes" value={teacher._count?.ledClasses || 0} />
-              </div>
-              <div className="mt-5 flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3">
-                <span className="text-[9px] font-black uppercase tracking-normal text-emerald-700">Access</span>
-                <StatusPill status={teacher.onboardingComplete ? "ACTIVE" : "ONBOARDING"} />
-              </div>
-
-              <div className="mt-5 space-y-4">
-                <div>
-                  <p className="mb-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Teaching Subjects</p>
-                  <div className="space-y-2">
-                    {teacher.taughtSubjects.map((subject: any) => (
-                      <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-                        <p className="truncate text-xs font-black text-[#1f1a23]">{subject.name}</p>
-                        <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                          {classLabel(subject.class)}
-                        </p>
-                      </div>
-                    ))}
-                    {teacher.taughtSubjects.length === 0 ? (
-                      <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-xs font-semibold text-[#4d4354]/55">
-                        No subjects assigned yet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Led Classes</p>
-                  <div className="space-y-2">
-                    {teacher.ledClasses.map((cls: any) => (
-                      <div key={cls.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-[#1f1a23]">{classLabel(cls)}</p>
-                          <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{cls.academicYear}</p>
-                        </div>
-                        <span className="shrink-0 text-[9px] font-black uppercase tracking-normal text-[#8127cf]">
-                          {cls._count?.students || 0} students
-                        </span>
-                      </div>
-                    ))}
-                    {teacher.ledClasses.length === 0 ? (
-                      <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-xs font-semibold text-[#4d4354]/55">
-                        No class leadership assigned yet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          {data.teachers.length === 0 ? (
-            <div className="md:col-span-2 xl:col-span-3">
-              <EmptyState icon={Users} title="No active teachers" description="Assigned teachers will appear here for principal oversight." />
-            </div>
-          ) : null}
+          {filtered.map((teacher: any) => (<FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id, "Teacher")} />))}
+          {filtered.length === 0 ? (<div className="md:col-span-2 xl:col-span-3"><EmptyState icon={Users} title={searchQuery ? "No matching teachers" : "No active teachers"} description={searchQuery ? "Try a different search term." : "Assigned teachers will appear here for principal oversight."} /></div>) : null}
         </div>
+        {pendingInvites.length > 0 ? (<div className="mt-6 space-y-2"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 px-2">Pending Teacher Invitations ({pendingInvites.length})</p><div className="space-y-2">{pendingInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div></div>) : null}
       </div>
     </div>
   );
 }
 
-function ReportsPanel({
-  data,
-  busyAction,
-  editingReportId,
-  editedRemarks,
-  onRunAction,
-  onGenerateRemarks,
-  onEdit,
-  onCancelEdit,
-  onRemarkChange,
-  onSaveRemark,
-}: {
-  data: any;
-  busyAction: string | null;
-  editingReportId: string | null;
-  editedRemarks: { en: string; ur: string };
-  onRunAction: (examId: string, action: ReportAction, successMessage: string) => void;
-  onGenerateRemarks: (examId: string) => void;
-  onEdit: (report: any) => void;
-  onCancelEdit: () => void;
-  onRemarkChange: (value: { en: string; ur: string }) => void;
-  onSaveRemark: (report: any, approve?: boolean) => void;
+function StudentsPanel({ students, classes, onAddStudent, onMoveStudent, onViewStudent, onBulkImport, onExport, onDeleteStudent }: {
+  students: any[]; classes: any[]; onAddStudent: (classId?: string) => void; onMoveStudent: (student: any) => void; onViewStudent: (student: any) => void; onBulkImport?: () => void; onExport?: () => void; onDeleteStudent?: (student: any) => void;
 }) {
+  const [classFilter, setClassFilter] = useState("all"); const [sectionFilter, setSectionFilter] = useState("all"); const [searchQuery, setSearchQuery] = useState(""); const [page, setPage] = useState(1); const perPage = 12;
+  const classGroups = groupClasses(classes); const selectedGroup = classGroups.find((g) => g.key === classFilter);
+  const filteredStudents = students.filter((s) => { if (sectionFilter !== "all") return s.class?.id === sectionFilter; if (classFilter !== "all") return classGroupKey(s.class) === classFilter; return true; }).filter((s) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return s.fullName?.toLowerCase().includes(q) || s.rollNo?.toLowerCase().includes(q) || s.guardianName?.toLowerCase().includes(q) || s.guardianPhone?.includes(q); });
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / perPage)); const safePage = Math.min(page, totalPages); const pagedStudents = filteredStudents.slice((safePage - 1) * perPage, safePage * perPage);
+  useEffect(() => { setPage(1); }, [classFilter, sectionFilter, searchQuery]);
+  if (students.length === 0) return (<EmptyState icon={GraduationCap} title="No students linked yet" description="Student profiles will appear here after classes and enrollment records are created." action={<BrandButton onClick={() => onAddStudent()} disabled={classes.length === 0}>Add Student</BrandButton>} />);
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[0.8fr_1.2fr] gap-8">
-      <div className="space-y-4">
-        <PanelTitle icon={ShieldCheck} title="Exam Review Actions" />
-        {data.reviewExams.map((exam: any) => (
-          <div key={exam.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/35 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-black text-[#1f1a23]">{exam.title}</h3>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                  {exam.term} - {classLabel(exam.class)}
-                </p>
-              </div>
-              <StatusPill status={exam.status} />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <ActionButton
-                label="Generate"
-                icon={FileText}
-                busy={busyAction === `generate-${exam.id}`}
-                onClick={() => onRunAction(exam.id, "generate", "Report cards generated")}
-              />
-              <ActionButton
-                label="PDFs"
-                icon={FileText}
-                busy={busyAction === `pdf-${exam.id}`}
-                onClick={() => onRunAction(exam.id, "pdf", "PDFs generated")}
-              />
-              <ActionButton
-                label="AI Remarks"
-                icon={Sparkles}
-                busy={busyAction === `ai-remarks-${exam.id}`}
-                onClick={() => onGenerateRemarks(exam.id)}
-              />
-              <ActionButton
-                label="Review"
-                icon={ShieldCheck}
-                busy={busyAction === `review-${exam.id}`}
-                onClick={() => onRunAction(exam.id, "review", "Exam marked as principal reviewed")}
-              />
-              <ActionButton
-                label="Publish"
-                icon={Upload}
-                busy={busyAction === `publish-${exam.id}`}
-                onClick={() => onRunAction(exam.id, "publish", "Reports published")}
-              />
-              <div className="col-span-2">
-                <ActionButton
-                  label="Send To Parents"
-                  icon={Send}
-                  busy={busyAction === `send-${exam.id}`}
-                  onClick={() => onRunAction(exam.id, "send", "Delivery attempted")}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-        {data.reviewExams.length === 0 ? (
-          <p className="rounded-[24px] bg-[#fbf0fe]/50 p-5 text-sm font-semibold text-[#4d4354]/55">
-            No locked exams are ready for principal review.
-          </p>
-        ) : null}
+    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3 mb-4"><PanelTitle icon={GraduationCap} title="Student Directory" /><div className="flex items-center gap-2"><BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>Add Student</BrandButton>{onBulkImport ? <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={onBulkImport}>Bulk Import</BrandButton> : null}{onExport ? <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={onExport}>Export CSV</BrandButton> : null}</div></div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px] max-w-xs"><span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Search</span><div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input type="text" placeholder="Search students..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35" /></div></div>
+          <FormSelect label="Class" value={classFilter} onChange={(v) => { setClassFilter(v); setSectionFilter("all"); }}><option value="all">All classes</option>{classGroups.map((g) => (<option key={g.key} value={g.key}>{g.name} - {g.academicYear}</option>))}</FormSelect>
+          <FormSelect label="Section" value={sectionFilter} onChange={setSectionFilter}><option value="all">All sections</option>{(selectedGroup?.sections || classes).map((cls) => (<option key={cls.id} value={cls.id}>{classLabel(cls)}</option>))}</FormSelect>
+          <div className="pb-1.5"><StatusPill status={`${filteredStudents.length} Shown`} /></div>
+        </div>
       </div>
-
-      <div className="space-y-4">
-        <PanelTitle icon={FileText} title="Report Card Remarks" />
-        {data.recentReportCards.map((report: any) => (
-          <ReportReviewCard
-            key={report.id}
-            report={report}
-            busy={busyAction === `remark-${report.id}`}
-            editing={editingReportId === report.id}
-            editedRemarks={editedRemarks}
-            onEdit={() => onEdit(report)}
-            onCancel={onCancelEdit}
-            onChange={onRemarkChange}
-            onSave={() => onSaveRemark(report)}
-            onApprove={() => onSaveRemark(report, true)}
-          />
-        ))}
-        {data.recentReportCards.length === 0 ? (
-          <EmptyState icon={FileText} title="No report cards" description="Generated report cards will appear here for remark approval." />
-        ) : null}
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">{pagedStudents.map((student: any) => { const report = student.reportCards?.[0]; const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`; return (<div key={student.id} className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 shadow-sm transition-all hover:border-[#8127cf]/20 hover:shadow-lg hover:-translate-y-0.5"><div className="flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-3.5"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-[#fbf0fe] shadow-sm"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/40">{student.rollNo} · {classLabel(student.class)}</p></div></div><StatusPill status={report ? report.status : "NO_REPORT"} /></div><div className="mt-4 grid grid-cols-2 gap-3"><MiniMetric label="Guardian" value={student.guardianName || "N/A"} /><MiniMetric label="Latest" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} active /></div><div className="mt-4 flex gap-3"><button type="button" onClick={() => onViewStudent(student)} className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">View Profile</button><button type="button" onClick={() => onMoveStudent(student)} className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">Move</button>{onDeleteStudent ? (<button type="button" onClick={() => onDeleteStudent(student)} className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition-all hover:bg-rose-100"><Trash2 className="h-4 w-4" /></button>) : null}</div></div>); })}</div>
+      {totalPages > 1 ? (<div className="mt-6 flex items-center justify-between gap-3"><StatusPill status={`Page ${safePage} of ${totalPages}`} /><div className="flex gap-2"><button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1} className="h-9 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354] transition-all hover:bg-[#fbf0fe] disabled:cursor-not-allowed disabled:opacity-40">Previous</button><button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages} className="h-9 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354] transition-all hover:bg-[#fbf0fe] disabled:cursor-not-allowed disabled:opacity-40">Next</button></div></div>) : null}
     </div>
   );
 }
 
-function EngagementPanel({
-  data,
-  totals,
-  busy,
-  onRunAutomation,
-}: {
-  data: any;
-  totals: { sent: number; failed: number; blocked: number; noContact: number };
-  busy: boolean;
-  onRunAutomation: () => void;
+function AIPanel({ insights, reviewItems, onComplete }: { insights: any[]; reviewItems: any[]; onComplete: () => void }) {
+  const [showAll, setShowAll] = useState(false);
+  const display = showAll ? insights : insights.slice(0, 5);
+  return (<div className="space-y-8"><AiActionPanel title="Principal AI" options={principalAIFeatures} onComplete={onComplete} /><div><PanelTitle icon={Sparkles} title="AI Insights" /><p className="mt-2 mb-5 text-xs font-semibold text-[#4d4354]/55">Actionable observations generated from campus data.</p>{insights.length > 0 ? (<div className="space-y-3">{display.map((insight: any) => (<div key={insight.id} className="rounded-2xl border border-[#cfc2d6]/10 bg-white p-4"><p className="text-sm font-black text-[#1f1a23]">{insight.title}</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/60">{insight.description}</p><p className="mt-2 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/40">{insight.category} · {insight.severity}</p></div>))}{insights.length > 5 ? (<button type="button" onClick={() => setShowAll(!showAll)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{showAll ? "Show Less" : `View All (${insights.length})`}</button>) : null}</div>) : (<EmptyState icon={Sparkles} title="No AI insights yet" description="AI insights will appear as campus data accumulates." />)}</div><div><PanelTitle icon={ClipboardList} title="AI Review Queue" /><p className="mt-2 mb-5 text-xs font-semibold text-[#4d4354]/55">Items flagged by AI for your review.</p><AIReviewQueue items={reviewItems} onComplete={onComplete} /></div></div>);
+}
+
+function ReportsPanel({ data, busyAction, editingReportId, editedRemarks, onRunAction, onGenerateRemarks, onEdit, onCancelEdit, onRemarkChange, onSaveRemark }: {
+  data: any; busyAction: string | null; editingReportId: string | null; editedRemarks: { en: string; ur: string };
+  onRunAction: (examId: string, action: ReportAction, successMessage: string) => void; onGenerateRemarks: (examId: string) => void; onEdit: (report: any) => void; onCancelEdit: () => void; onRemarkChange: (value: { en: string; ur: string }) => void; onSaveRemark: (report: any, approve?: boolean) => void;
 }) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" />
-        <EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" />
-        <EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" />
-        <EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" />
-      </div>
-
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <PanelTitle icon={MessageSquare} title="Recent Parent Communication" />
-          <BrandButton
-            variant="soft"
-            onClick={onRunAutomation}
-            disabled={busy}
-            icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-          >
-            Run Automation
-          </BrandButton>
-        </div>
-
-        <div className="space-y-3">
-          {data.recentCommunications.map((item: any) => (
-            <div key={item.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-[#1f1a23]">{formatStatus(item.templateKey)}</p>
-                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {item.student?.fullName || item.recipientName || "Parent"} - {item.channel}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-[#4d4354]/60">
-                    {item.body}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                  <StatusPill status={item.status} />
-                  <span className="text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/35">
-                    {formatDate(item.sentAt || item.createdAt)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-          {data.recentCommunications.length === 0 ? (
-            <p className="rounded-[24px] bg-white p-6 text-sm font-semibold text-[#4d4354]/55">
-              No parent communication has been generated yet.
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
+  return (<div className="grid grid-cols-1 xl:grid-cols-[0.8fr_1.2fr] gap-8"><div className="space-y-4"><PanelTitle icon={ShieldCheck} title="Exam Review Actions" />{data.reviewExams.map((exam: any) => (<div key={exam.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/35 p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-black text-[#1f1a23]">{exam.title}</h3><p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{exam.term} - {classLabel(exam.class)}</p></div><StatusPill status={exam.status} /></div><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton label="Generate" icon={FileText} busy={busyAction === `generate-${exam.id}`} onClick={() => onRunAction(exam.id, "generate", "Report cards generated")} /><ActionButton label="PDFs" icon={FileText} busy={busyAction === `pdf-${exam.id}`} onClick={() => onRunAction(exam.id, "pdf", "PDFs generated")} /><ActionButton label="AI Remarks" icon={Sparkles} busy={busyAction === `ai-remarks-${exam.id}`} onClick={() => onGenerateRemarks(exam.id)} /><ActionButton label="Review" icon={ShieldCheck} busy={busyAction === `review-${exam.id}`} onClick={() => onRunAction(exam.id, "review", "Exam marked as principal reviewed")} /><ActionButton label="Publish" icon={Upload} busy={busyAction === `publish-${exam.id}`} onClick={() => onRunAction(exam.id, "publish", "Reports published")} /><div className="col-span-2"><ActionButton label="Send To Parents" icon={Send} busy={busyAction === `send-${exam.id}`} onClick={() => onRunAction(exam.id, "send", "Delivery attempted")} /></div></div></div>))}{data.reviewExams.length === 0 ? (<p className="rounded-[24px] bg-[#fbf0fe]/50 p-5 text-sm font-semibold text-[#4d4354]/55">No locked exams are ready for principal review.</p>) : null}</div><div className="space-y-4"><PanelTitle icon={FileText} title="Report Card Remarks" />{data.recentReportCards.map((report: any) => (<ReportReviewCard key={report.id} report={report} busy={busyAction === `remark-${report.id}`} editing={editingReportId === report.id} editedRemarks={editedRemarks} onEdit={() => onEdit(report)} onCancel={onCancelEdit} onChange={onRemarkChange} onSave={() => onSaveRemark(report)} onApprove={() => onSaveRemark(report, true)} />))}{data.recentReportCards.length === 0 ? (<EmptyState icon={FileText} title="No report cards" description="Generated report cards will appear here for remark approval." />) : null}</div></div>);
 }
 
-function ReportReviewCard({
-  report,
-  busy,
-  editing,
-  editedRemarks,
-  onEdit,
-  onCancel,
-  onChange,
-  onSave,
-  onApprove,
-}: {
-  report: any;
-  busy: boolean;
-  editing: boolean;
-  editedRemarks: { en: string; ur: string };
-  onEdit: () => void;
-  onCancel: () => void;
-  onChange: (value: { en: string; ur: string }) => void;
-  onSave: () => void;
-  onApprove: () => void;
+function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; totals: { sent: number; failed: number; blocked: number; noContact: number }; busy: boolean; onRunAutomation: () => void; }) {
+  return (<div className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-4 gap-4"><EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" /><EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" /><EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" /><EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" /></div><div className="rounded-[32px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6"><PanelTitle icon={MessageSquare} title="Recent Parent Communication" /><BrandButton variant="soft" onClick={onRunAutomation} disabled={busy} icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}>Run Automation</BrandButton></div><div className="space-y-3">{data.recentCommunications.map((item: any) => (<div key={item.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm font-black text-[#1f1a23]">{formatStatus(item.templateKey)}</p><p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">{item.student?.fullName || item.recipientName || "Parent"} - {item.channel}</p><p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-[#4d4354]/60">{item.body}</p></div><div className="flex shrink-0 flex-col items-start gap-2 sm:items-end"><StatusPill status={item.status} /><span className="text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/35">{formatDate(item.sentAt || item.createdAt)}</span></div></div></div>))}{data.recentCommunications.length === 0 ? (<p className="rounded-[24px] bg-white p-6 text-sm font-semibold text-[#4d4354]/55">No parent communication has been generated yet.</p>) : null}</div></div></div>);
+}
+
+function ClassModal({ open, onClose, form, onChange, onSave, saving, teachers }: { open: boolean; onClose: () => void; form: ClassFormState; onChange: (f: ClassFormState) => void; onSave: () => void; saving: boolean; teachers: any[]; }) {
+  if (!open) return null;
+  return (<ModalFrame title="Create Class" onClose={onClose}><div className="space-y-4"><FormInput label="Class Name" value={form.name} placeholder="e.g. Class 10" onChange={(v) => onChange({ ...form, name: v })} /><FormInput label="Sections (one per line)" value={form.sections} placeholder="A\nB\nC" onChange={(v) => onChange({ ...form, sections: v })} textarea /><FormInput label="Academic Year" value={String(form.academicYear)} placeholder="2026" onChange={(v) => onChange({ ...form, academicYear: Number(v) || new Date().getFullYear() })} /><FormSelect label="Class Teacher (optional)" value={form.classTeacherId} onChange={(v) => onChange({ ...form, classTeacherId: v })}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</FormSelect></div><ModalActions onCancel={onClose} onSave={onSave} saving={saving} /></ModalFrame>);
+}
+
+function StudentModal({ open, onClose, form, onChange, onSave, saving, classes }: { open: boolean; onClose: () => void; form: StudentFormState; onChange: (f: StudentFormState) => void; onSave: () => void; saving: boolean; classes: any[]; }) {
+  if (!open) return null;
+  const sections = classes.map((c) => ({ id: c.id, label: classLabel(c) }));
+  return (<ModalFrame title="Add Student" onClose={onClose}><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><FormInput label="Full Name" value={form.fullName} placeholder="e.g. John Doe" onChange={(v) => onChange({ ...form, fullName: v })} /><FormInput label="Roll No" value={form.rollNo} placeholder="e.g. 1" onChange={(v) => onChange({ ...form, rollNo: v })} /></div><FormSelect label="Gender" value={form.gender} onChange={(v) => onChange({ ...form, gender: v })}><option value="MALE">Male</option><option value="FEMALE">Female</option></FormSelect><FormSelect label="Class" value={form.classId} onChange={(v) => onChange({ ...form, classId: v })}><option value="">Select a class</option>{sections.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}</FormSelect><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Guardian Info</p><div className="grid grid-cols-2 gap-4"><FormInput label="Guardian Name" value={form.guardianName} placeholder="Parent/Guardian" onChange={(v) => onChange({ ...form, guardianName: v })} /><FormInput label="Guardian Phone" value={form.guardianPhone} placeholder="03XX-XXXXXXX" onChange={(v) => onChange({ ...form, guardianPhone: v })} /></div><FormInput label="Guardian Email" value={form.guardianEmail} placeholder="parent@example.com" onChange={(v) => onChange({ ...form, guardianEmail: v })} /></div><ModalActions onCancel={onClose} onSave={onSave} saving={saving} /></ModalFrame>);
+}
+
+function MoveStudentModal({ student, classes, selectedClassId, onSelectClass, onMove, busy, onClose }: { student: any; classes: any[]; selectedClassId: string; onSelectClass: (id: string) => void; onMove: () => void; busy: boolean; onClose: () => void; }) {
+  return (<ModalFrame title={`Move ${student.fullName}`} onClose={onClose}><p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Select a new class for this student.</p><FormSelect label="Destination Class" value={selectedClassId} onChange={onSelectClass}><option value="">Select class</option>{classes.map((cls) => (<option key={cls.id} value={cls.id}>{classLabel(cls)}</option>))}</FormSelect><ModalActions onCancel={onClose} onSave={onMove} saving={busy} saveLabel="Move" /></ModalFrame>);
+}
+
+function InviteModal({ open, role, email, onEmailChange, busy, onInvite, onClose, canInviteAdmins }: { open: boolean; role: InviteRole; email: string; onEmailChange: (v: string) => void; busy: boolean; onInvite: () => void; onClose: () => void; canInviteAdmins: boolean; }) {
+  if (!open) return null;
+  const cannotInvite = !canInviteAdmins && (role === "CAMPUS_ADMIN" || role === "PRINCIPAL");
+  return (<ModalFrame title={`Invite ${formatStatus(role)}`} onClose={onClose}><p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Send an invitation for the role of <strong>{formatStatus(role)}</strong>. An email will be sent with onboarding instructions.</p>{cannotInvite ? (<p className="rounded-2xl bg-amber-50 px-4 py-3 text-[10px] font-bold text-amber-700 mb-4">This campus is part of a multi-campus school; admin/principal invitations are managed at the super admin level.</p>) : null}<div className="p-4 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 flex items-center gap-4 mb-5"><Mail className="w-5 h-5 text-[#8127cf]" /><input type="email" placeholder="Official Email Address" className="bg-transparent border-none outline-none font-bold text-sm w-full placeholder:text-[#4d4354]/35" value={email} onChange={(e) => onEmailChange(e.target.value)} /></div><ModalActions onCancel={onClose} onSave={onInvite} saving={busy} saveLabel={`Invite ${formatStatus(role)}`} /></ModalFrame>);
+}
+
+function ClassGroupCard({ group, teachers, onAddStudent, onViewClass, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
+  group: { name: string; academicYear: number | string; sections: any[] }; teachers: any[]; onAddStudent: (classId?: string) => void; onViewClass: (cls: any) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-black text-[#1f1a23]">{report.student.fullName}</h3>
-            <StatusPill status={report.remarksApproved ? "APPROVED" : "REVIEW"} />
-            <StatusPill status={report.deliveryStatus} />
-          </div>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-            {report.student.rollNo} - {report.exam.title} {report.exam.term}
-          </p>
-        </div>
-        {!editing ? (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
-
-      {editing ? (
-        <div className="mt-5 space-y-3">
-          <textarea
-            value={editedRemarks.en}
-            onChange={(event) => onChange({ ...editedRemarks, en: event.target.value })}
-            placeholder="English remarks"
-            rows={3}
-            className="w-full resize-none rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 p-4 text-sm font-semibold outline-none transition-all focus:border-[#8127cf]/30 focus:bg-white"
-          />
-          <textarea
-            value={editedRemarks.ur}
-            onChange={(event) => onChange({ ...editedRemarks, ur: event.target.value })}
-            placeholder="Urdu remarks"
-            rows={3}
-            dir="rtl"
-            className="w-full resize-none rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 p-4 text-sm font-semibold outline-none transition-all focus:border-[#8127cf]/30 focus:bg-white"
-          />
-          <div className="flex flex-wrap gap-2">
-            <BrandButton variant="soft" onClick={onSave} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Save
-            </BrandButton>
-            <BrandButton onClick={onApprove} disabled={busy} icon={<ShieldCheck className="h-4 w-4" />}>
-              Approve
-            </BrandButton>
-            <BrandButton variant="danger" onClick={onCancel}>
-              Cancel
-            </BrandButton>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-3">
-          <RemarkBlock label="English" value={report.remarksEn} />
-          <RemarkBlock label="Urdu" value={report.remarksUr} rtl />
-          <div className="grid grid-cols-2 gap-3 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45 md:grid-cols-4">
-            <span>Total {report.obtainedMarks}/{report.totalMarks}</span>
-            <span>{Number(report.percentage || 0).toFixed(1)}%</span>
-            <span>{report.student.guardianWhatsapp ? "WhatsApp ready" : "No WhatsApp"}</span>
-            <span>{report.student.guardianEmail ? "Email ready" : "No Email"}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  const [open, setOpen] = useState(true); const studentCount = group.sections.reduce((sum, cls) => sum + (cls._count?.students || 0), 0); const subjectCount = group.sections.reduce((sum, cls) => sum + (cls._count?.subjects || cls.subjects?.length || 0), 0);
+  return (<div className={cn("rounded-[32px] border bg-white shadow-lg transition-all self-start", open ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl" : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10")}><button type="button" onClick={() => setOpen((v) => !v)} className={cn("flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all", open ? "p-5" : "px-4 py-3")} aria-expanded={open}><div className="flex items-center gap-3 min-w-0"><div className={cn("flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all", open ? "h-10 w-10" : "h-8 w-8")}><BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} /></div><div className="min-w-0"><p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>{group.name}</p>{open ? (<p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}</p>) : null}</div></div><div className="flex shrink-0 items-center gap-2">{onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }} className="flex h-8 items-center gap-1 rounded-lg bg-rose-50 px-2 text-[8px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"><Trash2 className="h-3 w-3" />Delete</button>) : null}<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{group.sections.length} cls</span><ChevronDown className={cn("text-[#8127cf] transition-all duration-200", open ? "h-5 w-5 rotate-180" : "h-4 w-4")} /></div></button>{open ? (<div className="border-t border-[#cfc2d6]/10 p-5 space-y-3"><div className="grid grid-cols-2 gap-3"><MiniMetric label="Students" value={studentCount} active /><MiniMetric label="Subjects" value={subjectCount} /></div>{group.sections.map((cls) => (<SectionCard key={cls.id} cls={cls} teachers={teachers} classTeacherId={cls.classTeacher?.id || ""} onViewClass={onViewClass} onAddStudent={onAddStudent} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>) : null}</div>);
 }
 
-function ReportRow({ report, compact }: { report: any; compact?: boolean }) {
-  return (
-    <div className="bg-white p-5 rounded-[24px] border border-[#cfc2d6]/10 flex items-center justify-between gap-4">
-      <div className="min-w-0">
-        <p className="text-sm font-black text-[#1f1a23] truncate">{report.student.fullName}</p>
-        <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-normal truncate">
-          {report.student.rollNo} - {report.exam.title} {report.exam.term}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {!compact ? <StatusPill status={report.deliveryStatus} /> : null}
-        <StatusPill status={report.isSent ? "SENT" : report.remarksApproved ? "APPROVED" : "REVIEW"} />
-      </div>
-    </div>
-  );
-}
-
-function RemarkBlock({ label, value, rtl }: { label: string; value?: string | null; rtl?: boolean }) {
-  if (!value) {
-    return (
-      <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/45 px-4 py-3 text-xs font-semibold italic text-[#4d4354]/45">
-        No {label.toLowerCase()} remarks yet.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/45 px-4 py-3">
-      <p className="mb-1 text-[9px] font-black uppercase tracking-normal text-[#8127cf]">{label}</p>
-      <p className="text-sm font-semibold leading-relaxed text-[#1f1a23]" dir={rtl ? "rtl" : undefined}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ActionButton({
-  label,
-  icon: Icon,
-  busy,
-  onClick,
-}: {
-  label: string;
-  icon: any;
-  busy: boolean;
-  onClick: () => void;
+function SectionCard({ cls, teachers, classTeacherId, onViewClass, onAddStudent, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
+  cls: any; teachers: any[]; classTeacherId: string; onViewClass: (cls: any) => void; onAddStudent: (classId?: string) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-3 text-[10px] font-black uppercase tracking-normal text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-      {label}
-    </button>
-  );
+  const [subjectsOpen, setSubjectsOpen] = useState(true); const [changingTeacher, setChangingTeacher] = useState(false); const [editingSection, setEditingSection] = useState(false); const [editName, setEditName] = useState(cls.name || ""); const [editSection, setEditSection] = useState(cls.section || "");
+  const saveSection = async () => { if (onUpdateClass) { await onUpdateClass(cls.id, { name: editName, section: editSection }); setEditingSection(false); } };
+  if (editingSection) return (<div className="rounded-2xl bg-white border border-[#8127cf]/20 p-4 space-y-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Edit Section</p><div className="grid grid-cols-2 gap-3"><FormInput label="Class Name" value={editName} placeholder="e.g. Class 10" onChange={setEditName} /><FormInput label="Section" value={editSection} placeholder="e.g. A" onChange={setEditSection} /></div><div className="flex gap-2 justify-end"><button type="button" onClick={() => setEditingSection(false)} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] cursor-pointer">Cancel</button><BrandButton variant="dark" className="h-10" onClick={saveSection}>Save</BrandButton></div></div>);
+  return (<div className="rounded-2xl bg-[#fbf0fe]/55"><div className="flex items-center justify-between gap-3 p-4"><div onClick={(e) => { e.stopPropagation(); onViewClass(cls); }} className="min-w-0 flex-1 cursor-pointer text-left"><p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{cls.classTeacher?.fullName || "No class teacher"} - {cls._count?.students || 0} students</p></div><div className="flex shrink-0 items-center gap-1.5"><button type="button" onClick={(e) => { e.stopPropagation(); setEditingSection(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer" title="Edit section"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg></button>{onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer" title="Delete section"><Trash2 className="h-3.5 w-3.5" /></button>) : null}{changingTeacher ? (<select value={classTeacherId || ""} onChange={(e) => { const val = e.target.value; if (val !== classTeacherId) onChangeTeacher(cls.id, val); setChangingTeacher(false); }} className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer" autoFocus onBlur={() => setChangingTeacher(false)}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</select>) : (<button type="button" onClick={(e) => { e.stopPropagation(); setChangingTeacher(true); }} className={cn("flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-normal transition-all", cls.classTeacher ? "bg-emerald-50 text-emerald-700 hover:bg-amber-50 hover:text-amber-700" : "bg-amber-50 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700")}><Users className="h-3 w-3" />{cls.classTeacher ? "Chg" : "Asgn"}</button>)}{onAddStudent ? (<button type="button" onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }} className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">+ Student</button>) : null}<button type="button" onClick={() => setSubjectsOpen((v) => !v)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"><ChevronDown className={cn("h-4 w-4 transition-transform duration-200", subjectsOpen && "rotate-180")} /></button></div></div>{subjectsOpen ? (<div className="border-t border-[#cfc2d6]/10 px-4 py-3">{cls.subjects?.length ? (<div className="flex flex-wrap gap-2">{cls.subjects.slice(0, 5).map((subject: any) => (<div key={subject.id} className="flex items-center gap-1 rounded-full bg-white pl-3 pr-1 py-1"><span className="text-[8px] font-black uppercase tracking-normal text-[#8127cf]">{subject.name}{subject.teacher?.fullName ? ` - ${subject.teacher.fullName}` : ""}</span>{onDeleteSubject ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }} className="flex h-5 w-5 items-center justify-center rounded-full text-[#4d4354]/30 transition-all hover:bg-rose-50 hover:text-rose-500 cursor-pointer"><Trash2 className="h-3 w-3" /></button>) : null}</div>))}</div>) : (<p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">No subjects yet. Open this section to add subjects and assign teachers.</p>)}</div>) : null}</div>);
 }
 
-function PanelTitle({ icon: Icon, title }: { icon: any; title: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-        <Icon className="h-5 w-5" />
-      </div>
-      <h3 className="text-lg font-black tracking-normal text-[#1f1a23]">{title}</h3>
-    </div>
-  );
+function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onResend: () => void; onCancel: () => void }) {
+  const expired = invite.expiresAt ? new Date() > new Date(invite.expiresAt) : false;
+  const expiryLabel = invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+  return (<div className="bg-amber-50/70 p-5 rounded-[28px] border border-amber-100 flex items-center justify-between gap-4 group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center shrink-0"><Clock className="w-5 h-5 text-amber-500" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none mb-1 truncate">Invitation pending</h4><p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-normal leading-none truncate">{invite.email}</p>{expiryLabel ? (<p className={`mt-2 text-[8px] font-black uppercase tracking-normal ${expired ? "text-rose-600" : "text-amber-600"}`}>{expired ? "Expired" : "Expires"} {expiryLabel}</p>) : null}</div></div><div className="flex flex-wrap items-center justify-end gap-2 shrink-0"><StatusPill status={expired ? "Expired" : formatStatus(invite.role)} /><button type="button" onClick={onResend} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] flex items-center gap-1.5 justify-center hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"><Send className="w-3.5 h-3.5" />Resend</button><button type="button" onClick={onCancel} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-normal text-rose-500 flex items-center gap-1.5 justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer"><X className="w-4 h-4" />Cancel</button></div></div>);
+}
+
+function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
+  const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  return (<div className="bg-white p-5 rounded-[28px] border border-transparent hover:border-[#8127cf]/10 hover:shadow-xl transition-all flex items-center justify-between group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-[#fbf0fe] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none mb-1 truncate">{teacher.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-normal leading-none truncate">{teacher.email}</p></div></div><div className="flex items-center gap-6 shrink-0"><span className="text-[8px] font-black uppercase tracking-normal text-emerald-600">{teacher._count?.taughtSubjects || 0} subjects</span><button type="button" onClick={onView} className="h-9 rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] flex items-center gap-1.5 justify-center hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer">View</button><button type="button" onClick={onRemove} className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-normal text-rose-500 flex items-center gap-1.5 justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Revoke</button></div></div>);
+}
+
+function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserId?: string; onRemove?: () => void }) {
+  const isCurrentUser = admin.id === currentUserId;
+  return (<div className="bg-[#fbf0fe]/45 p-5 rounded-[28px] border border-transparent hover:border-[#8127cf]/10 transition-all flex items-center justify-between gap-4"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.email)}`} alt="" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none mb-1 truncate">{admin.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-normal leading-none truncate">{admin.email}</p><p className="mt-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf]">{isCurrentUser ? "Current owner session" : formatStatus(admin.role)}</p></div></div>{!isCurrentUser && onRemove ? (<button type="button" onClick={onRemove} className="shrink-0 h-9 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer">Remove</button>) : null}</div>);
+}
+
+function SnapshotColumn({ icon: Icon, title, after, children }: { icon: LucideIcon; title: string; after?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(true);
+  const childCount = useMemo(() => { let count = 0; if (Array.isArray(children)) { count = children.filter(Boolean).length; } else if (children) { count = 1; } return count; }, [children]);
+  return (<div className={cn("rounded-[32px] border bg-white shadow-lg transition-all self-start", open ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl" : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10")}><button type="button" onClick={() => setOpen((v) => !v)} className={cn("flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all", open ? "p-5" : "px-4 py-3")} aria-expanded={open}><div className="flex items-center gap-3 min-w-0"><div className={cn("flex shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all", open ? "h-10 w-10" : "h-8 w-8")}><Icon className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} /></div><div className="min-w-0"><p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>{title}</p>{open ? (<p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{childCount} item{childCount === 1 ? "" : "s"}</p>) : null}</div></div><div className="flex shrink-0 items-center gap-2">{open ? null : (<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{childCount} items</span>)}<ChevronDown className={cn("text-[#8127cf] transition-all duration-200", open ? "h-5 w-5 rotate-180" : "h-4 w-4")} /></div></button>{open ? (<div className="border-t border-[#cfc2d6]/10 p-5">{after ? (<div className="mb-3 flex justify-end">{after}</div>) : null}<div className="space-y-3">{children}</div></div>) : null}</div>);
+}
+
+function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+  return (<div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5"><div className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar`}><div className="flex justify-between items-start gap-5 mb-8"><div>{eyebrow ? <p className="text-[10px] font-black uppercase text-[#8127cf]">{eyebrow}</p> : null}<h3 className="mt-1 text-2xl font-black text-[#1f1a23] tracking-normal">{title}</h3></div><button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all"><X className="w-5 h-5" /></button></div>{children}</div></div>);
+}
+
+function ModalActions({ saving, saveLabel, onCancel, onSave }: { saving?: boolean; saveLabel?: string; onCancel: () => void; onSave: () => void }) {
+  return (<div className="mt-8 flex gap-4"><BrandButton variant="soft" className="flex-1 h-14" onClick={onCancel}>Cancel</BrandButton><BrandButton variant="dark" className="flex-[2] h-14" onClick={onSave} disabled={saving}>{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : saveLabel || "Save"}</BrandButton></div>);
+}
+
+function FormInput({ label, value, placeholder, type = "text", textarea, onChange }: { label: string; value: string; placeholder?: string; type?: string; textarea?: boolean; onChange: (value: string) => void }) {
+  if (textarea) return (<label className="block"><span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span><textarea value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white resize-none" /></label>);
+  return (<label className="block"><span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span><input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white" /></label>);
+}
+
+function FormSelect({ label, value, children, onChange }: { label: string; value: string; children: ReactNode; onChange: (value: string) => void }) {
+  return (<label className="block"><span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span><select value={value} onChange={(e) => onChange(e.target.value)} className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white">{children}</select></label>);
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (<div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span><span className="text-xs font-black text-[#1f1a23] text-right">{value}</span></div>);
+}
+
+function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (<div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]"><Icon className="h-4 w-4" /></div><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{title}</p></div>);
+}
+
+function MiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
+  return (<div className={`rounded-2xl p-3 ${active ? "bg-[#fbf0fe] border border-[#8127cf]/10" : "bg-[#f3f4f9]/50"}`}><p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p><p className="mt-0.5 text-sm font-black text-[#1f1a23] truncate">{value}</p></div>);
 }
 
 function StatusPill({ status }: { status?: string }) {
-  return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${statusTone(status)}`}>
-      {formatStatus(status)}
-    </span>
-  );
+  return (<span className={`inline-flex shrink-0 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${statusTone(status)}`}>{formatStatus(status)}</span>);
 }
 
-function MiniMetricCompact({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl bg-white px-4 py-3">
-      <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
-      <p className="mt-1 text-xl font-black text-[#1f1a23]">{value}</p>
-    </div>
-  );
+function EmptyInline({ text }: { text: string }) {
+  return (<p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">{text}</p>);
 }
 
-function EngagementMetric({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between rounded-[20px] bg-[#fbf0fe]/60 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#8127cf] shadow-sm">
-          <Icon className="h-4 w-4" />
-        </div>
-        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/50">{label}</p>
-      </div>
-      <p className="text-lg font-black text-[#1f1a23]">{value}</p>
-    </div>
-  );
+function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; icon: LucideIcon; busy: boolean; onClick: () => void }) {
+  return (<button type="button" onClick={onClick} disabled={busy} className="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe] text-[9px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}{label}</button>);
 }
 
-function EngagementStat({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: any;
-  label: string;
-  value: number;
-  tone: "green" | "rose" | "purple" | "amber";
+function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCancel, onChange, onSave, onApprove }: {
+  report: any; busy: boolean; editing: boolean; editedRemarks: { en: string; ur: string }; onEdit: () => void; onCancel: () => void; onChange: (v: { en: string; ur: string }) => void; onSave: () => void; onApprove: () => void;
 }) {
-  const toneClass = {
-    green: "bg-emerald-50 text-emerald-600",
-    rose: "bg-rose-50 text-rose-600",
-    purple: "bg-[#fbf0fe] text-[#8127cf]",
-    amber: "bg-amber-50 text-amber-600",
-  }[tone];
+  return (<div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5"><div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{report.exam?.title || "Exam"} · {report.grade || `${Math.round(report.percentage || 0)}%`}</p></div><StatusPill status={report.status} /></div>{editing ? (<div className="space-y-3"><div><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-1">English Remarks</p><textarea value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20" /></div><div><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-1">Urdu Remarks</p><textarea value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20" /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={onSave} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</BrandButton><BrandButton variant="dark" onClick={onApprove} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Approve"}</BrandButton><button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 cursor-pointer">Cancel</button></div></div>) : (<div className="flex gap-2"><button type="button" onClick={onEdit} className="h-9 cursor-pointer rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">Edit Remarks</button></div>)}</div>);
+}
 
-  return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg">
-      <div className={`mb-5 flex h-11 w-11 items-center justify-center rounded-2xl ${toneClass}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
-      <p className="mt-1 text-3xl font-black text-[#1f1a23]">{value}</p>
+function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
+  const toneStyles: Record<string, string> = { green: "bg-emerald-50 text-emerald-700", rose: "bg-rose-50 text-rose-700", purple: "bg-[#fbf0fe] text-[#8127cf]", amber: "bg-amber-50 text-amber-700" };
+  return (<div className="rounded-3xl bg-white border border-[#cfc2d6]/10 p-5"><div className="flex items-center gap-3 mb-3"><div className={`rounded-xl p-2 ${toneStyles[tone] || "bg-[#f3f4f9] text-[#4d4354]/60"}`}><Icon className="w-4 h-4" /></div><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p></div><p className="text-3xl font-black tracking-normal text-[#1f1a23]">{value}</p></div>);
+}
+
+function EngagementMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
+  return (<div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]"><Icon className="h-4 w-4" /></div><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p></div><p className="text-sm font-black text-[#1f1a23]">{value}</p></div>);
+}
+
+function BulkStudentImport({ campusName, classes, onClose, onComplete }: { campusName: string; classes: any[]; onClose: () => void; onComplete: () => Promise<any>; }) {
+  const [csvText, setCsvText] = useState(""); const [preview, setPreview] = useState<any[]>([]); const [parsedError, setParsedError] = useState(""); const [importing, setImporting] = useState(false);
+  const parseCSVRow = (line: string): string[] => { const cols: string[] = []; let current = ""; let inQuotes = false; for (let i = 0; i < line.length; i++) { const ch = line[i]; if (ch === '"') { inQuotes = !inQuotes; } else if (ch === "," && !inQuotes) { cols.push(current.trim()); current = ""; } else { current += ch; } } cols.push(current.trim()); return cols; };
+  const downloadTemplate = () => { const csv = "Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email\nJohn Doe,101,MALE,Grade 8 A,Jane Doe,+923001234567,jane@example.com\nJane Smith,102,FEMALE,Grade 8 A,,+923001234568,\nAlex Lee,103,OTHER,Grade 8 B,,,"; const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "student_import_template.csv"; a.click(); URL.revokeObjectURL(url); };
+  const parseCSV = (text: string) => { setParsedError(""); const lines = text.trim().split("\n").filter(Boolean); if (lines.length < 2) { setPreview([]); return; } const headers = parseCSVRow(lines[0]).map((h) => h.trim().toLowerCase()); const nameIdx = headers.findIndex((h) => h.includes("name") || h === "fullname" || h === "full_name"); const rollIdx = headers.findIndex((h) => h.includes("roll") || h === "rollno" || h === "roll_no"); const genderIdx = headers.findIndex((h) => h.includes("gender")); const classIdx = headers.findIndex((h) => h.includes("class")); const guardianIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("name")); const guardianPhoneIdx = headers.findIndex((h) => h.includes("guardian") && (h.includes("phone") || h.includes("whatsapp"))); const guardianEmailIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("email")); if (nameIdx === -1 || rollIdx === -1) { setParsedError("CSV must have at least \"Full Name\" and \"Roll No\" columns"); setPreview([]); return; } const rows = []; for (let i = 1; i < lines.length; i++) { const cols = parseCSVRow(lines[i]).map((c) => c.trim()); const name = cols[nameIdx] || ""; const rollNo = cols[rollIdx] || ""; if (!name || !rollNo) continue; const className = classIdx >= 0 ? cols[classIdx] || "" : ""; const matchedClass = className ? classes.find((c) => `${c.name} ${c.section || ""}`.trim().toLowerCase() === className.toLowerCase()) : null; rows.push({ fullName: name, rollNo, gender: genderIdx >= 0 ? (cols[genderIdx]?.toUpperCase() === "F" || cols[genderIdx]?.toUpperCase() === "FEMALE" ? "FEMALE" : cols[genderIdx]?.toUpperCase() === "OTHER" ? "OTHER" : "MALE") : "MALE", classId: matchedClass?.id || (classIdx >= 0 ? "__unknown__" : classes[0]?.id || ""), className: matchedClass ? `${matchedClass.name} ${matchedClass.section || ""}`.trim() : className || (classes[0] ? `${classes[0].name} ${classes[0].section || ""}`.trim() : "Unknown"), guardianName: guardianIdx >= 0 ? cols[guardianIdx] || "" : "", guardianPhone: guardianPhoneIdx >= 0 ? cols[guardianPhoneIdx] || "" : "", guardianEmail: guardianEmailIdx >= 0 ? cols[guardianEmailIdx] || "" : "", _unknownClass: !matchedClass && className ? className : "", }); } setPreview(rows); };
+  const handleImport = async () => { if (preview.length === 0) return toast.error("No valid rows to import"); const unknownClasses = [...new Set(preview.filter((r) => r._unknownClass).map((r) => r._unknownClass))]; if (unknownClasses.length > 0) { return toast.error(`Unknown classes: ${unknownClasses.join(", ")}. Check the class names or add them first.`); } setImporting(true); try { const res = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: preview.map(({ _unknownClass, className, ...rest }) => rest) }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Import failed"); toast.success(result.message || `${preview.length} students imported`); setCsvText(""); setPreview([]); await onComplete(); onClose(); } catch (error: any) { toast.error(error.message); } finally { setImporting(false); } };
+  return (<ModalFrame title={`Bulk Import Students — ${campusName}`} eyebrow="Student enrollment" onClose={onClose} wide><div className="mb-4 rounded-2xl bg-[#fbf0fe]/60 p-4"><p className="text-[10px] font-bold text-[#4d4354]/60">Paste CSV data with columns: Full Name, Roll No, Gender (MALE/FEMALE/OTHER), Class (e.g. &quot;Grade 8 A&quot;), Guardian Name, Guardian Phone, Guardian Email</p><button type="button" onClick={downloadTemplate} className="mt-2 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"><Download className="h-3 w-3" />Download CSV Template</button></div><textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); parseCSV(e.target.value); }} placeholder={`Full Name, Roll No, Gender, Class, Guardian Name, Guardian Phone, Guardian Email\nJohn Doe, 101, MALE, Grade 8 A, Jane Doe, +923001234567, jane@example.com`} className="h-40 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-4 text-sm font-bold outline-none resize-none transition-all focus:border-[#8127cf]/35 focus:bg-white" />{parsedError ? (<p className="mt-2 text-xs font-bold text-rose-600">{parsedError}</p>) : null}{preview.length > 0 ? (<div className="mt-4"><p className="mb-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Preview: {preview.length} students</p><div className="max-h-48 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar"><table className="w-full text-left text-[11px]"><thead><tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40"><th className="px-4 py-2">Name</th><th className="px-4 py-2">Roll</th><th className="px-4 py-2">Class</th><th className="px-4 py-2">Guardian</th></tr></thead><tbody className="divide-y divide-[#f3f4f9]">{preview.slice(0, 20).map((row, i) => (<tr key={i}><td className="px-4 py-2 font-bold text-[#1f1a23]">{row.fullName}</td><td className="px-4 py-2 text-[#4d4354]/60">{row.rollNo}</td><td className="px-4 py-2 text-[#4d4354]/60">{row.className}</td><td className="px-4 py-2 text-[#4d4354]/60">{row.guardianName || "—"}</td></tr>))}</tbody></table>{preview.length > 20 ? (<p className="p-3 text-center text-[10px] font-bold text-[#4d4354]/40">+{preview.length - 20} more rows</p>) : null}</div><div className="mt-5 flex justify-end gap-3"><BrandButton variant="soft" onClick={() => { setCsvText(""); setPreview([]); }}>Clear</BrandButton><BrandButton variant="dark" onClick={handleImport} disabled={importing}>{importing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Import ${preview.length} Students`}</BrandButton></div></div>) : null}</ModalFrame>);
+}
+
+function ActivityLogModal({ onClose }: { onClose: () => void }) {
+  const [logs, setLogs] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("all"); const [page, setPage] = useState(1); const perPage = 25;
+  const fetchLogs = async () => { setLoading(true); try { const params = new URLSearchParams({ limit: "200" }); if (filter !== "all") params.set("tableName", filter); const res = await fetch(`/api/audit-log?${params}`); const result = await res.json(); if (res.ok) setLogs(result.data || []); } catch { setLogs([]); } finally { setLoading(false); } };
+  useEffect(() => { fetchLogs(); }, [filter]);
+  const filtered = logs; const totalPages = Math.max(1, Math.ceil(filtered.length / perPage)); const safePage = Math.min(page, totalPages); const pagedLogs = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+  useEffect(() => { setPage(1); }, [filter]);
+  const tableOptions = [{ value: "all", label: "All Events" }, { value: "student", label: "Students" }, { value: "class", label: "Classes" }, { value: "subject", label: "Subjects" }, { value: "invitation", label: "Invitations" }, { value: "marks", label: "Marks" }];
+  const describeLog = (log: any): { label: string; detail: string; userName: string } => { const userName = log.user?.fullName || log.user?.email || "System"; const table = log.tableName.replace(/_/g, " "); const isCreate = !log.oldValue; const isDelete = !log.newValue; const oldV = log.oldValue || {}; const newV = log.newValue || {}; if (table === "student") { const name = newV.fullName || oldV.fullName || "a student"; if (isCreate) return { label: `Added ${name}`, detail: `Roll ${newV.rollNo || ""}`, userName }; if (oldV.classId && newV.classId && oldV.classId !== newV.classId) return { label: `Moved ${name}`, detail: `Class changed`, userName }; return { label: `Updated ${name}`, detail: "", userName }; } if (table === "class") { const name = newV.name || oldV.name || ""; const section = newV.section || oldV.section || ""; if (isCreate) return { label: `Created class ${name}`, detail: `Section ${section}, ${newV.academicYear || ""}`, userName }; const oldTeacher = oldV.classTeacherId; const newTeacher = newV.classTeacherId; if (oldTeacher !== undefined && newTeacher !== undefined && oldTeacher !== newTeacher) return { label: `Changed teacher for ${name}`, detail: `Teacher assigned`, userName }; return { label: `Updated class ${name}`, detail: `Section ${section}`, userName }; } if (table === "subject") { const name = newV.name || oldV.name || ""; if (isCreate) return { label: `Added subject ${name}`, detail: "", userName }; if (isDelete) return { label: `Removed subject ${name}`, detail: "", userName }; const oldT = oldV.teacherId; const newT = newV.teacherId; if (oldT !== newT) return { label: `Changed teacher for ${name}`, detail: newT ? `Teacher assigned` : "Unassigned", userName }; return { label: `Updated subject ${name}`, detail: "", userName }; } if (table === "invitation") { const email = newV.email || oldV.email || ""; const role = newV.role || oldV.role || ""; if (isCreate) return { label: `Invited ${role?.replace(/_/g, " ")}`, detail: email, userName }; return { label: `Updated invitation`, detail: email, userName }; } if (table === "marks") { return { label: `Entered marks`, detail: `${Object.keys(newV).length} subjects`, userName }; } return { label: `${isCreate ? "Created" : isDelete ? "Deleted" : "Updated"} ${table}`, detail: "", userName }; };
+  return (<ModalFrame title="Activity Log" eyebrow="Campus audit trail" onClose={onClose} wide><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">{tableOptions.map((opt) => (<button key={opt.value} type="button" onClick={() => setFilter(opt.value)} className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${filter === opt.value ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"}`}>{opt.label}</button>))}</div><span className="text-[9px] font-bold text-[#4d4354]/40">{filtered.length} entries</span></div>{loading ? (<div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" /></div>) : pagedLogs.length === 0 ? (<p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>) : (<><div className="max-h-80 overflow-y-auto custom-scrollbar space-y-2">{pagedLogs.map((log) => { const { label, detail, userName } = describeLog(log); return (<div key={log.id} className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{label}</p>{detail ? (<p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{detail}</p>) : null}<p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/35">by {userName}</p></div><span className="shrink-0 whitespace-nowrap text-[9px] font-bold text-[#4d4354]/40">{new Date(log.createdAt).toLocaleString()}</span></div></div>); })}</div>{totalPages > 1 ? (<div className="mt-4 flex items-center justify-center gap-3"><button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1} className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">Previous</button><span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/50">Page {safePage} of {totalPages}</span><button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages} className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">Next</button></div>) : null}</>)}</ModalFrame>);
+}
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  return (<ModalFrame title="Help Center" eyebrow="Campus support" onClose={onClose}><div className="space-y-5"><div className="rounded-3xl bg-[#fbf0fe]/65 p-5"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Getting Started</p><p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/70">This is your principal workspace. From here you can manage classes, teachers, students, exams, report cards, and AI-powered insights.</p></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Academics</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Manage class structure, sections, teachers, and subjects. Access attendance records and fee summaries.</p></div><div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Faculty</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Invite teachers and campus admins, view profiles, and manage subject assignments.</p></div><div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Students</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Search, filter, and manage student profiles. Bulk import via CSV and export to CSV.</p></div><div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Reports & AI</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Review and publish report cards, approve remarks, and leverage AI insights for academic oversight.</p></div></div><div className="rounded-3xl bg-[#fbf0fe]/50 p-5"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Need more help?</p><p className="mt-1 text-xs font-semibold text-[#4d4354]/55">Contact your school administration for advanced support. Additional documentation and FAQs are available through your school&apos;s IT department.</p></div></div></ModalFrame>);
+}
+
+function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate }: {
+  student: any; busy: boolean; onClose: () => void; onMove: () => void; onDelete: (student: any) => void; onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
+}) {
+  const report = student.reportCards?.[0];
+  const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(student.fullName || "");
+  const [editRollNo, setEditRollNo] = useState(student.rollNo || "");
+  const [editGuardianName, setEditGuardianName] = useState(student.guardianName || "");
+  const [editGuardianPhone, setEditGuardianPhone] = useState(student.guardianPhone || "");
+  const [editGuardianEmail, setEditGuardianEmail] = useState(student.guardianEmail || "");
+  useEffect(() => { setEditName(student.fullName || ""); setEditRollNo(student.rollNo || ""); setEditGuardianName(student.guardianName || ""); setEditGuardianPhone(student.guardianPhone || ""); setEditGuardianEmail(student.guardianEmail || ""); }, [student.id, student.fullName, student.rollNo, student.guardianName, student.guardianPhone, student.guardianEmail]);
+  const saveEdits = async () => { await onUpdate(student.id, { fullName: editName, rollNo: editRollNo, guardianName: editGuardianName || null, guardianPhone: editGuardianPhone || null, guardianEmail: editGuardianEmail || null }); setEditing(false); };
+  return (<ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"><Trash2 className="h-3.5 w-3.5" />Delete Student</button></div><button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>{editing ? "Cancel" : "Edit Details"}</button></div><div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center"><div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1">{editing ? (<div className="space-y-3"><FormInput label="Full Name" value={editName} placeholder="Student name" onChange={setEditName} /><FormInput label="Roll Number" value={editRollNo} placeholder="Roll number" onChange={setEditRollNo} /></div>) : (<><p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Student Record</p><h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{student.fullName}</h3><p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{student.rollNo || "No roll number"} - {classLabel(student.class)}</p></>)}</div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><MiniMetric label="Roll No" value={student.rollNo || "N/A"} active /><MiniMetric label="Class" value={classLabel(student.class)} /><MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} /></div><div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5"><div className="rounded-3xl bg-[#fbf0fe]/60 p-5"><PanelTitle icon={Users} title="Guardian" />{editing ? (<div className="mt-4 space-y-3"><FormInput label="Guardian Name" value={editGuardianName} placeholder="Guardian name" onChange={setEditGuardianName} /><FormInput label="Guardian Phone" value={editGuardianPhone} placeholder="Guardian phone" onChange={setEditGuardianPhone} /><FormInput label="Guardian Email" value={editGuardianEmail} placeholder="Guardian email" onChange={setEditGuardianEmail} /></div>) : (<div className="mt-4 space-y-3"><DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} /><DetailRow label="Name" value={student.guardianName || "N/A"} /><DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} /><DetailRow label="Email" value={student.guardianEmail || "N/A"} /></div>)}</div><div className="rounded-3xl bg-[#fbf0fe]/60 p-5"><PanelTitle icon={FileText} title="Report Card" />{report ? (<div className="mt-4 space-y-3"><DetailRow label="Exam" value={report.exam?.title || "N/A"} /><DetailRow label="Status" value={<StatusPill status={report.status} />} /><DetailRow label="Generated" value={formatDate(report.generatedAt)} /><DetailRow label="Marks" value={report.marksObtained != null ? `${report.marksObtained}/${report.totalMarks || "?"}` : "Pending"} /><DetailRow label="Grade" value={report.grade || "N/A"} /><DetailRow label="Percentage" value={report.percentage != null ? `${Math.round(report.percentage)}%` : "N/A"} /></div>) : (<div className="mt-4"><EmptyInline text="No report card has been generated for this student yet." /></div>)}</div></div><div className="mt-6 flex flex-wrap items-center justify-end gap-3">{editing ? (<BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}</BrandButton>) : null}<BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>Move Class / Section</BrandButton></div></ModalFrame>);
+}
+
+function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: { fullName?: string; phone?: string }) => Promise<void> }) {
+  const ledClasses = teacher.ledClasses || [];
+  const taughtSubjects = teacher.taughtSubjects || [];
+  const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(teacher.fullName || "");
+  const [editPhone, setEditPhone] = useState(teacher.phone || "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setEditName(teacher.fullName || ""); setEditPhone(teacher.phone || ""); }, [teacher.id, teacher.fullName, teacher.phone]);
+  const saveEdits = async () => { if (!onUpdate) return; setSaving(true); try { await onUpdate(teacher.id, { fullName: editName, phone: editPhone || null }); setEditing(false); } finally { setSaving(false); } };
+  return (<ModalFrame title={teacher.fullName} eyebrow="Teacher profile" onClose={onClose} wide><div className="mb-4 flex justify-end">{onUpdate ? (<button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>{editing ? "Cancel" : "Edit Details"}</button>) : null}</div><div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center"><div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1">{editing ? (<div className="space-y-3"><FormInput label="Full Name" value={editName} placeholder="Teacher name" onChange={setEditName} /></div>) : (<><p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Record</p><h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{teacher.fullName}</h3><p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{teacher.email || "No email"}</p></>)}</div></div><div className="grid grid-cols-1 sm:grid-cols-4 gap-3"><MiniMetric label="Subjects" value={teacher._count?.taughtSubjects || taughtSubjects.length} active /><MiniMetric label="Class Teacher" value={teacher._count?.ledClasses || ledClasses.length} /><MiniMetric label="Status" value={teacher.isActive ? "Active" : "Inactive"} /><MiniMetric label="Onboarding" value={teacher.onboardingComplete ? "Done" : "Pending"} /></div><div className="mt-5 rounded-3xl bg-[#fbf0fe]/65 p-5"><DetailRow label="Email" value={teacher.email || "N/A"} />{editing ? (<div className="mt-3"><FormInput label="Phone" value={editPhone} placeholder="Phone number" onChange={setEditPhone} /></div>) : (<DetailRow label="Phone" value={teacher.phone || "N/A"} />)}</div>{editing ? (<div className="mt-6 flex justify-end"><BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}</BrandButton></div>) : null}<div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5"><div><div className="mb-3 flex items-center justify-between gap-3"><PanelTitle icon={School} title="Led Classes" /><StatusPill status={`${ledClasses.length} Classes`} /></div><div className="space-y-2">{ledClasses.map((cls: any) => (<div key={cls.id} className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3"><p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects</p></div>))}{ledClasses.length === 0 ? <EmptyInline text="This teacher is not the class teacher for any class yet." /> : null}</div></div><div><div className="mb-3 flex items-center justify-between gap-3"><PanelTitle icon={BookOpen} title="Taught Subjects" /><StatusPill status={`${taughtSubjects.length} Subjects`} /></div><div className="space-y-2">{taughtSubjects.map((subj: any) => (<div key={subj.id} className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3"><p className="text-sm font-black text-[#1f1a23]">{subj.name}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{classLabel(subj.class)} · {subj.totalMarks || 100} marks</p></div>))}{taughtSubjects.length === 0 ? <EmptyInline text="This teacher has no subject assignments yet." /> : null}</div></div></div></ModalFrame>);
+}
+
+function ClassDetailModal({ cls, teachers, onChangeTeacher, onUpdateClass, onDeleteClass, onDeleteSubject, onUpdateSubject, onClose }: {
+  cls: any; teachers: any[]; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteClass: (cls: any) => void; onDeleteSubject: (subject: any) => void; onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>; onClose: () => void;
+}) {
+  const [editing, setEditing] = useState(false); const [editName, setEditName] = useState(cls.name || ""); const [editSection, setEditSection] = useState(cls.section || ""); const [editYear, setEditYear] = useState(cls.academicYear || new Date().getFullYear()); const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null); const [editSubjectName, setEditSubjectName] = useState(""); const [editSubjectMarks, setEditSubjectMarks] = useState(100); const [teachingMode, setTeachingMode] = useState<"one" | "multi">("one"); const [teacherId, setTeacherId] = useState(cls.classTeacher?.id || ""); const [saving, setSaving] = useState(false);
+  const handleSave = async () => { setSaving(true); try { await onChangeTeacher(cls.id, teacherId); await onUpdateClass(cls.id, { name: editName, section: editSection, academicYear: editYear }); toast.success("Class updated"); setEditing(false); } finally { setSaving(false); } };
+  const handleUpdateSubject = async (subjectId: string) => { await onUpdateSubject(cls.id, subjectId, { name: editSubjectName, totalMarks: editSubjectMarks }); setEditingSubjectId(null); };
+  return (<ModalFrame title={classLabel(cls)} onClose={onClose}><div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
+    <div><div className="flex items-center justify-between gap-3 mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Class Details</p><button type="button" onClick={() => setEditing(!editing)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{editing ? "Cancel" : "Edit"}</button></div>
+    {editing ? (<div className="space-y-3"><div className="grid grid-cols-3 gap-3"><FormInput label="Name" value={editName} onChange={setEditName} /><FormInput label="Section" value={editSection} onChange={setEditSection} /><FormInput label="Year" value={String(editYear)} onChange={(v) => setEditYear(Number(v) || new Date().getFullYear())} /></div><FormSelect label="Class Teacher" value={teacherId} onChange={setTeacherId}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</FormSelect><div className="flex gap-2"><BrandButton variant="soft" onClick={handleSave} disabled={saving}>Save</BrandButton><BrandButton variant="danger" onClick={() => onDeleteClass(cls)}>Delete Class</BrandButton></div></div>) : (<div className="space-y-2"><DetailRow label="Name" value={cls.name} /><DetailRow label="Section" value={cls.section || "—"} /><DetailRow label="Year" value={cls.academicYear} /><DetailRow label="Class Teacher" value={cls.classTeacher?.fullName || "Unassigned"} /><DetailRow label="Students" value={cls._count?.students || 0} /><DetailRow label="Subjects" value={cls._count?.subjects || 0} /><DetailRow label="Exams" value={cls.exams?.length || 0} /></div>)}
     </div>
-  );
+    <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Teacher Assignment</p><div className="flex gap-1"><button type="button" onClick={() => setTeachingMode("one")} className={cn("px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal cursor-pointer transition-all", teachingMode === "one" ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/60")}>One Teacher</button><button type="button" onClick={() => setTeachingMode("multi")} className={cn("px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal cursor-pointer transition-all", teachingMode === "multi" ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/60")}>Subject Teachers</button></div></div>
+    {teachingMode === "one" ? (<div className="space-y-3"><select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer"><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</select><BrandButton variant="soft" onClick={async () => { await onChangeTeacher(cls.id, teacherId); toast.success("Teacher assigned"); }}>Apply</BrandButton></div>) : null}
+    </div>
+    <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subjects</p></div><div className="space-y-2">{cls.subjects?.map((subject: any) => (<div key={subject.id}>{editingSubjectId === subject.id ? (<div className="rounded-2xl bg-white border border-[#8127cf]/20 p-3 space-y-2"><div className="grid grid-cols-2 gap-2"><FormInput label="Name" value={editSubjectName} onChange={setEditSubjectName} /><FormInput label="Marks" value={String(editSubjectMarks)} onChange={(v) => setEditSubjectMarks(Number(v) || 100)} /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={() => handleUpdateSubject(subject.id)}>Save</BrandButton><button type="button" onClick={() => setEditingSubjectId(null)} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 cursor-pointer">Cancel</button></div></div>) : (<div className="flex items-center justify-between gap-2 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{subject.name}</p><p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/45">{subject.teacher?.fullName || "Unassigned"} · {subject.totalMarks || 100} marks</p></div><div className="flex gap-1"><button type="button" onClick={() => { setEditingSubjectId(subject.id); setEditSubjectName(subject.name); setEditSubjectMarks(subject.totalMarks || 100); }} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"><Pencil className="h-3.5 w-3.5 mx-auto" /></button>{onDeleteSubject ? (<button type="button" onClick={() => onDeleteSubject(subject)} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"><Trash2 className="h-3.5 w-3.5 mx-auto" /></button>) : null}</div></div>)}</div>))}{(!cls.subjects?.length) ? <p className="text-[10px] font-bold text-[#4d4354]/45">No subjects yet.</p> : null}</div></div>
+    <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Students ({cls.students?.length || 0})</p></div><div className="space-y-2 max-h-40 overflow-y-auto">{cls.students?.map((student: any) => (<div key={student.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/40 px-4 py-2"><div className="min-w-0"><p className="truncate text-xs font-black text-[#1f1a23]">{student.fullName}</p><p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/45">Roll {student.rollNo}</p></div><StatusPill status={student.reportCards?.[0]?.status || "NO_REPORT"} /></div>))}{!cls.students?.length ? <p className="text-[10px] font-bold text-[#4d4354]/45">No students enrolled.</p> : null}</div></div>
+  </div></ModalFrame>);
 }

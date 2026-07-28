@@ -197,29 +197,28 @@ export function RoleHeader({
       {settingsOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
-            <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-6">
+            <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-4">
               <div className="flex items-start justify-between gap-5">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white shadow-inner">
                     <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-[#1f1a23]">Account settings</h2>
-                    <p className="mt-1 text-sm font-semibold text-[#4d4354]/65">{displayRole}</p>
+                    <h2 className="text-lg font-black text-[#1f1a23]">Account settings</h2>
+                    <p className="text-xs font-semibold text-[#4d4354]/65">{displayRole}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(false)}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-white hover:text-[#8127cf]"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-white hover:text-[#8127cf]"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <div className="space-y-4 p-6">
+            <div className="p-4">
               <EditableProfileCard
-                compact
                 initialProfile={{
                   fullName: displayName,
                   roleLabel: displayRole,
@@ -227,18 +226,18 @@ export function RoleHeader({
                 }}
                 onSaved={setHeaderProfile}
               />
-              <div className="flex gap-3">
+              <div className="mt-3 flex gap-2">
                 <Link
                   href={dashboardHref}
                   onClick={() => setSettingsOpen(false)}
-                  className="flex h-12 flex-1 cursor-pointer items-center justify-center rounded-2xl bg-[#fbf0fe] px-4 text-sm font-black text-[#8127cf] transition-all hover:bg-[#eadfed]"
+                  className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-2xl bg-[#fbf0fe] px-4 text-sm font-black text-[#8127cf] transition-all hover:bg-[#eadfed]"
                 >
-                  Main dashboard
+                  Dashboard
                 </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex h-12 flex-1 cursor-pointer items-center justify-center rounded-2xl bg-rose-50 px-4 text-sm font-black text-rose-600 transition-all hover:bg-rose-500 hover:text-white"
+                  className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-2xl bg-rose-50 px-4 text-sm font-black text-rose-600 transition-all hover:bg-rose-500 hover:text-white"
                 >
                   Sign out
                 </button>

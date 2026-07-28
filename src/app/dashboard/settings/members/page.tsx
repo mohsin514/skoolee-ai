@@ -6,13 +6,13 @@ import { Users } from "lucide-react";
 
 export default function MembersPage() {
   return (
-    <>
+    <div className="flex flex-col h-full">
       <Header
         title="Member Management"
         description="Manage school staff, teachers, and administrators"
       />
 
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         <Card className="max-w-3xl">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[22px] bg-[#fbf0fe] text-[#8127cf] shadow-inner">
@@ -27,6 +27,6 @@ export default function MembersPage() {
           </CardContent>
         </Card>
       </div>
-    </>
+    </div>
   );
 }

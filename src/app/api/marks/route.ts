@@ -20,93 +20,104 @@ function markSnapshot(mark: { marksObtained: number; grade: string | null; enter
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const billingBlocked = await billingAccessResponse(user.schoolId);
-  if (billingBlocked) return billingBlocked;
-  if (!canEnterMarks(user.role)) {
-    return Response.json({ error: "Only academic staff can enter marks" }, { status: 403 });
-  }
+  try {
+    const user = await getAuthUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const billingBlocked = await billingAccessResponse(user.schoolId);
+    if (billingBlocked) return billingBlocked;
+    if (!canEnterMarks(user.role)) {
+      return Response.json({ error: "Only academic staff can enter marks" }, { status: 403 });
+    }
 
-  const body = await req.json();
-  const parsed = bulkMarksSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
-  }
+    const body = await req.json();
+    const parsed = bulkMarksSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+    }
 
-  const { examId } = parsed.data;
-  const entries = [
-    ...new Map(
-      parsed.data.entries.map((entry) => [`${entry.studentId}:${entry.subjectId}`, entry])
-    ).values(),
-  ];
+    const { examId } = parsed.data;
+    const entries = [
+      ...new Map(
+        parsed.data.entries.map((entry) => [`${entry.studentId}:${entry.subjectId}`, entry])
+      ).values(),
+    ];
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    include: {
-      class: {
-        include: {
-          students: { select: { id: true } },
-          subjects: { select: { id: true, totalMarks: true, teacherId: true } },
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      select: {
+        id: true,
+        campusId: true,
+        classId: true,
+        status: true,
+        isLocked: true,
+        subjectId: true,
+        class: {
+          select: {
+            id: true,
+            classTeacherId: true,
+            students: { select: { id: true } },
+            subjects: { select: { id: true, totalMarks: true, teacherId: true } },
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!exam) return Response.json({ error: "Exam not found" }, { status: 404 });
-  if (user.campusId && exam.campusId !== user.campusId) {
-    return Response.json({ error: "Exam is outside your campus" }, { status: 403 });
-  }
-  if (exam.isLocked || isLockedStatus(exam.status)) {
-    return Response.json({ error: "Exam is locked; marks cannot be edited" }, { status: 403 });
-  }
-  if (exam.status === "DRAFT") {
-    return Response.json({ error: "Activate the exam before marks entry" }, { status: 409 });
-  }
+    if (!exam) return Response.json({ error: "Exam not found" }, { status: 404 });
+    if (user.campusId && exam.campusId !== user.campusId) {
+      return Response.json({ error: "Exam is outside your campus" }, { status: 403 });
+    }
+    if (exam.isLocked || isLockedStatus(exam.status)) {
+      return Response.json({ error: "Exam is locked; marks cannot be edited" }, { status: 403 });
+    }
+    if (exam.status === "DRAFT") {
+      return Response.json({ error: "Activate the exam before marks entry" }, { status: 409 });
+    }
 
-  const studentIds = new Set(exam.class.students.map((student) => student.id));
-  const subjectsById = new Map(exam.class.subjects.map((subject) => [subject.id, subject]));
+    const studentIds = new Set(exam.class.students.map((student) => student.id));
+    const subjectsById = new Map(exam.class.subjects.map((subject) => [subject.id, subject]));
 
-  if (user.role === "TEACHER") {
-    const isClassTeacher = exam.class.classTeacherId === user.userId;
-    const allowedSubjectIds = new Set(
-      exam.class.subjects
-        .filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
-        .map((subject) => subject.id)
+    if (user.role === "TEACHER") {
+      const isClassTeacher = exam.class.classTeacherId === user.userId;
+      const allowedSubjectIds = new Set(
+        exam.class.subjects
+          .filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
+          .map((subject) => subject.id)
+      );
+
+      if (!isClassTeacher && allowedSubjectIds.size === 0) {
+        return Response.json({ error: "This exam is not assigned to you" }, { status: 403 });
+      }
+
+      if (entries.some((entry) => !allowedSubjectIds.has(entry.subjectId))) {
+        return Response.json({ error: "You can only enter marks for your assigned subjects" }, { status: 403 });
+      }
+    }
+
+    for (const entry of entries) {
+      const subject = subjectsById.get(entry.subjectId);
+      if (!studentIds.has(entry.studentId)) {
+        return Response.json({ error: "One or more students are outside this exam class" }, { status: 400 });
+      }
+      if (!subject) {
+        return Response.json({ error: "One or more subjects are outside this exam class" }, { status: 400 });
+      }
+      if (entry.marksObtained > subject.totalMarks) {
+        return Response.json(
+          { error: `Marks cannot exceed ${subject.totalMarks}` },
+          { status: 400 }
+        );
+      }
+      if (exam.subjectId && entry.subjectId !== exam.subjectId) {
+        return Response.json({ error: "This exam only accepts marks for the assigned subject" }, { status: 400 });
+      }
+    }
+
+    const existingMarks = await prisma.mark.findMany({ where: { examId } });
+    const existingByKey = new Map(
+      existingMarks.map((mark) => [`${mark.studentId}:${mark.subjectId}`, mark])
     );
 
-    if (!isClassTeacher && allowedSubjectIds.size === 0) {
-      return Response.json({ error: "This exam is not assigned to you" }, { status: 403 });
-    }
-
-    if (entries.some((entry) => !allowedSubjectIds.has(entry.subjectId))) {
-      return Response.json({ error: "You can only enter marks for your assigned subjects" }, { status: 403 });
-    }
-  }
-
-  for (const entry of entries) {
-    const subject = subjectsById.get(entry.subjectId);
-    if (!studentIds.has(entry.studentId)) {
-      return Response.json({ error: "One or more students are outside this exam class" }, { status: 400 });
-    }
-    if (!subject) {
-      return Response.json({ error: "One or more subjects are outside this exam class" }, { status: 400 });
-    }
-    if (entry.marksObtained > subject.totalMarks) {
-      return Response.json(
-        { error: `Marks cannot exceed ${subject.totalMarks}` },
-        { status: 400 }
-      );
-    }
-  }
-
-  const existingMarks = await prisma.mark.findMany({ where: { examId } });
-  const existingByKey = new Map(
-    existingMarks.map((mark) => [`${mark.studentId}:${mark.subjectId}`, mark])
-  );
-
-  let changed = 0;
-  const saved = await prisma.$transaction(async (tx) => {
+    let changed = 0;
     let savedCount = 0;
 
     for (const entry of entries) {
@@ -116,11 +127,11 @@ export async function POST(req: NextRequest) {
       const oldMark = existingByKey.get(key);
 
       const mark = oldMark
-        ? await tx.mark.update({
+        ? await prisma.mark.update({
             where: { id: oldMark.id },
             data: { marksObtained: entry.marksObtained, grade, enteredBy: user.userId },
           })
-        : await tx.mark.create({
+        : await prisma.mark.create({
             data: {
               campusId: exam.campusId,
               examId,
@@ -140,7 +151,7 @@ export async function POST(req: NextRequest) {
 
       if (didChange) {
         changed += 1;
-        await tx.auditLog.create({
+        await prisma.auditLog.create({
           data: {
             tableName: "marks",
             recordId: mark.id,
@@ -156,16 +167,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (exam.status === "ACTIVE") {
-      await tx.exam.update({
+      await prisma.exam.update({
         where: { id: examId },
         data: { status: "MARKS_ENTRY", marksEntryAt: new Date() },
       });
     }
 
-    return savedCount;
-  });
-
-  return Response.json({ success: true, count: saved, changed });
+    return Response.json({ success: true, count: savedCount, changed });
+  } catch (error: any) {
+    console.error("Marks POST error:", error);
+    return Response.json({ error: error?.message || "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -197,7 +209,8 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      locker: { select: { fullName: true } },
+       locker: { select: { fullName: true } },
+       subject: { select: { id: true, name: true } },
     },
   });
 
@@ -206,11 +219,17 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Exam is outside your campus" }, { status: 403 });
   }
 
+  // If exam is for a single subject, only show that subject
+  const classSubjects = exam.class.subjects;
+  const filteredSubjects = exam.subjectId
+    ? classSubjects.filter((s) => s.id === exam.subjectId)
+    : classSubjects;
+
   const isTeacher = user.role === "TEACHER";
   const isClassTeacher = exam.class.classTeacherId === user.userId;
   const visibleSubjects = isTeacher
-    ? exam.class.subjects.filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
-    : exam.class.subjects;
+    ? filteredSubjects.filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
+    : filteredSubjects;
   const visibleSubjectIds = new Set(visibleSubjects.map((subject) => subject.id));
 
   if (isTeacher && !isClassTeacher && visibleSubjects.length === 0) {
@@ -273,5 +292,6 @@ export async function GET(req: NextRequest) {
     subjects: visibleSubjects,
     marks,
     analytics,
+    debug: { examSubjectId: exam.subjectId, filteredCount: visibleSubjects.length, totalSubjectsInClass: classSubjects.length },
   });
 }

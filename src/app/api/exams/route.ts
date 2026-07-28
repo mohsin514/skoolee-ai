@@ -6,7 +6,7 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 
 function canManageExams(role: string) {
-  return role === "SUPER_ADMIN" || role === "PRINCIPAL" || isCampusAdminRole(role);
+  return role === "SUPER_ADMIN" || role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
 }
 
 export async function GET(req: NextRequest) {
@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     include: {
       class: { select: { id: true, name: true, section: true, academicYear: true } },
       locker: { select: { fullName: true } },
+      subject: { select: { id: true, name: true, totalMarks: true } },
       _count: { select: { marks: true, reportCards: true } },
     },
     orderBy: [{ academicYear: "desc" }, { title: "asc" }],
@@ -40,6 +41,8 @@ export async function GET(req: NextRequest) {
 
   return Response.json({ success: true, exams });
 }
+
+const EXAM_TYPES = ["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL", "CUSTOM"];
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
@@ -69,6 +72,35 @@ export async function POST(req: NextRequest) {
 
   if (!cls) return Response.json({ error: "Class not found" }, { status: 404 });
 
+  // If teacher, verify they are assigned to this class
+  if (user.role === "TEACHER") {
+    const isAssigned = await prisma.subject.findFirst({
+      where: { classId: parsed.data.classId, teacherId: user.userId, campusId: cls.campusId },
+    });
+    const isClassTeacher = await prisma.class.findFirst({
+      where: { id: parsed.data.classId, classTeacherId: user.userId },
+    });
+    if (!isAssigned && !isClassTeacher) {
+      return Response.json({ error: "You are not assigned to this class" }, { status: 403 });
+    }
+  }
+
+  const examType = body.examType && EXAM_TYPES.includes(body.examType) ? body.examType : "CLASS_TEST";
+
+  const subjectFilter = parsed.data.subjectId
+    ? { id: parsed.data.subjectId }
+    : {};
+  const subjects = await prisma.subject.findMany({
+    where: { classId: parsed.data.classId, campusId: cls.campusId, ...subjectFilter },
+    select: { totalMarks: true },
+  });
+  const totalMarks = subjects.reduce((sum, s) => sum + s.totalMarks, 0);
+
+  // If a specific subject is selected, verify it belongs to the class
+  if (parsed.data.subjectId && subjects.length === 0) {
+    return Response.json({ error: "Selected subject not found in this class" }, { status: 400 });
+  }
+
   const exam = await prisma.exam.create({
     data: {
       campusId: cls.campusId,
@@ -76,7 +108,11 @@ export async function POST(req: NextRequest) {
       title: parsed.data.title,
       term: parsed.data.term,
       academicYear: parsed.data.academicYear,
-      status: "DRAFT",
+      examType,
+      subjectId: parsed.data.subjectId || null,
+      totalMarks,
+      status: "ACTIVE",
+      activatedAt: new Date(),
     },
     include: {
       class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -139,6 +175,7 @@ export async function PATCH(req: NextRequest) {
     include: {
       class: { select: { id: true, name: true, section: true, academicYear: true } },
       locker: { select: { fullName: true } },
+      subject: { select: { id: true, name: true, totalMarks: true } },
       _count: { select: { marks: true, reportCards: true } },
     },
   });

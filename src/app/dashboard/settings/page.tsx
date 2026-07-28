@@ -6,10 +6,10 @@ import { EditableProfileCard } from "@/components/profile/editable-profile-card"
 
 export default function SettingsPage() {
   return (
-    <>
+    <div className="flex flex-col h-full">
       <Header title="Account Settings" description="Update your profile photo, display name, and contact details." />
 
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         <div className="grid max-w-6xl grid-cols-1 gap-6 xl:grid-cols-[1fr_340px]">
           <EditableProfileCard />
 
@@ -38,6 +38,6 @@ export default function SettingsPage() {
           </aside>
         </div>
       </div>
-    </>
+    </div>
   );
 }

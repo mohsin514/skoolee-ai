@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   BookOpen,
   Building,
+  ChevronDown,
   ClipboardList,
   Clock,
   Download,
@@ -39,7 +40,7 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
+import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type AdminView = "leadership" | "classes" | "teachers" | "students" | "ai";
@@ -210,6 +211,10 @@ export default function CampusAdminDashboard() {
     run: () => Promise<void>;
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [savingClassUpdate, setSavingClassUpdate] = useState(false);
+  const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
+  const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -587,6 +592,134 @@ export default function CampusAdminDashboard() {
     }
   };
 
+  const handleDeleteClass = (cls: any) => {
+    setConfirmAction({
+      title: `Delete ${classLabel(cls)}?`,
+      description: "This will permanently remove this class and all its subjects if no marks exist. Students must be moved first.",
+      confirmLabel: "Delete Class",
+      run: async () => {
+        const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE" });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Class could not be deleted");
+        toast.success("Class deleted");
+        setSelectedClass(null);
+        await loadData();
+      },
+    });
+  };
+
+  const handleDeleteStudent = (student: any) => {
+    setConfirmAction({
+      title: `Delete ${student.fullName}?`,
+      description: "This will permanently remove this student record. This cannot be undone.",
+      confirmLabel: "Delete Student",
+      run: async () => {
+        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE" });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Student could not be deleted");
+        toast.success("Student deleted");
+        setSelectedStudent(null);
+        await loadData();
+      },
+    });
+  };
+
+  const handleDeleteSubject = (subject: any) => {
+    setConfirmAction({
+      title: `Delete ${subject.name}?`,
+      description: "This will permanently remove this subject. Subjects with existing marks cannot be deleted.",
+      confirmLabel: "Delete Subject",
+      run: async () => {
+        const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Subject could not be deleted");
+        toast.success("Subject deleted");
+        await loadData();
+      },
+    });
+  };
+
+  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
+    setSavingClassUpdate(true);
+    try {
+      const res = await fetch("/api/classes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: classId, ...updates }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Class could not be updated");
+      toast.success("Class updated");
+      const nextData = await loadData();
+      syncSelectedClass(nextData, classId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Class could not be updated");
+    } finally {
+      setSavingClassUpdate(false);
+    }
+  };
+
+  const handleUpdateStudent = async (studentId: string, updates: Record<string, any>) => {
+    setSavingStudentUpdate(true);
+    try {
+      const res = await fetch("/api/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: studentId, ...updates }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Student could not be updated");
+      toast.success("Student updated");
+      setSelectedStudent((current: any) =>
+        current?.id === studentId ? { ...current, ...result.data } : current
+      );
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Student could not be updated");
+    } finally {
+      setSavingStudentUpdate(false);
+    }
+  };
+
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+    setSavingSubjectUpdateId(subjectId);
+    try {
+      const res = await fetch("/api/subjects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subjectId, ...updates }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Subject could not be updated");
+      toast.success("Subject updated");
+      const nextData = await loadData();
+      syncSelectedClass(nextData, classId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Subject could not be updated");
+    } finally {
+      setSavingSubjectUpdateId(null);
+    }
+  };
+
+  const handleUpdateTeacher = async (teacherId: string, updates: { fullName?: string; phone?: string }) => {
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: teacherId, ...updates }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Teacher could not be updated");
+      toast.success("Teacher updated");
+      setSelectedTeacher((current: any) =>
+        current?.id === teacherId ? { ...current, ...result.data } : current
+      );
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Teacher could not be updated");
+    }
+  };
+
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
     { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
@@ -595,7 +728,7 @@ export default function CampusAdminDashboard() {
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
   const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Help Center", onClick: () => toast.info("Campus support is available from this role workspace.") },
+    { icon: HelpCircle, label: "Help Center", onClick: () => setShowHelpModal(true) },
     { icon: LogOut, label: "Logout", onClick: handleLogout },
   ];
   const adminAIFeatures = [
@@ -714,9 +847,20 @@ export default function CampusAdminDashboard() {
               classes={data.classes}
               exams={data.recentExams}
               reports={data.recentReportCards}
+              teachers={data.teachers}
+              students={data.students}
+              attendanceRecords={data.attendanceRecords}
+              attendanceSummary={data.attendanceSummary}
+              invoiceSummary={data.invoiceSummary}
+              campusName={data.campusName}
               onAddClass={() => setShowClassModal(true)}
               onAddStudent={openStudentModal}
               onViewClass={setSelectedClass}
+              onChangeTeacher={handleChangeClassTeacher}
+              onDeleteClass={handleDeleteClass}
+              onUpdateClass={handleUpdateClass}
+              onDeleteSubject={handleDeleteSubject}
+              onUpdateSubject={handleUpdateSubject}
             />
           ) : null}
 
@@ -834,6 +978,8 @@ export default function CampusAdminDashboard() {
           subjectBusyId={savingSubjectId}
           creatingSubject={creatingSubjectClassId === selectedClass.id}
           applyingSubjects={applyingSubjectClassId === selectedClass.id}
+          classUpdateBusy={savingClassUpdate}
+          subjectUpdateBusyId={savingSubjectUpdateId}
           onClose={() => setSelectedClass(null)}
           onChangeTeacher={handleChangeClassTeacher}
           onCreateSubject={handleCreateSubject}
@@ -847,22 +993,29 @@ export default function CampusAdminDashboard() {
             setSelectedClass(null);
             setSelectedStudent(student);
           }}
+          onDeleteClass={handleDeleteClass}
+          onUpdateClass={handleUpdateClass}
+          onDeleteSubject={handleDeleteSubject}
+          onUpdateSubject={handleUpdateSubject}
         />
       ) : null}
 
       {selectedStudent ? (
         <StudentDetailModal
           student={selectedStudent}
+          busy={savingStudentUpdate}
           onClose={() => setSelectedStudent(null)}
           onMove={() => {
             openMoveStudent(selectedStudent);
             setSelectedStudent(null);
           }}
+          onDelete={handleDeleteStudent}
+          onUpdate={handleUpdateStudent}
         />
       ) : null}
 
       {selectedTeacher ? (
-        <TeacherDetailModal teacher={selectedTeacher} onClose={() => setSelectedTeacher(null)} />
+        <TeacherDetailModal teacher={selectedTeacher} onClose={() => setSelectedTeacher(null)} onUpdate={handleUpdateTeacher} />
       ) : null}
 
       {showBulkImportModal ? (
@@ -877,6 +1030,8 @@ export default function CampusAdminDashboard() {
       {showActivityLogModal ? (
         <ActivityLogModal onClose={() => setShowActivityLogModal(false)} />
       ) : null}
+
+      {showHelpModal ? <HelpModal onClose={() => setShowHelpModal(false)} /> : null}
 
       <ConfirmAction
         open={Boolean(confirmAction)}
@@ -907,7 +1062,7 @@ function LeadershipPanel({
   onRemove: (id: string, label: string) => void;
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
-  onActivityLog: () => void;
+  onActivityLog?: () => void;
 }) {
   return (
     <div className="space-y-8">
@@ -944,7 +1099,7 @@ function LeadershipPanel({
   );
 }
 
-function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActivityLog: () => void }) {
+function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActivityLog?: () => void }) {
   return (
     <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -957,11 +1112,13 @@ function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActivityLog
         <IdentityRow label="City" value={data.campusCity || "Not set"} />
         <IdentityRow label="Reg ID" value={data.campusRegId || "Not set"} />
       </div>
-      <div className="mt-5">
-        <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={onActivityLog} className="w-full">
-          Activity Log
-        </BrandButton>
-      </div>
+      {onActivityLog ? (
+        <div className="mt-5">
+          <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={onActivityLog} className="w-full">
+            View Activity Log
+          </BrandButton>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1020,18 +1177,68 @@ function AcademicPanel({
   classes,
   exams,
   reports,
+  teachers,
+  students,
+  attendanceRecords,
+  attendanceSummary,
+  invoiceSummary,
+  campusName,
   onAddClass,
   onAddStudent,
   onViewClass,
+  onChangeTeacher,
+  onDeleteClass,
+  onUpdateClass,
+  onDeleteSubject,
+  onUpdateSubject,
 }: {
   classes: any[];
   exams: any[];
   reports: any[];
+  teachers: any[];
+  students?: any[];
+  attendanceRecords?: any[];
+  attendanceSummary?: { present: number; absent: number; leave: number };
+  invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] };
+  campusName?: string;
   onAddClass: () => void;
   onAddStudent: (classId?: string) => void;
   onViewClass: (cls: any) => void;
+  onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
+  onDeleteClass?: (cls: any) => void;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onDeleteSubject?: (subject: any) => void;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
   const classGroups = groupClasses(classes);
+  const [showAllExams, setShowAllExams] = useState(false);
+  const [showAllReports, setShowAllReports] = useState(false);
+  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
+  const lockedExams = exams.filter((e) => e.isLocked);
+  const displayExams = showAllExams ? exams : exams.slice(0, 6);
+  const displayReports = showAllReports ? reports : reports.slice(0, 6);
+  const totalCollected = invoiceSummary?.byStatus?.reduce((sum, g: any) => {
+    const paid = g.status === "PAID" || g.status === "PARTIAL";
+    return paid ? sum + (g._sum?.totalAmount || 0) : sum;
+  }, 0) || 0;
+
+  const generateReportCards = async (examId: string) => {
+    setGeneratingExamId(examId);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate", examId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Generation failed");
+      toast.success("Report cards generated");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setGeneratingExamId(null);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -1043,14 +1250,29 @@ function AcademicPanel({
           Add Student
         </BrandButton>
       </div>
+
+      <AttendanceView
+        attendanceRecords={attendanceRecords || []}
+        classes={classes}
+        students={students || []}
+        invoiceSummary={invoiceSummary}
+        totalCollected={totalCollected}
+      />
+
       {classGroups.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
           {classGroups.map((group) => (
             <ClassGroupCard
               key={group.key}
               group={group}
+              teachers={teachers}
               onAddStudent={onAddStudent}
               onViewClass={onViewClass}
+              onChangeTeacher={onChangeTeacher}
+              onDeleteClass={onDeleteClass}
+              onUpdateClass={onUpdateClass}
+              onDeleteSubject={onDeleteSubject}
+              onUpdateSubject={onUpdateSubject}
             />
           ))}
         </div>
@@ -1063,9 +1285,21 @@ function AcademicPanel({
         />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        <SnapshotColumn icon={FileText} title="Exam Cycles">
-          {exams.map((exam: any) => (
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+        <SnapshotColumn
+          icon={FileText}
+          title="Exam Cycles"
+          after={exams.length > 6 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllExams(!showAllExams)}
+              className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
+            >
+              {showAllExams ? "Show Less" : `View All (${exams.length})`}
+            </button>
+          ) : null}
+        >
+          {displayExams.map((exam: any) => (
             <div key={exam.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1074,15 +1308,39 @@ function AcademicPanel({
                     {exam.term} - {classLabel(exam.class)}
                   </p>
                 </div>
-                <StatusPill status={exam.status} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill status={exam.status} />
+                  {exam.isLocked && exam._count?.reportCards === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => generateReportCards(exam.id)}
+                      disabled={generatingExamId === exam.id}
+                      className="flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2 text-[8px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50"
+                    >
+                      {generatingExamId === exam.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           ))}
           {exams.length === 0 ? <EmptyInline text="No exam cycles available yet." /> : null}
         </SnapshotColumn>
 
-        <SnapshotColumn icon={GraduationCap} title="Recent Report Cards">
-          {reports.map((report: any) => (
+        <SnapshotColumn
+          icon={GraduationCap}
+          title="Report Cards"
+          after={reports.length > 6 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllReports(!showAllReports)}
+              className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
+            >
+              {showAllReports ? "Show Less" : `View All (${reports.length})`}
+            </button>
+          ) : null}
+        >
+          {displayReports.map((report: any) => (
             <div key={report.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1098,6 +1356,235 @@ function AcademicPanel({
           {reports.length === 0 ? <EmptyInline text="Report cards will appear after exams are processed." /> : null}
         </SnapshotColumn>
       </div>
+    </div>
+  );
+}
+
+function AttendanceView({
+  attendanceRecords,
+  classes,
+  students,
+  invoiceSummary,
+  totalCollected,
+}: {
+  attendanceRecords: any[];
+  classes: any[];
+  students: any[];
+  invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] };
+  totalCollected: number;
+}) {
+  const sections = useMemo(() => classes.map((c) => ({ id: c.id, label: `${c.name} ${c.section || ""}`.trim() })), [classes]);
+  const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
+  useEffect(() => { setSelectedSectionId((prev: string) => sections.some((s) => s.id === prev) ? prev : sections[0]?.id || ""); }, [sections]);
+  const [open, setOpen] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateAttendance, setDateAttendance] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [loadingAtt, setLoadingAtt] = useState(false);
+  const [loadingInv, setLoadingInv] = useState(false);
+
+  const sectionStudents = useMemo(() => students.filter((s) => s.class?.id === selectedSectionId), [students, selectedSectionId]);
+
+  const fetchAttendance = useCallback(async (classId: string, date: string) => {
+    setLoadingAtt(true);
+    try {
+      const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`);
+      const json = await res.json();
+      if (json.success) setDateAttendance(json.students || []);
+    } catch { /* ignore */ } finally { setLoadingAtt(false); }
+  }, []);
+
+  const fetchInvoices = useCallback(async (classId: string) => {
+    setLoadingInv(true);
+    try {
+      const res = await fetch(`/api/billing/invoices?classId=${classId}`);
+      const json = await res.json();
+      if (json.success) setInvoices(json.invoices || []);
+    } catch { /* ignore */ } finally { setLoadingInv(false); }
+  }, []);
+
+  useEffect(() => {
+    if (selectedSectionId) {
+      fetchAttendance(selectedSectionId, selectedDate);
+      fetchInvoices(selectedSectionId);
+    }
+  }, [selectedSectionId, selectedDate, fetchAttendance, fetchInvoices]);
+
+  const roster = dateAttendance;
+  const present = roster.filter((s: any) => s.attendance?.status === "PRESENT").length;
+  const absent = roster.filter((s: any) => s.attendance?.status === "ABSENT").length;
+  const leave = roster.filter((s: any) => s.attendance?.status === "LEAVE").length;
+  const unmarked = roster.filter((s: any) => !s.attendance).length;
+
+  return (
+    <div className={cn(
+      "rounded-[32px] border bg-white shadow-lg transition-all",
+      open
+        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
+        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
+    )}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          open ? "p-5" : "px-4 py-3"
+        )}
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn(
+            "flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            open ? "h-10 w-10" : "h-8 w-8"
+          )}>
+            <Users className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
+          </div>
+          <div className="min-w-0">
+            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
+              Attendance &amp; Fees
+            </p>
+            {open ? (
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                {sections.find((s) => s.id === selectedSectionId)?.label || "Select a section"}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {sections.length > 1 ? (
+            <select
+              value={selectedSectionId}
+              onChange={(e) => { e.stopPropagation(); setSelectedSectionId(e.target.value); }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-9 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer border border-[#cfc2d6]/10"
+            >
+              {sections.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              "text-[#8127cf] transition-all duration-200 shrink-0",
+              open ? "h-5 w-5 rotate-180" : "h-4 w-4"
+            )}
+          />
+        </div>
+      </button>
+
+      {open ? (
+        <div className="border-t border-[#cfc2d6]/10 px-5 pb-5 pt-4 space-y-6">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Attendance</p>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 rounded-lg border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer"
+                />
+              </div>
+              {loadingAtt ? (
+                <Loader2 className="h-4 w-4 animate-spin text-[#8127cf]" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-emerald-700">P {present}</span>
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-rose-700">A {absent}</span>
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-amber-700">L {leave}</span>
+                  <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">? {unmarked}</span>
+                </div>
+              )}
+            </div>
+            {selectedSectionId && roster.length > 0 ? (
+              <div className="max-h-80 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 divide-y divide-[#cfc2d6]/5">
+                <div className="flex items-center gap-2 bg-[#fbf0fe]/40 px-4 py-2 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60 sticky top-0">
+                  <span className="w-7 text-center">#</span>
+                  <span className="flex-[2]">Student</span>
+                  <span className="w-14 text-center">Date</span>
+                  <span className="w-12 text-center">%</span>
+                  <span className="w-20 text-center">Fee</span>
+                  <span className="w-16 text-center">Balance</span>
+                </div>
+                {roster.map((entry: any, i: number) => {
+                  const student = sectionStudents.find((s) => s.id === entry.id);
+                  const totalAtt = student?.attendance?.length || 0;
+                  const presentAtt = student?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0;
+                  const pct = totalAtt ? Math.round((presentAtt / totalAtt) * 100) : null;
+                  const inv = invoices.find((inv) => inv.studentId === entry.id);
+                  return (
+                    <div key={entry.id} className="flex items-center gap-2 px-4 py-2.5 text-xs">
+                      <span className="w-7 text-center text-[#4d4354]/40 font-black">{i + 1}</span>
+                      <span className="flex-[2] font-black text-[#1f1a23] truncate">{entry.fullName}</span>
+                      <span className="w-14 flex justify-center">
+                        {entry.attendance ? (
+                          <span className={cn(
+                            "rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-normal",
+                            entry.attendance.status === "PRESENT" && "bg-emerald-50 text-emerald-700",
+                            entry.attendance.status === "ABSENT" && "bg-rose-50 text-rose-700",
+                            entry.attendance.status === "LEAVE" && "bg-amber-50 text-amber-700",
+                          )}>
+                            {entry.attendance.status === "PRESENT" ? "P" : entry.attendance.status === "ABSENT" ? "A" : "L"}
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>
+                        )}
+                      </span>
+                      <span className="w-12 flex justify-center">
+                        <span className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[8px] font-black",
+                          pct === null ? "text-[#4d4354]/30" : pct >= 80 ? "bg-emerald-50 text-emerald-700" : pct >= 60 ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"
+                        )}>
+                          {pct !== null ? `${pct}%` : "—"}
+                        </span>
+                      </span>
+                      <span className="w-20 flex justify-center">
+                        {inv ? (
+                          <StatusPill status={inv.status} />
+                        ) : (
+                          <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>
+                        )}
+                      </span>
+                      <span className="w-16 text-right font-black text-[#1f1a23]">
+                        {inv ? (inv.balanceDue || 0).toLocaleString() : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : selectedSectionId ? (
+              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-6 text-center">
+                <p className="text-[10px] font-bold text-[#4d4354]/45">{loadingAtt ? "Loading..." : "No students enrolled in this section."}</p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="border-t border-[#cfc2d6]/10 pt-4">
+            <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 mb-3">Fee Summary</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3">
+                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Invoices</p>
+                <p className="mt-1 text-xl font-black text-[#1f1a23]">{invoiceSummary?.total ?? "—"}</p>
+              </div>
+              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3">
+                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Collected</p>
+                <p className="mt-1 text-xl font-black text-[#1f1a23]">{totalCollected ? `${(totalCollected / 100).toLocaleString()}` : "—"}</p>
+              </div>
+            </div>
+            {invoiceSummary?.byStatus?.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {invoiceSummary.byStatus.map((g: any) => (
+                  <div key={g.status} className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
+                    <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">{g.status}</p>
+                    <p className="text-xs font-black text-[#1f1a23]">{g._count} ({((g._sum?.totalAmount || 0) / 100).toLocaleString()})</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1119,6 +1606,13 @@ function FacultyPanel({
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const filtered = teachers.filter((t) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q);
+  });
+
   if (teachers.length === 0 && pendingInvites.length === 0) {
     return (
       <EmptyState
@@ -1132,17 +1626,33 @@ function FacultyPanel({
 
   return (
     <div className="space-y-4">
-      {teachers.map((teacher: any) => (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 w-full max-w-xs">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text" placeholder="Search teachers..." value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35"
+          />
+        </div>
+        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
+          Invite Teacher
+        </BrandButton>
+      </div>
+      {filtered.map((teacher: any) => (
         <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id)} />
       ))}
-      {pendingInvites.map((invite: any) => (
+      {!searchQuery.trim() ? pendingInvites.map((invite: any) => (
         <PendingFacultyRow
           key={invite.id}
           invite={invite}
           onResend={() => onResend(invite.id)}
           onCancel={() => onCancel(invite.id)}
         />
-      ))}
+      )) : null}
+      {filtered.length === 0 && teachers.length > 0 ? <EmptyInline text="No teachers match your search." /> : null}
     </div>
   );
 }
@@ -1166,13 +1676,30 @@ function StudentsPanel({
 }) {
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const perPage = 12;
   const classGroups = groupClasses(classes);
   const selectedGroup = classGroups.find((group) => group.key === classFilter);
   const filteredStudents = students.filter((student) => {
     if (sectionFilter !== "all") return student.class?.id === sectionFilter;
     if (classFilter !== "all") return classGroupKey(student.class) === classFilter;
     return true;
+  }).filter((student) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      student.fullName?.toLowerCase().includes(q) ||
+      student.rollNo?.toLowerCase().includes(q) ||
+      student.guardianName?.toLowerCase().includes(q) ||
+      student.guardianPhone?.includes(q)
+    );
   });
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const pagedStudents = filteredStudents.slice((safePage - 1) * perPage, safePage * perPage);
+
+  useEffect(() => { setPage(1); }, [classFilter, sectionFilter, searchQuery]);
 
   if (students.length === 0) {
     return (
@@ -1187,9 +1714,39 @@ function StudentsPanel({
 
   return (
     <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-      <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <PanelTitle icon={GraduationCap} title="Student Directory" />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <PanelTitle icon={GraduationCap} title="Student Directory" />
+          <div className="flex items-center gap-2">
+            <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
+              Add Student
+            </BrandButton>
+            {onBulkImport ? (
+              <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={onBulkImport}>
+                Bulk Import
+              </BrandButton>
+            ) : null}
+            {onExport ? (
+              <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={onExport}>
+                Export CSV
+              </BrandButton>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px] max-w-xs">
+            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Search</span>
+            <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40">
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text" placeholder="Search students..." value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35"
+              />
+            </div>
+          </div>
           <FormSelect
             label="Class"
             value={classFilter}
@@ -1213,58 +1770,47 @@ function StudentsPanel({
               </option>
             ))}
           </FormSelect>
-          <StatusPill status={`${filteredStudents.length} Shown`} />
-          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
-            Add Student
-          </BrandButton>
-          {onBulkImport ? (
-            <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={onBulkImport}>
-              Bulk Import
-            </BrandButton>
-          ) : null}
-          {onExport ? (
-            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={onExport}>
-              Export CSV
-            </BrandButton>
-          ) : null}
+          <div className="pb-1.5">
+            <StatusPill status={`${filteredStudents.length} Shown`} />
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredStudents.map((student: any) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {pagedStudents.map((student: any) => {
           const report = student.reportCards?.[0];
           const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
           return (
-            <div key={student.id} className="rounded-[24px] bg-[#fbf0fe]/55 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm">
+            <div key={student.id} className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 shadow-sm transition-all hover:border-[#8127cf]/20 hover:shadow-lg hover:-translate-y-0.5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3.5">
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-[#fbf0fe] shadow-sm">
                     <img src={avatar} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                      {student.rollNo} - {classLabel(student.class)}
+                    <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/40">
+                      {student.rollNo} · {classLabel(student.class)}
                     </p>
                   </div>
                 </div>
                 <StatusPill status={report ? report.status : "NO_REPORT"} />
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <MiniMetric label="Guardian" value={student.guardianName || "N/A"} />
                 <MiniMetric label="Latest" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} active />
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-4 flex gap-3">
                 <button
                   type="button"
                   onClick={() => onViewStudent(student)}
-                  className="flex h-10 cursor-pointer items-center justify-center rounded-xl bg-white text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                  className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
                 >
                   View Profile
                 </button>
                 <button
                   type="button"
                   onClick={() => onMoveStudent(student)}
-                  className="flex h-10 cursor-pointer items-center justify-center rounded-xl bg-white text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                  className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
                 >
                   Move Class
                 </button>
@@ -1272,8 +1818,31 @@ function StudentsPanel({
             </div>
           );
         })}
-        {filteredStudents.length === 0 ? <EmptyInline text="No students match this class and section filter." /> : null}
+        {pagedStudents.length === 0 ? <EmptyInline text="No students match your search and filters." /> : null}
       </div>
+      {totalPages > 1 ? (
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Previous
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-normal text-[#4d4354]/50">
+            Page {safePage} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1289,6 +1858,9 @@ function AIPanel({
   reviewItems: any[];
   onComplete: () => void;
 }) {
+  const [showAllInsights, setShowAllInsights] = useState(false);
+  const displayInsights = showAllInsights ? insights : insights?.slice(0, 5);
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
@@ -1298,9 +1870,21 @@ function AIPanel({
         <SnapshotColumn icon={Sparkles} title="AI Review Queue">
           <AIReviewQueue items={reviewItems} onComplete={onComplete} />
         </SnapshotColumn>
-        <SnapshotColumn icon={FileText} title="Recent AI Insights">
-          {insights?.length ? (
-            insights.slice(0, 5).map((insight: any) => (
+        <SnapshotColumn
+          icon={FileText}
+          title="AI Insights"
+          after={insights?.length > 5 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllInsights(!showAllInsights)}
+              className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
+            >
+              {showAllInsights ? "Show Less" : `View All (${insights.length})`}
+            </button>
+          ) : null}
+        >
+          {displayInsights?.length ? (
+            displayInsights.map((insight: any) => (
               <div key={insight.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
                 <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">{insight.feature.replaceAll("_", " ")}</p>
                 <p className="mt-1 text-sm font-black text-[#1f1a23]">{insight.title}</p>
@@ -1554,6 +2138,8 @@ function ClassDetailModal({
   subjectBusyId,
   creatingSubject,
   applyingSubjects,
+  classUpdateBusy,
+  subjectUpdateBusyId,
   onClose,
   onChangeTeacher,
   onCreateSubject,
@@ -1561,6 +2147,10 @@ function ClassDetailModal({
   onApplyClassTeacherToSubjects,
   onAddStudent,
   onViewStudent,
+  onDeleteClass,
+  onUpdateClass,
+  onDeleteSubject,
+  onUpdateSubject,
 }: {
   cls: any;
   students: any[];
@@ -1569,6 +2159,8 @@ function ClassDetailModal({
   subjectBusyId: string | null;
   creatingSubject: boolean;
   applyingSubjects: boolean;
+  classUpdateBusy: boolean;
+  subjectUpdateBusyId: string | null;
   onClose: () => void;
   onChangeTeacher: (classId: string, classTeacherId: string) => void;
   onCreateSubject: (classId: string, subject: { name: string; totalMarks: number; teacherId: string }) => Promise<boolean>;
@@ -1576,6 +2168,10 @@ function ClassDetailModal({
   onApplyClassTeacherToSubjects: (classId: string, classTeacherId: string, subjects: any[]) => void;
   onAddStudent: () => void;
   onViewStudent: (student: any) => void;
+  onDeleteClass: (cls: any) => void;
+  onUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onDeleteSubject: (subject: any) => void;
+  onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
   const [classTeacherId, setClassTeacherId] = useState(cls.classTeacher?.id || "");
   const [teachingMode, setTeachingMode] = useState<"single" | "subject">(inferTeachingMode(cls));
@@ -1583,6 +2179,9 @@ function ClassDetailModal({
   const [subjectName, setSubjectName] = useState("");
   const [subjectMarks, setSubjectMarks] = useState("100");
   const [newSubjectTeacherId, setNewSubjectTeacherId] = useState(cls.classTeacher?.id || "");
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [editSubjectName, setEditSubjectName] = useState("");
+  const [editSubjectMarks, setEditSubjectMarks] = useState("100");
 
   useEffect(() => {
     setClassTeacherId(cls.classTeacher?.id || "");
@@ -1603,8 +2202,81 @@ function ClassDetailModal({
     }
   };
 
+  const [editingClass, setEditingClass] = useState(false);
+  const [editClassName, setEditClassName] = useState(cls.name || "");
+  const [editClassSection, setEditClassSection] = useState(cls.section || "");
+  const [editClassAcademicYear, setEditClassAcademicYear] = useState(String(cls.academicYear || new Date().getFullYear()));
+
+  useEffect(() => {
+    if (!editingClass) {
+      setEditClassName(cls.name || "");
+      setEditClassSection(cls.section || "");
+      setEditClassAcademicYear(String(cls.academicYear || new Date().getFullYear()));
+    }
+  }, [cls.id, editingClass]);
+
+  const saveClassEdit = async () => {
+    await onUpdateClass(cls.id, {
+      name: editClassName,
+      section: editClassSection,
+      academicYear: Number(editClassAcademicYear) || new Date().getFullYear(),
+    });
+    setEditingClass(false);
+  };
+
+  const startEditingSubject = (subject: any) => {
+    setEditingSubjectId(subject.id);
+    setEditSubjectName(subject.name);
+    setEditSubjectMarks(String(subject.totalMarks || 100));
+  };
+
+  const saveEditingSubject = async (subjectId: string) => {
+    await onUpdateSubject(cls.id, subjectId, {
+      name: editSubjectName,
+      totalMarks: Number(editSubjectMarks) || 100,
+    });
+    setEditingSubjectId(null);
+  };
+
   return (
     <ModalFrame title={classLabel(cls)} eyebrow="Class profile" onClose={onClose} wide>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onDeleteClass(cls)}
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Class
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditingClass(!editingClass)}
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+              editingClass ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+            }`}
+          >
+            {editingClass ? "Cancel" : "Edit Class"}
+          </button>
+        </div>
+      </div>
+
+      {editingClass ? (
+        <div className="mb-4 rounded-3xl bg-[#fbf0fe]/65 p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <FormInput label="Class Name" value={editClassName} placeholder="e.g. Class 10" onChange={setEditClassName} />
+            <FormInput label="Section" value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
+            <FormInput label="Academic Year" type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+          </div>
+          <div className="flex justify-end">
+            <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
+              {classUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Class Details"}
+            </BrandButton>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <MiniMetric label="Students" value={students.length} active />
         <MiniMetric label="Subjects" value={cls._count?.subjects || cls.subjects?.length || 0} />
@@ -1690,41 +2362,90 @@ function ClassDetailModal({
           <div className="space-y-3">
             {cls.subjects?.map((subject: any) => {
               const selectedTeacherId = subjectTeacherIds[subject.id] ?? "";
+              const isEditing = editingSubjectId === subject.id;
               return (
                 <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/55 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                      <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                        {subject.teacher?.fullName || "Teacher unassigned"} {subject.totalMarks ? `- ${subject.totalMarks} marks` : ""}
-                      </p>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <FormInput label="Subject Name" value={editSubjectName} placeholder="Subject name" onChange={setEditSubjectName} />
+                        <FormInput label="Total Marks" type="number" value={editSubjectMarks} placeholder="100" onChange={setEditSubjectMarks} />
+                      </div>
+                      <div className="flex gap-2">
+                        <BrandButton
+                          variant="dark"
+                          className="h-11 flex-1"
+                          onClick={() => saveEditingSubject(subject.id)}
+                          disabled={subjectUpdateBusyId === subject.id}
+                        >
+                          {subjectUpdateBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                        </BrandButton>
+                        <button
+                          type="button"
+                          onClick={() => setEditingSubjectId(null)}
+                          className="h-11 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    <StatusPill status={subject.teacher?.id ? "Assigned" : "Unassigned"} />
-                  </div>
-                  {teachingMode === "subject" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                      <FormSelect
-                        label="Subject Teacher"
-                        value={selectedTeacherId}
-                        onChange={(value) => setSubjectTeacherIds((current) => ({ ...current, [subject.id]: value }))}
-                      >
-                        <option value="">Unassigned</option>
-                        {teachers.map((teacher) => (
-                          <option key={teacher.id} value={teacher.id}>
-                            {teacher.fullName}
-                          </option>
-                        ))}
-                      </FormSelect>
-                      <BrandButton
-                        variant="dark"
-                        className="h-14"
-                        onClick={() => onChangeSubjectTeacher(cls.id, subject.id, selectedTeacherId)}
-                        disabled={subjectBusyId === subject.id || selectedTeacherId === (subject.teacher?.id || "")}
-                      >
-                        {subjectBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                      </BrandButton>
-                    </div>
-                  ) : null}
+                  ) : (
+                    <>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                            {subject.teacher?.fullName || "Teacher unassigned"} {subject.totalMarks ? `- ${subject.totalMarks} marks` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusPill status={subject.teacher?.id ? "Assigned" : "Unassigned"} />
+                          <button
+                            type="button"
+                            onClick={() => startEditingSubject(subject)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
+                            title="Edit subject"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteSubject(subject)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+                            title="Delete subject"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      {teachingMode === "subject" ? (
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                          <FormSelect
+                            label="Subject Teacher"
+                            value={selectedTeacherId}
+                            onChange={(value) => setSubjectTeacherIds((current) => ({ ...current, [subject.id]: value }))}
+                          >
+                            <option value="">Unassigned</option>
+                            {teachers.map((teacher) => (
+                              <option key={teacher.id} value={teacher.id}>
+                                {teacher.fullName}
+                              </option>
+                            ))}
+                          </FormSelect>
+                          <BrandButton
+                            variant="dark"
+                            className="h-14"
+                            onClick={() => onChangeSubjectTeacher(cls.id, subject.id, selectedTeacherId)}
+                            disabled={subjectBusyId === subject.id || selectedTeacherId === (subject.teacher?.id || "")}
+                          >
+                            {subjectBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                          </BrandButton>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -1793,28 +2514,90 @@ function ClassDetailModal({
 
 function StudentDetailModal({
   student,
+  busy,
   onClose,
   onMove,
+  onDelete,
+  onUpdate,
 }: {
   student: any;
+  busy: boolean;
   onClose: () => void;
   onMove: () => void;
+  onDelete: (student: any) => void;
+  onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
   const report = student.reportCards?.[0];
   const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(student.fullName || "");
+  const [editRollNo, setEditRollNo] = useState(student.rollNo || "");
+  const [editGuardianName, setEditGuardianName] = useState(student.guardianName || "");
+  const [editGuardianPhone, setEditGuardianPhone] = useState(student.guardianPhone || "");
+  const [editGuardianEmail, setEditGuardianEmail] = useState(student.guardianEmail || "");
+
+  useEffect(() => {
+    setEditName(student.fullName || "");
+    setEditRollNo(student.rollNo || "");
+    setEditGuardianName(student.guardianName || "");
+    setEditGuardianPhone(student.guardianPhone || "");
+    setEditGuardianEmail(student.guardianEmail || "");
+  }, [student.id, student.fullName, student.rollNo, student.guardianName, student.guardianPhone, student.guardianEmail]);
+
+  const saveEdits = async () => {
+    await onUpdate(student.id, {
+      fullName: editName,
+      rollNo: editRollNo,
+      guardianName: editGuardianName || null,
+      guardianPhone: editGuardianPhone || null,
+      guardianEmail: editGuardianEmail || null,
+    });
+    setEditing(false);
+  };
 
   return (
     <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onDelete(student)}
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Student
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditing(!editing)}
+          className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+            editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+          }`}
+        >
+          {editing ? "Cancel" : "Edit Details"}
+        </button>
+      </div>
+
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
           <img src={avatar} alt="" className="h-full w-full object-cover" />
         </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Student Record</p>
-          <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{student.fullName}</h3>
-          <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">
-            {student.rollNo || "No roll number"} - {classLabel(student.class)}
-          </p>
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <div className="space-y-3">
+              <FormInput label="Full Name" value={editName} placeholder="Student name" onChange={setEditName} />
+              <FormInput label="Roll Number" value={editRollNo} placeholder="Roll number" onChange={setEditRollNo} />
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Student Record</p>
+              <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{student.fullName}</h3>
+              <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">
+                {student.rollNo || "No roll number"} - {classLabel(student.class)}
+              </p>
+            </>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1826,12 +2609,20 @@ function StudentDetailModal({
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
           <PanelTitle icon={Users} title="Guardian" />
-          <div className="mt-4 space-y-3">
-            <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-            <DetailRow label="Name" value={student.guardianName || "N/A"} />
-            <DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
-            <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
-          </div>
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Guardian Name" value={editGuardianName} placeholder="Guardian name" onChange={setEditGuardianName} />
+              <FormInput label="Guardian Phone" value={editGuardianPhone} placeholder="Guardian phone" onChange={setEditGuardianPhone} />
+              <FormInput label="Guardian Email" value={editGuardianEmail} placeholder="Guardian email" onChange={setEditGuardianEmail} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
+              <DetailRow label="Name" value={student.guardianName || "N/A"} />
+              <DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
+              <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
+            </div>
+          )}
         </div>
 
         <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
@@ -1850,8 +2641,13 @@ function StudentDetailModal({
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <BrandButton variant="dark" icon={<School className="w-4 h-4" />} onClick={onMove}>
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+        {editing ? (
+          <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+          </BrandButton>
+        ) : null}
+        <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>
           Move Class / Section
         </BrandButton>
       </div>
@@ -1859,23 +2655,64 @@ function StudentDetailModal({
   );
 }
 
-function TeacherDetailModal({ teacher, onClose }: { teacher: any; onClose: () => void }) {
+function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: { fullName?: string; phone?: string }) => Promise<void> }) {
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(teacher.fullName || "");
+  const [editPhone, setEditPhone] = useState(teacher.phone || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setEditName(teacher.fullName || "");
+    setEditPhone(teacher.phone || "");
+  }, [teacher.id, teacher.fullName, teacher.phone]);
+
+  const saveEdits = async () => {
+    if (!onUpdate) return;
+    setSaving(true);
+    try {
+      await onUpdate(teacher.id, { fullName: editName, phone: editPhone || null });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <ModalFrame title={teacher.fullName} eyebrow="Teacher profile" onClose={onClose} wide>
+      <div className="mb-4 flex justify-end">
+        {onUpdate ? (
+          <button
+            type="button"
+            onClick={() => setEditing(!editing)}
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+              editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+            }`}
+          >
+            {editing ? "Cancel" : "Edit Details"}
+          </button>
+        ) : null}
+      </div>
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
           <img src={avatar} alt="" className="h-full w-full object-cover" />
         </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Record</p>
-          <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{teacher.fullName}</h3>
-          <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">
-            {teacher.email || "No email"}
-          </p>
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <div className="space-y-3">
+              <FormInput label="Full Name" value={editName} placeholder="Teacher name" onChange={setEditName} />
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Record</p>
+              <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{teacher.fullName}</h3>
+              <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">
+                {teacher.email || "No email"}
+              </p>
+            </>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -1887,8 +2724,22 @@ function TeacherDetailModal({ teacher, onClose }: { teacher: any; onClose: () =>
 
       <div className="mt-5 rounded-3xl bg-[#fbf0fe]/65 p-5">
         <DetailRow label="Email" value={teacher.email || "N/A"} />
-        <DetailRow label="Phone" value={teacher.phone || "N/A"} />
+        {editing ? (
+          <div className="mt-3">
+            <FormInput label="Phone" value={editPhone} placeholder="Phone number" onChange={setEditPhone} />
+          </div>
+        ) : (
+          <DetailRow label="Phone" value={teacher.phone || "N/A"} />
+        )}
       </div>
+
+      {editing ? (
+        <div className="mt-6 flex justify-end">
+          <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+          </BrandButton>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
@@ -2048,84 +2899,303 @@ function FormSelect({
 
 function ClassGroupCard({
   group,
+  teachers,
   onAddStudent,
   onViewClass,
+  onChangeTeacher,
+  onDeleteClass,
+  onUpdateClass,
+  onDeleteSubject,
+  onUpdateSubject,
 }: {
   group: { name: string; academicYear: number | string; sections: any[] };
+  teachers: any[];
   onAddStudent: (classId?: string) => void;
   onViewClass: (cls: any) => void;
+  onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
+  onDeleteClass?: (cls: any) => void;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onDeleteSubject?: (subject: any) => void;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
+  const [open, setOpen] = useState(true);
   const studentCount = group.sections.reduce((sum, cls) => sum + (cls._count?.students || 0), 0);
   const subjectCount = group.sections.reduce((sum, cls) => sum + (cls._count?.subjects || cls.subjects?.length || 0), 0);
 
   return (
-    <div className="w-full rounded-[32px] border border-[#cfc2d6]/10 bg-white p-7 shadow-lg transition-all hover:border-[#8127cf]/20 hover:shadow-2xl">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Class Group</p>
-          <h3 className="mt-1 truncate text-2xl font-black tracking-normal text-[#1f1a23]">{group.name}</h3>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-            {group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"}
+    <div className={cn(
+      "rounded-[32px] border bg-white shadow-lg transition-all self-start",
+      open
+        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
+        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
+    )}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          open ? "p-5" : "px-4 py-3"
+        )}
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn(
+            "flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            open ? "h-10 w-10" : "h-8 w-8"
+          )}>
+            <BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
+          </div>
+          <div className="min-w-0">
+            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
+              {group.name}
+            </p>
+            {open ? (
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                {group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {onDeleteClass ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
+              className="flex h-8 items-center gap-1 rounded-lg bg-rose-50 px-2 text-[8px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
+          <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            {group.sections.length} cls
+          </span>
+          <ChevronDown
+            className={cn(
+              "text-[#8127cf] transition-all duration-200",
+              open ? "h-5 w-5 rotate-180" : "h-4 w-4"
+            )}
+          />
+        </div>
+      </button>
+
+      {open ? (
+        <div className="border-t border-[#cfc2d6]/10 p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <MiniMetric label="Students" value={studentCount} active />
+            <MiniMetric label="Subjects" value={subjectCount} />
+          </div>
+          {group.sections.map((cls) => (
+            <SectionCard
+              key={cls.id}
+              cls={cls}
+              teachers={teachers}
+              classTeacherId={cls.classTeacher?.id || ""}
+              onViewClass={onViewClass}
+              onAddStudent={onAddStudent}
+              onChangeTeacher={onChangeTeacher}
+              onDeleteClass={onDeleteClass}
+              onUpdateClass={onUpdateClass}
+              onDeleteSubject={onDeleteSubject}
+              onUpdateSubject={onUpdateSubject}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SectionCard({
+  cls,
+  teachers,
+  classTeacherId,
+  onViewClass,
+  onAddStudent,
+  onChangeTeacher,
+  onDeleteClass,
+  onUpdateClass,
+  onDeleteSubject,
+  onUpdateSubject,
+}: {
+  cls: any;
+  teachers: any[];
+  classTeacherId: string;
+  onViewClass: (cls: any) => void;
+  onAddStudent: (classId?: string) => void;
+  onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
+  onDeleteClass?: (cls: any) => void;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onDeleteSubject?: (subject: any) => void;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+}) {
+  const [subjectsOpen, setSubjectsOpen] = useState(true);
+  const [changingTeacher, setChangingTeacher] = useState(false);
+  const [editingSection, setEditingSection] = useState(false);
+  const [editName, setEditName] = useState(cls.name || "");
+  const [editSection, setEditSection] = useState(cls.section || "");
+
+  const saveSection = async () => {
+    if (onUpdateClass) {
+      await onUpdateClass(cls.id, { name: editName, section: editSection });
+      setEditingSection(false);
+    }
+  };
+
+  if (editingSection) {
+    return (
+      <div className="rounded-2xl bg-white border border-[#8127cf]/20 p-4 space-y-3">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Edit Section</p>
+        <div className="grid grid-cols-2 gap-3">
+          <FormInput label="Class Name" value={editName} placeholder="e.g. Class 10" onChange={setEditName} />
+          <FormInput label="Section" value={editSection} placeholder="e.g. A" onChange={setEditSection} />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={() => setEditingSection(false)}
+            className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] cursor-pointer"
+          >
+            Cancel
+          </button>
+          <BrandButton variant="dark" className="h-10" onClick={saveSection}>
+            Save
+          </BrandButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-[#fbf0fe]/55">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewClass(cls);
+          }}
+          className="min-w-0 flex-1 cursor-pointer text-left"
+        >
+          <p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p>
+          <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+            {cls.classTeacher?.fullName || "No class teacher"} - {cls._count?.students || 0} students
           </p>
         </div>
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm">
-          <BookOpen className="h-6 w-6" />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setEditingSection(true); }}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
+            title="Edit section"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+          {onDeleteClass ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+              title="Delete section"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          {changingTeacher ? (
+            <select
+              value={classTeacherId || ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== classTeacherId) {
+                  onChangeTeacher(cls.id, val);
+                }
+                setChangingTeacher(false);
+              }}
+              className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer"
+              autoFocus
+              onBlur={() => setChangingTeacher(false)}
+            >
+              <option value="">No teacher</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setChangingTeacher(true);
+              }}
+              className={cn(
+                "flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-normal transition-all",
+                cls.classTeacher
+                  ? "bg-emerald-50 text-emerald-700 hover:bg-amber-50 hover:text-amber-700"
+                  : "bg-amber-50 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700"
+              )}
+            >
+              <Users className="h-3 w-3" />
+              {cls.classTeacher ? "Chg" : "Asgn"}
+            </button>
+          )}
+          {onAddStudent ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddStudent(cls.id);
+              }}
+              className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+            >
+              + Student
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setSubjectsOpen((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"
+          >
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                subjectsOpen && "rotate-180"
+              )}
+            />
+          </button>
         </div>
       </div>
-
-      <div className="mb-5 grid grid-cols-2 gap-3">
-        <MiniMetric label="Students" value={studentCount} active />
-        <MiniMetric label="Subjects" value={subjectCount} />
-      </div>
-
-      <div className="space-y-3">
-        {group.sections.map((cls) => {
-          const classTeacherId = cls.classTeacher?.id || "";
-          const hasSeparateSubjectTeachers = (cls.subjects || []).some(
-            (subject: any) => subject.teacher?.id && subject.teacher.id !== classTeacherId
-          );
-
-          return (
-            <div key={cls.id} className="rounded-2xl bg-[#fbf0fe]/55 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <button
-                  type="button"
-                  onClick={() => onViewClass(cls)}
-                  className="min-w-0 cursor-pointer text-left"
-                >
-                  <p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {cls.classTeacher?.fullName || "No class teacher"} - {cls._count?.students || 0} students
-                  </p>
-                </button>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <StatusPill status={hasSeparateSubjectTeachers ? "Subject Teachers" : "One Teacher"} />
-                  <button
-                    type="button"
-                    onClick={() => onAddStudent(cls.id)}
-                    className="h-9 cursor-pointer rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
-                  >
-                    Add Student
-                  </button>
+      {subjectsOpen ? (
+        <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
+          {cls.subjects?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {cls.subjects.slice(0, 5).map((subject: any) => (
+                <div key={subject.id} className="flex items-center gap-1 rounded-full bg-white pl-3 pr-1 py-1">
+                  <span className="text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
+                    {subject.name}{subject.teacher?.fullName ? ` - ${subject.teacher.fullName}` : ""}
+                  </span>
+                  {onDeleteSubject ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }}
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[#4d4354]/30 transition-all hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                      title="Delete subject"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  ) : null}
                 </div>
-              </div>
-              {cls.subjects?.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {cls.subjects.slice(0, 5).map((subject: any) => (
-                    <span key={subject.id} className="rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
-                      {subject.name}{subject.teacher?.fullName ? ` - ${subject.teacher.fullName}` : ""}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
-                  No subjects yet. Open this section to add subjects and assign teachers.
-                </p>
-              )}
+              ))}
             </div>
-          );
-        })}
-      </div>
+          ) : (
+            <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
+              No subjects yet. Open this section to add subjects and assign teachers.
+            </p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2247,11 +3317,76 @@ function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) 
   );
 }
 
-function SnapshotColumn({ icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
+function SnapshotColumn({ icon: Icon, title, after, children }: { icon: LucideIcon; title: string; after?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(true);
+  const childCount = useMemo(() => {
+    let count = 0;
+    if (Array.isArray(children)) {
+      count = children.filter(Boolean).length;
+    } else if (children) {
+      count = 1;
+    }
+    return count;
+  }, [children]);
+
   return (
-    <CollapsiblePanel icon={icon} title={title} defaultOpen>
-      <div className="space-y-3">{children}</div>
-    </CollapsiblePanel>
+    <div className={cn(
+      "rounded-[32px] border bg-white shadow-lg transition-all self-start",
+      open
+        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
+        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
+    )}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          open ? "p-5" : "px-4 py-3"
+        )}
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn(
+            "flex shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            open ? "h-10 w-10" : "h-8 w-8"
+          )}>
+            <Icon className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
+          </div>
+          <div className="min-w-0">
+            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
+              {title}
+            </p>
+            {open ? (
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                {childCount} item{childCount === 1 ? "" : "s"}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {open ? null : (
+            <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
+              {childCount} items
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "text-[#8127cf] transition-all duration-200",
+              open ? "h-5 w-5 rotate-180" : "h-4 w-4"
+            )}
+          />
+        </div>
+      </button>
+
+      {open ? (
+        <div className="border-t border-[#cfc2d6]/10 p-5">
+          {after ? (
+            <div className="mb-3 flex justify-end">{after}</div>
+          ) : null}
+          <div className="space-y-3">{children}</div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2275,7 +3410,7 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 
 function MiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/70 px-3 py-3">
+    <div className="rounded-2xl bg-[#fbf0fe]/70 px-4 py-[14px]">
       <p className="text-[7px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
       <p className={`mt-1 truncate text-base font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
@@ -2314,6 +3449,36 @@ function BulkStudentImport({
   const [parsedError, setParsedError] = useState("");
   const [importing, setImporting] = useState(false);
 
+  const parseCSVRow = (line: string): string[] => {
+    const cols: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        cols.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    cols.push(current.trim());
+    return cols;
+  };
+
+  const downloadTemplate = () => {
+    const csv = "Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email\nJohn Doe,101,MALE,Grade 8 A,Jane Doe,+923001234567,jane@example.com\nJane Smith,102,FEMALE,Grade 8 A,,+923001234568,\nAlex Lee,103,OTHER,Grade 8 B,,,";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "student_import_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const parseCSV = (text: string) => {
     setParsedError("");
     const lines = text.trim().split("\n").filter(Boolean);
@@ -2321,7 +3486,7 @@ function BulkStudentImport({
       setPreview([]);
       return;
     }
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const headers = parseCSVRow(lines[0]).map((h) => h.trim().toLowerCase());
     const nameIdx = headers.findIndex((h) => h.includes("name") || h === "fullname" || h === "full_name");
     const rollIdx = headers.findIndex((h) => h.includes("roll") || h === "rollno" || h === "roll_no");
     const genderIdx = headers.findIndex((h) => h.includes("gender"));
@@ -2338,7 +3503,7 @@ function BulkStudentImport({
 
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim());
+      const cols = parseCSVRow(lines[i]).map((c) => c.trim());
       const name = cols[nameIdx] || "";
       const rollNo = cols[rollIdx] || "";
       if (!name || !rollNo) continue;
@@ -2398,6 +3563,14 @@ function BulkStudentImport({
         <p className="text-[10px] font-bold text-[#4d4354]/60">
           Paste CSV data with columns: Full Name, Roll No, Gender (MALE/FEMALE/OTHER), Class (e.g. &quot;Grade 8 A&quot;), Guardian Name, Guardian Phone, Guardian Email
         </p>
+        <button
+          type="button"
+          onClick={downloadTemplate}
+          className="mt-2 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
+        >
+          <Download className="h-3 w-3" />
+          Download CSV Template
+        </button>
       </div>
       <textarea
         value={csvText}
@@ -2453,50 +3626,207 @@ function BulkStudentImport({
 function ActivityLogModal({ onClose }: { onClose: () => void }) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const perPage = 25;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/audit-log?limit=50");
-        const result = await res.json();
-        if (res.ok) setLogs(result.data || []);
-      } catch {
-        setLogs([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (filter !== "all") params.set("tableName", filter);
+      const res = await fetch(`/api/audit-log?${params}`);
+      const result = await res.json();
+      if (res.ok) setLogs(result.data || []);
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchLogs(); }, [filter]);
+
+  const filtered = logs;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const pagedLogs = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+
+  useEffect(() => { setPage(1); }, [filter]);
+
+  const tableOptions = [
+    { value: "all", label: "All Events" },
+    { value: "student", label: "Students" },
+    { value: "class", label: "Classes" },
+    { value: "subject", label: "Subjects" },
+    { value: "invitation", label: "Invitations" },
+    { value: "marks", label: "Marks" },
+  ];
+
+  function describeLog(log: any): { label: string; detail: string; userName: string } {
+    const userName = log.user?.fullName || log.user?.email || "System";
+    const table = log.tableName.replace(/_/g, " ");
+    const isCreate = !log.oldValue;
+    const isDelete = !log.newValue;
+    const oldV = log.oldValue || {};
+    const newV = log.newValue || {};
+
+    if (table === "student") {
+      const name = newV.fullName || oldV.fullName || "a student";
+      if (isCreate) return { label: `Added ${name}`, detail: `Roll ${newV.rollNo || ""}`, userName };
+      if (oldV.classId && newV.classId && oldV.classId !== newV.classId)
+        return { label: `Moved ${name}`, detail: `Class changed`, userName };
+      return { label: `Updated ${name}`, detail: "", userName };
+    }
+    if (table === "class") {
+      const name = newV.name || oldV.name || "";
+      const section = newV.section || oldV.section || "";
+      if (isCreate) return { label: `Created class ${name}`, detail: `Section ${section}, ${newV.academicYear || ""}`, userName };
+      const oldTeacher = oldV.classTeacherId;
+      const newTeacher = newV.classTeacherId;
+      if (oldTeacher !== undefined && newTeacher !== undefined && oldTeacher !== newTeacher)
+        return { label: `Changed teacher for ${name}`, detail: `Teacher assigned`, userName };
+      return { label: `Updated class ${name}`, detail: `Section ${section}`, userName };
+    }
+    if (table === "subject") {
+      const name = newV.name || oldV.name || "";
+      if (isCreate) return { label: `Added subject ${name}`, detail: "", userName };
+      if (isDelete) return { label: `Removed subject ${name}`, detail: "", userName };
+      const oldT = oldV.teacherId;
+      const newT = newV.teacherId;
+      if (oldT !== newT)
+        return { label: `Changed teacher for ${name}`, detail: newT ? `Teacher assigned` : "Unassigned", userName };
+      return { label: `Updated subject ${name}`, detail: "", userName };
+    }
+    if (table === "invitation") {
+      const email = newV.email || oldV.email || "";
+      const role = newV.role || oldV.role || "";
+      if (isCreate) return { label: `Invited ${role?.replace(/_/g, " ")}`, detail: email, userName };
+      return { label: `Updated invitation`, detail: email, userName };
+    }
+    if (table === "marks") {
+      return { label: `Entered marks`, detail: `${Object.keys(newV).length} subjects`, userName };
+    }
+    return { label: `${isCreate ? "Created" : isDelete ? "Deleted" : "Updated"} ${table}`, detail: "", userName };
+  }
 
   return (
     <ModalFrame title="Activity Log" eyebrow="Campus audit trail" onClose={onClose} wide>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">
+          {tableOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setFilter(opt.value)}
+              className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+                filter === opt.value ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[9px] font-bold text-[#4d4354]/40">{filtered.length} entries</span>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
         </div>
-      ) : logs.length === 0 ? (
+      ) : pagedLogs.length === 0 ? (
         <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>
       ) : (
-        <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-[#1f1a23]">
-                    {log.tableName.replace(/_/g, " ")} — {log.recordId?.slice(0, 8) || "N/A"}
-                  </p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    by {log.userId?.slice(0, 8) || "system"}
-                  </p>
+        <>
+          <div className="max-h-80 overflow-y-auto custom-scrollbar space-y-2">
+            {pagedLogs.map((log) => {
+              const { label, detail, userName } = describeLog(log);
+              return (
+                <div key={log.id} className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-[#1f1a23]">{label}</p>
+                      {detail ? (
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                          {detail}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/35">
+                        by {userName}
+                      </p>
+                    </div>
+                    <span className="shrink-0 whitespace-nowrap text-[9px] font-bold text-[#4d4354]/40">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-                <span className="shrink-0 text-[9px] font-bold text-[#4d4354]/40">
-                  {new Date(log.createdAt).toLocaleString()}
-                </span>
-              </div>
+              );
+            })}
+          </div>
+          {totalPages > 1 ? (
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Previous
+              </button>
+              <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/50">
+                Page {safePage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Next
+              </button>
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
+    </ModalFrame>
+  );
+}
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <ModalFrame title="Help Center" eyebrow="Campus support" onClose={onClose}>
+      <div className="space-y-5">
+        <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
+          <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Getting Started</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/70">
+            This is your campus admin workspace. From here you can manage classes, teachers, students, exams, and AI-powered insights.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4">
+            <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Classes</p>
+            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
+          </div>
+          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4">
+            <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Teachers</p>
+            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
+          </div>
+          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4">
+            <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Students</p>
+            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
+          </div>
+          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4">
+            <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Exams & Reports</p>
+            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
+          </div>
+        </div>
+        <div className="rounded-3xl bg-[#fbf0fe]/50 p-5">
+          <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Need more help?</p>
+          <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">
+            Contact your school administration for advanced support. Additional documentation and FAQs are available through your school&apos;s IT department.
+          </p>
+        </div>
+      </div>
     </ModalFrame>
   );
 }

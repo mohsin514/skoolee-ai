@@ -187,6 +187,8 @@ export const examSchema = z.object({
   term: z.string().min(1, "Term required"),
   classId: z.string().min(1, "Class required"),
   academicYear: z.coerce.number().int().min(2000).max(2100),
+  examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL", "CUSTOM"]).optional().default("CLASS_TEST"),
+  subjectId: z.string().optional(),
 });
 
 export const examStatusSchema = z.object({

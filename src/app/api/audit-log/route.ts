@@ -22,7 +22,21 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return Response.json({ success: true, data: logs });
+    const userIds = [...new Set(logs.map((l) => l.userId))];
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, fullName: true, email: true },
+    });
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+    const data = logs.map((log) => ({
+      ...log,
+      oldValue: log.oldValue ? (typeof log.oldValue === "string" ? JSON.parse(log.oldValue) : log.oldValue) : null,
+      newValue: log.newValue ? (typeof log.newValue === "string" ? JSON.parse(log.newValue) : log.newValue) : null,
+      user: userMap[log.userId] || null,
+    }));
+
+    return Response.json({ success: true, data });
   } catch (error) {
     return errorResponse(error, "[audit-log] GET failed");
   }
