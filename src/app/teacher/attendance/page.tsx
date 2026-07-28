@@ -1,0 +1,324 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  CalendarCheck, CheckCheck, CheckCircle2, ChevronLeft, ChevronRight, History, ListChecks, Loader2, Plus,
+} from "lucide-react";
+import { BrandButton } from "@/components/role-dashboard";
+import { Select } from "@/components/ui/select";
+import {
+  AttendanceSkeleton, classLabel, EmptyInline, StudentMini, todayIso, useTeacherData,
+} from "@/components/teacher/teacher-components";
+import { cn } from "@/lib/utils";
+
+type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
+
+const STATUS_CONFIG = {
+  PRESENT: { label: "Present", short: "P", activeClass: "bg-emerald-500 text-white ring-2 ring-emerald-300", chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100", dot: "bg-emerald-500" },
+  ABSENT: { label: "Absent", short: "A", activeClass: "bg-rose-500 text-white ring-2 ring-rose-300", chipClass: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100", dot: "bg-rose-500" },
+  LEAVE: { label: "Leave", short: "L", activeClass: "bg-amber-500 text-white ring-2 ring-amber-300", chipClass: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", dot: "bg-amber-500" },
+};
+
+export default function AttendancePage() {
+  const { data, loading, loadData } = useTeacherData();
+  const [attendanceClassId, setAttendanceClassId] = useState("");
+  const [attendanceDate, setAttendanceDate] = useState(todayIso());
+  const [attendanceRows, setAttendanceRows] = useState<any[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState<any>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [attendanceHistoryLoading, setAttendanceHistoryLoading] = useState(false);
+  const [attendanceExists, setAttendanceExists] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
+
+  const classHubs = data?.classHubs || [];
+  const selectedAttendanceClass = classHubs.find((cls: any) => cls.id === attendanceClassId);
+  const isEditingAttendance = attendanceExists && attendanceDate !== todayIso();
+
+  useEffect(() => {
+    if (!data) return;
+    if (!attendanceClassId && classHubs[0]?.id) setAttendanceClassId(classHubs[0].id);
+  }, [data, attendanceClassId, classHubs]);
+
+  const loadAttendance = useCallback(async (classId: string, date: string) => {
+    if (!classId || !date) return;
+    setAttendanceLoading(true);
+    try {
+      const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`);
+      const text = await res.text();
+      const result = JSON.parse(text);
+      const summary = { total: result.total || 0, present: result.present || 0, absent: result.absent || 0, leave: result.leave || 0, unmarked: result.unmarked || 0 };
+      setAttendanceSummary(summary);
+      if (result.students) {
+        setAttendanceRows(result.students.map((s: any) => ({ ...s, status: s.status || "PRESENT" })));
+      } else {
+        setAttendanceRows([]);
+      }
+      setAttendanceExists(result.exists || false);
+    } catch { setAttendanceSummary(null); setAttendanceRows([]); setAttendanceExists(false); }
+    finally { setAttendanceLoading(false); }
+  }, []);
+
+  useEffect(() => { loadAttendance(attendanceClassId, attendanceDate); }, [attendanceClassId, attendanceDate, loadAttendance]);
+
+  const loadAttendanceHistory = useCallback(async (classId: string) => {
+    if (!classId) return;
+    setAttendanceHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/attendance/history?classId=${classId}`);
+      const text = await res.text();
+      const result = JSON.parse(text);
+      setAttendanceHistory(result.history || []);
+    } catch { setAttendanceHistory([]); }
+    finally { setAttendanceHistoryLoading(false); }
+  }, []);
+
+  useEffect(() => { if (attendanceClassId) loadAttendanceHistory(attendanceClassId); }, [attendanceClassId, loadAttendanceHistory]);
+
+  const markAllAttendance = useCallback((status: AttendanceStatus) => {
+    setAttendanceRows((rows) => rows.map((row) => ({ ...row, status })));
+  }, []);
+
+  const saveAttendance = useCallback(async () => {
+    if (!attendanceClassId || !attendanceRows.length) return;
+    setAttendanceSaving(true);
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId: attendanceClassId, date: attendanceDate, entries: attendanceRows.map((s) => ({ studentId: s.id, status: s.status })) }),
+      });
+      const text = await res.text();
+      const result = JSON.parse(text);
+      if (!res.ok) throw new Error(result.error || "Failed to save");
+      toast.success("Attendance saved");
+      await loadAttendance(attendanceClassId, attendanceDate);
+      await loadAttendanceHistory(attendanceClassId);
+      await loadData();
+    } catch (error: any) { toast.error(error.message); }
+    finally { setAttendanceSaving(false); }
+  }, [attendanceClassId, attendanceDate, attendanceRows, loadAttendance, loadAttendanceHistory, loadData]);
+
+  const adjustDate = (delta: number) => {
+    const d = new Date(attendanceDate);
+    d.setDate(d.getDate() + delta);
+    setAttendanceDate(d.toISOString().slice(0, 10));
+  };
+
+  const stats = attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
+  const completion = stats.total ? Math.round(((stats.present + stats.absent + stats.leave) / stats.total) * 100) : 0;
+
+  if (loading && !data) return <AttendanceSkeleton />;
+  if (!data) return null;
+
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative">
+          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
+            <CalendarCheck className="w-4 h-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Attendance Management</span>
+          </div>
+          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Daily Attendance</h2>
+          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Mark student attendance per class and date.</p>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+
+        {/* Editing banner */}
+        {isEditingAttendance && (
+          <div className="flex items-center gap-2 rounded-2xl bg-amber-50 border border-amber-200 px-5 py-3">
+            <History className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm font-semibold text-amber-800">Editing past attendance &mdash; <span className="text-amber-600 font-normal">{attendanceDate}</span></p>
+          </div>
+        )}
+
+        {/* Class & Date picker */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+            <div>
+              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Class</label>
+              <Select value={attendanceClassId} onChange={(e) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
+                {classHubs.map((cls: any) => <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>)}
+                {!classHubs.length ? <option value="">No classes</option> : null}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => adjustDate(-1)} title="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+                <ChevronLeft className="w-4 h-4 text-[#4d4354]" />
+              </button>
+              <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
+                className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
+              <button type="button" onClick={() => adjustDate(1)} title="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+                <ChevronRight className="w-4 h-4 text-[#4d4354]" />
+              </button>
+            </div>
+          </div>
+          <button type="button" onClick={() => setAttendanceDate(todayIso())} title="Reset to today's date"
+            className="text-xs font-semibold text-[#8127cf] hover:underline cursor-pointer active:text-[#6a1fa8]">
+            Back to today
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3.5" title="Total students in this class">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Total</p>
+            <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{stats.total}</p>
+          </div>
+          <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5 transition-all hover:bg-emerald-100/80" title="Students marked present">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Present</p>
+            <p className="mt-0.5 text-xl font-bold text-emerald-700">{stats.present}</p>
+          </div>
+          <div className="rounded-2xl bg-rose-50/80 border border-rose-200/60 px-4 py-3.5 transition-all hover:bg-rose-100/80" title="Students marked absent">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-700">Absent</p>
+            <p className="mt-0.5 text-xl font-bold text-rose-700">{stats.absent}</p>
+          </div>
+          <div className="rounded-2xl bg-amber-50/80 border border-amber-200/60 px-4 py-3.5 transition-all hover:bg-amber-100/80" title="Students on leave">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Leave</p>
+            <p className="mt-0.5 text-xl font-bold text-amber-700">{stats.leave}</p>
+          </div>
+          <div className="rounded-2xl bg-[#fbf0fe]/80 border border-[#8127cf]/10 px-4 py-3.5 transition-all hover:bg-[#fbf0fe]" title="Students not yet marked">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8127cf]">Unmarked</p>
+            <p className="mt-0.5 text-xl font-bold text-[#8127cf]">{stats.unmarked}</p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        {stats.total > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600 transition-all duration-500" style={{ width: `${completion}%` }} />
+            </div>
+            <span className="text-xs font-semibold text-[#4d4354]/50 whitespace-nowrap">{completion}% marked</span>
+          </div>
+        )}
+
+        {/* Bulk actions */}
+        {attendanceRows.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/45 mb-2.5">Bulk Mark</p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { status: "PRESENT" as AttendanceStatus, label: "All Present", icon: CheckCheck },
+                { status: "ABSENT" as AttendanceStatus, label: "All Absent", icon: Plus },
+                { status: "LEAVE" as AttendanceStatus, label: "All Leave", icon: Plus },
+              ]).map(({ status, label, icon: Icon }) => (
+                <button key={status} type="button" onClick={() => markAllAttendance(status)} title={`Mark all as ${label.toLowerCase()}`}
+                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]", STATUS_CONFIG[status].chipClass)}>
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Student roster */}
+        <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
+          {attendanceLoading ? (
+            <div className="divide-y divide-[#f3f4f9]">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-pulse bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
+                    <div>
+                      <div className="animate-pulse bg-[#e8e0ec]/60 h-4 w-32 mb-1 rounded-2xl" />
+                      <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-24 rounded-2xl" />
+                    </div>
+                  </div>
+                  <div className="animate-pulse bg-[#e8e0ec]/60 h-10 w-44 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ) : attendanceRows.length ? (
+            <div className="divide-y divide-[#f3f4f9]">
+              <div className="hidden sm:grid sm:grid-cols-[1fr_200px] gap-3 px-6 py-3 bg-[#fbf0fe]/30">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Student</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Status</span>
+              </div>
+              {attendanceRows.map((student) => (
+                <div key={student.id} className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3 px-5 py-3.5 sm:items-center hover:bg-[#fbf0fe]/20 transition-colors">
+                  <StudentMini student={student} />
+                  <div className="flex gap-1.5 sm:justify-end">
+                    {(["PRESENT", "ABSENT", "LEAVE"] as AttendanceStatus[]).map((status) => (
+                      <button key={status} type="button"
+                        onClick={() => setAttendanceRows((rows) => rows.map((r) => (r.id === student.id ? { ...r, status } : r)))}
+                        title={`Mark as ${STATUS_CONFIG[status].label.toLowerCase()}`}
+                        className={cn(
+                          "flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]",
+                          student.status === status
+                            ? STATUS_CONFIG[status].activeClass
+                            : "bg-white text-[#4d4354]/60 border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
+                        )}>
+                        {STATUS_CONFIG[status].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8">
+              <EmptyInline text="No students available for this attendance roster." />
+            </div>
+          )}
+        </div>
+
+        {/* Save + history toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <button type="button" onClick={() => setHistoryOpen(!historyOpen)} title={historyOpen ? "Collapse history" : "Expand history"}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[#4d4354]/60 hover:text-[#8127cf] transition-colors cursor-pointer active:scale-[0.97]">
+            <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", historyOpen && "rotate-90")} />
+            Recent Attendance ({attendanceHistory.length})
+          </button>
+          <BrandButton variant="dark" icon={attendanceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
+            onClick={saveAttendance} disabled={attendanceSaving || !attendanceRows.length}
+            title={!attendanceRows.length ? "No students to save" : isEditingAttendance ? "Update existing attendance record" : "Save today's attendance"}>
+            {attendanceSaving ? "Saving..." : isEditingAttendance ? "Update Attendance" : "Save Attendance"}
+          </BrandButton>
+        </div>
+
+        {/* History section */}
+        {historyOpen && attendanceHistory.length > 0 && (
+          <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
+            <div className="divide-y divide-[#f3f4f9] max-h-[320px] overflow-y-auto custom-scrollbar">
+              {attendanceHistory.slice(0, 15).map((entry) => {
+                const isSelected = entry.date === attendanceDate;
+                return (
+                  <button key={entry.date} type="button" onClick={() => setAttendanceDate(entry.date)} title={`View attendance for ${entry.date}`}
+                    className={cn("w-full cursor-pointer px-5 py-3.5 text-left transition-all hover:bg-[#fbf0fe]/50 flex items-center justify-between gap-4 active:bg-[#fbf0fe]", isSelected && "bg-[#fbf0fe]/70")}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors", isSelected ? "bg-[#8127cf] text-white" : "bg-[#fbf0fe] text-[#8127cf]")}>
+                        <CalendarCheck className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className={cn("text-sm font-semibold", isSelected ? "text-[#8127cf]" : "text-[#1d1b20]")}>{entry.date}</p>
+                        <p className="text-[11px] text-[#4d4354]/50">
+                          {entry.marked !== undefined ? (entry.marked ? "Complete" : `${entry.unmarked} unmarked`) : `${entry.present + entry.absent + entry.leave} marked`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{entry.present}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-rose-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{entry.absent}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{entry.leave}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

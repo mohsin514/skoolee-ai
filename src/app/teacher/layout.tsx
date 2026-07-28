@@ -1,3 +1,5 @@
-import OperationalLayout from "@/app/operational-layout";
+import { TeacherShell } from "./teacher-shell";
 
-export default OperationalLayout;
+export default function TeacherLayout({ children }: { children: React.ReactNode }) {
+  return <TeacherShell>{children}</TeacherShell>;
+}

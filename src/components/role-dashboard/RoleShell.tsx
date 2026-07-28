@@ -37,7 +37,7 @@ export function RoleShell({
   return (
     <div className="min-h-screen bg-[#fbf0fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
       <RoleSidebar tagline={tagline} items={navItems} bottomItems={bottomItems} />
-      <main className={cn("flex-1 md:ml-64 p-4 md:p-8 flex flex-col h-screen overflow-hidden", className)}>
+      <main className={cn("flex-1 md:ml-64 p-4 md:p-8 flex flex-col h-screen", className)}>
         <RoleHeader
           eyebrow={eyebrow}
           searchPlaceholder={searchPlaceholder}
@@ -47,7 +47,9 @@ export function RoleShell({
           dashboardHref={dashboardHref}
           actions={headerActions}
         />
-        {children}
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
+          {children}
+        </div>
       </main>
     </div>
   );

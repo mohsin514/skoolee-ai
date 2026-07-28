@@ -119,11 +119,12 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
   };
 
   return (
-    <div className={cn("rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-lg", compact ? "p-5" : "p-7", className)}>
+    <div className={cn("rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-lg transition-all duration-300 hover:shadow-xl", compact ? "p-5" : "p-7", className)}>
       <div className={cn("grid gap-6", compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[260px_1fr]")}>
-        <div className="rounded-[30px] bg-[#fbf0fe]/70 p-5">
-          <div className="relative mx-auto h-32 w-32 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-            <img src={imageSrc} alt="" className="h-full w-full object-cover" />
+        <div className="rounded-[30px] bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/70 to-white p-5">
+          <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
+            <img src={imageSrc} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                 <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
@@ -140,7 +141,7 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#8127cf] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#8127cf] hover:text-white"
+            className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-[#8127cf] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#8127cf] hover:text-white hover:shadow-lg active:scale-[0.97]"
           >
             <Camera className="h-4 w-4" />
             Add Image
@@ -153,8 +154,8 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
 
         <div className="space-y-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Account Profile</p>
-            <h3 className="mt-1 text-2xl font-black tracking-normal text-[#1f1a23]">{form.fullName || "Your profile"}</h3>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Account Profile</p>
+            <h3 className="mt-1 text-2xl font-bold tracking-tight text-[#1d1b20]">{form.fullName || "Your profile"}</h3>
           </div>
 
           <ProfileInput
@@ -212,12 +213,12 @@ function ProfileInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span>
+      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-[#4d4354]/35 hover:border-[#8127cf]/20 focus:border-[#8127cf]/35 focus:bg-white"
       />
     </label>
   );
@@ -225,7 +226,7 @@ function ProfileInput({
 
 function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60">
+    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">
       <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
       <span className="min-w-0 truncate">{label}</span>
     </div>
@@ -234,12 +235,12 @@ function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string })
 
 function ReadonlyDetail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
-      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+    <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3 transition-all duration-300 hover:bg-[#fbf0fe] hover:shadow-md">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
         <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
         {label}
       </div>
-      <p className="mt-1 truncate text-sm font-black text-[#1f1a23]">{value}</p>
+      <p className="mt-1 truncate text-sm font-bold text-[#1d1b20]">{value}</p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import { GraduationCap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -7,7 +8,8 @@ export interface RoleNavItem {
   label: string;
   icon: LucideIcon;
   active?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }
 
 interface RoleSidebarProps {
@@ -54,20 +56,33 @@ export function RoleSidebar({
 
 function SidebarButton({ item }: { item: RoleNavItem }) {
   const Icon = item.icon;
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const isActive = item.active ?? (item.href ? pathname === item.href || (item.href !== "/teacher" && pathname.startsWith(item.href)) : false);
+
+  const handleClick = () => {
+    if (item.href) {
+      router.push(item.href);
+    } else if (item.onClick) {
+      item.onClick();
+    }
+  };
 
   return (
     <button
       type="button"
-      onClick={item.onClick}
+      onClick={handleClick}
+      title={item.label}
       className={cn(
-        "w-full flex cursor-pointer items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 font-bold text-sm hover:-translate-y-0.5 active:scale-[0.98]",
-        item.active
-          ? "bg-white text-[#8127cf] shadow-xl shadow-[#8127cf]/10 font-black"
+        "w-full flex cursor-pointer items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 font-semibold text-sm hover:-translate-y-0.5 active:scale-[0.98]",
+        isActive
+          ? "bg-white text-[#8127cf] shadow-xl shadow-[#8127cf]/10 font-bold"
           : "text-[#4d4354] hover:bg-white/70 hover:text-[#1f1a23] hover:shadow-sm"
       )}
     >
-      <Icon className={cn("w-5 h-5", item.active ? "text-[#8127cf]" : "text-[#4d4354]/60")} />
-      {item.label}
+      <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-[#8127cf]" : "text-[#4d4354]/60")} />
+      <span className="truncate">{item.label}</span>
     </button>
   );
 }

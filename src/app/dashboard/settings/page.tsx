@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, UserRound } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { EditableProfileCard } from "@/components/profile/editable-profile-card";
 
@@ -14,25 +14,18 @@ export default function SettingsPage() {
           <EditableProfileCard />
 
           <aside className="space-y-4">
-            <div className="rounded-[32px] border border-[#cfc2d6]/15 bg-white p-6 shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-                <UserRound className="h-6 w-6" />
-              </div>
-              <h2 className="text-lg font-black text-[#1f1a23]">Profile Scope</h2>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/65">
-                Every role keeps the same account profile card, while sensitive permissions, role, and email remain protected.
-              </p>
-            </div>
-
-            <div className="rounded-[32px] border border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#8127cf]">
+            <div className="rounded-[32px] border border-[#cfc2d6]/15 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#8127cf] shadow-md">
                 <ShieldCheck className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-black text-[#1f1a23]">Allowed Changes</h2>
-              <div className="mt-4 space-y-2 text-sm font-bold text-[#4d4354]/70">
-                <p className="rounded-2xl bg-white px-4 py-3">Profile image</p>
-                <p className="rounded-2xl bg-white px-4 py-3">Full name</p>
-                <p className="rounded-2xl bg-white px-4 py-3">Phone number</p>
+              <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Protected Fields</h2>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+                Role, email, and account permissions are managed by your campus administrator and cannot be changed here.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Role</span>
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Email</span>
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Permissions</span>
               </div>
             </div>
           </aside>

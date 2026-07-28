@@ -149,6 +149,11 @@ button:disabled,
   to { transform: rotate(360deg); }
 }
 
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
 .animate-in {
   animation: fade-in 200ms ease-out;
 }
