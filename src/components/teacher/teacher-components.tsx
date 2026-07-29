@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   AlertCircle, BarChart3, BookOpen, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Loader2, Loader, LogOut, Mail, School, Send, Star, Trash2, Users, X, Zap,
 } from "lucide-react";
-import { getTeacherDashboardData } from "@/app/actions/dashboard";
+import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { Select } from "@/components/ui/select";
 import {
@@ -1009,62 +1009,81 @@ export function ReportsSkeleton() {
 export function AISkeleton() {
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="p-7 px-9 border-b border-[#f3f4f9] bg-white z-10 shrink-0">
-        <SkeletonBlock className="h-3 w-44 mb-2" />
-        <SkeletonBlock className="h-9 w-48 mb-2" />
-        <SkeletonBlock className="h-4 w-80" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-3 w-44" />
+          </div>
+          <SkeletonBlock className="h-9 w-48 mb-2" />
+          <SkeletonBlock className="h-4 w-72" />
+        </div>
       </div>
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 flex flex-col lg:flex-row gap-8">
-        {/* Main panel */}
-        <div className="flex-1 space-y-6">
-          <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
-            <div className="flex items-start gap-4 mb-6">
-              <SkeletonBlock className="h-12 w-12 rounded-2xl shrink-0" />
-              <div>
-                <SkeletonBlock className="h-6 w-36 mb-1" />
-                <SkeletonBlock className="h-3 w-24" />
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <SkeletonBlock className="h-3 w-16" />
+                <SkeletonBlock className="h-9 w-9 rounded-xl" />
+              </div>
+              <SkeletonBlock className="h-7 w-20 mb-1" />
+              <SkeletonBlock className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col lg:flex-row gap-8">
+          <div className="flex-1 min-w-0 space-y-6">
+            <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
+              <div className="flex items-start gap-4 mb-6">
+                <SkeletonBlock className="h-12 w-12 rounded-2xl shrink-0" />
+                <div>
+                  <SkeletonBlock className="h-6 w-36 mb-1" />
+                  <SkeletonBlock className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/20 p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <SkeletonBlock className="h-4 w-4 rounded" />
+                      <SkeletonBlock className="h-4 w-28" />
+                    </div>
+                    <SkeletonBlock className="h-12 w-full rounded-xl" />
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="space-y-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/20 p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <SkeletonBlock className="h-4 w-4 rounded" />
-                    <SkeletonBlock className="h-4 w-28" />
+          </div>
+          <div className="space-y-6 w-full lg:w-[360px] shrink-0">
+            <div className="bg-[#1f1a23] p-6 rounded-[32px]">
+              <SkeletonBlock className="h-3 w-28 mb-3 opacity-15" />
+              <SkeletonBlock className="h-10 w-24 mb-1 opacity-15" />
+              <SkeletonBlock className="h-3 w-48 mb-6 opacity-15" />
+              <div className="grid grid-cols-2 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="rounded-2xl bg-white/10 p-3">
+                    <SkeletonBlock className="h-3 w-14 mb-1.5 opacity-15" />
+                    <SkeletonBlock className="h-6 w-10 opacity-15" />
                   </div>
-                  <SkeletonBlock className="h-12 w-full rounded-xl" />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-        {/* Sidebar */}
-        <div className="space-y-6 w-full lg:w-[360px] shrink-0">
-          <div className="bg-[#1f1a23] p-6 rounded-[32px]">
-            <SkeletonBlock className="h-3 w-28 mb-3 opacity-15" />
-            <SkeletonBlock className="h-10 w-24 mb-1 opacity-15" />
-            <SkeletonBlock className="h-3 w-40 mb-6 opacity-15" />
-            <div className="grid grid-cols-2 gap-3">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="rounded-2xl bg-white/10 p-3">
-                  <SkeletonBlock className="h-3 w-14 mb-1.5 opacity-15" />
-                  <SkeletonBlock className="h-6 w-10 opacity-15" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
-            <SkeletonBlock className="h-4 w-32 mb-4" />
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-[#fbf0fe]/40 border border-[#8127cf]/10">
-                  <SkeletonBlock className="h-3 w-24 mb-2" />
-                  <SkeletonBlock className="h-3 w-full mb-1" />
-                  <SkeletonBlock className="h-3 w-3/4" />
-                </div>
-              ))}
+            <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <SkeletonBlock className="h-4 w-4 rounded" />
+                <SkeletonBlock className="h-4 w-32" />
+              </div>
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="p-4 rounded-2xl bg-[#fbf0fe]/40 border border-[#8127cf]/10">
+                    <SkeletonBlock className="h-3 w-24 mb-2" />
+                    <SkeletonBlock className="h-3 w-full mb-1" />
+                    <SkeletonBlock className="h-3 w-3/4" />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1076,21 +1095,6 @@ export function AISkeleton() {
 /* ── Hook to load teacher dashboard data ── */
 
 export function useTeacherData() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      setData(await getTeacherDashboardData());
-    } catch (error: any) {
-      toast.error(`Access denied: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  return { data, loading, loadData };
+  const { data, loading, refetch } = useTeacherDataContext();
+  return { data, loading, loadData: refetch };
 }

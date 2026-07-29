@@ -1,5 +1,6 @@
 'use server'
 
+import { cache } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
@@ -44,7 +45,7 @@ function formatPendingInvite(invite: { id: string; email: string; status: string
   };
 }
 
-export async function getSuperAdminDashboardData() {
+export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
@@ -327,9 +328,9 @@ export async function getSuperAdminDashboardData() {
       role: roleLabel(session.role),
     },
   };
-}
+});
 
-export async function getCampusDashboardData() {
+export const getCampusDashboardData = cache(async function getCampusDashboardData() {
   const session = await getAuthUser();
   if (!session || !isCampusAdminRole(session.role)) throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
@@ -580,9 +581,9 @@ export async function getCampusDashboardData() {
     adminEmail: session.email,
     roleLabel: roleLabel(session.role),
   };
-}
+});
 
-export async function getTeacherDashboardData() {
+export const getTeacherDashboardData = cache(async function getTeacherDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "TEACHER") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
@@ -785,9 +786,9 @@ export async function getTeacherDashboardData() {
     totalStudents: students.length,
     aiInsights,
   };
-}
+});
 
-export async function getPrincipalDashboardData() {
+export const getPrincipalDashboardData = cache(async function getPrincipalDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "PRINCIPAL") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
@@ -1135,9 +1136,9 @@ export async function getPrincipalDashboardData() {
     adminEmail: session.email,
     roleLabel: "Principal",
   };
-}
+});
 
-export async function getStudentDashboardData() {
+export const getStudentDashboardData = cache(async function getStudentDashboardData() {
   const session = await getAuthUser();
   if (!session || (session.role !== "STUDENT" && session.role !== "PARENT")) {
     throw new Error("Unauthorized");
@@ -1271,4 +1272,4 @@ export async function getStudentDashboardData() {
       aiInsights,
     },
   };
-}
+});

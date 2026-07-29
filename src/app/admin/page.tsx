@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardList,
   Clock,
+  Copy,
   Download,
   FileText,
   GraduationCap,
@@ -16,6 +17,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  MapPin,
   Plus,
   School,
   Send,
@@ -42,6 +44,7 @@ import {
 } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { CornerSparkles } from "@/components/CornerSparkles";
 
 type AdminView = "leadership" | "classes" | "teachers" | "students" | "ai";
 type InviteRole = "CAMPUS_ADMIN" | "PRINCIPAL" | "TEACHER";
@@ -740,12 +743,7 @@ export default function CampusAdminDashboard() {
   ];
 
   if (loading && !data) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f3f4f9] gap-4">
-        <GraduationCap className="h-12 w-12 text-[#8127cf] animate-bounce" />
-        <p className="text-sm font-black text-[#1f1a23] uppercase tracking-normal leading-none">Accessing Campus Command...</p>
-      </div>
-    );
+    return <AdminSkeleton standalone={true} />;
   }
 
   if (!data) return null;
@@ -1064,8 +1062,50 @@ function LeadershipPanel({
   onCancel: (id: string) => void;
   onActivityLog?: () => void;
 }) {
+  const summary = [
+    { icon: Shield, label: "Admins", value: data.campusAdmins?.length || 0, color: "from-[#8127cf]/10 to-[#b876f0]/5 text-[#8127cf]" },
+    { icon: GraduationCap, label: "Principal", value: data.principal ? 1 : 0, color: data.principal ? "from-emerald-50 to-emerald-100/50 text-emerald-600" : "from-amber-50 to-amber-100/50 text-amber-600" },
+    { icon: Clock, label: "Pending", value: data.pendingAdminInvitations?.length || 0, color: "from-amber-50 to-amber-100/50 text-amber-600" },
+    { icon: Building, label: "Campus", value: data.campusName || "—", color: "from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]" },
+  ];
+
   return (
     <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-black text-[#1f1a23] tracking-normal">Campus Control</h2>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Manage campus ownership, admin access, and identity</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onInviteAdmin}>
+            Invite Admin
+          </BrandButton>
+          <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={onInvitePrincipal}>
+            Appoint Principal
+          </BrandButton>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {summary.map((s, i) => (
+          <div
+            key={i}
+            className="relative rounded-2xl bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border border-[#cfc2d6]/10 p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
+          >
+            <div className="absolute -top-8 -right-8 w-16 h-16 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-[40px] pointer-events-none" />
+            <div className="relative flex items-center justify-between mb-2">
+              <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">{s.label}</p>
+              <div className={`h-8 w-8 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shadow-sm`}>
+                <s.icon className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="relative">
+              <p className="text-2xl font-black text-[#1f1a23]">{s.value}</p>
+              <div className="mt-1 h-1 w-full max-w-[40px] rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0]" />
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <ManagementCard
           title="Campus Administrator"
@@ -1100,25 +1140,60 @@ function LeadershipPanel({
 }
 
 function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActivityLog?: () => void }) {
+  const fields = [
+    { icon: Building, label: "Campus", value: data.campusName },
+    { icon: School, label: "School", value: data.schoolName },
+    { icon: MapPin, label: "City", value: data.campusCity || "Not set" },
+    { icon: FileText, label: "Reg ID", value: data.campusRegId || "Not set", copyable: true },
+    { icon: GraduationCap, label: "Academic Year", value: data.academicYear || "Not set" },
+    { icon: Users, label: "Students", value: `${data.studentCount || 0}` },
+  ];
   return (
-    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <PanelTitle icon={Building} title="Campus Identity" />
-        <StatusPill status={data.isStandaloneCampus ? "Standalone" : "Campus"} />
-      </div>
-      <div className="space-y-3">
-        <IdentityRow label="Campus" value={data.campusName} />
-        <IdentityRow label="School" value={data.schoolName} />
-        <IdentityRow label="City" value={data.campusCity || "Not set"} />
-        <IdentityRow label="Reg ID" value={data.campusRegId || "Not set"} />
-      </div>
-      {onActivityLog ? (
-        <div className="mt-5">
-          <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={onActivityLog} className="w-full">
-            View Activity Log
-          </BrandButton>
+    <div className="relative group rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg transition-all duration-500 hover:shadow-2xl hover:border-[#8127cf]/20 overflow-hidden">
+      <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-[70px] pointer-events-none" />
+      <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-gradient-to-tr from-[#b876f0]/4 to-transparent rounded-full blur-[60px] pointer-events-none" />
+      <div className="relative">
+        <CornerSparkles />
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <PanelTitle icon={Building} title="Campus Identity" />
+          <StatusPill status={data.isStandaloneCampus ? "Standalone" : "Campus"} />
         </div>
-      ) : null}
+        <div className="grid grid-cols-1 gap-3">
+          {fields.map((f, i) => (
+            <div
+              key={i}
+              className="group/row flex items-center gap-4 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 px-4 py-3.5 border border-transparent transition-all hover:bg-[#fbf0fe]/80 hover:border-[#8127cf]/15 hover:shadow-sm"
+            >
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] shrink-0 transition-all group-hover/row:from-[#8127cf] group-hover/row:to-[#b876f0] group-hover/row:text-white">
+                <f.icon className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">{f.label}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-sm font-black text-[#1f1a23] truncate">{f.value}</p>
+                  {f.copyable && f.value && f.value !== "Not set" ? (
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(f.value)}
+                      className="shrink-0 rounded-lg bg-white p-1 text-[#4d4354]/30 opacity-0 transition-all group-hover/row:opacity-100 hover:text-[#8127cf] hover:bg-[#8127cf]/10"
+                      title="Copy to clipboard"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {onActivityLog ? (
+          <div className="mt-5">
+            <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={onActivityLog} className="w-full">
+              View Activity Log
+            </BrandButton>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1136,38 +1211,59 @@ function AdminTeamPanel({
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
+  const total = data.campusAdmins?.length || 0;
+  const pending = data.pendingAdminInvitations?.length || 0;
   return (
-    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PanelTitle icon={Shield} title="Admin Team" />
-        {data.canInviteAdmins ? (
-          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
-            Add Admin
-          </BrandButton>
-        ) : (
-          <StatusPill status="Owner Managed" />
-        )}
-      </div>
-      <div className="space-y-3">
-        {data.campusAdmins.map((admin: any) => (
-          <AdminRow
-            key={admin.id}
-            admin={admin}
-            currentUserId={data.currentUserId}
-            onRemove={() => onRemove(admin.id, "Admin")}
-          />
-        ))}
-        {data.pendingAdminInvitations.map((invite: any) => (
-          <PendingFacultyRow
-            key={invite.id}
-            invite={invite}
-            onResend={() => onResend(invite.id)}
-            onCancel={() => onCancel(invite.id)}
-          />
-        ))}
-        {data.campusAdmins.length === 0 && data.pendingAdminInvitations.length === 0 ? (
-          <EmptyInline text="No admin access is assigned yet." />
-        ) : null}
+    <div className="relative group rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg transition-all duration-500 hover:shadow-2xl hover:border-[#8127cf]/20 overflow-hidden">
+      <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-[70px] pointer-events-none" />
+      <div className="relative">
+        <CornerSparkles />
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <PanelTitle icon={Shield} title="Admin Team" />
+            {total > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-[#8127cf]/10 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+                {total} active
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            {pending > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-600">
+                <Clock className="w-2.5 h-2.5" />
+                {pending} pending
+              </span>
+            ) : null}
+            {data.canInviteAdmins ? (
+              <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
+                Add Admin
+              </BrandButton>
+            ) : (
+              <StatusPill status="Owner Managed" />
+            )}
+          </div>
+        </div>
+        <div className="space-y-3">
+          {data.campusAdmins.map((admin: any) => (
+            <AdminRow
+              key={admin.id}
+              admin={admin}
+              currentUserId={data.currentUserId}
+              onRemove={() => onRemove(admin.id, "Admin")}
+            />
+          ))}
+          {data.pendingAdminInvitations.map((invite: any) => (
+            <PendingFacultyRow
+              key={invite.id}
+              invite={invite}
+              onResend={() => onResend(invite.id)}
+              onCancel={() => onCancel(invite.id)}
+            />
+          ))}
+          {total === 0 && pending === 0 ? (
+            <EmptyInline text="No admin access is assigned yet." />
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -1863,7 +1959,8 @@ function AIPanel({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg relative overflow-hidden">
+        <CornerSparkles />
         <AiActionPanel title="Campus AI" options={features} compact onComplete={onComplete} />
       </div>
       <div className="space-y-8">
@@ -3204,33 +3301,46 @@ function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserI
   const isCurrentUser = admin.id === currentUserId;
 
   return (
-    <div className="bg-[#fbf0fe]/45 p-5 rounded-[28px] border border-transparent hover:border-[#8127cf]/10 transition-all flex items-center justify-between gap-4">
-      <div className="flex items-center gap-5 min-w-0">
-        <div className="h-12 w-12 bg-white rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0">
-          <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.email)}`} alt="" />
+    <div className="group/row relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="relative flex items-center justify-between gap-4">
+        <div className="flex items-center gap-5 min-w-0">
+          <div className="relative shrink-0">
+            <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/row:opacity-100 transition-opacity duration-500" />
+            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-[#8127cf]/30 group-hover/row:shadow-md">
+              <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.email)}`} alt="" className="h-full w-full object-cover" />
+            </div>
+            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-[#8127cf]"}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none truncate">{admin.fullName}</h4>
+              {isCurrentUser && (
+                <span className="shrink-0 inline-flex items-center rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0] px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-white shadow-sm">
+                  Owner
+                </span>
+              )}
+            </div>
+            <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]/60">
+                <Shield className="w-2.5 h-2.5" />
+                {isCurrentUser ? "Current session" : formatStatus(admin.role)}
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none mb-1 truncate">{admin.fullName}</h4>
-          <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-normal leading-none truncate">{admin.email}</p>
-          <p className="mt-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
-            {isCurrentUser ? "Current owner session" : formatStatus(admin.role)}
-          </p>
-        </div>
+        {!isCurrentUser && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="shrink-0 h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Revoke
+          </button>
+        )}
       </div>
-      {isCurrentUser ? (
-        <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
-          Owner
-        </span>
-      ) : (
-        <button
-          type="button"
-          onClick={onRemove}
-          className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-normal text-rose-500 flex items-center gap-1.5 justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer shrink-0"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          Revoke
-        </button>
-      )}
     </div>
   );
 }
@@ -3242,31 +3352,43 @@ function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onRese
     : null;
 
   return (
-    <div className="bg-amber-50/70 p-5 rounded-[28px] border border-amber-100 flex items-center justify-between gap-4 group">
-      <div className="flex items-center gap-5 min-w-0">
-        <div className="h-12 w-12 bg-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center shrink-0">
-          <Clock className="w-5 h-5 text-amber-500" />
+    <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-amber-300/10 to-transparent rounded-full blur-[50px] pointer-events-none" />
+      <div className="relative flex items-center justify-between gap-4">
+        <div className="flex items-center gap-5 min-w-0">
+          <div className="relative shrink-0">
+            <div className="absolute -inset-2 bg-amber-200/20 rounded-2xl blur-md opacity-0 group-hover/pending:opacity-100 transition-opacity duration-500" />
+            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-amber-200 shadow-sm flex items-center justify-center transition-all duration-300 group-hover/pending:border-amber-300 group-hover/pending:shadow-md">
+              <Clock className={`w-6 h-6 ${expired ? "text-rose-500" : "text-amber-500"}`} />
+            </div>
+            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${expired ? "bg-rose-500" : "bg-amber-400"}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none truncate">Invitation pending</h4>
+              <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
+            </div>
+            <p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            {expiryLabel ? (
+              <div className="flex items-center gap-1.5 mt-2">
+                <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />
+                <span className={`text-[8px] font-black uppercase tracking-wider ${expired ? "text-rose-600" : "text-amber-600"}`}>
+                  {expired ? "Expired" : "Expires"} {expiryLabel}
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
-        <div className="min-w-0">
-          <h4 className="text-base font-black text-[#1f1a23] tracking-normal leading-none mb-1 truncate">Invitation pending</h4>
-          <p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-normal leading-none truncate">{invite.email}</p>
-          {expiryLabel ? (
-            <p className={`mt-2 text-[8px] font-black uppercase tracking-normal ${expired ? "text-rose-600" : "text-amber-600"}`}>
-              {expired ? "Expired" : "Expires"} {expiryLabel}
-            </p>
-          ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+          <button type="button" onClick={onResend} className="h-10 rounded-xl bg-white px-4 text-[9px] font-black uppercase tracking-wider text-[#8127cf] flex items-center gap-1.5 justify-center border border-[#8127cf]/10 shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md hover:shadow-[#8127cf]/20 cursor-pointer">
+            <Send className="w-3.5 h-3.5" />
+            Resend
+          </button>
+          <button type="button" onClick={onCancel} className="h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+            Cancel
+          </button>
         </div>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-        <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
-        <button type="button" onClick={onResend} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] flex items-center gap-1.5 justify-center hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer">
-          <Send className="w-3.5 h-3.5" />
-          Resend
-        </button>
-        <button type="button" onClick={onCancel} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-normal text-rose-500 flex items-center gap-1.5 justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer">
-          <X className="w-4 h-4" />
-          Cancel
-        </button>
       </div>
     </div>
   );
@@ -3828,5 +3950,81 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </ModalFrame>
+  );
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div className={`relative isolate overflow-hidden rounded-2xl bg-[#e8e0ec]/50 ${className}`}>
+      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+    </div>
+  );
+}
+
+function AdminSkeleton({ standalone }: { standalone?: boolean }) {
+  return (
+    <div className="min-h-screen bg-[#fbf0fe] flex font-sans">
+      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-[#cfc2d6]/10 p-5 gap-6">
+        <SkeletonBlock className="h-8 w-32 rounded-lg" />
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <SkeletonBlock key={i} className="h-11 w-full rounded-2xl" />
+          ))}
+        </div>
+        <div className="mt-auto space-y-3">
+          <SkeletonBlock className="h-11 w-full rounded-2xl" />
+          <SkeletonBlock className="h-11 w-full rounded-2xl" />
+        </div>
+      </div>
+      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen">
+        <div className="flex items-center justify-between mb-8">
+          <div className="space-y-2">
+            <SkeletonBlock className="h-5 w-48" />
+            <SkeletonBlock className="h-4 w-36" />
+          </div>
+          <div className="flex gap-3">
+            <SkeletonBlock className="h-10 w-10 rounded-full" />
+            <SkeletonBlock className="h-10 w-10 rounded-full" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <SkeletonBlock key={i} className="h-24 rounded-[20px]" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+          {[1, 2].map((i) => (
+            <div key={i} className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-8">
+              <div className="flex items-center gap-4 mb-5">
+                <SkeletonBlock className="h-12 w-12 rounded-2xl" />
+                <div className="space-y-2 flex-1">
+                  <SkeletonBlock className="h-5 w-44" />
+                  <SkeletonBlock className="h-3 w-64" />
+                </div>
+              </div>
+              <SkeletonBlock className="h-28 w-full rounded-[24px]" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.9fr] gap-8">
+          <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6">
+            <SkeletonBlock className="h-6 w-32 mb-5" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <SkeletonBlock key={i} className="h-20 w-full rounded-[28px]" />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6">
+            <SkeletonBlock className="h-6 w-36 mb-5" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <SkeletonBlock key={i} className="h-14 w-full rounded-2xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

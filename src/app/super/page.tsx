@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertCircle,
@@ -31,7 +31,6 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import BillingPage from "@/app/dashboard/billing/page";
-import { getSuperAdminDashboardData } from "@/app/actions/dashboard";
 import { addCampus } from "@/app/actions/addCampus";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -45,6 +44,8 @@ import {
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { CornerSparkles } from "@/components/CornerSparkles";
+import { useSuperAdminData } from "./super-data-context";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -81,8 +82,7 @@ const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36)
 type SuperView = "schools" | "billing";
 export default function SuperAdminDashboard() {
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
@@ -101,24 +101,13 @@ export default function SuperAdminDashboard() {
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getSuperAdminDashboardData();
-      setData(result);
-      setSelectedCampus((current: any) =>
-        current ? result.campuses.find((campus: any) => campus.id === current.id) || null : null
-      );
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (data) {
+      setSelectedCampus((current: any) =>
+        current ? data.campuses.find((campus: any) => campus.id === current.id) || null : null
+      );
+    }
+  }, [data]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -169,7 +158,7 @@ export default function SuperAdminDashboard() {
       toast.success("Invitation dispatched successfully");
       setShowInviteModal(false);
       setInviteEmail("");
-      await loadData();
+      await refetch();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -193,7 +182,7 @@ export default function SuperAdminDashboard() {
       toast.success("New campus created");
       setShowAddCampusModal(false);
       setNewCampusData({ name: "", location: "", regId: "", autoId: true });
-      await loadData();
+      await refetch();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -209,7 +198,7 @@ export default function SuperAdminDashboard() {
       run: async () => {
         await removeStaff(userId);
         toast.success(`${type} access revoked`);
-        await loadData();
+        await refetch();
       },
     });
   };
@@ -222,7 +211,7 @@ export default function SuperAdminDashboard() {
       run: async () => {
         await cancelInvitation(inviteId);
         toast.success("Invitation cancelled");
-        await loadData();
+        await refetch();
       },
     });
   };
@@ -231,7 +220,7 @@ export default function SuperAdminDashboard() {
     try {
       await resendInvitation(inviteId);
       toast.success("Invitation resent");
-      await loadData();
+      await refetch();
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -268,12 +257,7 @@ export default function SuperAdminDashboard() {
   ];
 
   if (loading && !data) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f3f4f9] gap-4">
-        <GraduationCap className="h-12 w-12 text-[#8127cf] animate-bounce" />
-        <p className="text-sm font-black text-[#1f1a23] uppercase tracking-normal">Synchronizing School Network...</p>
-      </div>
-    );
+    return <SuperAdminSkeleton />;
   }
 
   return (
@@ -360,23 +344,25 @@ export default function SuperAdminDashboard() {
 
             <div id="network-ai-panel" className="mb-8 bg-[#fbf0fe]/30 border border-[#cfc2d6]/10 rounded-[32px] p-6 scroll-mt-6">
               <div className="flex items-center gap-3 mb-5">
-                <Sparkles className="w-5 h-5 text-[#8127cf]" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+                  <Sparkles className="w-5 h-5" />
+                </div>
                 <h3 className="text-lg font-black text-[#1f1a23] tracking-normal">AI Network Insights</h3>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5 mb-5">
-                <AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={loadData} />
+                <div className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
                 <div className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <Shield className="w-5 h-5 text-[#8127cf]" />
                     <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">AI Review</p>
                   </div>
-                  <AIReviewQueue items={data.pendingAIReviewItems} onComplete={loadData} />
+                  <AIReviewQueue items={data.pendingAIReviewItems} onComplete={refetch} />
                 </div>
               </div>
               {data.aiInsights?.length ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {data.aiInsights.slice(0, 4).map((insight: any) => (
-                    <div key={insight.id} className="bg-white rounded-[20px] p-4 border border-[#cfc2d6]/10">
+                    <div key={insight.id} className="bg-gradient-to-br from-white to-[#fbf0fe]/20 rounded-[20px] p-4 border border-[#cfc2d6]/10 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
                       <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal mb-1">
                         {insight.feature.replaceAll("_", " ")}
                       </p>
@@ -481,7 +467,7 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {selectedCampus.pendingInvitations.map((invite: any) => (
-                    <div key={invite.inviteId} className="rounded-[22px] bg-[#fbf0fe]/60 px-4 py-3">
+                    <div key={invite.inviteId} className="rounded-[22px] bg-gradient-to-br from-[#fbf0fe]/60 to-white px-4 py-3 border border-[#cfc2d6]/10 transition-all hover:shadow-md hover:-translate-y-0.5">
                       <p className="truncate text-sm font-black text-[#1f1a23]">{invite.email}</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
@@ -495,7 +481,7 @@ export default function SuperAdminDashboard() {
                     </div>
                   ))}
                   {selectedCampus.pendingInvitations.length === 0 ? (
-                    <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">
+                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/10 p-4 text-sm font-semibold text-[#4d4354]/55">
                       No pending invitations for this campus.
                     </p>
                   ) : null}
@@ -602,8 +588,11 @@ export default function SuperAdminDashboard() {
 }
 
 function SuperStatusPill({ status }: { status?: string }) {
+  const tone = statusTone(status);
+  const dotColor = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("amber") ? "bg-amber-500" : tone.includes("8127cf") ? "bg-[#8127cf]" : "bg-[#4d4354]/40";
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${statusTone(status)}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${tone}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       {formatStatus(status)}
     </span>
   );
@@ -623,7 +612,7 @@ function NetworkCommandPanel({
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-[#fbf0fe]/35 p-6">
+      <div className="relative rounded-[32px] border border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-[#8127cf]" />
@@ -659,7 +648,7 @@ function NetworkCommandPanel({
         </div>
       </div>
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Shield className="h-5 w-5 text-[#8127cf]" />
@@ -673,7 +662,7 @@ function NetworkCommandPanel({
               key={campus.id}
               type="button"
               onClick={() => onSelectCampus(campus)}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3 text-left transition-all hover:bg-[#fbf0fe] hover:shadow-sm"
+              className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#fbf0fe]/60 to-white px-4 py-3 text-left transition-all hover:from-[#fbf0fe] hover:shadow-sm border border-transparent hover:border-[#8127cf]/10"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-[#1f1a23]">{campus.name}</p>
@@ -685,13 +674,13 @@ function NetworkCommandPanel({
             </button>
           ))}
           {leadershipGaps.length === 0 ? (
-            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+            <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-emerald-50/50 border border-emerald-100/50 px-4 py-3">
               <p className="text-sm font-black text-emerald-700">All campuses have leadership assigned.</p>
             </div>
           ) : null}
 
           {pendingInviteCampuses.length > 0 ? (
-            <div className="rounded-2xl bg-[#f3f4f9] px-4 py-3">
+            <div className="rounded-2xl bg-gradient-to-r from-[#f3f4f9] to-white border border-[#cfc2d6]/10 px-4 py-3">
               <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Pending Invitations</p>
               <p className="mt-1 text-sm font-black text-[#1f1a23]">
                 {pendingInviteCampuses.length} campuses waiting for acceptance
@@ -702,7 +691,7 @@ function NetworkCommandPanel({
           <button
             type="button"
             onClick={onOpenBilling}
-            className="flex w-full cursor-pointer items-center justify-between rounded-2xl bg-[#1f1a23] px-4 py-3 text-left text-white transition-all hover:bg-black"
+            className="flex w-full cursor-pointer items-center justify-between rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] px-4 py-3 text-left text-white transition-all hover:from-black hover:to-[#1f1a23] shadow-sm"
           >
             <span className="text-sm font-black">Billing, plan, and AI credit control</span>
             <CreditCard className="h-4 w-4" />
@@ -726,18 +715,18 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
       <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full min-w-[760px] text-left">
           <thead>
-            <tr className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
-              <th className="px-4 py-3">Campus</th>
+            <tr className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
+              <th className="px-4 py-3 rounded-tl-2xl">Campus</th>
               <th className="px-4 py-3">Leadership</th>
               <th className="px-4 py-3">Academics</th>
               <th className="px-4 py-3">Reports</th>
               <th className="px-4 py-3">Engagement</th>
-              <th className="px-4 py-3 text-right">Action</th>
+              <th className="px-4 py-3 text-right rounded-tr-2xl">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f3f4f9]">
             {campuses.map((campus) => (
-              <tr key={campus.id} className="text-sm">
+              <tr key={campus.id} className="text-sm transition-all duration-200 hover:bg-[#fbf0fe]/30">
                 <td className="px-4 py-4">
                   <p className="font-black text-[#1f1a23]">{campus.name}</p>
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/40">{campus.city}</p>
@@ -761,7 +750,7 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
                   <button
                     type="button"
                     onClick={() => onManage(campus)}
-                    className="cursor-pointer rounded-2xl bg-[#fbf0fe] px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                    className="cursor-pointer rounded-2xl bg-gradient-to-r from-[#fbf0fe] to-[#f3eeff] px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:from-[#8127cf] hover:to-[#6a1fb0] hover:text-white shadow-sm"
                   >
                     Review
                   </button>
@@ -777,8 +766,10 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
 
 function OwnerMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
   return (
-    <div className="rounded-[24px] bg-white p-4 shadow-sm">
-      <Icon className="mb-3 h-5 w-5 text-[#8127cf]" />
+    <div className="rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+        <Icon className="h-4 w-4" />
+      </div>
       <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
       <p className="mt-1 text-2xl font-black text-[#1f1a23]">{value}</p>
     </div>
@@ -804,9 +795,9 @@ function SummaryBucket({
   }[tone];
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[24px] bg-white p-4 shadow-sm">
+    <div className="flex items-center justify-between gap-3 rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
       <div className="flex items-center gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${toneClass}`}>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${toneClass} shadow-sm`}>
           <Icon className="h-4 w-4" />
         </div>
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">{label}</p>
@@ -819,7 +810,7 @@ function SummaryBucket({
 function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
         <Icon className="h-5 w-5" />
       </div>
       <h3 className="text-lg font-black tracking-normal text-[#1f1a23]">{title}</h3>
@@ -838,7 +829,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
       : `${creditsUsed.toLocaleString()} / ${creditsLimit.toLocaleString()}`;
 
   return (
-    <div className="mb-8 rounded-[32px] border border-[#8127cf]/10 bg-[#1f1a23] p-5 text-white shadow-2xl shadow-indigo-100">
+    <div className="mb-8 rounded-[32px] border border-[#8127cf]/10 bg-gradient-to-br from-[#1f1a23] via-[#1f1a23] to-[#2d2633] p-5 text-white shadow-2xl shadow-indigo-100">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-white/10 text-white">
@@ -851,7 +842,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="rounded-2xl bg-white/10 px-5 py-3">
+          <div className="rounded-2xl bg-white/10 px-5 py-3 border border-white/5">
             <p className="text-[9px] font-black uppercase tracking-normal text-white/45">AI Credits</p>
             <p className="text-lg font-black">{creditsLabel}</p>
           </div>
@@ -868,11 +859,11 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
   const hasLeadership = hasActiveSlot(campus.admin) && hasActiveSlot(campus.principal);
 
   return (
-    <div className="bg-white p-7 rounded-[32px] shadow-lg border border-[#cfc2d6]/10 flex flex-col min-h-[330px] relative overflow-hidden group hover:shadow-2xl transition-all">
-      <div className="absolute top-6 right-6">
+    <div className="bg-white p-7 rounded-[32px] shadow-lg border border-[#cfc2d6]/10 flex flex-col min-h-[330px] relative overflow-hidden group hover:shadow-2xl hover:border-[#8127cf]/20 transition-all duration-500">
+      <div className="absolute top-6 right-6 z-10">
         <SuperStatusPill status={hasLeadership ? "ACTIVE" : "MISSING"} />
       </div>
-      <div className="h-14 w-14 bg-[#fbf0fe] rounded-[20px] flex items-center justify-center text-[#8127cf] mb-6 shadow-inner group-hover:scale-110 transition-transform">
+      <div className="h-14 w-14 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-[20px] flex items-center justify-center text-[#8127cf] mb-6 shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
         {hasLeadership ? <CheckCircle2 className="w-7 h-7" /> : <AlertCircle className="w-7 h-7" />}
       </div>
       <h3 className="text-xl font-black text-[#1f1a23] tracking-normal mb-1 pr-16">{campus.name}</h3>
@@ -912,7 +903,7 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
 
 function CampusMiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/70 px-3 py-3">
+    <div className={`rounded-2xl px-3 py-3 transition-all ${active ? "bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/80 to-white border border-[#8127cf]/10" : "bg-[#fbf0fe]/70"}`}>
       <p className="text-[7px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
       <p className={`mt-1 text-base font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
@@ -921,7 +912,7 @@ function CampusMiniMetric({ label, value, active }: { label: string; value: any;
 
 function InfoPill({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className="p-5 bg-white rounded-[24px] border border-[#cfc2d6]/10 shadow-lg">
+    <div className="p-5 bg-white rounded-[24px] border border-[#cfc2d6]/10 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 hover:border-[#8127cf]/15">
       <p className="text-[8px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-1">{label}</p>
       <p className={`text-xl font-black italic tracking-normal ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
@@ -1067,6 +1058,52 @@ function CampusInput({
           onChange={(event) => onChange(event.target.value)}
         />
       </div>
+    </div>
+  );
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse bg-[#e8e0ec] rounded-2xl ${className}`} />;
+}
+
+function SuperAdminSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#f3f4f9] flex font-sans">
+      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-[#cfc2d6]/10 p-5 gap-6">
+        <SkeletonBlock className="h-8 w-32 rounded-lg" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <SkeletonBlock key={i} className="h-11 w-full rounded-2xl" />
+          ))}
+        </div>
+        <div className="mt-auto space-y-3">
+          <SkeletonBlock className="h-11 w-full rounded-2xl" />
+          <SkeletonBlock className="h-11 w-full rounded-2xl" />
+        </div>
+      </div>
+      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen">
+        <div className="flex items-center justify-between mb-8">
+          <div className="space-y-2">
+            <SkeletonBlock className="h-5 w-48" />
+            <SkeletonBlock className="h-4 w-36" />
+          </div>
+          <div className="flex gap-3">
+            <SkeletonBlock className="h-10 w-10 rounded-full" />
+            <SkeletonBlock className="h-10 w-10 rounded-full" />
+          </div>
+        </div>
+        <SkeletonBlock className="h-28 w-full rounded-[32px] mb-8" />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-8">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <SkeletonBlock key={i} className="h-24 rounded-[20px]" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8 mb-8">
+          <SkeletonBlock className="h-64 rounded-[32px]" />
+          <SkeletonBlock className="h-64 rounded-[32px]" />
+        </div>
+        <SkeletonBlock className="h-48 rounded-[32px]" />
+      </main>
     </div>
   );
 }

@@ -1,25 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertCircle, ArrowRight, BarChart3, BookOpen, CalendarCheck, ClipboardList, FileText, GraduationCap, History, Send, Star, TrendingUp, Users, Zap,
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { getTeacherDashboardData } from "@/app/actions/dashboard";
 import { BrandButton } from "@/components/role-dashboard";
 import {
   classLabel,  CreateAssessmentModal,  DashboardSkeleton,  FinalGradesModal,  GradeConfigModal,  ReportCardDetailModal,  StudentDetailModal,  todayIso,
 } from "@/components/teacher/teacher-components";
+import { useTeacherData } from "./teacher-data-context";
 
 const CHART_COLORS = ["#8127cf", "#9c48ea", "#b876f0", "#d4a8f7"];
 const STATUS_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#d1d5db"];
 
 export default function TeacherDashboardHub() {
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refetch } = useTeacherData();
 
   // Modal + action states (preserved from original)
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -39,19 +38,6 @@ export default function TeacherDashboardHub() {
   const [selectedGradeClassId, setSelectedGradeClassId] = useState("");
   const [generatingReportCards, setGeneratingReportCards] = useState(false);
   const [reportCardsGenerated, setReportCardsGenerated] = useState(false);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      setData(await getTeacherDashboardData());
-    } catch (error: any) {
-      toast.error(`Access denied: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
 
   const classHubs = data?.classHubs || [];
   const teacherSubjects = data?.subjects || [];
@@ -103,10 +89,10 @@ export default function TeacherDashboardHub() {
       toast.success(`Assessment "${examForm.title}" created`);
       setShowExamModal(false);
       setExamForm({ title: "", term: "", classId: "", subjectId: "", examType: "CLASS_TEST" });
-      await loadData();
+      await refetch();
     } catch (error: any) { toast.error(error.message); }
     finally { setCreatingExam(false); }
-  }, [examForm, loadData]);
+  }, [examForm, refetch]);
 
   const loadGradeConfig = useCallback(async (classId: string) => {
     if (!classId) return;
@@ -167,10 +153,10 @@ export default function TeacherDashboardHub() {
       if (!res.ok) throw new Error(result.error || "Report card generation failed");
       toast.success(`Generated ${result.count || 0} report cards`);
       setReportCardsGenerated(true);
-      await loadData();
+      await refetch();
     } catch (error: any) { toast.error(error.message); }
     finally { setGeneratingReportCards(false); }
-  }, [selectedGradeClassId, loadData]);
+  }, [selectedGradeClassId, refetch]);
 
   const sendReportCard = useCallback(async (reportId: string) => {
     setSendingReport(reportId);
@@ -180,10 +166,10 @@ export default function TeacherDashboardHub() {
       const result = JSON.parse(text);
       if (!res.ok) throw new Error(result.error || "Failed to send");
       toast.success("Report card sent");
-      await loadData();
+      await refetch();
     } catch (error: any) { toast.error(error.message); }
     finally { setSendingReport(null); }
-  }, [loadData]);
+  }, [refetch]);
 
   const handleGenerateStudentRemarks = useCallback(async (studentId: string, examId: string) => {
     setRemarkGeneratingFor(studentId);

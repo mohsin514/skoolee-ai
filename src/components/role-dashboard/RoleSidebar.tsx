@@ -59,7 +59,7 @@ function SidebarButton({ item }: { item: RoleNavItem }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isActive = item.active ?? (item.href ? pathname === item.href || (item.href !== "/teacher" && pathname.startsWith(item.href)) : false);
+  const isActive = item.active ?? (item.href ? pathname === item.href || (!["/teacher", "/student"].includes(item.href) && pathname.startsWith(item.href)) : false);
 
   const handleClick = () => {
     if (item.href) {
