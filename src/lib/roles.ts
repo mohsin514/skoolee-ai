@@ -26,7 +26,7 @@ export const ROLE_DASHBOARD_PATHS: Record<UserRole, string> = {
   ADMIN: "/admin",
   PRINCIPAL: "/principal",
   TEACHER: "/teacher",
-  PARENT: "/student",
+  PARENT: "/parent",
   STUDENT: "/student",
 };
 
@@ -66,6 +66,7 @@ export function canAccessRoleDashboard(role: unknown, pathname: string): boolean
   if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized);
   if (pathname.startsWith("/principal")) return normalized === "PRINCIPAL";
   if (pathname.startsWith("/teacher")) return normalized === "TEACHER";
+  if (pathname.startsWith("/parent")) return normalized === "PARENT";
   if (pathname.startsWith("/student")) return normalized === "STUDENT" || normalized === "PARENT";
   if (pathname.startsWith("/dashboard")) return normalized !== "PRINCIPAL" && normalized !== "SUPER_ADMIN";
 

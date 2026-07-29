@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
@@ -17,6 +17,19 @@ const styles = StyleSheet.create({
     borderBottomColor: "#d7dde8",
     paddingBottom: 14,
     marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logo: {
+    width: 52,
+    height: 52,
+    borderRadius: 6,
+  },
+  headerText: {
+    flex: 1,
   },
   schoolName: {
     fontSize: 20,
@@ -111,15 +124,21 @@ function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   const attendance = reportCard.attendanceTotal
     ? `${reportCard.attendancePresent}/${reportCard.attendanceTotal}`
     : "Not recorded";
+  const logoUrl = reportCard.campus.logoUrl;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.schoolName}>{reportCard.campus.name}</Text>
-          <Text style={styles.muted}>
-            {[reportCard.campus.board, reportCard.campus.city, reportCard.campus.phone].filter(Boolean).join(" | ")}
-          </Text>
+          <View style={styles.headerRow}>
+            {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : null}
+            <View style={styles.headerText}>
+              <Text style={styles.schoolName}>{reportCard.campus.name}</Text>
+              <Text style={styles.muted}>
+                {[reportCard.campus.board, reportCard.campus.city, reportCard.campus.phone].filter(Boolean).join(" | ")}
+              </Text>
+            </View>
+          </View>
           <Text style={styles.title}>
             Report Card - {reportCard.exam.title} ({reportCard.exam.term} {reportCard.exam.academicYear})
           </Text>
@@ -191,15 +210,38 @@ function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   );
 }
 
+function isS3Configured(): boolean {
+  return !!(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+}
+
+async function storeToS3(key: string, pdfBuffer: Buffer): Promise<string> {
+  const { uploadPdf, getDownloadUrl } = await import("@/lib/storage/s3");
+  await uploadPdf(key, pdfBuffer);
+  return getDownloadUrl(key, 86400);
+}
+
+async function storeToLocalDisk(examId: string, filename: string, pdfBuffer: Buffer): Promise<string> {
+  const dir = path.join(process.cwd(), "public", "generated", "reports", examId);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, filename), pdfBuffer);
+  return `/generated/reports/${examId}/${filename}`;
+}
+
 export async function generateReportCardPdf(reportCardId: string) {
   const payload = await getReportCardPdfPayload(reportCardId);
   const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
   const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
-  const dir = path.join(process.cwd(), "public", "generated", "reports", payload.reportCard.examId);
   const filename = `${safeRollNo || payload.reportCard.studentId}-${payload.reportCard.id}.pdf`;
 
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), pdfBuffer);
+  if (isS3Configured()) {
+    const { reportCardKey } = await import("@/lib/storage/s3");
+    const key = reportCardKey(
+      payload.reportCard.campusId,
+      payload.reportCard.examId,
+      payload.reportCard.studentId
+    );
+    return storeToS3(key, pdfBuffer);
+  }
 
-  return `/generated/reports/${payload.reportCard.examId}/${filename}`;
+  return storeToLocalDisk(payload.reportCard.examId, filename, pdfBuffer);
 }

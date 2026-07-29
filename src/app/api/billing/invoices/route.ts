@@ -40,13 +40,13 @@ export async function GET(req: NextRequest) {
           },
         },
         campus: { select: { id: true, name: true } },
-        payments: { select: { id: true, amountPaid: true, method: true, receiptNo: true, paidAt: true } },
+        payments: { select: { id: true, amount: true, paymentMethod: true, receiptNo: true, paymentDate: true } },
       },
       orderBy: [{ dueDate: "asc" }, { generatedAt: "desc" }],
     });
 
     const withBalances = invoices.map((invoice) => {
-      const paidAmount = invoice.payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+      const paidAmount = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
       return {
         ...invoice,
         paidAmount,

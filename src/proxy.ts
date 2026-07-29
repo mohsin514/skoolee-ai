@@ -16,12 +16,14 @@ const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secr
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/accept-invite", "/forgot-password",
+  "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
   "/school-fee-management-software", "/ai-student-performance-analytics",
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
   "/api/auth/login", "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
-  "/api/auth/logout", "/api/auth/verify", "/api/auth/session"
+  "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
+  "/api/parent/data",
 ];
 
 function isPublic(pathname: string) {

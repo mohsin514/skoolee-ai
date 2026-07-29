@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertCircle, BookOpen, Briefcase, Building, CalendarCheck, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
-  GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus, School, Send,
-  Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
+  AlertCircle, BookOpen, Briefcase, Building, CalendarCheck, Check, CheckCircle2, ChevronDown, ClipboardList, Clock, Copy, Download,
+  ExternalLink, FileText, GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus,
+  Receipt, School, Send, Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
@@ -23,8 +23,9 @@ import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { AttendanceOverview } from "@/components/attendance/attendance-overview";
+import { FeesPanel } from "@/components/fees/FeesPanel";
 
-type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai";
+type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai" | "fees";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
@@ -38,6 +39,7 @@ const viewCopy: Record<PrincipalView, { title: string; description: string }> = 
   students: { title: "Student Directory", description: "Search, filter, and manage student profiles across classes and sections." },
   attendance: { title: "Attendance Tracker", description: "Monitor daily attendance, view class-wise and school-wide reports, and identify at-risk students." },
   ai: { title: "AI Insights", description: "AI-powered analysis and review items for academic oversight." },
+  fees: { title: "Fee Management", description: "Manage fee structures, generate invoices, and process payments." },
 };
 
 const principalAIFeatures = [
@@ -247,6 +249,7 @@ export default function PrincipalDashboard() {
     { icon: Users, label: "Faculty", active: activeView === "faculty", onClick: () => setActiveView("faculty") },
     { icon: GraduationCap, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
     { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
     { icon: FileText, label: "Reports", active: activeView === "reports", onClick: () => setActiveView("reports") },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Insights", active: activeView === "ai", onClick: () => setActiveView("ai") },
@@ -291,6 +294,7 @@ export default function PrincipalDashboard() {
         {activeView === "reports" ? <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} /> : null}
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
         {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} /> : null}
+        {activeView === "fees" ? <FeesPanel /> : null}
       </section>
 
       <ClassModal open={showClassModal} onClose={() => setShowClassModal(false)} form={classForm} onChange={setClassForm} onSave={handleCreateClass} saving={savingClass} teachers={data.teachers} />
@@ -687,6 +691,39 @@ function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate
   const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [parentLink, setParentLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
+
+  const generateParentLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await fetch("/api/parent/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: student.id }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setParentLink(json.portalUrl);
+        toast.success("Parent portal link generated (valid 30 days)");
+      } else {
+        toast.error(json.error || "Failed to generate link");
+      }
+    } catch {
+      toast.error("Failed to generate parent link");
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyParentLink = () => {
+    if (!parentLink) return;
+    navigator.clipboard.writeText(parentLink);
+    setLinkCopied(true);
+    toast.success("Link copied to clipboard!");
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
 
   useEffect(() => {
     setEdits({
@@ -727,11 +764,26 @@ function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate
           <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer">
             <Trash2 className="h-3.5 w-3.5" />Delete Student
           </button>
+          <button type="button" onClick={generateParentLink} disabled={generatingLink} className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-normal text-emerald-600 transition-all hover:bg-emerald-100 cursor-pointer disabled:opacity-50">
+            {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+            Parent Portal Link
+          </button>
         </div>
         <button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
+
+      {parentLink && (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">
+          <ExternalLink className="h-4 w-4 text-emerald-600 shrink-0" />
+          <input type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
+          <button type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
+            {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {linkCopied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      )}
 
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">

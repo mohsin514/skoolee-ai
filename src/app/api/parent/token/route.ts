@@ -1,0 +1,56 @@
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/db/prisma";
+import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { SignJWT, jwtVerify } from "jose";
+
+const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "parent-portal-secret");
+const THIRTY_DAYS = 30 * 24 * 60 * 60;
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireAuthUser();
+    const { studentId } = await req.json();
+
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        campus: { schoolId: user.schoolId },
+      },
+      select: { id: true, guardianWhatsapp: true, guardianPhone: true },
+    });
+
+    if (!student) {
+      return Response.json({ error: "Student not found" }, { status: 404 });
+    }
+
+    const token = await new SignJWT({ studentId: student.id, type: "parent_portal" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime(`${THIRTY_DAYS}s`)
+      .setIssuedAt()
+      .sign(SECRET);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const portalUrl = `${appUrl}/parent?token=${token}`;
+
+    return Response.json({
+      success: true,
+      token,
+      portalUrl,
+      expiresIn: THIRTY_DAYS,
+    });
+  } catch (error) {
+    return errorResponse(error, "[parent/token] POST failed");
+  }
+}
+
+export async function verifyParentToken(token: string): Promise<{ studentId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+    if (payload.type !== "parent_portal" || typeof payload.studentId !== "string") {
+      return null;
+    }
+    return { studentId: payload.studentId };
+  } catch {
+    return null;
+  }
+}

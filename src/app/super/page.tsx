@@ -20,6 +20,7 @@ import {
   MapPin,
   MessageSquare,
   Plus,
+  Receipt,
   School,
   Shield,
   Sparkles,
@@ -45,6 +46,7 @@ import {
 } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { FeesPanel } from "@/components/fees/FeesPanel";
 import { useSuperAdminData } from "./super-data-context";
 
 function formatStatus(status?: string) {
@@ -94,6 +96,7 @@ export default function SuperAdminDashboard() {
   const [inviting, setInviting] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
+  const [showCampusFees, setShowCampusFees] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     description: string;
@@ -397,6 +400,28 @@ export default function SuperAdminDashboard() {
               </div>
             )}
           </div>
+        ) : showCampusFees ? (
+          <div className="flex flex-col h-full">
+            <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-5">
+                <button
+                  onClick={() => setShowCampusFees(false)}
+                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+                <div>
+                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal leading-none mb-1">
+                    {selectedCampus.name}
+                  </h2>
+                  <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal">Fee Management</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              <FeesPanel campusId={selectedCampus.id} />
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col h-full">
             <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
@@ -418,6 +443,9 @@ export default function SuperAdminDashboard() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3">
+                <BrandButton variant="soft" icon={<Receipt className="w-4 h-4" />} onClick={() => setShowCampusFees(true)}>
+                  Fees
+                </BrandButton>
                 <BrandButton variant="soft" icon={<ClipboardList className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
                   Activity Log
                 </BrandButton>

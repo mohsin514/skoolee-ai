@@ -1,6 +1,8 @@
 "use client";
 
-import { Award, BookOpen, Calendar, CreditCard, GraduationCap, Printer, Share2, Sparkles, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { Award, BookOpen, Calendar, CreditCard, GraduationCap, Loader2, Printer, Share2, Sparkles, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
 import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { DashboardSkeleton } from "@/components/student/student-components";
 import { useStudentData } from "./student-data-context";
@@ -8,6 +10,25 @@ import { CornerSparkles } from "@/components/CornerSparkles";
 
 export default function StudentDashboard() {
   const { data, loading, refetch } = useStudentData();
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!data?.user?.id) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/reports/download?studentId=${data.user.id}`);
+      const json = await res.json();
+      if (json.success && json.pdfUrl) {
+        window.open(json.pdfUrl, "_blank");
+      } else {
+        toast.error(json.error || "No report card available to download");
+      }
+    } catch {
+      toast.error("Failed to download report card");
+    } finally {
+      setDownloading(false);
+    }
+  };
   if (loading && !data) return <DashboardSkeleton />;
 
   if (!data) return null;
@@ -57,7 +78,9 @@ export default function StudentDashboard() {
 
             <div className="flex gap-3">
               <BrandButton variant="soft" icon={<Share2 className="w-4 h-4" />}>Share</BrandButton>
-              <BrandButton variant="dark" icon={<Printer className="w-4 h-4" />}>Download PDF</BrandButton>
+              <BrandButton variant="dark" icon={downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloading}>
+                {downloading ? "Generating..." : "Download PDF"}
+              </BrandButton>
             </div>
           </div>
         </div>

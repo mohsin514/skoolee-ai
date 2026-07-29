@@ -231,7 +231,7 @@ export interface Invoice {
 export interface Payment {
   id: string;
   invoiceId: string;
-  amountPaid: number;
+  amount: number;
   method: string;
   receiptNo?: string | null;
   paidAt: Date;

@@ -314,30 +314,46 @@ export const reportRemarkSchema = z.object({
 
 // Fee structure
 export const feeStructureSchema = z.object({
-  campusId: z.string().min(1),
+  campusId: z.string().optional(),
   classId: z.string().min(1),
-  term: z.string().min(1),
-  tuitionMonthly: z.coerce.number().int().min(0),
-  examFee: z.coerce.number().int().min(0).default(0),
-  annualFee: z.coerce.number().int().min(0).default(0),
-  monthsCount: z.coerce.number().int().min(1).default(1),
+  monthlyFee: z.coerce.number().int().min(0),
+  oneTimeFeesJson: z.string().optional(),
+  installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
+  discountRulesJson: z.string().optional(),
+  lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
+  compoundLateFee: z.boolean().default(true),
+  taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
+  activeFrom: z.string().min(1),
+  activeTo: z.string().optional(),
 });
 
-// Generate invoices for all students in a class/term
+// Generate invoices
 export const generateInvoicesSchema = z.object({
-  campusId: z.string().min(1),
-  classId: z.string().min(1),
-  term: z.string().min(1),
-  academicYear: z.coerce.number().int(),
-  dueDate: z.string().min(1),
+  campusId: z.string().optional(),
+  classId: z.string().optional(),
+  generationMonth: z.string().min(1),
+  includeLateFees: z.boolean().default(true),
+});
+
+// Invoice generation job poll
+export const generationJobSchema = z.object({
+  jobId: z.string().min(1),
 });
 
 // Record a payment
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
-  amountPaid: z.coerce.number().int().min(1),
-  method: z.enum(["CASH", "JAZZCASH", "EASYPAISA", "BANK_TRANSFER"]),
-  receiptNo: z.string().optional(),
+  amount: z.coerce.number().int().min(1),
+  paymentDate: z.string().min(1),
+  paymentMethod: z.enum(["cash", "bank_transfer", "card", "mobile_wallet", "cheque"]),
+  referenceNumber: z.string().optional(),
+});
+
+// Bank import
+export const bankImportSchema = z.object({
+  accountName: z.string().min(1),
+  statementFrom: z.string().min(1),
+  statementTo: z.string().min(1),
 });
 
 // ─── Type exports ──────────────────────────────────────────
@@ -359,3 +375,5 @@ export type MarkEntryData = z.infer<typeof markEntrySchema>;
 export type BulkMarksData = z.infer<typeof bulkMarksSchema>;
 export type FeeStructureFormData = z.infer<typeof feeStructureSchema>;
 export type PaymentFormData = z.infer<typeof paymentSchema>;
+export type GenerateInvoicesFormData = z.infer<typeof generateInvoicesSchema>;
+export type BankImportFormData = z.infer<typeof bankImportSchema>;

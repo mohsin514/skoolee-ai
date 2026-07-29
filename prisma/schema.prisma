@@ -64,6 +64,9 @@ model Campus {
   attendance    Attendance[]
   feeStructures FeeStructure[]
   invoices      Invoice[]
+  payments      Payment[]
+  paymentPlans  PaymentPlan[]
+  bankReconciliations BankReconciliation[]
   staffInvitations StaffInvitation[]
   notificationTemplates NotificationTemplate[]
   parentCommunications  ParentCommunication[]
@@ -107,6 +110,9 @@ model User {
   enteredMarks     Mark[]       @relation("EnteredBy")
   lockedExams      Exam[]       @relation("LockedBy")
   recordedPayments Payment[]    @relation("RecordedBy")
+  createdFeeStructures FeeStructure[] @relation("FeeStructureCreatedBy")
+  updatedFeeStructures FeeStructure[] @relation("FeeStructureUpdatedBy")
+  reconciledReconciliations BankReconciliation[] @relation("BankReconciliationReconciler")
   taughtSubjects   Subject[]    @relation("Teacher")
   ledClasses       Class[]      @relation("ClassTeacher")
   studentProfile   Student?     @relation("StudentUser")
@@ -183,6 +189,8 @@ model Student {
   attendance    Attendance[]
   reportCards   ReportCard[]
   invoices      Invoice[]
+  payments      Payment[]
+  paymentPlans  PaymentPlan[]
   parentCommunications ParentCommunication[]
 
   @@unique([campusId, rollNo])
@@ -365,13 +373,24 @@ model FeeStructure {
   campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId        String    @map("class_id")
   class          Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  term           String
-  tuitionMonthly Int       @map("tuition_monthly")
-  examFee        Int       @default(0) @map("exam_fee")
-  annualFee      Int       @default(0) @map("annual_fee")
-  monthsCount    Int       @default(1) @map("months_count")
+  monthlyFee     Int       @map("monthly_fee")
+  oneTimeFeesJson Json?    @map("one_time_fees_json")
+  installmentType String?  @map("installment_type")
+  discountRulesJson Json?  @map("discount_rules_json")
+  lateFeePercentage Float? @default(2.0) @map("late_fee_percentage")
+  compoundLateFee Boolean? @default(true) @map("compound_late_fee")
+  taxPercentage  Float?    @default(0.0) @map("tax_percentage")
+  activeFrom     DateTime  @map("active_from")
+  activeTo       DateTime? @map("active_to")
+  createdBy      String?   @map("created_by")
+  createdByUser  User?     @relation("FeeStructureCreatedBy", fields: [createdBy], references: [id])
+  updatedBy      String?   @map("updated_by")
+  updatedByUser  User?     @relation("FeeStructureUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  @@unique([classId, term])
+  @@unique([classId, activeFrom])
+  @@index([campusId, classId])
   @@map("fee_structures")
 }
 
@@ -382,33 +401,99 @@ model Invoice {
   campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   studentId     String    @map("student_id")
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  term          String
-  academicYear  Int       @map("academic_year")
-  totalAmount   Int       @map("total_amount")
+  invoiceNumber String?   @unique @map("invoice_number")
+  invoiceDate   DateTime  @map("invoice_date")
   dueDate       DateTime  @map("due_date")
+  monthlyFee    Int       @map("monthly_fee")
+  oneTimeFees   Int       @default(0) @map("one_time_fees")
+  subtotal      Int       @map("subtotal")
+  discountAmount Int      @default(0) @map("discount_amount")
+  lateFeeAmount Int       @default(0) @map("late_fee_amount")
+  taxAmount     Int       @default(0) @map("tax_amount")
+  totalAmount   Int       @map("total_amount")
+  totalAmountPaid Int     @default(0) @map("total_amount_paid")
+  balanceDue    Int       @map("balance_due")
   status        InvoiceStatus @default(PENDING)
-  challanUrl    String?   @map("challan_url")
+  pdfUrlS3      String?   @map("pdf_url_s3")
+  sentWhatsapp  Boolean   @default(false) @map("sent_whatsapp")
+  whatsappSentAt DateTime? @map("whatsapp_sent_at")
+  sentEmail     Boolean   @default(false) @map("sent_email")
+  emailSentAt   DateTime? @map("email_sent_at")
   generatedAt   DateTime  @default(now()) @map("generated_at")
 
   payments      Payment[]
 
-  @@unique([studentId, term, academicYear])
+  @@index([studentId, dueDate])
+  @@index([status])
+  @@index([campusId])
   @@map("invoices")
 }
 
 // ─── 13. PAYMENTS ─────────────────────────────────────────
 model Payment {
-  id            String    @id @default(uuid())
-  invoiceId     String    @map("invoice_id")
-  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  amountPaid    Int       @map("amount_paid")
-  method        String    // Cash, Bank Transfer, EasyPaisa
-  receiptNo     String?   @map("receipt_no")
-  paidAt        DateTime  @default(now()) @map("paid_at")
-  recordedBy    String?   @map("recorded_by")
-  recorder      User?     @relation("RecordedBy", fields: [recordedBy], references: [id])
+  id             String    @id @default(uuid())
+  campusId       String    @map("campus_id")
+  campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  invoiceId      String    @map("invoice_id")
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  studentId      String    @map("student_id")
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount         Int       @map("amount")
+  paymentDate    DateTime  @map("payment_date")
+  paymentMethod  String    @map("payment_method")
+  referenceNumber String?  @map("reference_number")
+  receiptNo      String?   @map("receipt_no")
+  receiptUrlS3   String?   @map("receipt_url_s3")
+  recordedBy     String?   @map("recorded_by")
+  recorder       User?     @relation("RecordedBy", fields: [recordedBy], references: [id])
+  recordedAt     DateTime  @default(now()) @map("recorded_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
+  @@index([invoiceId])
+  @@index([studentId])
+  @@unique([campusId, paymentDate, referenceNumber])
   @@map("payments")
+}
+
+// ─── 13b. PAYMENT PLANS ────────────────────────────────────
+model PaymentPlan {
+  id               String   @id @default(uuid())
+  campusId         String?  @map("campus_id")
+  campus           Campus?  @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId        String?  @map("student_id")
+  student          Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  originalAmountDue Int     @map("original_amount_due")
+  installmentCount Int      @map("installment_count")
+  installmentsJson Json     @map("installments_json")
+  status           String   @default("active")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("payment_plans")
+}
+
+// ─── 13c. BANK RECONCILIATION ──────────────────────────────
+model BankReconciliation {
+  id                     String   @id @default(uuid())
+  campusId               String   @map("campus_id")
+  campus                 Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  importDate             DateTime @map("import_date")
+  bankFileUrlS3          String?  @map("bank_file_url_s3")
+  bankAccount            String?  @map("bank_account")
+  statementPeriodFrom    DateTime? @map("statement_period_from")
+  statementPeriodTo      DateTime? @map("statement_period_to")
+  totalTransactions      Int      @default(0) @map("total_transactions")
+  matchedCount           Int      @default(0) @map("matched_count")
+  unmatchedCount         Int      @default(0) @map("unmatched_count")
+  reconciliationDetailsJson Json? @map("reconciliation_details_json")
+  unmatchedJson          Json?    @map("unmatched_json")
+  status                 String   @default("pending")
+  reconciledBy           String?  @map("reconciled_by")
+  reconciledByUser       User?    @relation("BankReconciliationReconciler", fields: [reconciledBy], references: [id])
+  reconciledAt           DateTime? @map("reconciled_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  @@map("bank_reconciliations")
 }
 
 // ─── 14. AI USAGE LOGS ────────────────────────────────────
@@ -686,5 +771,6 @@ enum InvoiceStatus {
   PENDING
   PAID
   PARTIAL
+  OVERDUE
   CANCELLED
 }

@@ -1306,7 +1306,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         take: 3,
       },
       invoices: {
-        include: { payments: { select: { amountPaid: true } } },
+        include: { payments: { select: { amount: true } } },
         orderBy: { generatedAt: "desc" },
         take: 5,
       },
@@ -1336,7 +1336,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
   const attendancePresent = student?.attendance.filter((entry) => entry.status === "PRESENT").length || 0;
   const attendanceRate = attendanceTotal ? Math.round((attendancePresent / attendanceTotal) * 100) : null;
   const balanceDue = student?.invoices.reduce((total, invoice) => {
-    const paid = invoice.payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+    const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
     return total + Math.max(invoice.totalAmount - paid, 0);
   }, 0) || 0;
   const aiInsights = await prisma.aIInsight.findMany({

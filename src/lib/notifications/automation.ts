@@ -34,8 +34,8 @@ function formatDate(date: Date) {
   });
 }
 
-function balanceDue(invoice: { totalAmount: number; payments: Array<{ amountPaid: number }> }) {
-  return Math.max(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amountPaid, 0), 0);
+function balanceDue(invoice: { totalAmount: number; payments: Array<{ amount: number }> }) {
+  return Math.max(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0), 0);
 }
 
 async function staffRecipients({
@@ -125,7 +125,7 @@ export async function triggerFeeDueReminders({
         key: "FEE_DUE_REMINDER",
         channels: PARENT_CHANNELS,
         context: {
-          term: `${invoice.term} ${invoice.academicYear}`,
+          term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
           dueDate: formatDate(invoice.dueDate),
         },
@@ -171,7 +171,7 @@ export async function triggerFeeOverdueReminders({
         key: "FEE_OVERDUE_REMINDER",
         channels: PARENT_CHANNELS,
         context: {
-          term: `${invoice.term} ${invoice.academicYear}`,
+          term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
           dueDate: formatDate(invoice.dueDate),
         },

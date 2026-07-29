@@ -272,7 +272,7 @@ async function buildContext({
       },
       include: {
         student: { select: { fullName: true, rollNo: true, class: { select: { name: true, section: true } } } },
-        payments: { select: { amountPaid: true } },
+        payments: { select: { amount: true } },
       },
       orderBy: { dueDate: "asc" },
       take: 50,
