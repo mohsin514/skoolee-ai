@@ -7,6 +7,7 @@ import {
   Briefcase,
   Building,
   Calendar,
+  CalendarCheck,
   ChevronDown,
   ClipboardList,
   Clock,
@@ -54,8 +55,9 @@ import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
+import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 
-type AdminView = "leadership" | "classes" | "teachers" | "students" | "ai";
+type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai";
 type ClassFormState = {
   name: string;
   section: string;
@@ -95,6 +97,10 @@ const viewCopy: Record<AdminView, { title: string; description: string }> = {
   students: {
     title: "Students & Records",
     description: "View enrolled students, guardian contacts, latest report-card status, and class placement.",
+  },
+  attendance: {
+    title: "Attendance Tracker",
+    description: "Monitor daily attendance, view class-wise and school-wide attendance reports, and identify at-risk students.",
   },
   ai: {
     title: "AI Review Center",
@@ -269,7 +275,7 @@ export default function CampusAdminDashboard() {
 
   const openMoveStudent = (student: any) => {
     setMovingStudent(student);
-    setMoveClassId(student.class?.id || data?.classes?.[0]?.id || "");
+    setMoveClassId("");
   };
 
   const syncSelectedClass = (nextData: any, classId: string) => {
@@ -319,7 +325,7 @@ export default function CampusAdminDashboard() {
   };
 
   const handleMoveStudent = async () => {
-    if (!movingStudent || !moveClassId) return;
+    if (!movingStudent || !moveClassId || moveClassId === (movingStudent.class?.id || movingStudent.classId)) return;
     setMovingStudentBusy(true);
     try {
       const res = await fetch("/api/students", {
@@ -329,7 +335,9 @@ export default function CampusAdminDashboard() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Student could not be moved");
-      toast.success("Student moved");
+      const moved = result.data;
+      const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
+      toast.success(moved?.rollNo ? `Moved to ${cls} — new roll: ${moved.rollNo}` : "Student moved");
       setMovingStudent(null);
       setMoveClassId("");
       await loadData();
@@ -649,6 +657,7 @@ export default function CampusAdminDashboard() {
     { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
     { icon: Users, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
     { icon: GraduationCap, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
+    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
   const bottomItems: RoleNavItem[] = [
@@ -805,6 +814,10 @@ export default function CampusAdminDashboard() {
               onBulkImport={() => setShowBulkImportModal(true)}
               onExport={exportStudentsCSV}
             />
+          ) : null}
+
+          {activeView === "attendance" ? (
+            <AttendanceOverview />
           ) : null}
 
           {activeView === "ai" ? (
@@ -2067,14 +2080,17 @@ function MoveStudentModal({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const currentClassId = student.class?.id || student.classId;
   const classGroups = groupClasses(classes);
   const selectedClass = classes.find((cls) => cls.id === classId);
-  const selectedGroupKey = selectedClass ? classGroupKey(selectedClass) : classGroups[0]?.key || "";
+  const selectedGroupKey = selectedClass ? classGroupKey(selectedClass) : "";
   const selectedGroup = classGroups.find((group) => group.key === selectedGroupKey);
+  const isSameClass = classId === currentClassId;
 
   const selectClassGroup = (key: string) => {
     const group = classGroups.find((item) => item.key === key);
-    onClassChange(group?.sections?.[0]?.id || "");
+    const firstNonCurrent = group?.sections?.find((s) => s.id !== currentClassId);
+    onClassChange(firstNonCurrent?.id || group?.sections?.[0]?.id || "");
   };
 
   return (
@@ -2082,7 +2098,7 @@ function MoveStudentModal({
       <div className="rounded-3xl bg-[#fbf0fe]/65 p-5 mb-5">
         <p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-          Current: {classLabel(student.class)}
+          Current: {classLabel(student.class)} · Roll: {student.rollNo}
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2097,13 +2113,16 @@ function MoveStudentModal({
         <FormSelect label="New Section" value={classId} onChange={onClassChange}>
           <option value="">Select section</option>
           {(selectedGroup?.sections || []).map((cls) => (
-            <option key={cls.id} value={cls.id}>
-              Section {sectionLabel(cls)}
+            <option key={cls.id} value={cls.id} disabled={cls.id === currentClassId}>
+              Section {sectionLabel(cls)}{cls.id === currentClassId ? " (current)" : ""}
             </option>
           ))}
         </FormSelect>
       </div>
-      <ModalActions busy={busy} busyLabel="Moving" actionLabel="Move Student" onClose={onClose} onSave={onSave} />
+      {isSameClass && classId ? (
+        <p className="mt-3 text-xs font-semibold text-amber-600">Please select a different class or section to move the student.</p>
+      ) : null}
+      <ModalActions busy={busy || !classId || isSameClass} busyLabel="Moving" actionLabel="Move Student" onClose={onClose} onSave={onSave} />
     </ModalFrame>
   );
 }

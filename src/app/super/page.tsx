@@ -92,6 +92,7 @@ export default function SuperAdminDashboard() {
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -154,9 +155,9 @@ export default function SuperAdminDashboard() {
     if (!inviteEmail) return toast.error("Email is required");
     setInviting(true);
     try {
-      await inviteStaff({ email: inviteEmail, role: inviteRole, campusId: selectedCampus.id });
+      const result = await inviteStaff({ email: inviteEmail, role: inviteRole, campusId: selectedCampus.id });
       toast.success("Invitation dispatched successfully");
-      setShowInviteModal(false);
+      setInviteLink(result.inviteLink || "");
       setInviteEmail("");
       await refetch();
     } catch (error: any) {
@@ -493,26 +494,52 @@ export default function SuperAdminDashboard() {
       </section>
 
       {showInviteModal && (
-        <ModalFrame onClose={() => setShowInviteModal(false)} title={`Invite ${inviteRole === "CAMPUS_ADMIN" ? "Admin" : "Principal"}`}>
-          <div className="space-y-6 mb-8">
-            <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-4">
-              <Mail className="w-6 h-6 text-[#8127cf]" />
-              <input
-                type="email"
-                placeholder="Enter official email..."
-                className="bg-transparent border-none outline-none font-bold text-sm w-full"
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-              />
+        <ModalFrame onClose={() => { setShowInviteModal(false); setInviteLink(""); }} title={inviteLink ? "Invitation Sent" : `Invite ${inviteRole === "CAMPUS_ADMIN" ? "Admin" : "Principal"}`}>
+          {inviteLink ? (
+            <div className="space-y-6 mb-8">
+              <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-200/50">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">Invitation email sent successfully</p>
+                  <p className="text-xs font-semibold text-emerald-700/70 mt-0.5">The invited person will set their own password when they accept.</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#4d4354]/50 mb-2">Invitation Link</p>
+                <p className="text-xs font-semibold text-[#4d4354]/60 mb-2">Share this link manually if the email doesn&apos;t arrive. It expires in 48 hours.</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 p-3 rounded-xl bg-[#fbf0fe] border border-[#cfc2d6]/20 text-xs font-mono text-[#4d4354] break-all select-all">{inviteLink}</div>
+                  <BrandButton variant="soft" className="shrink-0 h-10" onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Link copied to clipboard"); }}>Copy</BrandButton>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-6 mb-8">
+              <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-4">
+                <Mail className="w-6 h-6 text-[#8127cf]" />
+                <input
+                  type="email"
+                  placeholder="Enter official email..."
+                  className="bg-transparent border-none outline-none font-bold text-sm w-full"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                />
+              </div>
+              <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf] mb-1">How it works</p>
+                <p className="text-xs font-semibold text-[#4d4354]/60">An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.</p>
+              </div>
+            </div>
+          )}
           <div className="flex gap-4">
-            <BrandButton variant="soft" className="flex-1 h-14" onClick={() => setShowInviteModal(false)}>
-              Cancel
+            <BrandButton variant="soft" className="flex-1 h-14" onClick={() => { setShowInviteModal(false); setInviteLink(""); }}>
+              {inviteLink ? "Close" : "Cancel"}
             </BrandButton>
-            <BrandButton variant="dark" className="flex-[2] h-14" onClick={handleInvite} disabled={inviting}>
-              {inviting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send Invite"}
-            </BrandButton>
+            {!inviteLink && (
+              <BrandButton variant="dark" className="flex-[2] h-14" onClick={handleInvite} disabled={inviting}>
+                {inviting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send Invite"}
+              </BrandButton>
+            )}
           </div>
         </ModalFrame>
       )}

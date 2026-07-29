@@ -134,6 +134,7 @@ model Class {
   exams          Exam[]
   feeStructures  FeeStructure[]
   gradeWeightConfigs GradeWeightConfig[]
+  attendance     Attendance[]
 
   @@map("classes")
 }
@@ -323,15 +324,38 @@ model Attendance {
   id            String    @id @default(uuid())
   campusId      String    @map("campus_id")
   campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String?   @map("class_id")
+  class         Class?    @relation(fields: [classId], references: [id])
   studentId     String    @map("student_id")
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   date          DateTime  @db.Date
   status        AttendanceStatus
+  notes         String?   @db.Text
   markedBy      String?   @map("marked_by")
   marker        User?     @relation("MarkedBy", fields: [markedBy], references: [id])
+  markedAt      DateTime  @default(now()) @map("marked_at")
+  isLocked      Boolean   @default(false) @map("is_locked")
+  lockedAt      DateTime? @map("locked_at")
+
+  editHistory   AttendanceEditHistory[]
 
   @@unique([studentId, date])
+  @@index([classId, date])
+  @@index([campusId, date])
   @@map("attendance")
+}
+
+model AttendanceEditHistory {
+  id            String    @id @default(uuid())
+  attendanceId  String    @map("attendance_id")
+  attendance    Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  oldStatus     String    @map("old_status")
+  newStatus     String    @map("new_status")
+  editedBy      String?   @map("edited_by")
+  editedAt      DateTime  @default(now()) @map("edited_at")
+
+  @@index([attendanceId])
+  @@map("attendance_edit_history")
 }
 
 // ─── 11. FEE_STRUCTURES ───────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BookOpen, Calendar, CreditCard, FileText, HelpCircle, LayoutGrid, LogOut } from "lucide-react";
+import { BookOpen, Calendar, CalendarCheck, CreditCard, FileText, HelpCircle, LayoutGrid, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 
@@ -16,6 +16,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Dashboard", href: "/student" },
     { icon: BookOpen, label: "Coursework", href: "/student/coursework" },
+    { icon: CalendarCheck, label: "Attendance", href: "/student/attendance" },
     { icon: Calendar, label: "Schedule", href: "/student/schedule" },
     { icon: FileText, label: "Report Cards", href: "/student/reports" },
     { icon: CreditCard, label: "Fee Tokens", href: "/student/fees" },

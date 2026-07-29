@@ -193,9 +193,11 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   });
 
   const campus = await prisma.campus.findUnique({ where: { id: targetCampusId } });
-  await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, await getRequestBaseUrl());
+  const baseUrl = await getRequestBaseUrl();
+  await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, baseUrl);
 
-  return { success: true };
+  const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
+  return { success: true, inviteLink };
 }
 
 export async function removeStaff(userId: string) {

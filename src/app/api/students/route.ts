@@ -509,12 +509,46 @@ export async function PATCH(req: NextRequest) {
     if (["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
     if (["active", "archived", "transferred"].includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
-    if (updates.classId) {
+    let previousClassName = "";
+    if (updates.classId && updates.classId !== existing.classId) {
       const targetClass = await prisma.class.findFirst({
         where: { id: updates.classId, campusId: existing.campusId, campus: { schoolId: user.schoolId } },
-        select: { id: true },
+        select: { id: true, name: true, section: true },
       });
       if (!targetClass) throw new ApiError("Class not found", 404);
+      data.classId = updates.classId;
+
+      if (existing.classId) {
+        const prevClass = await prisma.class.findFirst({
+          where: { id: existing.classId },
+          select: { name: true, section: true },
+        });
+        if (prevClass) {
+          previousClassName = [prevClass.name, prevClass.section].filter(Boolean).join(" ");
+        }
+      }
+
+      const abbrev = targetClass.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase();
+      const secChar = (targetClass.section || "A").charAt(0).toUpperCase();
+      const prefix = `${abbrev}-${secChar}-`;
+
+      const campusClasses = await prisma.class.findMany({
+        where: { campusId: existing.campusId },
+        select: { id: true },
+      });
+      const campusClassIds = campusClasses.map((c) => c.id);
+
+      const existingRolls = await prisma.student.findMany({
+        where: { classId: { in: campusClassIds }, rollNo: { startsWith: prefix } },
+        select: { rollNo: true },
+      });
+      let maxNum = 0;
+      for (const s of existingRolls) {
+        const num = parseInt(s.rollNo.slice(prefix.length), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      data.rollNo = `${prefix}${String(maxNum + 1).padStart(3, "0")}`;
+    } else if (updates.classId) {
       data.classId = updates.classId;
     }
 
@@ -528,8 +562,8 @@ export async function PATCH(req: NextRequest) {
       data: {
         tableName: 'student',
         recordId: id,
-        oldValue: { classId: existing.classId },
-        newValue: { classId: updates.classId || existing.classId },
+        oldValue: { classId: existing.classId, previousClassName: previousClassName || undefined },
+        newValue: { classId: data.classId || existing.classId, rollNo: data.rollNo },
         userId: user.userId,
       }
     });

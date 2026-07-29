@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertCircle, BookOpen, Briefcase, Building, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
+  AlertCircle, BookOpen, Briefcase, Building, CalendarCheck, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
   GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus, School, Send,
   Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
 } from "lucide-react";
@@ -22,8 +22,9 @@ import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
+import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 
-type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "ai";
+type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
@@ -35,6 +36,7 @@ const viewCopy: Record<PrincipalView, { title: string; description: string }> = 
   reports: { title: "Reports Hub", description: "Approve remarks, mark exams reviewed, publish report cards, and send parent delivery." },
   engagement: { title: "Parent Engagement", description: "Track parent communication delivery, blocked messages, no-contact records, and automation runs." },
   students: { title: "Student Directory", description: "Search, filter, and manage student profiles across classes and sections." },
+  attendance: { title: "Attendance Tracker", description: "Monitor daily attendance, view class-wise and school-wide reports, and identify at-risk students." },
   ai: { title: "AI Insights", description: "AI-powered analysis and review items for academic oversight." },
 };
 
@@ -141,12 +143,16 @@ export default function PrincipalDashboard() {
   };
 
   const handleMoveStudent = async () => {
-    if (!selectedStudent || !moveClassId) return;
+    if (!selectedStudent || !moveClassId || moveClassId === (selectedStudent.class?.id || selectedStudent.classId)) return;
     setMovingStudentBusy(true);
     try {
-      const res = await fetch(`/api/students/${selectedStudent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: moveClassId }) });
+      const res = await fetch("/api/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedStudent.id, classId: moveClassId }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to move student"); toast.success("Student moved"); setShowMoveStudentModal(false); setSelectedStudent(null); await refetch();
+      if (!res.ok) throw new Error(result.error || "Failed to move student");
+      const moved = result.data;
+      const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
+      toast.success(moved?.rollNo ? `Moved to ${cls} — new roll: ${moved.rollNo}` : "Student moved");
+      setShowMoveStudentModal(false); setSelectedStudent(null); await refetch();
     } catch (error: any) { toast.error(error.message); } finally { setMovingStudentBusy(false); }
   };
 
@@ -240,6 +246,7 @@ export default function PrincipalDashboard() {
     { icon: School, label: "Academics", active: activeView === "academics", onClick: () => setActiveView("academics") },
     { icon: Users, label: "Faculty", active: activeView === "faculty", onClick: () => setActiveView("faculty") },
     { icon: GraduationCap, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
+    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: FileText, label: "Reports", active: activeView === "reports", onClick: () => setActiveView("reports") },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Insights", active: activeView === "ai", onClick: () => setActiveView("ai") },
@@ -279,7 +286,8 @@ export default function PrincipalDashboard() {
         {activeView === "overview" ? <OverviewPanel data={data} communicationTotals={communicationTotals} onViewReports={() => setActiveView("reports")} onViewEngagement={() => setActiveView("engagement")} onComplete={() => { refetch(); }} /> : null}
         {activeView === "academics" ? <AcademicPanel classes={data.classes} exams={data.recentExams} reports={data.recentReportCards} teachers={data.teachers} students={data.students} attendanceRecords={data.attendanceRecords} attendanceSummary={data.attendanceSummary} invoiceSummary={data.invoiceSummary} campusName={data.campusName} onAddClass={() => setShowClassModal(true)} onAddStudent={openAdmissionForm} onViewClass={setSelectedClass} onChangeTeacher={handleChangeClassTeacher} onDeleteClass={handleDeleteClass} onUpdateClass={handleUpdateClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} /> : null}
         {activeView === "faculty" ? <FacultyPanel teachers={data.teachers} pendingInvites={data.pendingTeacherInvitations} campusAdmins={data.campusAdmins} pendingAdminInvites={data.pendingAdminInvitations} onInvite={(role) => { if (role === "TEACHER") { setShowAddTeacherForm(true); } else { openAddStaff(role as "CAMPUS_ADMIN" | "PRINCIPAL"); } }} onRemove={(id, label) => handleRemove(id, label)} onViewTeacher={setSelectedTeacher} onResend={handleResendInvite} onCancel={handleCancelInvite} /> : null}
-        {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openAdmissionForm} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(student.class?.id || ""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
+        {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openAdmissionForm} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
+        {activeView === "attendance" ? <AttendanceOverview /> : null}
         {activeView === "reports" ? <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} /> : null}
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
         {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} /> : null}
@@ -296,7 +304,7 @@ export default function PrincipalDashboard() {
       )}
       {selectedStudent && showMoveStudentModal ? <MoveStudentModal student={selectedStudent} classes={data.classes} selectedClassId={moveClassId} onSelectClass={setMoveClassId} onMove={handleMoveStudent} busy={movingStudentBusy} onClose={() => { setShowMoveStudentModal(false); setSelectedStudent(null); }} /> : null}
       {selectedClass ? <ClassDetailModal cls={selectedClass} teachers={data.teachers} onChangeTeacher={handleChangeClassTeacher} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} onClose={() => setSelectedClass(null)} /> : null}
-      {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(selectedStudent.class?.id || ""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
+      {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
       {selectedTeacher ? <TeacherDetailModal teacher={selectedTeacher} onUpdate={handleUpdateTeacher} onClose={() => setSelectedTeacher(null)} /> : null}
       {showAddTeacherForm && (
         <AddTeacherForm
@@ -540,7 +548,15 @@ function StudentModal({ open, onClose, form, onChange, onSave, saving, classes }
 }
 
 function MoveStudentModal({ student, classes, selectedClassId, onSelectClass, onMove, busy, onClose }: { student: any; classes: any[]; selectedClassId: string; onSelectClass: (id: string) => void; onMove: () => void; busy: boolean; onClose: () => void; }) {
-  return (<ModalFrame title={`Move ${student.fullName}`} onClose={onClose}><p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Select a new class for this student.</p><FormSelect label="Destination Class" value={selectedClassId} onChange={onSelectClass}><option value="">Select class</option>{classes.map((cls) => (<option key={cls.id} value={cls.id}>{classLabel(cls)}</option>))}</FormSelect><ModalActions onCancel={onClose} onSave={onMove} saving={busy} saveLabel="Move" /></ModalFrame>);
+  const currentClassId = student.class?.id || student.classId;
+  const isSameClass = selectedClassId === currentClassId;
+  const canMove = selectedClassId && !isSameClass;
+  return (<ModalFrame title={`Move ${student.fullName}`} onClose={onClose}>
+    <div className="rounded-3xl bg-[#fbf0fe]/65 p-5 mb-5"><p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">Current: {classLabel(student.class)} · Roll: {student.rollNo}</p></div>
+    <p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Select a new class for this student. A new roll number will be auto-generated.</p>
+    <FormSelect label="Destination Class" value={selectedClassId} onChange={onSelectClass}><option value="">Select class</option>{classes.filter((cls) => cls.id !== currentClassId).map((cls) => (<option key={cls.id} value={cls.id}>{classLabel(cls)}</option>))}</FormSelect>
+    <ModalActions onCancel={onClose} onSave={onMove} saving={busy || !canMove} saveLabel="Move" />
+  </ModalFrame>);
 }
 
 

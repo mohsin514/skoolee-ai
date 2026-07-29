@@ -137,9 +137,10 @@ export async function POST(req: NextRequest) {
       parsed.data.entries.map((entry) =>
         prisma.attendance.upsert({
           where: { studentId_date: { studentId: entry.studentId, date } },
-          update: { status: entry.status, markedBy: user.userId, campusId: cls.campusId },
+          update: { status: entry.status, markedBy: user.userId, campusId: cls.campusId, classId: cls.id, markedAt: new Date() },
           create: {
             campusId: cls.campusId,
+            classId: cls.id,
             studentId: entry.studentId,
             date,
             status: entry.status,

@@ -32,7 +32,7 @@ interface ClassRecord {
 interface ClassGroup {
   key: string;
   name: string;
-  academicYear: number;
+  academicYear: number | string;
   sections: ClassRecord[];
 }
 
