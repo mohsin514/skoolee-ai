@@ -71,6 +71,7 @@ model Campus {
   notificationTemplates NotificationTemplate[]
   parentCommunications  ParentCommunication[]
   gradeWeightConfigs GradeWeightConfig[]
+  timetables    Timetable[]
 
   @@map("campuses")
 }
@@ -119,6 +120,7 @@ model User {
   parentedStudents Student[]    @relation("Parent")
   parentCommunicationRecipients ParentCommunication[] @relation("ParentCommunicationParent")
   createdParentCommunications   ParentCommunication[] @relation("ParentCommunicationCreator")
+  timetableSlots TimetableSlot[] @relation("TimetableTeacher")
 
   @@map("users")
 }
@@ -141,6 +143,7 @@ model Class {
   feeStructures  FeeStructure[]
   gradeWeightConfigs GradeWeightConfig[]
   attendance     Attendance[]
+  timetables     Timetable[]
 
   @@map("classes")
 }
@@ -212,6 +215,7 @@ model Subject {
   // Relations
   marks         Mark[]
   exams         Exam[]
+  timetableSlots TimetableSlot[]
 
   @@map("subjects")
 }
@@ -696,7 +700,48 @@ model ParentCommunication {
   @@map("parent_communications")
 }
 
-// ─── 15. SECURITY & ONBOARDING ────────────────────────────
+// ─── 15. TIMETABLES ───────────────────────────────────────
+model Timetable {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId       String    @map("class_id")
+  class         Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYear  Int       @map("academic_year")
+  term          String    @default("ANNUAL")
+  status        String    @default("DRAFT") // DRAFT, PUBLISHED
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  slots         TimetableSlot[]
+
+  @@unique([classId, academicYear, term])
+  @@index([campusId])
+  @@map("timetables")
+}
+
+model TimetableSlot {
+  id            String    @id @default(uuid())
+  timetableId   String    @map("timetable_id")
+  timetable     Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  dayOfWeek     Int       @map("day_of_week") // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  periodNumber  Int       @map("period_number") // 1-8
+  subjectId     String?   @map("subject_id")
+  subject       Subject?  @relation(fields: [subjectId], references: [id])
+  teacherId     String?   @map("teacher_id")
+  teacher       User?     @relation("TimetableTeacher", fields: [teacherId], references: [id])
+  roomNumber    String?   @map("room_number")
+  startTime     String    @map("start_time") // "08:00"
+  endTime       String    @map("end_time")   // "08:40"
+  slotType      String    @default("CLASS") @map("slot_type") // CLASS, BREAK, ASSEMBLY, PRAYER, ACTIVITY
+
+  @@unique([timetableId, dayOfWeek, periodNumber])
+  @@index([teacherId, dayOfWeek, periodNumber])
+  @@map("timetable_slots")
+}
+
+// ─── 16. SECURITY & ONBOARDING ────────────────────────────
 model PendingRegistration {
   id               String   @id @default(uuid())
   email            String   @unique

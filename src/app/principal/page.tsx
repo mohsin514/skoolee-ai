@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertCircle, BookOpen, Briefcase, Building, CalendarCheck, Check, CheckCircle2, ChevronDown, ClipboardList, Clock, Copy, Download,
+  AlertCircle, BookOpen, Briefcase, Building, Calendar, CalendarCheck, Check, CheckCircle2, ChevronDown, ClipboardList, Clock, Copy, Download,
   ExternalLink, FileText, GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus,
   Receipt, School, Send, Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
 } from "lucide-react";
@@ -24,8 +24,9 @@ import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 
-type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai" | "fees";
+type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai" | "fees" | "timetable";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
@@ -40,6 +41,7 @@ const viewCopy: Record<PrincipalView, { title: string; description: string }> = 
   attendance: { title: "Attendance Tracker", description: "Monitor daily attendance, view class-wise and school-wide reports, and identify at-risk students." },
   ai: { title: "AI Insights", description: "AI-powered analysis and review items for academic oversight." },
   fees: { title: "Fee Management", description: "Manage fee structures, generate invoices, and process payments." },
+  timetable: { title: "Timetable Manager", description: "Create and publish class schedules, assign subjects and teachers, and detect scheduling conflicts." },
 };
 
 const principalAIFeatures = [
@@ -250,6 +252,7 @@ export default function PrincipalDashboard() {
     { icon: GraduationCap, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
     { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
     { icon: FileText, label: "Reports", active: activeView === "reports", onClick: () => setActiveView("reports") },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Insights", active: activeView === "ai", onClick: () => setActiveView("ai") },
@@ -295,6 +298,7 @@ export default function PrincipalDashboard() {
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
         {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} /> : null}
         {activeView === "fees" ? <FeesPanel /> : null}
+        {activeView === "timetable" ? <TimetablePanel /> : null}
       </section>
 
       <ClassModal open={showClassModal} onClose={() => setShowClassModal(false)} form={classForm} onChange={setClassForm} onSave={handleCreateClass} saving={savingClass} teachers={data.teachers} />

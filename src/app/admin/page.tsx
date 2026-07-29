@@ -60,8 +60,9 @@ import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 
-type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai" | "fees";
+type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai" | "fees" | "timetable";
 type ClassFormState = {
   name: string;
   section: string;
@@ -113,6 +114,10 @@ const viewCopy: Record<AdminView, { title: string; description: string }> = {
   fees: {
     title: "Fee Management",
     description: "Manage fee structures, generate invoices, record payments, import bank statements, and track collections.",
+  },
+  timetable: {
+    title: "Timetable Manager",
+    description: "Create class schedules, assign subjects and teachers to time slots, detect conflicts, and publish for staff and students.",
   },
 };
 
@@ -668,6 +673,7 @@ export default function CampusAdminDashboard() {
     { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
   ];
   const bottomItems: RoleNavItem[] = [
     { icon: HelpCircle, label: "Help Center", onClick: () => setShowHelpModal(true) },
@@ -842,6 +848,10 @@ export default function CampusAdminDashboard() {
 
           {activeView === "fees" ? (
             <FeesPanel />
+          ) : null}
+
+          {activeView === "timetable" ? (
+            <TimetablePanel />
           ) : null}
         </div>
       </section>
