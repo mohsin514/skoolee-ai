@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertCircle, BookOpen, Building, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
-  GraduationCap, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MessageSquare, Pencil, Plus, School, Send,
-  Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, Users, X, type LucideIcon,
+  AlertCircle, BookOpen, Briefcase, Building, CheckCircle2, ChevronDown, ClipboardList, Clock, Download, FileText,
+  GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus, School, Send,
+  Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
+import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
   AiActionPanel, AIReviewQueue, BrandButton, EmptyState, ManagementCard, RoleShell, StatCard, type RoleNavItem,
 } from "@/components/role-dashboard";
@@ -18,10 +18,13 @@ import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { usePrincipalData } from "./principal-data-context";
+import { AdmissionForm } from "@/app/dashboard/students/admission-form";
+import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
+import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
+import { AddStaffForm } from "@/components/staff/add-staff-form";
 
 type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "ai";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
-type InviteRole = "CAMPUS_ADMIN" | "PRINCIPAL" | "TEACHER";
 type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
 
@@ -80,20 +83,17 @@ export default function PrincipalDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [showClassModal, setShowClassModal] = useState(false);
-  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [showMoveStudentModal, setShowMoveStudentModal] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
+  const [showAddAdminForm, setShowAddAdminForm] = useState(false);
+  const [showAddPrincipalForm, setShowAddPrincipalForm] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [inviteRole, setInviteRole] = useState<InviteRole>("TEACHER");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
   const [classForm, setClassForm] = useState<ClassFormState>({ name: "", section: "", sections: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
-  const [studentForm, setStudentForm] = useState<StudentFormState>({ fullName: "", rollNo: "", gender: "MALE", classId: "", guardianName: "", guardianPhone: "", guardianEmail: "" });
   const [moveClassId, setMoveClassId] = useState("");
   const [savingClass, setSavingClass] = useState(false);
-  const [savingStudent, setSavingStudent] = useState(false);
   const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
@@ -135,18 +135,9 @@ export default function PrincipalDashboard() {
     } catch (error: any) { toast.error(error.message); } finally { setSavingClass(false); }
   };
 
-  const handleCreateStudent = async () => {
-    if (!studentForm.fullName || !studentForm.classId) return toast.error("Name and class are required");
-    setSavingStudent(true);
-    try {
-      const res = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: studentForm.fullName, rollNo: studentForm.rollNo ? Number(studentForm.rollNo) : undefined, gender: studentForm.gender, classId: studentForm.classId, guardianName: studentForm.guardianName || undefined, guardianPhone: studentForm.guardianPhone || undefined, guardianEmail: studentForm.guardianEmail || undefined }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create student");
-      toast.success("Student created");
-      setShowStudentModal(false);
-      setStudentForm({ fullName: "", rollNo: "", gender: "MALE", classId: "", guardianName: "", guardianPhone: "", guardianEmail: "" });
-      await refetch();
-    } catch (error: any) { toast.error(error.message); } finally { setSavingStudent(false); }
+  const handleAdmissionSuccess = () => {
+    setShowAdmissionForm(false);
+    refetch();
   };
 
   const handleMoveStudent = async () => {
@@ -159,12 +150,10 @@ export default function PrincipalDashboard() {
     } catch (error: any) { toast.error(error.message); } finally { setMovingStudentBusy(false); }
   };
 
-  const handleInvite = async () => {
-    if (!inviteEmail) return toast.error("Email required");
-    if (!data.canInviteAdmins && (inviteRole === "CAMPUS_ADMIN" || inviteRole === "PRINCIPAL")) return toast.error("Cannot invite admins for this campus");
-    setInviting(true);
-    try { await inviteStaff({ email: inviteEmail, role: inviteRole }); toast.success(`Invitation sent for ${inviteRole}`); setShowInviteModal(false); setInviteEmail(""); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setInviting(false); }
+  const handleStaffAdded = async () => {
+    setShowAddAdminForm(false);
+    setShowAddPrincipalForm(false);
+    await refetch();
   };
 
   const handleRemove = async (userId: string, label: string) => {
@@ -211,8 +200,8 @@ export default function PrincipalDashboard() {
     setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects/${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
   };
 
-  const handleUpdateTeacher = async (teacherId: string, updates: { fullName?: string; phone?: string }) => {
-    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update teacher"); toast.success("Teacher updated"); await refetch(); }
+  const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
+    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update teacher"); toast.success("Teacher updated"); await refetch(); }
     catch (error: any) { toast.error(error.message); }
   };
 
@@ -240,8 +229,11 @@ export default function PrincipalDashboard() {
     catch (error) { toast.error(error instanceof Error ? error.message : "Automation failed"); } finally { setBusyAction(null); }
   };
 
-  const openStudentModal = (classId?: string) => { setStudentForm({ ...studentForm, classId: classId || "" }); setShowStudentModal(true); };
-  const openInvite = (role: InviteRole) => { setInviteRole(role); setInviteEmail(""); setShowInviteModal(true); };
+  const openAdmissionForm = () => { setShowAdmissionForm(true); };
+  const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL") => {
+    if (role === "CAMPUS_ADMIN") setShowAddAdminForm(true);
+    else setShowAddPrincipalForm(true);
+  };
 
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
@@ -274,7 +266,7 @@ export default function PrincipalDashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             {activeView === "academics" || activeView === "overview" ? <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>Add Class</BrandButton> : null}
-            {activeView === "students" || activeView === "overview" ? <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openStudentModal()} disabled={data.classes.length === 0}>Add Student</BrandButton> : null}
+            {activeView === "students" || activeView === "overview" ? <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAdmissionForm()} disabled={data.classes.length === 0}>Add Student</BrandButton> : null}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
@@ -285,22 +277,46 @@ export default function PrincipalDashboard() {
           <StatCard icon={Sparkles} label="AI Queue" value={data.pendingAIReviews || 0} tone="green" onClick={() => setActiveView("ai")} />
         </div>
         {activeView === "overview" ? <OverviewPanel data={data} communicationTotals={communicationTotals} onViewReports={() => setActiveView("reports")} onViewEngagement={() => setActiveView("engagement")} onComplete={() => { refetch(); }} /> : null}
-        {activeView === "academics" ? <AcademicPanel classes={data.classes} exams={data.recentExams} reports={data.recentReportCards} teachers={data.teachers} students={data.students} attendanceRecords={data.attendanceRecords} attendanceSummary={data.attendanceSummary} invoiceSummary={data.invoiceSummary} campusName={data.campusName} onAddClass={() => setShowClassModal(true)} onAddStudent={openStudentModal} onViewClass={setSelectedClass} onChangeTeacher={handleChangeClassTeacher} onDeleteClass={handleDeleteClass} onUpdateClass={handleUpdateClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} /> : null}
-        {activeView === "faculty" ? <FacultyPanel teachers={data.teachers} pendingInvites={data.pendingTeacherInvitations} campusAdmins={data.campusAdmins} pendingAdminInvites={data.pendingAdminInvitations} onInvite={(role) => openInvite(role)} onRemove={(id, label) => handleRemove(id, label)} onViewTeacher={setSelectedTeacher} onResend={handleResendInvite} onCancel={handleCancelInvite} /> : null}
-        {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openStudentModal} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(student.class?.id || ""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
+        {activeView === "academics" ? <AcademicPanel classes={data.classes} exams={data.recentExams} reports={data.recentReportCards} teachers={data.teachers} students={data.students} attendanceRecords={data.attendanceRecords} attendanceSummary={data.attendanceSummary} invoiceSummary={data.invoiceSummary} campusName={data.campusName} onAddClass={() => setShowClassModal(true)} onAddStudent={openAdmissionForm} onViewClass={setSelectedClass} onChangeTeacher={handleChangeClassTeacher} onDeleteClass={handleDeleteClass} onUpdateClass={handleUpdateClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} /> : null}
+        {activeView === "faculty" ? <FacultyPanel teachers={data.teachers} pendingInvites={data.pendingTeacherInvitations} campusAdmins={data.campusAdmins} pendingAdminInvites={data.pendingAdminInvitations} onInvite={(role) => { if (role === "TEACHER") { setShowAddTeacherForm(true); } else { openAddStaff(role as "CAMPUS_ADMIN" | "PRINCIPAL"); } }} onRemove={(id, label) => handleRemove(id, label)} onViewTeacher={setSelectedTeacher} onResend={handleResendInvite} onCancel={handleCancelInvite} /> : null}
+        {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openAdmissionForm} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(student.class?.id || ""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
         {activeView === "reports" ? <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} /> : null}
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
         {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} /> : null}
       </section>
 
       <ClassModal open={showClassModal} onClose={() => setShowClassModal(false)} form={classForm} onChange={setClassForm} onSave={handleCreateClass} saving={savingClass} teachers={data.teachers} />
-      <StudentModal open={showStudentModal} onClose={() => setShowStudentModal(false)} form={studentForm} onChange={setStudentForm} onSave={handleCreateStudent} saving={savingStudent} classes={data.classes} />
+      {showAdmissionForm && (
+        <AdmissionForm
+          classes={data.classes || []}
+          classGroups={groupClasses(data.classes || [])}
+          onSuccess={handleAdmissionSuccess}
+          onClose={() => setShowAdmissionForm(false)}
+        />
+      )}
       {selectedStudent && showMoveStudentModal ? <MoveStudentModal student={selectedStudent} classes={data.classes} selectedClassId={moveClassId} onSelectClass={setMoveClassId} onMove={handleMoveStudent} busy={movingStudentBusy} onClose={() => { setShowMoveStudentModal(false); setSelectedStudent(null); }} /> : null}
       {selectedClass ? <ClassDetailModal cls={selectedClass} teachers={data.teachers} onChangeTeacher={handleChangeClassTeacher} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} onClose={() => setSelectedClass(null)} /> : null}
       {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(selectedStudent.class?.id || ""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
       {selectedTeacher ? <TeacherDetailModal teacher={selectedTeacher} onUpdate={handleUpdateTeacher} onClose={() => setSelectedTeacher(null)} /> : null}
-      <InviteModal open={showInviteModal} role={inviteRole} email={inviteEmail} onEmailChange={setInviteEmail} busy={inviting} onInvite={handleInvite} onClose={() => setShowInviteModal(false)} canInviteAdmins={data.canInviteAdmins} />
-      {showBulkImportModal ? <BulkStudentImport campusName={data.campusName} classes={data.classes} onComplete={async () => { setShowBulkImportModal(false); await refetch(); }} onClose={() => setShowBulkImportModal(false)} /> : null}
+      {showAddTeacherForm && (
+        <AddTeacherForm
+          onSuccess={() => { setShowAddTeacherForm(false); refetch(); }}
+          onClose={() => setShowAddTeacherForm(false)}
+        />
+      )}
+      {showAddAdminForm && (
+        <AddStaffForm role="CAMPUS_ADMIN" onSuccess={handleStaffAdded} onClose={() => setShowAddAdminForm(false)} />
+      )}
+      {showAddPrincipalForm && (
+        <AddStaffForm role="PRINCIPAL" onSuccess={handleStaffAdded} onClose={() => setShowAddPrincipalForm(false)} />
+      )}
+      <BulkImportDialog
+        open={showBulkImportModal}
+        onOpenChange={setShowBulkImportModal}
+        classes={data.classes || []}
+        defaultClassId={data.classes?.[0]?.id || ""}
+        onSuccess={refetch}
+      />
       {showActivityLogModal ? <ActivityLogModal onClose={() => setShowActivityLogModal(false)} /> : null}
       {showHelpModal ? <HelpModal onClose={() => setShowHelpModal(false)} /> : null}
       <ConfirmAction open={!!confirmAction} title={confirmAction?.title || ""} description={confirmAction?.description || ""} confirmLabel={confirmAction?.confirmLabel} busy={confirmBusy} onConfirm={async () => { if (confirmAction) { await confirmAction.run(); setConfirmAction(null); } }} onCancel={() => setConfirmAction(null)} />
@@ -425,15 +441,15 @@ function AttendanceView({ attendanceRecords, classes, students, invoiceSummary, 
 
 function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvites, onInvite, onRemove, onViewTeacher, onResend, onCancel }: {
   teachers: any[]; pendingInvites: any[]; campusAdmins: any[]; pendingAdminInvites: any[];
-  onInvite: (role: InviteRole) => void; onRemove: (id: string, label: string) => void; onViewTeacher: (teacher: any) => void; onResend: (id: string) => void; onCancel: (id: string) => void;
+  onInvite: (role: string) => void; onRemove: (id: string, label: string) => void; onViewTeacher: (teacher: any) => void; onResend: (id: string) => void; onCancel: (id: string) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const filtered = teachers.filter((t) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q); });
-  if (teachers.length === 0 && pendingInvites.length === 0 && campusAdmins.length === 0 && pendingAdminInvites.length === 0) return (<EmptyState icon={Users} title="No faculty records found" description="Invite teachers so subjects and classes can be assigned from the central model." action={<BrandButton onClick={() => onInvite("TEACHER")}>Invite Teacher</BrandButton>} />);
+  if (teachers.length === 0 && pendingInvites.length === 0 && campusAdmins.length === 0 && pendingAdminInvites.length === 0) return (<EmptyState icon={Users} title="No faculty records found" description="Invite teachers so subjects and classes can be assigned from the central model." action={<BrandButton onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>} />);
   return (
     <div className="space-y-8">
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/30 via-white to-[#fbf0fe]/20 p-6 shadow-lg">
-        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"><BrandButton variant="soft" onClick={() => onInvite("CAMPUS_ADMIN")}>Invite Admin</BrandButton><BrandButton variant="soft" onClick={() => onInvite("PRINCIPAL")}>Invite Principal</BrandButton></div></div>
+        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"><BrandButton variant="soft" onClick={() => onInvite("CAMPUS_ADMIN")}>Add Admin</BrandButton><BrandButton variant="soft" onClick={() => onInvite("PRINCIPAL")}>Add Principal</BrandButton></div></div>
         {campusAdmins.length > 0 ? (<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{campusAdmins.map((admin: any) => (<AdminRow key={admin.id} admin={admin} onRemove={admin.id ? () => onRemove(admin.id, "Admin") : undefined} />))}</div>) : null}
         {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
         {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (<p className="rounded-2xl bg-white/70 px-4 py-3 text-[10px] font-bold text-[#4d4354]/45">No admins yet. Invite campus administrators to manage this campus.</p>) : null}
@@ -443,7 +459,7 @@ function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvi
           <PanelTitle icon={Users} title="Teacher Profiles" />
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-40 bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35" /></div>
-            <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Invite Teacher</BrandButton>
+            <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -527,11 +543,6 @@ function MoveStudentModal({ student, classes, selectedClassId, onSelectClass, on
   return (<ModalFrame title={`Move ${student.fullName}`} onClose={onClose}><p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Select a new class for this student.</p><FormSelect label="Destination Class" value={selectedClassId} onChange={onSelectClass}><option value="">Select class</option>{classes.map((cls) => (<option key={cls.id} value={cls.id}>{classLabel(cls)}</option>))}</FormSelect><ModalActions onCancel={onClose} onSave={onMove} saving={busy} saveLabel="Move" /></ModalFrame>);
 }
 
-function InviteModal({ open, role, email, onEmailChange, busy, onInvite, onClose, canInviteAdmins }: { open: boolean; role: InviteRole; email: string; onEmailChange: (v: string) => void; busy: boolean; onInvite: () => void; onClose: () => void; canInviteAdmins: boolean; }) {
-  if (!open) return null;
-  const cannotInvite = !canInviteAdmins && (role === "CAMPUS_ADMIN" || role === "PRINCIPAL");
-  return (<ModalFrame title={`Invite ${formatStatus(role)}`} onClose={onClose}><p className="text-xs font-semibold text-[#4d4354]/60 mb-4">Send an invitation for the role of <strong>{formatStatus(role)}</strong>. An email will be sent with onboarding instructions.</p>{cannotInvite ? (<p className="rounded-2xl bg-amber-50 px-4 py-3 text-[10px] font-bold text-amber-700 mb-4">This campus is part of a multi-campus school; admin/principal invitations are managed at the super admin level.</p>) : null}<div className="p-4 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 flex items-center gap-4 mb-5"><Mail className="w-5 h-5 text-[#8127cf]" /><input type="email" placeholder="Official Email Address" className="bg-transparent border-none outline-none font-bold text-sm w-full placeholder:text-[#4d4354]/35" value={email} onChange={(e) => onEmailChange(e.target.value)} /></div><ModalActions onCancel={onClose} onSave={onInvite} saving={busy} saveLabel={`Invite ${formatStatus(role)}`} /></ModalFrame>);
-}
 
 function ClassGroupCard({ group, teachers, onAddStudent, onViewClass, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
   group: { name: string; academicYear: number | string; sections: any[] }; teachers: any[]; onAddStudent: (classId?: string) => void; onViewClass: (cls: any) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
@@ -659,27 +670,469 @@ function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate
   const report = student.reportCards?.[0];
   const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(student.fullName || "");
-  const [editRollNo, setEditRollNo] = useState(student.rollNo || "");
-  const [editGuardianName, setEditGuardianName] = useState(student.guardianName || "");
-  const [editGuardianPhone, setEditGuardianPhone] = useState(student.guardianPhone || "");
-  const [editGuardianEmail, setEditGuardianEmail] = useState(student.guardianEmail || "");
-  useEffect(() => { setEditName(student.fullName || ""); setEditRollNo(student.rollNo || ""); setEditGuardianName(student.guardianName || ""); setEditGuardianPhone(student.guardianPhone || ""); setEditGuardianEmail(student.guardianEmail || ""); }, [student.id, student.fullName, student.rollNo, student.guardianName, student.guardianPhone, student.guardianEmail]);
-  const saveEdits = async () => { await onUpdate(student.id, { fullName: editName, rollNo: editRollNo, guardianName: editGuardianName || null, guardianPhone: editGuardianPhone || null, guardianEmail: editGuardianEmail || null }); setEditing(false); };
-  return (<ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"><Trash2 className="h-3.5 w-3.5" />Delete Student</button></div><button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>{editing ? "Cancel" : "Edit Details"}</button></div><div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center"><div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1">{editing ? (<div className="space-y-3"><FormInput label="Full Name" value={editName} placeholder="Student name" onChange={setEditName} /><FormInput label="Roll Number" value={editRollNo} placeholder="Roll number" onChange={setEditRollNo} /></div>) : (<><p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Student Record</p><h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{student.fullName}</h3><p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{student.rollNo || "No roll number"} - {classLabel(student.class)}</p></>)}</div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><MiniMetric label="Roll No" value={student.rollNo || "N/A"} active /><MiniMetric label="Class" value={classLabel(student.class)} /><MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} /></div><div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5"><div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm"><PanelTitle icon={Users} title="Guardian" />{editing ? (<div className="mt-4 space-y-3"><FormInput label="Guardian Name" value={editGuardianName} placeholder="Guardian name" onChange={setEditGuardianName} /><FormInput label="Guardian Phone" value={editGuardianPhone} placeholder="Guardian phone" onChange={setEditGuardianPhone} /><FormInput label="Guardian Email" value={editGuardianEmail} placeholder="Guardian email" onChange={setEditGuardianEmail} /></div>) : (<div className="mt-4 space-y-3"><DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} /><DetailRow label="Name" value={student.guardianName || "N/A"} /><DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} /><DetailRow label="Email" value={student.guardianEmail || "N/A"} /></div>)}</div><div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm"><PanelTitle icon={FileText} title="Report Card" />{report ? (<div className="mt-4 space-y-3"><DetailRow label="Exam" value={report.exam?.title || "N/A"} /><DetailRow label="Status" value={<StatusPill status={report.status} />} /><DetailRow label="Generated" value={formatDate(report.generatedAt)} /><DetailRow label="Marks" value={report.marksObtained != null ? `${report.marksObtained}/${report.totalMarks || "?"}` : "Pending"} /><DetailRow label="Grade" value={report.grade || "N/A"} /><DetailRow label="Percentage" value={report.percentage != null ? `${Math.round(report.percentage)}%` : "N/A"} /></div>) : (<div className="mt-4"><EmptyInline text="No report card has been generated for this student yet." /></div>)}</div></div><div className="mt-6 flex flex-wrap items-center justify-end gap-3">{editing ? (<BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}</BrandButton>) : null}<BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>Move Class / Section</BrandButton></div></ModalFrame>);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setEdits({
+      fullName: student.fullName || "", nameUr: student.nameUr || "", rollNo: student.rollNo || "",
+      dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: student.gender || "", bloodType: student.bloodType || "", nationality: student.nationality || "",
+      phone: student.phone || "", guardianName: student.guardianName || "", guardianNameUr: student.guardianNameUr || "",
+      guardianPhone: student.guardianPhone || "", guardianEmail: student.guardianEmail || "",
+      guardianRelationship: student.guardianRelationship || "", guardianOccupation: student.guardianOccupation || "",
+      city: student.city || "", province: student.province || "", postalCode: student.postalCode || "",
+      address: student.address || "", medicalNotes: student.medicalNotes || "", specialNeeds: student.specialNeeds || "",
+      allergies: student.allergies || "", medications: student.medications || "", previousSchool: student.previousSchool || "",
+    });
+  }, [student.id]);
+
+  const ed = (field: string) => edits[field] || "";
+  const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
+
+  const saveEdits = async () => {
+    const updates: Record<string, any> = {};
+    const strFields = ["fullName","nameUr","rollNo","gender","bloodType","nationality","phone","guardianName","guardianNameUr","guardianPhone","guardianEmail","guardianRelationship","guardianOccupation","city","province","postalCode","address","medicalNotes","specialNeeds","allergies","medications","previousSchool"];
+    for (const f of strFields) updates[f] = edits[f] || null;
+    if (edits.fullName) updates.fullName = edits.fullName;
+    if (edits.rollNo) updates.rollNo = edits.rollNo;
+    if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
+    await onUpdate(student.id, updates);
+    setEditing(false);
+  };
+
+  const formatDob = (d: any) => { if (!d) return "N/A"; try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; } };
+  const genderLabel = (g: string) => { if (g === "MALE") return "Male"; if (g === "FEMALE") return "Female"; if (g === "OTHER") return "Other"; return g || "N/A"; };
+  const relationshipLabel = (r: string) => { const m: Record<string, string> = { FATHER: "Father", MOTHER: "Mother", GUARDIAN: "Guardian", UNCLE: "Uncle", AUNT: "Aunt", GRANDPARENT: "Grandparent", SIBLING: "Sibling" }; return m[r] || r || "N/A"; };
+
+  return (
+    <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer">
+            <Trash2 className="h-3.5 w-3.5" />Delete Student
+          </button>
+        </div>
+        <button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>
+          <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
+        </button>
+      </div>
+
+      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center">
+        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
+          <img src={avatar} alt="" className="h-full w-full object-cover" />
+        </div>
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
+                <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
+              </div>
+              <FormInput label="Roll Number" value={ed("rollNo")} placeholder="Roll number" onChange={(v) => setEd("rollNo", v)} />
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Student Record</p>
+              <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{student.fullName}</h3>
+              {student.nameUr ? <p className="mt-0.5 text-lg font-semibold text-[#4d4354]/70" dir="rtl">{student.nameUr}</p> : null}
+              <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{student.rollNo || "No roll number"} - {classLabel(student.class)}</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MiniMetric label="Roll No" value={student.rollNo || "N/A"} active />
+        <MiniMetric label="Class" value={classLabel(student.class)} />
+        <MiniMetric label="Status" value={student.status === "active" ? "Active" : student.status || "Active"} />
+        <MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
+          <PanelTitle icon={User} title="Personal Info" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Date of Birth" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
+              <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
+                <option value="">Not specified</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
+              </FormSelect>
+              <FormSelect label="Blood Type" value={ed("bloodType")} onChange={(v) => setEd("bloodType", v)}>
+                <option value="">Not known</option>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
+              </FormSelect>
+              <FormInput label="Nationality" value={ed("nationality")} placeholder="Pakistan" onChange={(v) => setEd("nationality", v)} />
+              <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
+              <FormInput label="Previous School" value={ed("previousSchool")} placeholder="Previous school" onChange={(v) => setEd("previousSchool", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
+              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
+              <DetailRow label="Gender" value={genderLabel(student.gender)} />
+              <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
+              <DetailRow label="Nationality" value={student.nationality || "N/A"} />
+              <DetailRow label="Phone" value={student.phone || "N/A"} />
+              <DetailRow label="Previous School" value={student.previousSchool || "N/A"} />
+              <DetailRow label="Enrolled" value={formatDob(student.enrollmentDate)} />
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
+          <PanelTitle icon={Users} title="Guardian" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput label="Name (English)" value={ed("guardianName")} placeholder="Guardian name" onChange={(v) => setEd("guardianName", v)} />
+                <FormInput label="Name (Urdu)" value={ed("guardianNameUr")} placeholder="سرپرست کا نام" onChange={(v) => setEd("guardianNameUr", v)} />
+              </div>
+              <FormSelect label="Relationship" value={ed("guardianRelationship")} onChange={(v) => setEd("guardianRelationship", v)}>
+                <option value="">Select</option>{["FATHER","MOTHER","GUARDIAN","UNCLE","AUNT","GRANDPARENT","SIBLING"].map((r) => <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>)}
+              </FormSelect>
+              <FormInput label="Occupation" value={ed("guardianOccupation")} placeholder="Occupation" onChange={(v) => setEd("guardianOccupation", v)} />
+              <FormInput label="Phone" value={ed("guardianPhone")} placeholder="Guardian phone" onChange={(v) => setEd("guardianPhone", v)} />
+              <FormInput label="Email" value={ed("guardianEmail")} placeholder="Guardian email" onChange={(v) => setEd("guardianEmail", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Name" value={student.guardianName || "N/A"} />
+              {student.guardianNameUr ? <DetailRow label="Name (Urdu)" value={<span dir="rtl">{student.guardianNameUr}</span>} /> : null}
+              <DetailRow label="Relationship" value={relationshipLabel(student.guardianRelationship)} />
+              <DetailRow label="Occupation" value={student.guardianOccupation || "N/A"} />
+              <DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
+              <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
+          <PanelTitle icon={MapPin} title="Address" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Address" value={ed("address")} placeholder="Street address" onChange={(v) => setEd("address", v)} />
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput label="City" value={ed("city")} placeholder="City" onChange={(v) => setEd("city", v)} />
+                <FormInput label="Province" value={ed("province")} placeholder="Province" onChange={(v) => setEd("province", v)} />
+              </div>
+              <FormInput label="Postal Code" value={ed("postalCode")} placeholder="Postal code" onChange={(v) => setEd("postalCode", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Address" value={student.address || "N/A"} />
+              <DetailRow label="City" value={student.city || "N/A"} />
+              <DetailRow label="Province" value={student.province || "N/A"} />
+              <DetailRow label="Postal Code" value={student.postalCode || "N/A"} />
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
+          <PanelTitle icon={Heart} title="Medical & Health" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Medical Notes" value={ed("medicalNotes")} placeholder="Medical conditions" onChange={(v) => setEd("medicalNotes", v)} />
+              <FormInput label="Special Needs" value={ed("specialNeeds")} placeholder="Special needs" onChange={(v) => setEd("specialNeeds", v)} />
+              <FormInput label="Allergies" value={ed("allergies")} placeholder="Allergies" onChange={(v) => setEd("allergies", v)} />
+              <FormInput label="Medications" value={ed("medications")} placeholder="Medications" onChange={(v) => setEd("medications", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Medical Notes" value={student.medicalNotes || "None"} />
+              <DetailRow label="Special Needs" value={student.specialNeeds || "None"} />
+              <DetailRow label="Allergies" value={student.allergies || "None"} />
+              <DetailRow label="Medications" value={student.medications || "None"} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
+        <PanelTitle icon={FileText} title="Report Card" />
+        {report ? (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <DetailRow label="Exam" value={report.exam?.title || "N/A"} />
+            <DetailRow label="Status" value={<StatusPill status={report.status} />} />
+            <DetailRow label="Generated" value={formatDate(report.generatedAt)} />
+          </div>
+        ) : (
+          <div className="mt-4"><EmptyInline text="No report card has been generated for this student yet." /></div>
+        )}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+        {editing ? (
+          <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+          </BrandButton>
+        ) : null}
+        <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>Move Class / Section</BrandButton>
+      </div>
+    </ModalFrame>
+  );
 }
 
-function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: { fullName?: string; phone?: string }) => Promise<void> }) {
+function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void> }) {
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(teacher.fullName || "");
-  const [editPhone, setEditPhone] = useState(teacher.phone || "");
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setEditName(teacher.fullName || ""); setEditPhone(teacher.phone || ""); }, [teacher.id, teacher.fullName, teacher.phone]);
-  const saveEdits = async () => { if (!onUpdate) return; setSaving(true); try { await onUpdate(teacher.id, { fullName: editName, phone: editPhone || null }); setEditing(false); } finally { setSaving(false); } };
-  return (<ModalFrame title={teacher.fullName} eyebrow="Teacher profile" onClose={onClose} wide><div className="mb-4 flex justify-end">{onUpdate ? (<button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>{editing ? "Cancel" : "Edit Details"}</button>) : null}</div><div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center"><div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1">{editing ? (<div className="space-y-3"><FormInput label="Full Name" value={editName} placeholder="Teacher name" onChange={setEditName} /></div>) : (<><p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Record</p><h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{teacher.fullName}</h3><p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{teacher.email || "No email"}</p></>)}</div></div><div className="grid grid-cols-1 sm:grid-cols-4 gap-3"><MiniMetric label="Subjects" value={teacher._count?.taughtSubjects || taughtSubjects.length} active /><MiniMetric label="Class Teacher" value={teacher._count?.ledClasses || ledClasses.length} /><MiniMetric label="Status" value={teacher.isActive ? "Active" : "Inactive"} /><MiniMetric label="Onboarding" value={teacher.onboardingComplete ? "Done" : "Pending"} /></div><div className="mt-5 rounded-3xl bg-gradient-to-br from-[#fbf0fe]/65 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm"><DetailRow label="Email" value={teacher.email || "N/A"} />{editing ? (<div className="mt-3"><FormInput label="Phone" value={editPhone} placeholder="Phone number" onChange={setEditPhone} /></div>) : (<DetailRow label="Phone" value={teacher.phone || "N/A"} />)}</div>{editing ? (<div className="mt-6 flex justify-end"><BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}</BrandButton></div>) : null}<div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5"><div><div className="mb-3 flex items-center justify-between gap-3"><PanelTitle icon={School} title="Led Classes" /><StatusPill status={`${ledClasses.length} Classes`} /></div><div className="space-y-2">{ledClasses.map((cls: any) => (<div key={cls.id} className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3"><p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects</p></div>))}{ledClasses.length === 0 ? <EmptyInline text="This teacher is not the class teacher for any class yet." /> : null}</div></div><div><div className="mb-3 flex items-center justify-between gap-3"><PanelTitle icon={BookOpen} title="Taught Subjects" /><StatusPill status={`${taughtSubjects.length} Subjects`} /></div><div className="space-y-2">{taughtSubjects.map((subj: any) => (<div key={subj.id} className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3"><p className="text-sm font-black text-[#1f1a23]">{subj.name}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{classLabel(subj.class)} · {subj.totalMarks || 100} marks</p></div>))}{taughtSubjects.length === 0 ? <EmptyInline text="This teacher has no subject assignments yet." /> : null}</div></div></div></ModalFrame>);
+
+  useEffect(() => {
+    setEdits({
+      fullName: teacher.fullName || "",
+      phone: teacher.phone || "",
+      cnic: teacher.cnic || "",
+      dateOfBirth: teacher.dateOfBirth ? new Date(teacher.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: teacher.gender || "",
+      qualification: teacher.qualification || "",
+      specialization: teacher.specialization || "",
+      experience: teacher.experience || "",
+      joiningDate: teacher.joiningDate ? new Date(teacher.joiningDate).toISOString().split("T")[0] : "",
+      address: teacher.address || "",
+      city: teacher.city || "",
+      province: teacher.province || "",
+      postalCode: teacher.postalCode || "",
+      emergencyContact: teacher.emergencyContact || "",
+      emergencyPhone: teacher.emergencyPhone || "",
+    });
+  }, [teacher.id]);
+
+  const ed = (field: string) => edits[field] || "";
+  const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
+
+  const saveEdits = async () => {
+    if (!onUpdate) return;
+    setSaving(true);
+    try {
+      const updates: Record<string, any> = {};
+      const strFields = [
+        "fullName", "phone", "cnic", "gender", "qualification", "specialization",
+        "experience", "address", "city", "province", "postalCode",
+        "emergencyContact", "emergencyPhone",
+      ];
+      for (const f of strFields) updates[f] = edits[f] || null;
+      if (edits.fullName) updates.fullName = edits.fullName;
+      if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
+      if (edits.joiningDate) updates.joiningDate = edits.joiningDate;
+      await onUpdate(teacher.id, updates);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatDate = (d: any) => {
+    if (!d) return "N/A";
+    try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; }
+  };
+
+  const genderLabel = (g: string) => {
+    if (g === "MALE") return "Male";
+    if (g === "FEMALE") return "Female";
+    if (g === "OTHER") return "Other";
+    return g || "N/A";
+  };
+
+  return (
+    <ModalFrame title={teacher.fullName} eyebrow="Teacher profile" onClose={onClose} wide>
+      <div className="mb-4 flex justify-end">
+        {onUpdate ? (
+          <button
+            type="button"
+            onClick={() => setEditing(!editing)}
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+              editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+            }`}
+          >
+            <Pencil className="h-3 w-3" />
+            {editing ? "Cancel" : "Edit Details"}
+          </button>
+        ) : null}
+      </div>
+
+      {/* ── Header Card ── */}
+      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center">
+        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
+          <img src={avatar} alt="" className="h-full w-full object-cover" />
+        </div>
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <FormInput label="Full Name" value={ed("fullName")} placeholder="Teacher name" onChange={(v) => setEd("fullName", v)} />
+          ) : (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Record</p>
+              <h3 className="mt-1 truncate text-3xl font-black tracking-normal text-[#1f1a23]">{teacher.fullName}</h3>
+              <p className="mt-2 text-sm font-semibold uppercase tracking-normal text-[#4d4354]/55">{teacher.email || "No email"}</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Quick Stats ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MiniMetric label="Subjects" value={teacher._count?.taughtSubjects || taughtSubjects.length} active />
+        <MiniMetric label="Class Teacher" value={teacher._count?.ledClasses || ledClasses.length} />
+        <MiniMetric label="Status" value={teacher.isActive ? "Active" : "Inactive"} />
+        <MiniMetric label="Onboarding" value={teacher.onboardingComplete ? "Done" : "Pending"} />
+      </div>
+
+      {/* ── Profile Sections ── */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Personal Info */}
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5">
+          <PanelTitle icon={User} title="Personal Info" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Email" value={teacher.email || ""} placeholder="Email" onChange={() => {}} />
+              <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
+              <FormInput label="CNIC" value={ed("cnic")} placeholder="12345-1234567-1" onChange={(v) => setEd("cnic", v)} />
+              <FormInput label="Date of Birth" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
+              <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
+                <option value="">Not specified</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </FormSelect>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Email" value={teacher.email || "N/A"} />
+              <DetailRow label="Phone" value={teacher.phone || "N/A"} />
+              <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
+              <DetailRow label="Date of Birth" value={formatDate(teacher.dateOfBirth)} />
+              <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
+            </div>
+          )}
+        </div>
+
+        {/* Professional Details */}
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5">
+          <PanelTitle icon={Briefcase} title="Professional" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormSelect label="Qualification" value={ed("qualification")} onChange={(v) => setEd("qualification", v)}>
+                <option value="">Select qualification</option>
+                <option value="Matric">Matric</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Bachelors">Bachelors</option>
+                <option value="Masters">Masters</option>
+                <option value="MPhil">MPhil</option>
+                <option value="PhD">PhD</option>
+                <option value="B.Ed">B.Ed</option>
+                <option value="M.Ed">M.Ed</option>
+              </FormSelect>
+              <FormInput label="Specialization" value={ed("specialization")} placeholder="e.g. Mathematics" onChange={(v) => setEd("specialization", v)} />
+              <FormInput label="Experience" value={ed("experience")} placeholder="e.g. 5 years" onChange={(v) => setEd("experience", v)} />
+              <FormInput label="Joining Date" value={ed("joiningDate")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("joiningDate", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Qualification" value={teacher.qualification || "N/A"} />
+              <DetailRow label="Specialization" value={teacher.specialization || "N/A"} />
+              <DetailRow label="Experience" value={teacher.experience || "N/A"} />
+              <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
+            </div>
+          )}
+        </div>
+
+        {/* Address */}
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5">
+          <PanelTitle icon={MapPin} title="Address" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Address" value={ed("address")} placeholder="Street address" onChange={(v) => setEd("address", v)} />
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput label="City" value={ed("city")} placeholder="City" onChange={(v) => setEd("city", v)} />
+                <FormSelect label="Province" value={ed("province")} onChange={(v) => setEd("province", v)}>
+                  <option value="">Select province</option>
+                  <option value="Punjab">Punjab</option>
+                  <option value="Sindh">Sindh</option>
+                  <option value="KPK">KPK</option>
+                  <option value="Balochistan">Balochistan</option>
+                  <option value="Islamabad">Islamabad</option>
+                  <option value="AJK">AJK</option>
+                  <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                </FormSelect>
+              </div>
+              <FormInput label="Postal Code" value={ed("postalCode")} placeholder="Postal code" onChange={(v) => setEd("postalCode", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Address" value={teacher.address || "N/A"} />
+              <DetailRow label="City" value={teacher.city || "N/A"} />
+              <DetailRow label="Province" value={teacher.province || "N/A"} />
+              <DetailRow label="Postal Code" value={teacher.postalCode || "N/A"} />
+            </div>
+          )}
+        </div>
+
+        {/* Emergency Contact */}
+        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5">
+          <PanelTitle icon={Shield} title="Emergency Contact" />
+          {editing ? (
+            <div className="mt-4 space-y-3">
+              <FormInput label="Contact Person" value={ed("emergencyContact")} placeholder="Emergency contact name" onChange={(v) => setEd("emergencyContact", v)} />
+              <FormInput label="Contact Phone" value={ed("emergencyPhone")} placeholder="Emergency phone" onChange={(v) => setEd("emergencyPhone", v)} />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <DetailRow label="Contact Person" value={teacher.emergencyContact || "N/A"} />
+              <DetailRow label="Contact Phone" value={teacher.emergencyPhone || "N/A"} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="mt-6 flex justify-end">
+          <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+          </BrandButton>
+        </div>
+      ) : null}
+
+      {/* ── Led Classes & Taught Subjects ── */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <PanelTitle icon={School} title="Led Classes" />
+            <StatusPill status={`${ledClasses.length} Classes`} />
+          </div>
+          <div className="space-y-2">
+            {ledClasses.map((cls: any) => (
+              <div key={cls.id} className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3">
+                <p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p>
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                  {cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects
+                </p>
+              </div>
+            ))}
+            {ledClasses.length === 0 ? <EmptyInline text="This teacher is not the class teacher for any class yet." /> : null}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <PanelTitle icon={BookOpen} title="Taught Subjects" />
+            <StatusPill status={`${taughtSubjects.length} Subjects`} />
+          </div>
+          <div className="space-y-2">
+            {taughtSubjects.map((subj: any) => (
+              <div key={subj.id} className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3">
+                <p className="text-sm font-black text-[#1f1a23]">{subj.name}</p>
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                  {classLabel(subj.class)} · {subj.totalMarks || 100} marks
+                </p>
+              </div>
+            ))}
+            {taughtSubjects.length === 0 ? <EmptyInline text="This teacher has no subject assignments yet." /> : null}
+          </div>
+        </div>
+      </div>
+    </ModalFrame>
+  );
 }
 
 function SkeletonBlock({ className = "" }: { className?: string }) {

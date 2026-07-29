@@ -304,9 +304,7 @@ export async function resendInvitation(inviteId: string) {
   return { success: true };
 }
 
-export async function acceptInvite(token: string, password: string, fullName: string) {
-  const cleanName = fullName.trim();
-  if (!cleanName) throw new Error("Full name is required");
+export async function acceptInvite(token: string, password: string) {
   if (password.length < 8) throw new Error("Password must be at least 8 characters");
 
   const invite = await prisma.staffInvitation.findUnique({
@@ -337,6 +335,8 @@ export async function acceptInvite(token: string, password: string, fullName: st
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const placeholderName = invite.email.split("@")[0].replace(/[._-]/g, " ");
+  const needsOnboarding = invite.role === "TEACHER";
 
   const user = await prisma.$transaction(async (tx) => {
     const acceptedUser = existingUser
@@ -344,11 +344,11 @@ export async function acceptInvite(token: string, password: string, fullName: st
           where: { id: existingUser.id },
           data: {
             password: passwordHash,
-            fullName: cleanName,
+            fullName: placeholderName,
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            onboardingComplete: true,
+            onboardingComplete: !needsOnboarding,
             isActive: true,
           },
         })
@@ -356,11 +356,11 @@ export async function acceptInvite(token: string, password: string, fullName: st
           data: {
             email: invite.email,
             password: passwordHash,
-            fullName: cleanName,
+            fullName: placeholderName,
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            onboardingComplete: true,
+            onboardingComplete: !needsOnboarding,
             isActive: true,
           }
         });

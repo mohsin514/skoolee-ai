@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,18 +14,12 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, CalendarCheck, Loader2, Plus, Search, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
+import { AdmissionForm } from "./admission-form";
+import { BulkImportDialog } from "./bulk-import-dialog";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -49,6 +43,8 @@ interface StudentRecord {
   guardianEmail?: string | null;
   studentUser?: { email: string; isActive: boolean } | null;
   address?: string | null;
+  city?: string | null;
+  status?: string;
   classId: string;
   class?: ClassRecord;
 }
@@ -57,71 +53,6 @@ interface AttendanceStudent extends StudentRecord {
   attendance?: { status: AttendanceStatus } | null;
   absenceWarning: boolean;
   recentAbsences: number;
-}
-
-const emptyStudentForm = {
-  fullName: "",
-  rollNo: "",
-  classId: "",
-  gender: "OTHER",
-  dateOfBirth: "",
-  phone: "",
-  studentEmail: "",
-  guardianName: "",
-  guardianPhone: "",
-  guardianWhatsapp: "",
-  guardianEmail: "",
-  address: "",
-};
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function parseCsv(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let value = "";
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === '"' && quoted && next === '"') {
-      value += '"';
-      index++;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      row.push(value.trim());
-      value = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") index++;
-      row.push(value.trim());
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += char;
-    }
-  }
-
-  row.push(value.trim());
-  if (row.some(Boolean)) rows.push(row);
-  return rows;
-}
-
-function normalizeHeader(header: string) {
-  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function pick(row: Record<string, string>, aliases: string[]) {
-  for (const alias of aliases) {
-    const value = row[normalizeHeader(alias)];
-    if (value) return value;
-  }
-  return "";
 }
 
 function classLabel(cls?: ClassRecord | null) {
@@ -153,16 +84,20 @@ function groupClasses(classes: ClassRecord[]) {
   }));
 }
 
+function statusBadgeVariant(status?: string): "success" | "secondary" | "warning" {
+  if (status === "archived") return "warning";
+  if (status === "transferred") return "secondary";
+  return "success";
+}
+
 export default function StudentsPage() {
-  const csvInputRef = useRef<HTMLInputElement | null>(null);
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [studentForm, setStudentForm] = useState(emptyStudentForm);
+  const [showAdmissionForm, setShowAdmissionForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [attendanceStudents, setAttendanceStudents] = useState<AttendanceStudent[]>([]);
@@ -190,7 +125,6 @@ export default function StudentsPage() {
       setStudents(studentsData.data || []);
       setClasses(loadedClasses);
       setAttendanceClassId((current) => current || loadedClasses[0]?.id || "");
-      setStudentForm((form) => ({ ...form, classId: form.classId || loadedClasses[0]?.id || "" }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load students");
     } finally {
@@ -236,103 +170,6 @@ export default function StudentsPage() {
   }, [loadAttendance]);
 
   const classGroups = groupClasses(classes);
-  const selectedStudentClass = classes.find((cls) => cls.id === studentForm.classId);
-  const selectedStudentGroupKey = selectedStudentClass ? classGroupKey(selectedStudentClass) : "";
-  const selectedStudentGroup = classGroups.find((group) => group.key === selectedStudentGroupKey);
-  const selectStudentClassGroup = (key: string) => {
-    const group = classGroups.find((item) => item.key === key);
-    setStudentForm((form) => ({ ...form, classId: group?.sections[0]?.id || "" }));
-  };
-
-  const addStudent = async (event: FormEvent) => {
-    event.preventDefault();
-    const guardianEmail = studentForm.guardianEmail.trim();
-    const studentEmail = studentForm.studentEmail.trim();
-    if (studentEmail && !isValidEmail(studentEmail)) {
-      return toast.error("Enter a valid student login email or leave it blank");
-    }
-    if (guardianEmail && !isValidEmail(guardianEmail)) {
-      return toast.error("Enter a valid guardian email or leave it blank");
-    }
-    if (studentEmail && guardianEmail && studentEmail.toLowerCase() === guardianEmail.toLowerCase()) {
-      return toast.error("Student login email must be different from guardian email");
-    }
-
-    setIsSaving(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...studentForm, studentEmail: studentEmail || null, guardianEmail: guardianEmail || null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not add student");
-      toast.success(data.message || "Student added");
-      if (data.guardianInviteFailures?.length) {
-        toast.warning("Student was created, but the guardian invite email could not be sent.");
-      }
-      if (data.studentInviteFailures?.length) {
-        toast.warning("Student was created, but the student login invite email could not be sent.");
-      }
-      setShowAddDialog(false);
-      setStudentForm({ ...emptyStudentForm, classId: classes[0]?.id || "" });
-      await loadStudents();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add student");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const importCsv = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const rows = parseCsv(text);
-      const [headers, ...bodyRows] = rows;
-      if (!headers || bodyRows.length === 0) throw new Error("CSV needs a header row and at least one student");
-
-      const normalizedHeaders = headers.map(normalizeHeader);
-      const studentsFromCsv = bodyRows.map((values) => {
-        const row = normalizedHeaders.reduce<Record<string, string>>((acc, header, index) => {
-          acc[header] = values[index] || "";
-          return acc;
-        }, {});
-        return {
-          fullName: pick(row, ["fullName", "studentName", "name"]),
-          rollNo: pick(row, ["rollNo", "rollNumber", "registrationNo", "regNo"]),
-          classId: pick(row, ["classId"]) || classFilter || attendanceClassId || classes[0]?.id || "",
-          gender: (pick(row, ["gender"]).toUpperCase() || "OTHER") as "MALE" | "FEMALE" | "OTHER",
-          dateOfBirth: pick(row, ["dateOfBirth", "dob"]),
-          phone: pick(row, ["phone", "studentPhone"]),
-          studentEmail: pick(row, ["studentEmail", "studentLoginEmail", "studentEmailAddress", "email"]),
-          guardianName: pick(row, ["guardianName", "parentName"]),
-          guardianPhone: pick(row, ["guardianPhone", "parentPhone"]),
-          guardianWhatsapp: pick(row, ["guardianWhatsapp", "whatsapp"]),
-          guardianEmail: pick(row, ["guardianEmail", "parentEmail"]),
-          address: pick(row, ["address"]),
-        };
-      });
-
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ students: studentsFromCsv }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not import CSV");
-      toast.success(data.message || "Students imported");
-      if (data.guardianInviteFailures?.length) {
-        toast.warning("Some guardian invite emails could not be sent.");
-      }
-      await loadStudents();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "CSV import failed");
-    }
-  };
 
   const saveAttendance = async () => {
     if (!attendanceClassId) return toast.error("Select a class first");
@@ -368,6 +205,15 @@ export default function StudentsPage() {
     );
   };
 
+  const handleAdmissionSuccess = () => {
+    setShowAdmissionForm(false);
+    loadStudents();
+  };
+
+  const handleBulkImportSuccess = () => {
+    loadStudents();
+  };
+
   return (
     <>
       <Header
@@ -375,12 +221,11 @@ export default function StudentsPage() {
         description="Manage student records, guardians, classes, and daily attendance"
         actions={
           <div className="flex gap-2">
-            <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
-            <Button variant="outline" size="sm" onClick={() => csvInputRef.current?.click()} disabled={classes.length === 0}>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkImport(true)} disabled={classes.length === 0}>
               <Upload className="h-4 w-4" />
               Bulk Import
             </Button>
-            <Button size="sm" onClick={() => setShowAddDialog(true)} disabled={classes.length === 0}>
+            <Button size="sm" onClick={() => setShowAdmissionForm(true)} disabled={classes.length === 0}>
               <Plus className="h-4 w-4" />
               Add Student
             </Button>
@@ -389,6 +234,7 @@ export default function StudentsPage() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Student Roster */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -442,21 +288,35 @@ export default function StudentsPage() {
                       <TableHead>Login</TableHead>
                       <TableHead>Guardian</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>WhatsApp</TableHead>
                       <TableHead>Gender</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {students.map((student) => (
                       <TableRow key={student.id}>
                         <TableCell className="font-mono text-xs">{student.rollNo}</TableCell>
-                        <TableCell className="font-medium">{student.fullName}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{student.fullName}</div>
+                          {student.city && (
+                            <div className="text-xs text-muted-foreground">{student.city}</div>
+                          )}
+                        </TableCell>
                         <TableCell>{classLabel(student.class)}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{student.studentUser?.email || "Not linked"}</TableCell>
-                        <TableCell className="text-muted-foreground">{student.guardianName || "Not recorded"}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{student.guardianPhone || student.phone || "Not recorded"}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{student.guardianWhatsapp || "Not recorded"}</TableCell>
+                        <TableCell>
+                          <div className="text-muted-foreground">{student.guardianName || "Not recorded"}</div>
+                          {student.guardianPhone && (
+                            <div className="text-xs text-muted-foreground">{student.guardianPhone}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{student.phone || student.guardianPhone || "—"}</TableCell>
                         <TableCell><Badge variant="secondary">{student.gender}</Badge></TableCell>
+                        <TableCell>
+                          <Badge variant={statusBadgeVariant(student.status)}>
+                            {student.status || "active"}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -466,6 +326,7 @@ export default function StudentsPage() {
           </CardContent>
         </Card>
 
+        {/* Daily Attendance */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -573,102 +434,24 @@ export default function StudentsPage() {
         </Card>
       </div>
 
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={addStudent}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Full Name *</Label>
-                <Input value={studentForm.fullName} onChange={(event) => setStudentForm((form) => ({ ...form, fullName: event.target.value }))} placeholder="Ahmed Khan" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Roll Number *</Label>
-                <Input value={studentForm.rollNo} onChange={(event) => setStudentForm((form) => ({ ...form, rollNo: event.target.value }))} placeholder="10-A-001" required />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Class *</Label>
-                <Select value={selectedStudentGroupKey} onChange={(event) => selectStudentClassGroup(event.target.value)} required>
-                  <option value="">Select class</option>
-                  {classGroups.map((group) => (
-                    <option key={group.key} value={group.key}>{group.name} - {group.academicYear}</option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Section *</Label>
-                <Select value={studentForm.classId} onChange={(event) => setStudentForm((form) => ({ ...form, classId: event.target.value }))} required>
-                  <option value="">Select section</option>
-                  {(selectedStudentGroup?.sections || []).map((cls) => (
-                    <option key={cls.id} value={cls.id}>Section {sectionLabel(cls)}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Gender</Label>
-                <Select value={studentForm.gender} onChange={(event) => setStudentForm((form) => ({ ...form, gender: event.target.value }))}>
-                  <option value="OTHER">Other</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Date of Birth</Label>
-                <Input type="date" value={studentForm.dateOfBirth} onChange={(event) => setStudentForm((form) => ({ ...form, dateOfBirth: event.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Student Phone</Label>
-                <Input value={studentForm.phone} onChange={(event) => setStudentForm((form) => ({ ...form, phone: event.target.value }))} placeholder="+92 300 1234567" />
-              </div>
-              <div className="space-y-2">
-                <Label>Student Login Email</Label>
-                <Input type="email" value={studentForm.studentEmail} onChange={(event) => setStudentForm((form) => ({ ...form, studentEmail: event.target.value }))} placeholder="student@example.com" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Guardian Name</Label>
-                <Input value={studentForm.guardianName} onChange={(event) => setStudentForm((form) => ({ ...form, guardianName: event.target.value }))} placeholder="Muhammad Khan" />
-              </div>
-              <div className="space-y-2">
-                <Label>Guardian Phone</Label>
-                <Input value={studentForm.guardianPhone} onChange={(event) => setStudentForm((form) => ({ ...form, guardianPhone: event.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input value={studentForm.guardianWhatsapp} onChange={(event) => setStudentForm((form) => ({ ...form, guardianWhatsapp: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Guardian Email</Label>
-                <Input type="email" value={studentForm.guardianEmail} onChange={(event) => setStudentForm((form) => ({ ...form, guardianEmail: event.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Textarea value={studentForm.address} onChange={(event) => setStudentForm((form) => ({ ...form, address: event.target.value }))} placeholder="Home address" />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Add Student
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* 4-Step Admission Form */}
+      {showAdmissionForm && (
+        <AdmissionForm
+          classes={classes}
+          classGroups={classGroups}
+          onSuccess={handleAdmissionSuccess}
+          onClose={() => setShowAdmissionForm(false)}
+        />
+      )}
+
+      {/* Bulk Import Dialog */}
+      <BulkImportDialog
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+        classes={classes}
+        defaultClassId={classFilter || classes[0]?.id || ""}
+        onSuccess={handleBulkImportSuccess}
+      />
     </>
   );
 }

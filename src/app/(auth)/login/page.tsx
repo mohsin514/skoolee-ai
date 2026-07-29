@@ -48,7 +48,11 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(json.error || "Login failed");
       toast.success(`Welcome back, ${json.user.fullName}!`);
 
-      router.push(dashboardPathForRole(json.user.role));
+      if (json.user.role === "TEACHER" && !json.user.onboardingComplete) {
+        router.push("/teacher-onboarding");
+      } else {
+        router.push(dashboardPathForRole(json.user.role));
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Login failed");
     } finally {

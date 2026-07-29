@@ -31,6 +31,22 @@ export async function PATCH(req: NextRequest) {
     }
     if (updates.phone !== undefined) data.phone = updates.phone ? String(updates.phone).trim() : null;
 
+    const optionalStringFields = [
+      "cnic", "gender", "qualification", "specialization", "experience",
+      "address", "city", "province", "postalCode", "emergencyContact", "emergencyPhone",
+    ] as const;
+    for (const field of optionalStringFields) {
+      if (updates[field] !== undefined) {
+        data[field] = updates[field] ? String(updates[field]).trim() : null;
+      }
+    }
+    if (updates.dateOfBirth !== undefined) {
+      data.dateOfBirth = updates.dateOfBirth ? new Date(updates.dateOfBirth) : null;
+    }
+    if (updates.joiningDate !== undefined) {
+      data.joiningDate = updates.joiningDate ? new Date(updates.joiningDate) : null;
+    }
+
     if (!Object.keys(data).length) throw new ApiError("No valid fields to update", 400);
 
     const updated = await prisma.user.update({
@@ -44,6 +60,19 @@ export async function PATCH(req: NextRequest) {
         role: true,
         isActive: true,
         profileImageUrl: true,
+        cnic: true,
+        dateOfBirth: true,
+        gender: true,
+        qualification: true,
+        specialization: true,
+        experience: true,
+        address: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        joiningDate: true,
+        emergencyContact: true,
+        emergencyPhone: true,
       },
     });
 

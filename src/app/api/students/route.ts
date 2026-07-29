@@ -15,16 +15,30 @@ import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
 type StudentInput = {
   fullName: string;
+  nameUr: string | null;
   rollNo: string;
   dateOfBirth: string | null;
   gender: "MALE" | "FEMALE" | "OTHER";
+  bloodType: string | null;
+  nationality: string | null;
   phone: string | null;
   guardianName: string | null;
+  guardianNameUr: string | null;
   guardianPhone: string | null;
   guardianWhatsapp: string | null;
   guardianEmail: string | null;
+  guardianRelationship: string | null;
+  guardianOccupation: string | null;
   studentEmail: string | null;
   address: string | null;
+  city: string | null;
+  province: string | null;
+  postalCode: string | null;
+  medicalNotes: string | null;
+  specialNeeds: string | null;
+  allergies: string | null;
+  medications: string | null;
+  previousSchool: string | null;
   classId: string;
 };
 
@@ -351,15 +365,29 @@ export async function POST(req: NextRequest) {
             studentUserId,
             parentUserId,
             fullName: student.fullName,
+            nameUr: student.nameUr,
             rollNo: student.rollNo,
             gender: student.gender,
             dateOfBirth: asDate(student.dateOfBirth),
+            bloodType: student.bloodType,
+            nationality: student.nationality,
             phone: student.phone,
             guardianName: student.guardianName,
+            guardianNameUr: student.guardianNameUr,
             guardianPhone: student.guardianPhone,
             guardianWhatsapp: student.guardianWhatsapp,
             guardianEmail,
+            guardianRelationship: student.guardianRelationship,
+            guardianOccupation: student.guardianOccupation,
             address: student.address,
+            city: student.city,
+            province: student.province,
+            postalCode: student.postalCode,
+            medicalNotes: student.medicalNotes,
+            specialNeeds: student.specialNeeds,
+            allergies: student.allergies,
+            medications: student.medications,
+            previousSchool: student.previousSchool,
           },
         });
 
@@ -453,18 +481,33 @@ export async function PATCH(req: NextRequest) {
     const data: any = {};
     for (const key of [
       "fullName",
+      "nameUr",
       "rollNo",
       "phone",
       "guardianName",
+      "guardianNameUr",
       "guardianPhone",
       "guardianWhatsapp",
       "guardianEmail",
+      "guardianRelationship",
+      "guardianOccupation",
       "profileImageUrl",
       "address",
+      "city",
+      "province",
+      "postalCode",
+      "medicalNotes",
+      "specialNeeds",
+      "allergies",
+      "medications",
+      "previousSchool",
+      "nationality",
     ]) {
       if (updates[key] !== undefined) data[key] = updates[key] || null;
     }
     if (["MALE", "FEMALE", "OTHER"].includes(updates.gender)) data.gender = updates.gender;
+    if (["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
+    if (["active", "archived", "transferred"].includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     if (updates.classId) {
       const targetClass = await prisma.class.findFirst({

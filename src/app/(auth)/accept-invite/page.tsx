@@ -14,7 +14,6 @@ import {
   Lock,
   MailCheck,
   ShieldCheck,
-  UserRound,
 } from "lucide-react";
 import { acceptInvite } from "@/app/actions/invite";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,6 @@ export default function AcceptInvitePage() {
   const [inviteStatus, setInviteStatus] = useState<"pending" | "accepted" | "cancelled" | "expired" | "invalid" | null>(null);
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(true);
-  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -83,7 +81,7 @@ export default function AcceptInvitePage() {
     loadInviteStatus();
   }, [token]);
 
-  const canSubmit = token && inviteStatus === "pending" && fullName.trim() && passwordChecks.every((item) => item.met);
+  const canSubmit = token && inviteStatus === "pending" && passwordChecks.every((item) => item.met);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -96,10 +94,6 @@ export default function AcceptInvitePage() {
       toast.error("This invitation is no longer active.");
       return;
     }
-    if (!fullName.trim()) {
-      toast.error("Please enter your full name.");
-      return;
-    }
     if (!passwordChecks.every((item) => item.met)) {
       toast.error("Please complete the password requirements.");
       return;
@@ -107,7 +101,7 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      await acceptInvite(token, password, fullName);
+      await acceptInvite(token, password);
       toast.success("Invitation accepted. Please log in.");
       await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
@@ -159,7 +153,7 @@ export default function AcceptInvitePage() {
               </div>
               <h1 className="text-2xl font-black tracking-normal text-[#1f1a23]">Accept Invitation</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/65">
-                Set your name and password to activate your campus account.
+                Set your password to activate your campus account.
               </p>
             </div>
 
@@ -180,22 +174,6 @@ export default function AcceptInvitePage() {
                   </div>
                 ) : null}
                 <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
-                    Full Name
-                  </Label>
-                  <div className="relative flex items-center">
-                    <UserRound className="pointer-events-none absolute left-4 h-5 w-5 text-[#4d4354]" />
-                    <Input
-                      id="fullName"
-                      value={fullName}
-                      onChange={(event) => setFullName(event.target.value)}
-                      placeholder="Your official name"
-                      className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
-                    />
-                  </div>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
                     Password
