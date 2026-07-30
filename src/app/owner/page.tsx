@@ -39,6 +39,7 @@ import {
   Smartphone,
   Tag,
   User,
+  WalletCards,
   Users,
   Wifi,
   X,
@@ -55,7 +56,7 @@ import {
   type RoleNavItem,
 } from "@/components/role-dashboard";
 
-type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing";
+type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
 
 interface SchoolRow {
   id: string;
@@ -247,6 +248,7 @@ export default function OwnerDashboard() {
     { icon: Users, label: "Users", active: activeView === "users", onClick: () => setActiveView("users") },
     { icon: DollarSign, label: "Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
     { icon: Tag, label: "Pricing", active: activeView === "pricing", onClick: () => setActiveView("pricing") },
+    { icon: WalletCards, label: "Payments", active: activeView === "payments", onClick: () => setActiveView("payments") },
     { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
     { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
   ];
@@ -272,6 +274,7 @@ export default function OwnerDashboard() {
         {activeView === "users" && <UsersView />}
         {activeView === "billing" && <BillingView stats={stats} />}
         {activeView === "pricing" && <PricingView stats={stats} />}
+        {activeView === "payments" && <PaymentSettingsView />}
         {activeView === "audit" && <AuditLogView />}
         {activeView === "sessions" && <SessionsView />}
       </section>
@@ -1467,6 +1470,204 @@ function PricingView({ stats }: { stats: Stats | null }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PaymentSettingsView() {
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [bankForm, setBankForm] = useState({ bankName: "", accountTitle: "", accountNumber: "", iban: "" });
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch("/api/owner/payment-settings");
+      const json = await res.json();
+      if (json.success) {
+        setSettings(json.data);
+        setBankForm({
+          bankName: json.data.bankName || "",
+          accountTitle: json.data.accountTitle || "",
+          accountNumber: json.data.accountNumber || "",
+          iban: json.data.iban || "",
+        });
+      }
+    } catch {
+      toast.error("Failed to load payment settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadSettings(); }, []);
+
+  const startConnectOnboarding = async () => {
+    setConnectLoading(true);
+    try {
+      const res = await fetch("/api/owner/payment-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start-connect-onboarding" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      window.location.href = json.url;
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setConnectLoading(false);
+    }
+  };
+
+  const saveBankDetails = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/owner/payment-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save-bank", ...bankForm }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(json.message);
+      loadSettings();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 overflow-y-auto custom-scrollbar flex-1 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
+          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Payment Settings</h2>
+          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+            Configure how you receive subscription payments from schools
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
+          <WalletCards className="w-3 h-3" /> Stripe Connect
+        </p>
+        <p className="text-xs font-semibold text-[#4d4354]/40 mb-4">
+          Connect your Stripe account to receive subscription payments directly. When a school upgrades, funds are transferred to your connected account automatically.
+        </p>
+
+        {settings?.connectedAccountId ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${settings.onboardingComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {settings.onboardingComplete ? "Active" : "Incomplete"}
+              </span>
+              <span className="text-xs font-semibold text-[#4d4354]/40">
+                Account: {settings.connectedAccountId}
+              </span>
+            </div>
+            {!settings.onboardingComplete && (
+              <button
+                type="button"
+                onClick={startConnectOnboarding}
+                disabled={connectLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+              >
+                {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Complete onboarding
+              </button>
+            )}
+            {settings.onboardingComplete && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
+                <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" /> Stripe account connected
+                </p>
+                <p className="text-xs font-semibold text-emerald-600/70 mt-1">
+                  Subscription payments will be transferred to your Stripe account automatically.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startConnectOnboarding}
+            disabled={connectLoading}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+          >
+            {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            Connect Stripe account
+          </button>
+        )}
+      </div>
+
+      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
+          <Building2 className="w-3 h-3" /> Bank Account (Fallback)
+        </p>
+        <p className="text-xs font-semibold text-[#4d4354]/40 mb-4">
+          Optional: Provide bank account details as a fallback payment method. Schools will see these for manual transfers.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Bank Name</label>
+            <input
+              value={bankForm.bankName}
+              onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
+              placeholder="e.g. HBL, Meezan Bank"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Account Title</label>
+            <input
+              value={bankForm.accountTitle}
+              onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
+              placeholder="Full name or business name"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Account Number</label>
+            <input
+              value={bankForm.accountNumber}
+              onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
+              placeholder="IBAN or account number"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">IBAN (optional)</label>
+            <input
+              value={bankForm.iban}
+              onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
+              placeholder="PK...XXXX"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={saveBankDetails}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {saving ? "Saving..." : "Save Bank Details"}
+        </button>
       </div>
     </div>
   );

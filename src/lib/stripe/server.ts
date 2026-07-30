@@ -93,3 +93,61 @@ export function getPriceId(plan: PlanType): string {
   const limits = getPlanLimits(plan);
   return limits.stripePriceEnv ? process.env[limits.stripePriceEnv] || "" : "";
 }
+
+/**
+ * Create a Stripe Connect Express account for the platform owner.
+ */
+export async function createConnectAccount(email: string): Promise<string> {
+  const account = await requireStripe().accounts.create({
+    type: "express",
+    email,
+    capabilities: { transfers: { requested: true } },
+  });
+  return account.id;
+}
+
+/**
+ * Generate a Stripe Connect onboarding link for the owner.
+ */
+export async function createConnectOnboardingLink(
+  accountId: string,
+  refreshUrl: string,
+  returnUrl: string
+): Promise<string> {
+  const link = await requireStripe().accountLinks.create({
+    account: accountId,
+    refresh_url: refreshUrl,
+    return_url: returnUrl,
+    type: "account_onboarding",
+  });
+  return link.url;
+}
+
+/**
+ * Create a checkout session that transfers funds to the owner's connected account.
+ */
+export async function createCheckoutSessionWithTransfer(
+  customerId: string,
+  priceId: string,
+  schoolId: string,
+  plan: Exclude<PlanType, "FREE" | "ENTERPRISE">,
+  connectedAccountId: string | null
+): Promise<string> {
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    customer: customerId,
+    mode: "subscription",
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${appUrl()}/dashboard/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl()}/dashboard/billing?canceled=true`,
+    client_reference_id: schoolId,
+    allow_promotion_codes: true,
+    metadata: { schoolId, plan },
+    subscription_data: {
+      metadata: { schoolId, plan },
+      ...(connectedAccountId ? { transfer_data: { destination: connectedAccountId } } : {}),
+    },
+  };
+
+  const session = await requireStripe().checkout.sessions.create(sessionParams);
+  return session.url || "";
+}

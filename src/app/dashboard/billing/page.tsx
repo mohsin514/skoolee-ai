@@ -16,6 +16,8 @@ import {
   Crown,
   RefreshCw,
   ArrowUpRight,
+  ExternalLink,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,6 +122,11 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [generateModal, setGenerateModal] = useState(false);
   const [feeModal, setFeeModal] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [receiptRef, setReceiptRef] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [bankInfo, setBankInfo] = useState<any>(null);
   const [genForm, setGenForm] = useState({ classId: "", term: "", academicYear: new Date().getFullYear(), dueDate: "" });
   const [feeForm, setFeeForm] = useState({ classId: "", term: "", tuitionMonthly: 0, examFee: 0, annualFee: 0, monthsCount: 1 });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -176,9 +183,41 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Checkout failed");
-      window.location.href = data.url;
+
+      if (data.method === "stripe" || data.method === "safepay") {
+        window.location.href = data.url;
+        return;
+      }
+
+      setPendingPlan(plan);
+      setPaymentMethod(data.method);
+      setBankInfo(data.bank);
+      setPaymentModalOpen(true);
+      setIsPlanAction(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Checkout failed");
+      setIsPlanAction(null);
+    }
+  };
+
+  const submitPaymentNotification = async () => {
+    if (!pendingPlan) return;
+    setIsPlanAction(pendingPlan as any);
+    try {
+      const res = await fetch("/api/billing/payment-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: pendingPlan, receiptRef }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to notify");
+      toast.success("Payment notification sent to platform owner.");
+      setPaymentModalOpen(false);
+      setReceiptRef("");
+      setPendingPlan(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to notify");
+    } finally {
       setIsPlanAction(null);
     }
   };
@@ -624,7 +663,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
                 <Label>Payment Method</Label>
                 <Select value={paymentForm.method} onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}>
                   <option value="CASH">Cash</option>
-                  <option value="JAZZCASH">JazzCash</option>
+                  <option value="SAFEPAY">SafePay</option>
                   <option value="EASYPAISA">EasyPaisa</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
                 </Select>
@@ -729,6 +768,67 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
           </div>
         </DialogContent>
       </Dialog>
+
+      {paymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setPaymentModalOpen(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <Building2 className="w-5 h-5 text-[#1f1a23]" />
+              <h3 className="text-lg font-bold text-[#1f1a23]">Bank Transfer</h3>
+            </div>
+                <p className="text-sm font-semibold text-[#4d4354]/60 mb-4">
+                  Transfer <strong>{bankInfo?.amountLabel}</strong> to the account below, then submit your payment reference.
+                </p>
+                {bankInfo ? (
+                  <div className="rounded-xl bg-[#f3f4f9] p-4 space-y-2 mb-4">
+                    <p className="text-sm font-black text-[#1f1a23]">{bankInfo.bankName}</p>
+                    <p className="text-xs font-semibold text-[#4d4354]/60">
+                      Account Title: <span className="text-[#1f1a23]">{bankInfo.accountTitle}</span>
+                    </p>
+                    <p className="text-xs font-semibold text-[#4d4354]/60">
+                      Account #: <span className="text-[#1f1a23]">{bankInfo.accountNumber}</span>
+                    </p>
+                    {bankInfo.iban && (
+                      <p className="text-xs font-semibold text-[#4d4354]/60">
+                        IBAN: <span className="text-[#1f1a23]">{bankInfo.iban}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-amber-600 mb-4">
+                    No bank details configured yet. Please contact the platform owner.
+                  </p>
+                )}
+                <div className="space-y-2 mb-4">
+                  <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block">Payment Reference (optional)</label>
+                  <input
+                    value={receiptRef}
+                    onChange={(e) => setReceiptRef(e.target.value)}
+                    placeholder="e.g. Transaction ID, receipt number"
+                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalOpen(false)}
+                    className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-[#4d4354] hover:bg-[#f3f4f9] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitPaymentNotification}
+                    disabled={isPlanAction !== null}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+                  >
+                    {isPlanAction ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Notify Owner
+                  </button>
+                </div>
+            </div>
+          </div>
+      )}
     </div>
   );
 }
