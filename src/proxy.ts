@@ -86,7 +86,7 @@ export async function proxy(req: NextRequest) {
       pathname.startsWith("/api/stripe") ||
       pathname.startsWith("/api/auth/logout");
 
-    if (schoolStatus === "SUSPENDED" && !billingAllowedPath) {
+    if (schoolStatus === "SUSPENDED" && !billingAllowedPath && role !== "APP_OWNER") {
       if (pathname.startsWith("/api")) {
         return NextResponse.json(
           { error: "Subscription suspended. Open billing to update your plan or payment method." },
@@ -102,6 +102,14 @@ export async function proxy(req: NextRequest) {
 
     if (onboardingComplete && pathname.startsWith("/onboarding")) {
        return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
+    }
+
+    if (role === "APP_OWNER" && pathname.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/owner", req.url));
+    }
+
+    if (role === "APP_OWNER" && pathname.startsWith("/super")) {
+      return NextResponse.redirect(new URL("/owner", req.url));
     }
 
     if (role === "SUPER_ADMIN" && pathname.startsWith("/dashboard")) {

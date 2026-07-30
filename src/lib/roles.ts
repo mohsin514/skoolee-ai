@@ -1,4 +1,5 @@
 export const USER_ROLES = [
+  "APP_OWNER",
   "SUPER_ADMIN",
   "CAMPUS_ADMIN",
   "ADMIN",
@@ -11,6 +12,7 @@ export const USER_ROLES = [
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  APP_OWNER: "App Owner",
   SUPER_ADMIN: "Super Admin",
   CAMPUS_ADMIN: "Campus Admin",
   ADMIN: "Campus Admin",
@@ -21,6 +23,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_DASHBOARD_PATHS: Record<UserRole, string> = {
+  APP_OWNER: "/owner",
   SUPER_ADMIN: "/super",
   CAMPUS_ADMIN: "/admin",
   ADMIN: "/admin",
@@ -55,20 +58,21 @@ export function isCampusAdminRole(role: unknown): role is "CAMPUS_ADMIN" | "ADMI
 }
 
 export function isCampusScopedRole(role: unknown): boolean {
-  return role !== "SUPER_ADMIN" && isUserRole(role);
+  return role !== "SUPER_ADMIN" && role !== "APP_OWNER" && isUserRole(role);
 }
 
 export function canAccessRoleDashboard(role: unknown, pathname: string): boolean {
   const normalized = normalizeUserRole(role);
   if (!normalized) return false;
 
+  if (pathname.startsWith("/owner")) return normalized === "APP_OWNER";
   if (pathname.startsWith("/super")) return normalized === "SUPER_ADMIN";
   if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized);
   if (pathname.startsWith("/principal")) return normalized === "PRINCIPAL";
   if (pathname.startsWith("/teacher")) return normalized === "TEACHER";
   if (pathname.startsWith("/parent")) return normalized === "PARENT";
   if (pathname.startsWith("/student")) return normalized === "STUDENT" || normalized === "PARENT";
-  if (pathname.startsWith("/dashboard")) return normalized !== "PRINCIPAL" && normalized !== "SUPER_ADMIN";
+  if (pathname.startsWith("/dashboard")) return normalized !== "PRINCIPAL" && normalized !== "SUPER_ADMIN" && normalized !== "APP_OWNER";
 
   return true;
 }

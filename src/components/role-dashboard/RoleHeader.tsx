@@ -3,22 +3,31 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   Award,
   BarChart3,
   Bell,
   CalendarCheck,
+  CheckCircle,
   ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
   FileText,
+  KeyRound,
   LayoutDashboard,
+  Loader2,
   LogOut,
   Search,
   Settings,
   UserRound,
   X,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
 
 interface Notification {
@@ -69,6 +78,7 @@ export function RoleHeader({
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
   const displayName = headerProfile?.fullName || userName;
@@ -277,6 +287,18 @@ export function RoleHeader({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setPasswordModalOpen(true);
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  role="menuitem"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Change password
+                </button>
+                <button
+                  type="button"
                   onClick={handleLogout}
                   className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50"
                   role="menuitem"
@@ -325,8 +347,211 @@ export function RoleHeader({
           </div>
         </div>
       )}
+
+      {passwordModalOpen && (
+        <ChangePasswordModal
+          onClose={() => setPasswordModalOpen(false)}
+        />
+      )}
     </>
   );
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const strength = passwordStrength(newPassword);
+
+  const reqs = [
+    { label: "Min 8 characters", met: newPassword.length >= 8 },
+    { label: "One uppercase", met: /[A-Z]/.test(newPassword) },
+    { label: "One lowercase", met: /[a-z]/.test(newPassword) },
+    { label: "One number", met: /[0-9]/.test(newPassword) },
+    { label: "Special character", met: /[^A-Za-z0-9]/.test(newPassword) },
+    { label: "Passwords match", met: newPassword === confirmPassword && newPassword !== "" },
+  ];
+
+  const handleSubmit = async () => {
+    setError("");
+    if (!currentPassword) return setError("Current password is required");
+    if (!newPassword) return setError("New password is required");
+    if (newPassword.length < 8) return setError("Password must be at least 8 characters");
+    if (newPassword !== confirmPassword) return setError("Passwords do not match");
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to change password");
+      toast.success("Password changed successfully");
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+        <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] shadow-sm ring-1 ring-[#cfc2d6]/15">
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Change Password</h2>
+              <p className="text-xs font-semibold text-[#4d4354]/60">Update your account password</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              Current Password
+            </label>
+            <input
+              type={showPasswords ? "text" : "password"}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              New Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPasswords ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswords(!showPasswords)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#4d4354]/40 hover:text-[#8127cf] cursor-pointer"
+              >
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {newPassword && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex gap-1 flex-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <div
+                      key={level}
+                      className={`h-1.5 flex-1 rounded-full transition-all ${
+                        level <= strength.level
+                          ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
+                          : "bg-[#f3f4f9]"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className={`text-[9px] font-black uppercase tracking-normal ${
+                  strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
+                }`}>
+                  {strength.label}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              Confirm New Password
+            </label>
+            <input
+              type={showPasswords ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+            />
+            {confirmPassword && newPassword !== confirmPassword && (
+              <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Passwords do not match
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {reqs.slice(0, 3).map((r, i) => (
+              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
+              </div>
+            ))}
+            {reqs.slice(3).map((r, i) => (
+              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-3">
+              <p className="text-[10px] font-bold text-rose-700">{error}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 px-6 pb-6">
+          <button
+            onClick={onClose}
+            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-[#4d4354] hover:bg-[#e8e0ec] transition-all cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
+            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+            {loading ? "Updating..." : "Update Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function passwordStrength(password: string): { level: number; label: string } {
+  if (!password) return { level: 0, label: "" };
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+  if (/\d/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { level: 1, label: "Weak" };
+  if (score <= 2) return { level: 2, label: "Fair" };
+  if (score <= 3) return { level: 3, label: "Good" };
+  return { level: 4, label: "Strong" };
 }
 
 function MenuLink({

@@ -121,6 +121,11 @@ model User {
   parentCommunicationRecipients ParentCommunication[] @relation("ParentCommunicationParent")
   createdParentCommunications   ParentCommunication[] @relation("ParentCommunicationCreator")
   timetableSlots TimetableSlot[] @relation("TimetableTeacher")
+  auditLogs      SuperAdminAuditLog[] @relation("AuditLogUser")
+  loginSessions  LoginSession[]       @relation("UserSessions")
+  passwordHistory PasswordHistory[]   @relation("PasswordHistory")
+  lastLogin      DateTime?            @map("last_login")
+  lastPasswordChange DateTime?        @map("last_password_change")
 
   @@map("users")
 }
@@ -778,6 +783,62 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ─── 17. SUPER ADMIN SECURITY ────────────────────────────
+
+model SuperAdminAuditLog {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  user          User     @relation("AuditLogUser", fields: [userId], references: [id])
+  action        String   // login, logout, suspend_school, modify_school, password_change, view_dashboard, create_campus, delete_campus, etc.
+  targetType    String?  @map("target_type") // school, campus, user, subscription
+  targetId      String?  @map("target_id")
+  targetName    String?  @map("target_name")
+  oldValues     Json?    @map("old_values")
+  newValues     Json?    @map("new_values")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent") @db.Text
+  status        String   @default("success") // success, failed, attempted
+  errorMessage  String?  @map("error_message") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("super_admin_audit_logs")
+}
+
+model LoginSession {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  user          User      @relation("UserSessions", fields: [userId], references: [id])
+  tokenHash     String    @map("token_hash")
+  ipAddress     String?   @map("ip_address")
+  userAgent     String?   @map("user_agent") @db.Text
+  loginAt       DateTime  @default(now()) @map("login_at")
+  lastActivityAt DateTime @default(now()) @map("last_activity_at")
+  expiresAt     DateTime  @map("expires_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  logoutAt      DateTime? @map("logout_at")
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("login_sessions")
+}
+
+model PasswordHistory {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  user            User     @relation("PasswordHistory", fields: [userId], references: [id])
+  oldPasswordHash String   @map("old_password_hash")
+  changedBy       String?  @map("changed_by")
+  changeReason    String?  @map("change_reason") // user_request, admin_forced, password_expired
+  ipAddress       String?  @map("ip_address")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_history")
+}
+
 model PasswordReset {
   id        String   @id @default(uuid())
   email     String
@@ -791,7 +852,8 @@ model PasswordReset {
 // ─── Enums ────────────────────────────────────────────────
 
 enum UserRole {
-  SUPER_ADMIN // School group owner
+  APP_OWNER   // Platform creator (Mohsin) — sees ALL schools
+  SUPER_ADMIN // School group owner — scoped to their own school
   CAMPUS_ADMIN
   ADMIN       // Kept for backward compatibility with existing accounts
   PRINCIPAL

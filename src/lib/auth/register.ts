@@ -101,7 +101,7 @@ export async function completeSignupStep2(data: SignupStep2Input): Promise<Signu
         regId: valid.regId,
         slug: schoolSlug(valid.schoolName),
         contactEmail: valid.email,
-        city: "Establishing...",
+        city: "",
         status: "TRIAL",
       },
     });

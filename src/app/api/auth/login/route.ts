@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validators/schemas";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import { logSuperAdminAction, hashToken, recordLoginSession } from "@/lib/audit";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { email, password } = parsed.data;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;
+    const ua = req.headers.get("user-agent") || undefined;
 
     // 1. Find user
     const user = await prisma.user.findUnique({
@@ -37,10 +40,23 @@ export async function POST(req: NextRequest) {
     // 2. Verify password
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      if (user.role === "SUPER_ADMIN") {
+        logSuperAdminAction({
+          userId: user.id,
+          action: "login",
+          status: "failed",
+          errorMessage: "Invalid password",
+          ipAddress: ip,
+          userAgent: ua,
+          targetType: "user",
+          targetName: email,
+        }).catch(() => {});
+      }
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     // 3. Create JWT token
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const token = await new SignJWT({
       userId: user.id,
       email: user.email,
@@ -56,7 +72,35 @@ export async function POST(req: NextRequest) {
       .setExpirationTime("7d")
       .sign(JWT_SECRET);
 
-    // 4. Set cookie
+    // 4. Track login session & audit log (fire-and-forget)
+    const sessionPromise = recordLoginSession({
+      userId: user.id,
+      tokenHash: hashToken(token),
+      expiresAt,
+      ipAddress: ip,
+      userAgent: ua,
+    }).catch(() => {});
+
+    const updatePromise = prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    }).catch(() => {});
+
+    const auditPromise = user.role === "SUPER_ADMIN"
+      ? logSuperAdminAction({
+          userId: user.id,
+          action: "login",
+          status: "success",
+          ipAddress: ip,
+          userAgent: ua,
+          targetType: "user",
+          targetName: email,
+        }).catch(() => {})
+      : Promise.resolve();
+
+    Promise.all([sessionPromise, updatePromise, auditPromise]).catch(() => {});
+
+    // 5. Set cookie
     const res = NextResponse.json({
       success: true,
       user: {

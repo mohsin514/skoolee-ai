@@ -100,6 +100,16 @@ const ROLE_FEATURES: Record<UserRole, AIFeature[]> = {
   ],
   STUDENT: ["explain_report_card", "study_plan", "school_faq"],
   PARENT: ["explain_report_card", "study_plan", "school_faq"],
+  APP_OWNER: [
+    "campus_comparison",
+    "weak_campuses",
+    "ai_usage_by_campus",
+    "fee_recovery_insights",
+    "academic_trend_summary",
+    "at_risk_students",
+    "class_performance_summary",
+    "pending_review_queue",
+  ],
 };
 
 export function canUseAIFeature(role: UserRole, feature: AIFeature) {
