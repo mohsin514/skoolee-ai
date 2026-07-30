@@ -1,26 +1,38 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  AlertCircle, ArrowRight, BarChart3, BookOpen, CalendarCheck, ClipboardList, FileText, GraduationCap, History, Send, Star, TrendingUp, Users, Zap,
+  AlertCircle, ArrowRight, BarChart3, BookOpen, Calendar, CalendarCheck,
+  ClipboardList, Clock, FileText, GraduationCap, Loader2, Send, Star, TrendingUp, Users, Zap,
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { BrandButton } from "@/components/role-dashboard";
 import {
-  classLabel,  CreateAssessmentModal,  DashboardSkeleton,  FinalGradesModal,  GradeConfigModal,  ReportCardDetailModal,  StudentDetailModal,  todayIso,
+  classLabel, CreateAssessmentModal, DashboardSkeleton, FinalGradesModal, GradeConfigModal,
+  ReportCardDetailModal, StudentDetailModal,
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "./teacher-data-context";
 
-const CHART_COLORS = ["#8127cf", "#9c48ea", "#b876f0", "#d4a8f7"];
-const STATUS_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#d1d5db"];
+interface TimetableSlot {
+  id: string;
+  dayOfWeek: number;
+  periodNumber: number;
+  startTime: string;
+  endTime: string;
+  slotType: string;
+  subject: { id: string; name: string } | null;
+  className: string;
+  classSection: string | null;
+  classId: string;
+  roomNumber: string | null;
+}
 
 export default function TeacherDashboardHub() {
   const router = useRouter();
   const { data, loading, refetch } = useTeacherData();
 
-  // Modal + action states (preserved from original)
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
@@ -39,12 +51,33 @@ export default function TeacherDashboardHub() {
   const [generatingReportCards, setGeneratingReportCards] = useState(false);
   const [reportCardsGenerated, setReportCardsGenerated] = useState(false);
 
+  const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/timetable/teacher");
+        const json = await res.json();
+        if (json.success) {
+          const today = new Date().getDay();
+          const dayNum = today === 0 ? 7 : today;
+          setTodaySlots(
+            (json.data as TimetableSlot[])
+              .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
+              .sort((a, b) => a.periodNumber - b.periodNumber)
+          );
+        }
+      } catch { /* timetable not critical */ }
+      finally { setSlotsLoading(false); }
+    })();
+  }, []);
+
   const classHubs = data?.classHubs || [];
   const teacherSubjects = data?.subjects || [];
   const missingMarksTotal = (data?.activeExams || []).reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
   const attendanceStats = data?.attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
 
-  // ── Chart data ──
   const attendanceChartData = useMemo(() => [
     { name: "Present", value: attendanceStats.present, color: "#10b981" },
     { name: "Absent", value: attendanceStats.absent, color: "#ef4444" },
@@ -67,6 +100,7 @@ export default function TeacherDashboardHub() {
   const completionRate = marksProgressData.length
     ? Math.round(marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0) / Math.max(marksProgressData.reduce((s: number, d: any) => s + d.total, 0), 1) * 100)
     : 0;
+
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return "Good morning";
@@ -74,7 +108,10 @@ export default function TeacherDashboardHub() {
     return "Good evening";
   })();
 
-  /* ── Handler functions (unchanged) ── */
+  const hasUnmarkedAttendance = attendanceStats.unmarked > 0;
+  const hasMissingMarks = missingMarksTotal > 0;
+
+  /* ── Handlers ── */
   const handleCreateExam = useCallback(async () => {
     if (!examForm.title || !examForm.classId) { toast.error("Title and class are required"); return; }
     setCreatingExam(true);
@@ -223,28 +260,21 @@ export default function TeacherDashboardHub() {
               ))}
             </div>
           </div>
-          {/* ── Action Buttons (preserved exactly) ── */}
           <div className="flex flex-wrap gap-3">
-            <BrandButton variant="soft" icon={<History className="w-4 h-4" />} onClick={() => router.push("/teacher/reports")}>
-              <span title="View report history">Report History</span>
-            </BrandButton>
             <BrandButton variant="soft" icon={<Star className="w-4 h-4" />} onClick={() => setShowExamModal(true)}>
-              <span title="Create a new exam or test">Create Assessment</span>
+              <span title="Create a new exam or test">New Assessment</span>
             </BrandButton>
             <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => {
               if (classHubs[0]) { setSelectedGradeClassId(classHubs[0].id); loadGradeConfig(classHubs[0].id); }
               setShowGradeConfigModal(true);
             }}>
-              <span title="Configure grading weights and thresholds">Grade Config</span>
+              <span title="Configure grading weights">Grade Config</span>
             </BrandButton>
             <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => {
               if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id);
               setShowGradeOverviewModal(true);
             }}>
               <span title="View weighted final grades">Final Grades</span>
-            </BrandButton>
-            <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={() => router.push("/teacher/marks")}>
-              <span title="Enter marks for assessments">Enter Marks</span>
             </BrandButton>
           </div>
         </div>
@@ -253,22 +283,118 @@ export default function TeacherDashboardHub() {
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-7">
 
+        {/* ── Action Alerts ── */}
+        {(hasUnmarkedAttendance || hasMissingMarks) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {hasUnmarkedAttendance && (
+              <button type="button" onClick={() => router.push("/teacher/attendance")}
+                className="group flex items-center gap-4 rounded-[28px] bg-gradient-to-r from-amber-50 to-amber-50/30 border border-amber-200/50 p-5 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-sm">
+                  <CalendarCheck className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-amber-800">Unmarked Attendance</p>
+                  <p className="text-xs font-semibold text-amber-600/70 mt-0.5">
+                    {attendanceStats.unmarked} student{attendanceStats.unmarked !== 1 ? "s" : ""} not marked today
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-amber-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+            )}
+            {hasMissingMarks && (
+              <button type="button" onClick={() => router.push("/teacher/marks")}
+                className="group flex items-center gap-4 rounded-[28px] bg-gradient-to-r from-rose-50 to-rose-50/30 border border-rose-200/50 p-5 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-sm">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-rose-800">Missing Marks</p>
+                  <p className="text-xs font-semibold text-rose-600/70 mt-0.5">
+                    {missingMarksTotal} mark{missingMarksTotal !== 1 ? "s" : ""} pending across {activeExamCount} active test{activeExamCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-rose-400 group-hover:text-rose-600 group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── Today's Schedule Strip ── */}
+        {!slotsLoading && todaySlots.length > 0 && (
+          <div className="rounded-[28px] bg-gradient-to-r from-[#8127cf]/[0.04] to-[#fbf0fe]/60 border border-[#8127cf]/10 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-[#8127cf] flex items-center justify-center shadow-md shadow-[#8127cf]/20">
+                  <Clock className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-[#1d1b20]">Today&apos;s Schedule</h3>
+                <span className="text-[10px] font-semibold text-[#4d4354]/40">{todaySlots.length} class{todaySlots.length !== 1 ? "es" : ""}</span>
+              </div>
+              <button type="button" onClick={() => router.push("/teacher/timetable")}
+                className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf] hover:text-[#6a1fb0] transition-colors cursor-pointer">
+                Full timetable
+              </button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-1">
+              {todaySlots.map((slot) => {
+                const now = new Date();
+                const [startH, startM] = slot.startTime.split(":").map(Number);
+                const [endH, endM] = slot.endTime.split(":").map(Number);
+                const slotStart = new Date(); slotStart.setHours(startH, startM, 0, 0);
+                const slotEnd = new Date(); slotEnd.setHours(endH, endM, 0, 0);
+                const isActive = now >= slotStart && now < slotEnd;
+                const isPast = now >= slotEnd;
+
+                return (
+                  <div key={slot.id}
+                    className={`shrink-0 rounded-2xl border px-4 py-3 min-w-[160px] transition-all ${
+                      isActive
+                        ? "bg-[#8127cf] border-[#8127cf] shadow-lg shadow-[#8127cf]/25"
+                        : isPast
+                        ? "bg-white/60 border-[#cfc2d6]/15"
+                        : "bg-white border-[#cfc2d6]/15 hover:border-[#8127cf]/20 hover:shadow-sm"
+                    }`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={`text-[10px] font-black ${isActive ? "text-white/70" : isPast ? "text-[#4d4354]/30" : "text-[#8127cf]"}`}>
+                        {slot.startTime} - {slot.endTime}
+                      </span>
+                      {isActive && (
+                        <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[8px] font-bold uppercase text-white">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                          Now
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-sm font-bold truncate ${isActive ? "text-white" : isPast ? "text-[#4d4354]/40" : "text-[#1d1b20]"}`}>
+                      {slot.subject?.name}
+                    </p>
+                    <p className={`text-[10px] font-semibold mt-0.5 ${isActive ? "text-white/60" : "text-[#4d4354]/40"}`}>
+                      {slot.className}{slot.classSection ? ` - ${slot.classSection}` : ""}
+                      {slot.roomNumber ? ` · ${slot.roomNumber}` : ""}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── Stat Cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {[
             { icon: BookOpen, label: "Subjects", value: teacherSubjects.length, color: "from-[#8127cf] to-[#9c48ea]", onClick: () => router.push("/teacher/marks") },
             { icon: GraduationCap, label: "Classes", value: classHubs.length, color: "from-rose-500 to-rose-600", onClick: () => router.push("/teacher/marks") },
-            { icon: Users, label: "Students", value: data.totalStudents, color: "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/attendance") },
+            { icon: Users, label: "Students", value: data.totalStudents, color: "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/students") },
             { icon: ClipboardList, label: "Active Tests", value: activeExamCount, color: "from-violet-500 to-violet-600", onClick: () => router.push("/teacher/marks") },
-            { icon: AlertCircle, label: "Missing Marks", value: missingMarksTotal, color: "from-rose-500 to-rose-600", onClick: () => router.push("/teacher/marks") },
-            { icon: CalendarCheck, label: "Unmarked Today", value: attendanceStats.unmarked, color: "from-slate-600 to-slate-700", onClick: () => router.push("/teacher/attendance") },
-          ].map((card, i) => (
+            { icon: AlertCircle, label: "Missing Marks", value: missingMarksTotal, color: missingMarksTotal > 0 ? "from-rose-500 to-rose-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/marks") },
+            { icon: CalendarCheck, label: "Unmarked Today", value: attendanceStats.unmarked, color: attendanceStats.unmarked > 0 ? "from-amber-500 to-amber-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/attendance") },
+          ].map((card) => (
             <button key={card.label} type="button" onClick={card.onClick}
               title={`${card.value} ${card.label} — click to view`}
               className="group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97]"
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-300`} />
-              <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md shadow-${card.color.split(" ")[0].replace("from-", "")}/20`}>
+              <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md`}>
                 <card.icon className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.value}</p>
@@ -279,7 +405,6 @@ export default function TeacherDashboardHub() {
 
         {/* ── Charts & Insights ── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
           {/* Attendance Donut */}
           <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
             <div className="flex items-center justify-between mb-5">
@@ -291,35 +416,41 @@ export default function TeacherDashboardHub() {
                 <CalendarCheck className="h-5 w-5" />
               </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="shrink-0">
-                <ResponsiveContainer width={140} height={140}>
-                  <PieChart>
-                    <Pie data={attendanceChartData} cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={3} dataKey="value" stroke="none">
-                      {attendanceChartData.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1 space-y-2">
-                {[
-                  { label: "Present", value: attendanceStats.present, color: "#10b981" },
-                  { label: "Absent", value: attendanceStats.absent, color: "#ef4444" },
-                  { label: "Leave", value: attendanceStats.leave, color: "#f59e0b" },
-                  { label: "Unmarked", value: attendanceStats.unmarked, color: "#d1d5db" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+            {attendanceChartData.length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="shrink-0">
+                  <ResponsiveContainer width={140} height={140}>
+                    <PieChart>
+                      <Pie data={attendanceChartData} cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={3} dataKey="value" stroke="none">
+                        {attendanceChartData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 space-y-2">
+                  {[
+                    { label: "Present", value: attendanceStats.present, color: "#10b981" },
+                    { label: "Absent", value: attendanceStats.absent, color: "#ef4444" },
+                    { label: "Leave", value: attendanceStats.leave, color: "#f59e0b" },
+                    { label: "Unmarked", value: attendanceStats.unmarked, color: "#d1d5db" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                      </div>
+                      <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
                     </div>
-                    <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-center h-[140px] rounded-2xl bg-[#fbf0fe]/40">
+                <p className="text-xs font-bold text-[#4d4354]/40">No attendance data yet</p>
+              </div>
+            )}
           </div>
 
           {/* Marks Progress Bar Chart */}
@@ -338,10 +469,7 @@ export default function TeacherDashboardHub() {
                 <BarChart data={marksProgressData} barCategoryGap="20%" margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.12)", fontSize: 12, fontWeight: 700 }}
-                    cursor={{ fill: "#fbf0fe" }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.12)", fontSize: 12, fontWeight: 700 }} cursor={{ fill: "#fbf0fe" }} />
                   <Bar dataKey="Entered" stackId="a" fill="#8127cf" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Missing" stackId="a" fill="#e8e0ec" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -395,39 +523,103 @@ export default function TeacherDashboardHub() {
           </div>
         </div>
 
+        {/* ── Class Hubs ── */}
+        {classHubs.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">My Classes</h3>
+              <span className="text-[10px] font-semibold text-[#4d4354]/50">{classHubs.length} active</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {classHubs.map((cls: any) => {
+                const clsStudents = (data.students || []).filter((s: any) => s.class?.id === cls.id);
+                const clsExams = (data.activeExams || []).filter((e: any) => e.classId === cls.id);
+                const clsMissingMarks = clsExams.reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
+                return (
+                  <div key={cls.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">{cls.role || "Teacher"}</p>
+                        <h4 className="mt-0.5 truncate text-lg font-bold text-[#1d1b20] tracking-tight">{classLabel(cls)}</h4>
+                      </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                        <GraduationCap className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
+                        <p className="text-lg font-bold text-[#8127cf]">{clsStudents.length}</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Students</p>
+                      </div>
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
+                        <p className="text-lg font-bold text-[#1d1b20]">{cls.subjects?.length || 0}</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Subjects</p>
+                      </div>
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
+                        <p className={`text-lg font-bold ${clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600"}`}>{clsMissingMarks}</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Pending</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {(cls.subjects || []).slice(0, 4).map((subject: any) => (
+                        <span key={subject.id} className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-[#8127cf]">{subject.name}</span>
+                      ))}
+                      {(cls.subjects?.length || 0) > 4 && (
+                        <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold text-[#4d4354]/40">+{cls.subjects.length - 4}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => router.push("/teacher/attendance")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        <CalendarCheck className="h-3.5 w-3.5" /> Attendance
+                      </button>
+                      <button type="button" onClick={() => router.push("/teacher/marks")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        <Star className="h-3.5 w-3.5" /> Marks
+                      </button>
+                      <button type="button" onClick={() => router.push("/teacher/students")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        <Users className="h-3.5 w-3.5" /> Students
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── Quick Nav Cards ── */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">Quick Navigation</h3>
-            <span className="text-[10px] font-semibold text-[#4d4354]/50">{classHubs.length} classes active</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
             {[
-              { icon: CalendarCheck, label: "Attendance", desc: "Mark daily attendance per class", href: "/teacher/attendance", color: "from-emerald-500 to-emerald-600", shadow: "shadow-emerald-500/15" },
-              { icon: Star, label: "Marks & Tests", desc: "Enter marks & manage assessments", href: "/teacher/marks", color: "from-[#8127cf] to-[#9c48ea]", shadow: "shadow-[#8127cf]/15" },
-              { icon: FileText, label: "Reports", desc: "Report cards, remarks & results", href: "/teacher/reports", color: "from-rose-500 to-rose-600", shadow: "shadow-rose-500/15" },
-              { icon: Zap, label: "AI Insights", desc: "AI-powered weak topics & lesson plans", href: "/teacher/ai", color: "from-amber-500 to-amber-600", shadow: "shadow-amber-500/15" },
+              { icon: CalendarCheck, label: "Attendance", desc: "Mark daily attendance", href: "/teacher/attendance", color: "from-emerald-500 to-emerald-600" },
+              { icon: Star, label: "Marks", desc: "Enter marks & tests", href: "/teacher/marks", color: "from-[#8127cf] to-[#9c48ea]" },
+              { icon: Users, label: "Students", desc: "View student directory", href: "/teacher/students", color: "from-blue-500 to-blue-600" },
+              { icon: FileText, label: "Reports", desc: "Report cards & results", href: "/teacher/reports", color: "from-rose-500 to-rose-600" },
+              { icon: Calendar, label: "Timetable", desc: "Weekly schedule", href: "/teacher/timetable", color: "from-violet-500 to-violet-600" },
+              { icon: Zap, label: "AI Insights", desc: "AI-powered analysis", href: "/teacher/ai", color: "from-amber-500 to-amber-600" },
             ].map((card) => (
               <button key={card.label} type="button" onClick={() => router.push(card.href)}
                 title={`Go to ${card.label}`}
-                className="group relative cursor-pointer rounded-[28px] p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl bg-white border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97]"
+                className="group relative cursor-pointer rounded-[24px] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl bg-white border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97]"
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.04] group-hover:opacity-[0.08] transition-opacity`} />
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-lg ${card.shadow}`}>
-                    <card.icon className="h-6 w-6 text-white" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-[#4d4354]/20 group-hover:text-[#8127cf] group-hover:translate-x-1 transition-all" />
+                <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${card.color} shadow-md`}>
+                  <card.icon className="h-5 w-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.label}</h3>
-                <p className="mt-1 text-xs font-semibold text-[#4d4354]/60 leading-relaxed">{card.desc}</p>
+                <h3 className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.label}</h3>
+                <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/50 leading-relaxed">{card.desc}</p>
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── Modals (unchanged) ── */}
+      {/* ── Modals ── */}
       <CreateAssessmentModal open={showExamModal} classHubs={classHubs} examForm={examForm} creatingExam={creatingExam}
         onClose={() => setShowExamModal(false)}
         onFormChange={(field, value) => setExamForm((f) => ({ ...f, [field]: value }))} onCreate={handleCreateExam} />
