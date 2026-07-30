@@ -23,6 +23,7 @@ model School {
   aiCreditsLimit Int      @default(100)     @map("ai_credits_limit")
   stripeCustomerId String? @unique         @map("stripe_customer_id")
   stripeSubscriptionId String? @unique      @map("stripe_subscription_id")
+  planPricing   Json?     @map("plan_pricing") // Owner-defined plan pricing overrides
   city          String
   address       String?
   regId         String    @unique @map("reg_id") // Unique Institutional Identity
@@ -781,6 +782,17 @@ model AuditLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
+}
+
+// ─── 16b. PLATFORM CONFIG (Owner settings) ────────────────
+model PlatformConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("platform_config")
 }
 
 // ─── 17. SUPER ADMIN SECURITY ────────────────────────────

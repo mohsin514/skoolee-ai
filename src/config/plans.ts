@@ -13,7 +13,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     type: "FREE",
     name: "Free",
     price: 0,
-    priceLabel: "$0/mo",
+    priceLabel: "PKR 0/mo",
     features: [
       "Up to 50 students",
       "2 teacher accounts",
@@ -35,7 +35,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     type: "BASIC",
     name: "Basic",
     price: 29,
-    priceLabel: "$29/mo",
+    priceLabel: "PKR 29/mo",
     stripePriceEnv: "STRIPE_BASIC_PRICE_ID",
     features: [
       "Up to 500 students",
@@ -60,7 +60,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     type: "PRO",
     name: "Pro",
     price: 79,
-    priceLabel: "$79/mo",
+    priceLabel: "PKR 79/mo",
     stripePriceEnv: "STRIPE_PRO_PRICE_ID",
     features: [
       "Up to 2,500 students",

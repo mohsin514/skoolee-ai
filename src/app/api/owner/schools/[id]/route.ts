@@ -41,6 +41,8 @@ export async function GET(
   }
 }
 
+const VALID_PLANS = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -51,41 +53,59 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { status } = body;
-
-    if (!status || !["ACTIVE", "SUSPENDED"].includes(status)) {
-      throw new ApiError("status must be ACTIVE or SUSPENDED", 400);
-    }
+    const { plan, status } = body;
 
     const school = await prisma.school.findUnique({
       where: { id },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, plan: true },
     });
 
     if (!school) throw new ApiError("School not found", 404);
 
-    if (school.status === status) {
-      return Response.json({ success: true, message: `School is already ${status}` });
+    const updateData: Record<string, any> = {};
+
+    if (plan) {
+      if (!VALID_PLANS.includes(plan)) {
+        throw new ApiError("plan must be one of: " + VALID_PLANS.join(", "), 400);
+      }
+      updateData.plan = plan;
+    }
+
+    if (status) {
+      if (!["ACTIVE", "SUSPENDED"].includes(status)) {
+        throw new ApiError("status must be ACTIVE or SUSPENDED", 400);
+      }
+      updateData.status = status;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new ApiError("No valid fields to update (plan or status)", 400);
     }
 
     await prisma.school.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
 
-    await logSuperAdminAction({
-      userId: user.userId,
-      action: status === "SUSPENDED" ? "school_suspended" : "school_activated",
-      targetType: "school",
-      targetId: id,
-      targetName: school.name,
-      oldValues: { status: school.status },
-      newValues: { status },
-    }).catch(() => {});
+    const changedFields: string[] = [];
+    if (plan && plan !== school.plan) changedFields.push("plan");
+    if (status && status !== school.status) changedFields.push("status");
+
+    if (changedFields.length > 0) {
+      await logSuperAdminAction({
+        userId: user.userId,
+        action: "plan_changed",
+        targetType: "school",
+        targetId: id,
+        targetName: school.name,
+        oldValues: { plan: school.plan, status: school.status },
+        newValues: { plan: plan || school.plan, status: status || school.status },
+      }).catch(() => {});
+    }
 
     return Response.json({
       success: true,
-      message: `School ${status === "SUSPENDED" ? "suspended" : "activated"} successfully`,
+      message: `School updated: ${changedFields.join(", ")}`,
     });
   } catch (error) {
     return errorResponse(error, "[owner/schools/id] PATCH failed");

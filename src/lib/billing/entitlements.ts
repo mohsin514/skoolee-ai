@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
-import { PLANS, canUseFeature, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
+import { PLANS, PLAN_ORDER, canUseFeature, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
+import type { PlanDetails } from "@/types";
 import { prisma } from "@/lib/db/prisma";
 import type { PlanType } from "@/types";
 
@@ -141,6 +142,7 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       aiCreditsLimit: true,
       stripeCustomerId: true,
       stripeSubscriptionId: true,
+      planPricing: true,
     },
   });
 
@@ -148,17 +150,50 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
 
   const plan = normalizePlan(school.plan);
   const limits = getPlanLimits(plan);
-  const [students, teachers, campuses] = await Promise.all([
+  const [students, teachers, campuses, platformConfig] = await Promise.all([
     currentUsage(client, schoolId, "students"),
     currentUsage(client, schoolId, "teachers"),
     currentUsage(client, schoolId, "campuses"),
+    client.platformConfig.findUnique({ where: { key: "default_plan_pricing" } }),
   ]);
+
+  const globalDefaults = (platformConfig?.value ?? {}) as Record<string, { price?: number | null }>;
+
+  let plans = PLANS;
+  const applyOverrides = (pricing: Record<string, { price?: number | null; priceLabel?: string }> | null | undefined) => {
+    const merged: Record<string, PlanDetails> = {};
+    for (const key of PLAN_ORDER) {
+      const base = PLANS[key];
+      const global = globalDefaults[key];
+      const custom = pricing?.[key];
+      let price = base.price;
+      if (custom?.price !== undefined && custom.price !== null) {
+        price = custom.price;
+      } else if (global?.price !== undefined && global.price !== null) {
+        price = global.price;
+      }
+      merged[key] = {
+        ...base,
+        price,
+        priceLabel: custom?.priceLabel ?? (price != null ? `PKR ${price}/mo` : base.priceLabel),
+      };
+    }
+    return merged as typeof PLANS;
+  };
+
+  if (school.planPricing && typeof school.planPricing === "object") {
+    const pricing = school.planPricing as Record<string, { price?: number; priceLabel?: string }>;
+    plans = applyOverrides(pricing);
+  } else if (globalDefaults && Object.keys(globalDefaults).length > 0) {
+    plans = applyOverrides(null);
+  }
 
   return {
     school: {
       ...school,
       plan,
       aiCreditsLimit: limits.aiCredits,
+      planPricing: school.planPricing,
     },
     limits,
     usage: {
@@ -167,8 +202,10 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       campuses,
       aiCredits: school.aiCreditsUsed,
     },
-    plans: PLANS,
+    plans,
     isOperational: isSchoolOperational(school.status),
+    defaultPlanPricing: Object.keys(globalDefaults).length > 0 ? globalDefaults : null,
+    defaultPricingUpdatedAt: platformConfig?.updatedAt?.toISOString() ?? null,
   };
 }
 

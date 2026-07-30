@@ -21,6 +21,7 @@ export async function GET() {
       pendingInvoices,
       schoolsByStatus,
       schoolsByPlan,
+      schools,
     ] = await Promise.all([
       prisma.school.count(),
       prisma.campus.count(),
@@ -38,6 +39,7 @@ export async function GET() {
       prisma.invoice.count({ where: { status: { in: ["PENDING", "OVERDUE", "PARTIAL"] } } }),
       prisma.school.groupBy({ by: ["status"], _count: true }),
       prisma.school.groupBy({ by: ["plan"], _count: true }),
+      prisma.school.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     ]);
 
     return Response.json({
@@ -57,6 +59,7 @@ export async function GET() {
         pendingInvoices,
         schoolsByStatus: Object.fromEntries(schoolsByStatus.map((s) => [s.status, s._count])),
         schoolsByPlan: Object.fromEntries(schoolsByPlan.map((s) => [s.plan, s._count])),
+        schools,
       },
     });
   } catch (error) {

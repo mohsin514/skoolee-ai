@@ -14,6 +14,7 @@ import {
   FileText,
   WalletCards,
   Crown,
+  RefreshCw,
   ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,11 +36,13 @@ interface ClassRecord {
 interface FeeStructure {
   id: string;
   classId: string;
-  term: string;
-  tuitionMonthly: number;
-  examFee: number;
-  annualFee: number;
-  monthsCount: number;
+  monthlyFee: number;
+  oneTimeFeesJson?: any;
+  lateFeePercentage?: number;
+  compoundLateFee?: boolean;
+  taxPercentage?: number;
+  activeFrom: string;
+  activeTo?: string | null;
   class: ClassRecord;
 }
 
@@ -52,7 +55,7 @@ interface Invoice {
   paidAmount: number;
   balanceDue: number;
   dueDate: string;
-  status: "PENDING" | "PARTIAL" | "PAID" | "CANCELLED";
+  status: "PENDING" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELLED";
   challanUrl?: string | null;
   payments: { amountPaid: number; method: string; paidAt: string }[];
 }
@@ -89,12 +92,15 @@ interface BillingSnapshot {
   };
   plans: Record<PlanType, PlanDetails>;
   isOperational: boolean;
+  defaultPlanPricing: Record<string, { price?: number | null }> | null;
+  defaultPricingUpdatedAt: string | null;
 }
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   PAID: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle2 },
   PARTIAL: { label: "Partial", color: "bg-yellow-100 text-yellow-700", icon: Clock },
   PENDING: { label: "Pending", color: "bg-red-100 text-red-700", icon: AlertCircle },
+  OVERDUE: { label: "Overdue", color: "bg-red-100 text-red-700", icon: AlertCircle },
   CANCELLED: { label: "Cancelled", color: "bg-gray-100 text-gray-500", icon: AlertCircle },
 };
 
@@ -118,7 +124,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
   const [feeForm, setFeeForm] = useState({ classId: "", term: "", tuitionMonthly: 0, examFee: 0, annualFee: 0, monthsCount: 1 });
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavingFee, setIsSavingFee] = useState(false);
-  const [filter, setFilter] = useState<"ALL" | "DUE" | "PENDING" | "PARTIAL" | "PAID">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "DUE" | "PENDING" | "PARTIAL" | "PAID" | "OVERDUE">("ALL");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -344,6 +350,22 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
                   Subscription access is paused. Update billing to restore student, teacher, campus, AI, PDF, and messaging workflows.
                 </div>
               )}
+              {billing.defaultPlanPricing && billing.defaultPlanPricing[billing.school.plan]?.price != null && (
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
+                  <p className="font-semibold flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" /> Platform pricing updated
+                  </p>
+                  <p className="mt-1">
+                    From next billing cycle, your {billing.limits.name} plan rate changes to 
+                    <strong> PKR {billing.defaultPlanPricing[billing.school.plan].price?.toLocaleString()}/mo</strong>.
+                    {billing.defaultPricingUpdatedAt && (
+                      <span className="block mt-0.5 text-xs text-sky-600/70">
+                        Updated {new Date(billing.defaultPricingUpdatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-4">
                 {[
                   ["Students", billing.usage.students, billing.limits.maxStudents],
@@ -451,16 +473,16 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
                   </thead>
                   <tbody>
                     {feeStructures.map((fee) => {
-                      const total = fee.tuitionMonthly * fee.monthsCount + fee.examFee + fee.annualFee;
+                      const total = fee.monthlyFee;
                       return (
                         <tr key={fee.id} className="border-b">
                           <td className="px-4 py-3">{fee.class.name} {fee.class.section || ""}</td>
-                          <td className="px-4 py-3">{fee.term}</td>
-                          <td className="px-4 py-3 text-right">Rs {fee.tuitionMonthly.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">{fee.monthsCount}</td>
-                          <td className="px-4 py-3 text-right">Rs {fee.examFee.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">Rs {fee.annualFee.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right font-semibold">Rs {total.toLocaleString()}</td>
+                          <td className="px-4 py-3">—</td>
+                          <td className="px-4 py-3 text-right">Rs {(fee.monthlyFee || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right">1</td>
+                          <td className="px-4 py-3 text-right">Rs 0</td>
+                          <td className="px-4 py-3 text-right">Rs 0</td>
+                          <td className="px-4 py-3 text-right font-semibold">Rs {(total || 0).toLocaleString()}</td>
                         </tr>
                       );
                     })}
@@ -472,7 +494,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
         </Card>
 
         <div className="flex gap-2 flex-wrap">
-          {(["ALL", "DUE", "PENDING", "PARTIAL", "PAID"] as const).map((item) => (
+          {(["ALL", "DUE", "PENDING", "PARTIAL", "PAID", "OVERDUE"] as const).map((item) => (
             <button
               key={item}
               onClick={() => setFilter(item)}
@@ -509,7 +531,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
                   </thead>
                   <tbody>
                     {filtered.map((invoice) => {
-                      const cfg = STATUS_CONFIG[invoice.status];
+                      const cfg = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.PENDING;
                       const Icon = cfg.icon;
                       return (
                         <tr key={invoice.id} className="border-b hover:bg-muted/20 transition-colors">

@@ -6,11 +6,15 @@ import {
   Activity,
   AlertCircle,
   AlertTriangle,
+  Banknote,
   Building2,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  CreditCard,
+  DollarSign,
+  ExternalLink,
   Eye,
   EyeOff,
   FileText,
@@ -27,15 +31,18 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Save,
   School,
   Search,
   Shield,
   ShieldCheck,
   Smartphone,
+  Tag,
   User,
   Users,
   Wifi,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -48,7 +55,7 @@ import {
   type RoleNavItem,
 } from "@/components/role-dashboard";
 
-type OwnerView = "schools" | "users" | "audit" | "sessions";
+type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing";
 
 interface SchoolRow {
   id: string;
@@ -130,6 +137,7 @@ interface Stats {
   pendingInvoices: number;
   schoolsByStatus: Record<string, number>;
   schoolsByPlan: Record<string, number>;
+  schools: { id: string; name: string }[];
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -237,6 +245,8 @@ export default function OwnerDashboard() {
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools", onClick: () => setActiveView("schools") },
     { icon: Users, label: "Users", active: activeView === "users", onClick: () => setActiveView("users") },
+    { icon: DollarSign, label: "Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
+    { icon: Tag, label: "Pricing", active: activeView === "pricing", onClick: () => setActiveView("pricing") },
     { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
     { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
   ];
@@ -260,6 +270,8 @@ export default function OwnerDashboard() {
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 overflow-hidden flex flex-col">
         {activeView === "schools" && <SchoolsView stats={stats} onRefreshStats={loadStats} />}
         {activeView === "users" && <UsersView />}
+        {activeView === "billing" && <BillingView stats={stats} />}
+        {activeView === "pricing" && <PricingView stats={stats} />}
         {activeView === "audit" && <AuditLogView />}
         {activeView === "sessions" && <SessionsView />}
       </section>
@@ -275,7 +287,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
 
   const loadSchools = useCallback(async (page = 1) => {
     setLoading(true);
@@ -300,24 +312,22 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
 
   useEffect(() => { loadSchools(); }, [loadSchools]);
 
-  const toggleSchoolStatus = async (school: SchoolRow) => {
-    const newStatus = school.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    setTogglingId(school.id);
+  const changeSchoolPlan = async (schoolId: string, newPlan: string) => {
     try {
-      const res = await fetch(`/api/owner/schools/${school.id}`, {
+      const res = await fetch(`/api/owner/schools/${schoolId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ plan: newPlan }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       toast.success(json.message);
       loadSchools(pagination.page);
       onRefreshStats();
+      return true;
     } catch (err: any) {
       toast.error(err.message);
-    } finally {
-      setTogglingId(null);
+      return false;
     }
   };
 
@@ -443,8 +453,12 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 flex-wrap">
                             <h3 className="text-base font-black text-[#1f1a23]">{school.name}</h3>
-                            <StatusPill status={school.status} />
-                            <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40 px-2 py-0.5 rounded-full bg-[#f3f4f9]">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${
+                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
+                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
+                              school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
+                              "bg-[#f3f4f9] text-[#4d4354]/60"
+                            }`}>
                               {school.plan}
                             </span>
                           </div>
@@ -484,23 +498,20 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                               AI Credits: {school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}
                             </span>
                             <button
-                              onClick={(e) => { e.stopPropagation(); toggleSchoolStatus(school); }}
-                              disabled={togglingId === school.id}
-                              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
-                                school.status === "ACTIVE"
-                                  ? "text-rose-600 bg-rose-50 hover:bg-rose-100"
-                                  : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                              } disabled:opacity-40`}
+                              onClick={(e) => { e.stopPropagation(); setDetailSchool(school); }}
+                              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] bg-[#fbf0fe] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
                             >
-                              {togglingId === school.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : school.status === "ACTIVE" ? (
-                                <Pause className="w-3 h-3" />
-                              ) : (
-                                <Play className="w-3 h-3" />
-                              )}
-                              {school.status === "ACTIVE" ? "Suspend" : "Activate"}
+                              <ExternalLink className="w-3 h-3" />
+                              Details
                             </button>
+                            <span className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal ${
+                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
+                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
+                              school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
+                              "bg-[#f3f4f9] text-[#4d4354]/60"
+                            }`}>
+                              {school.plan}
+                            </span>
                           </div>
                         </div>
 
@@ -538,6 +549,17 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
           </>
         )}
       </div>
+
+      {detailSchool && (
+        <SchoolDetailModal
+          school={detailSchool}
+          onClose={() => setDetailSchool(null)}
+          onPlanChange={async (schoolId, newPlan) => {
+            const ok = await changeSchoolPlan(schoolId, newPlan);
+            if (ok) setDetailSchool(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1078,6 +1100,562 @@ function SessionsView() {
     </div>
   );
 }
+
+function BillingView({ stats }: { stats: Stats | null }) {
+  const planColors: Record<string, string> = {
+    FREE: "bg-[#f3f4f9] text-[#4d4354]/60 border border-[#cfc2d6]/10",
+    STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
+    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
+    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+  };
+
+
+  return (
+    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
+          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Billing & Plans</h2>
+          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">Revenue overview and plan distribution</p>
+        </div>
+      </div>
+
+      {stats && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-6 text-white">
+              <p className="text-[9px] font-black uppercase tracking-normal text-white/40 flex items-center gap-2">
+                <Banknote className="w-3 h-3" /> Total Revenue
+              </p>
+              <p className="text-3xl font-black mt-2">
+                PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}
+              </p>
+              <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} successful payments</p>
+            </div>
+            <div className="rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-6">
+              <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60 flex items-center gap-2">
+                <Clock className="w-3 h-3" /> Pending Invoices
+              </p>
+              <p className="text-3xl font-black text-amber-800 mt-2">{stats.pendingInvoices}</p>
+              <p className="text-xs font-bold text-amber-600/60 mt-1">Awaiting payment</p>
+            </div>
+            <div className="rounded-[24px] bg-gradient-to-br from-emerald-50 to-emerald-50/50 border border-emerald-100/50 p-6">
+              <p className="text-[9px] font-black uppercase tracking-normal text-emerald-600/60 flex items-center gap-2">
+                <CreditCard className="w-3 h-3" /> Active Schools
+              </p>
+              <p className="text-3xl font-black text-emerald-800 mt-2">{stats.schoolsByStatus?.ACTIVE || 0}</p>
+              <p className="text-xs font-bold text-emerald-600/60 mt-1">Out of {stats.schoolCount} total</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4">Schools by Plan</p>
+              {Object.keys(stats.schoolsByPlan).length > 0 ? (
+                <div className="space-y-3">
+                  {Object.entries(stats.schoolsByPlan)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([plan, count]) => {
+                      const pct = stats.schoolCount > 0 ? Math.round((count / stats.schoolCount) * 100) : 0;
+                      return (
+                        <div key={plan}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
+                              {plan}
+                            </span>
+                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                plan === "ENTERPRISE" ? "bg-[#1f1a23]" :
+                                plan === "PRO" ? "bg-[#8127cf]" :
+                                plan === "STARTER" ? "bg-sky-500" : "bg-[#cfc2d6]/40"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <p className="text-[9px] font-bold text-[#4d4354]/40 mt-0.5">{pct}% of schools</p>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-[#4d4354]/40">No plan data available</p>
+              )}
+            </div>
+
+            <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4">Schools by Status</p>
+              {Object.keys(stats.schoolsByStatus).length > 0 ? (
+                <div className="space-y-3">
+                  {Object.entries(stats.schoolsByStatus)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([status, count]) => {
+                      const pct = stats.schoolCount > 0 ? Math.round((count / stats.schoolCount) * 100) : 0;
+                      return (
+                        <div key={status}>
+                          <div className="flex items-center justify-between mb-1">
+                            <StatusPill status={status} />
+                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                status === "ACTIVE" ? "bg-emerald-500" :
+                                status === "TRIAL" ? "bg-[#8127cf]" :
+                                status === "SUSPENDED" ? "bg-rose-500" : "bg-[#cfc2d6]/40"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <p className="text-[9px] font-bold text-[#4d4354]/40 mt-0.5">{pct}% of schools</p>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-[#4d4354]/40">No status data available</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+    </div>
+  );
+}
+
+function PricingView({ stats }: { stats: Stats | null }) {
+  const planColors: Record<string, string> = {
+    FREE: "bg-[#f3f4f9] text-[#4d4354]/60 border border-[#cfc2d6]/10",
+    STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
+    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
+    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+  };
+  const [pricingSchoolId, setPricingSchoolId] = useState("");
+  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>({
+    FREE: { price: "0" },
+    BASIC: { price: "29" },
+    PRO: { price: "79" },
+    ENTERPRISE: { price: "" },
+  });
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [pricingMessage, setPricingMessage] = useState("");
+
+  const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>({
+    FREE: { price: "0" },
+    BASIC: { price: "29" },
+    PRO: { price: "79" },
+    ENTERPRISE: { price: "" },
+  });
+  const [savingDefaults, setSavingDefaults] = useState(false);
+
+  const loadDefaultPricing = async () => {
+    try {
+      const res = await fetch("/api/owner/platform-config");
+      const json = await res.json();
+      if (json.success && json.data) {
+        const d = json.data as Record<string, { price?: number | null }>;
+        setDefaultPricing({
+          FREE: { price: String(d.FREE?.price ?? 0) },
+          BASIC: { price: String(d.BASIC?.price ?? 29) },
+          PRO: { price: String(d.PRO?.price ?? 79) },
+          ENTERPRISE: { price: d.ENTERPRISE?.price != null ? String(d.ENTERPRISE.price) : "" },
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const saveDefaultPricing = async () => {
+    setSavingDefaults(true);
+    try {
+      const pricing: Record<string, { price?: number | null }> = {};
+      for (const [plan, vals] of Object.entries(defaultPricing)) {
+        const num = vals.price === "" ? null : Number(vals.price);
+        if (num !== null && (isNaN(num) || num < 0)) {
+          toast.error(`Invalid price for ${plan}`);
+          setSavingDefaults(false);
+          return;
+        }
+        pricing[plan] = num !== null ? { price: num } : { price: null };
+      }
+      const res = await fetch("/api/owner/platform-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pricing }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || JSON.stringify(json));
+      toast.success(json.message);
+    } catch (err: any) {
+      console.error("[pricing] save error", err);
+      toast.error(err?.message || String(err));
+    } finally {
+      setSavingDefaults(false);
+    }
+  };
+
+  useEffect(() => { loadDefaultPricing(); }, []);
+
+  const loadPricing = async (schoolId: string) => {
+    try {
+      const res = await fetch(`/api/owner/schools/${schoolId}`);
+      const json = await res.json();
+      if (json.data?.planPricing) {
+        const p = json.data.planPricing as Record<string, { price?: number }>;
+        setPricingValues({
+          FREE: { price: String(p.FREE?.price ?? 0) },
+          BASIC: { price: String(p.BASIC?.price ?? 29) },
+          PRO: { price: String(p.PRO?.price ?? 79) },
+          ENTERPRISE: { price: p.ENTERPRISE?.price != null ? String(p.ENTERPRISE.price) : "" },
+        });
+      } else {
+        setPricingValues({
+          FREE: { price: "0" },
+          BASIC: { price: "29" },
+          PRO: { price: "79" },
+          ENTERPRISE: { price: "" },
+        });
+      }
+      setPricingMessage("");
+    } catch {
+      toast.error("Failed to load pricing");
+    }
+  };
+
+  const savePricing = async () => {
+    if (!pricingSchoolId) return;
+    setSavingPricing(true);
+    setPricingMessage("");
+    try {
+      const pricing: Record<string, { price?: number }> = {};
+      for (const [plan, vals] of Object.entries(pricingValues)) {
+        const num = vals.price === "" ? undefined : Number(vals.price);
+        if (num !== undefined && (isNaN(num) || num < 0)) {
+          toast.error(`Invalid price for ${plan}`);
+          setSavingPricing(false);
+          return;
+        }
+        pricing[plan] = num !== undefined ? { price: num } : { price: undefined };
+      }
+      const res = await fetch(`/api/owner/schools/${pricingSchoolId}/pricing`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pricing }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(json.message);
+      setPricingMessage("Pricing saved — Super Admins will see updated prices immediately.");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  return (
+    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
+          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Plan Pricing</h2>
+          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">Set global defaults and per-school overrides</p>
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
+          <Globe className="w-3 h-3" /> Default Plan Prices
+        </p>
+        <p className="text-xs font-semibold text-[#4d4354]/40 mb-4">
+          Set global default prices for all plans. These apply to every school unless overridden per school below. Existing schools will see a notice about new rates from their next billing cycle.
+        </p>
+        <div className="space-y-3 mb-4">
+          {Object.entries(defaultPricing).map(([plan, vals]) => (
+            <div key={plan} className="flex items-center gap-4">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
+                {plan}
+              </span>
+              <div className="relative flex-1 max-w-[200px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#4d4354]/40">PKR</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Default"
+                  value={vals.price}
+                  onChange={(e) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
+                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={saveDefaultPricing}
+          disabled={savingDefaults}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
+        >
+          {savingDefaults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {savingDefaults ? "Saving..." : "Save Defaults"}
+        </button>
+      </div>
+
+      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
+          <DollarSign className="w-3 h-3" /> Plan Pricing Override
+        </p>
+        <p className="text-xs font-semibold text-[#4d4354]/40 mb-4">
+          Set custom plan prices per school. Leave blank to use defaults.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="flex-1">
+            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">School</label>
+            <select
+              value={pricingSchoolId}
+              onChange={(e) => {
+                setPricingSchoolId(e.target.value);
+                if (e.target.value) loadPricing(e.target.value);
+                setPricingMessage("");
+              }}
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+            >
+              <option value="">Select a school...</option>
+              {stats?.schools?.map((s: { id: string; name: string }) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {pricingSchoolId && (
+          <div className="space-y-3">
+            {Object.entries(pricingValues).map(([plan, vals]) => (
+              <div key={plan} className="flex items-center gap-4">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
+                  {plan}
+                </span>
+                <div className="relative flex-1 max-w-[200px]">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#4d4354]/40">PKR</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Default"
+                    value={vals.price}
+                    onChange={(e) => setPricingValues(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
+                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={savePricing}
+                disabled={savingPricing}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+              >
+                {savingPricing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {savingPricing ? "Saving..." : "Save Pricing"}
+              </button>
+              {pricingMessage && (
+                <span className="text-xs font-semibold text-emerald-600">{pricingMessage}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SchoolDetailModal({
+  school,
+  onClose,
+  onPlanChange,
+}: {
+  school: SchoolRow;
+  onClose: () => void;
+  onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
+}) {
+  const activeTabClass = "text-sm font-black text-[#8127cf] border-b-2 border-[#8127cf] pb-2";
+  const inactiveTabClass = "text-sm font-bold text-[#4d4354]/40 pb-2 cursor-pointer hover:text-[#4d4354]/70 transition-colors";
+  const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5">
+      <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+        <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
+              <School className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-[#1f1a23] tracking-tight">{school.name}</h2>
+                <StatusPill status={school.status} />
+              </div>
+              <p className="text-xs font-semibold text-[#4d4354]/60 mt-0.5">{school.contactEmail || "—"} · {school.city || "—"}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-7 pt-5 flex gap-6 border-b border-[#f3f4f9]">
+          <button className={tab === "overview" ? activeTabClass : inactiveTabClass} onClick={() => setTab("overview")}>Overview</button>
+          <button className={tab === "campuses" ? activeTabClass : inactiveTabClass} onClick={() => setTab("campuses")}>Campuses</button>
+          <button className={tab === "subscription" ? activeTabClass : inactiveTabClass} onClick={() => setTab("subscription")}>Subscription</button>
+        </div>
+
+        <div className="p-7">
+          {tab === "overview" && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MiniStat label="Campuses" value={school.campusCount} />
+                <MiniStat label="Students" value={school.totalStudents} />
+                <MiniStat label="Staff" value={school.totalStaff} />
+                <MiniStat label="Classes" value={school.totalClasses} />
+              </div>
+              <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/50 to-white border border-[#cfc2d6]/10 p-5">
+                <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60 mb-3">AI Credits</p>
+                <div className="flex items-center gap-4">
+                  <Zap className="w-8 h-8 text-amber-500" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-black text-[#1f1a23]">{school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}</span>
+                      <span className={`text-[10px] font-black ${school.aiCreditsLimit > 0 && (school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "text-rose-600" : "text-emerald-600"}`}>
+                        {school.aiCreditsLimit > 0 ? `${Math.round((school.aiCreditsUsed / school.aiCreditsLimit) * 100)}% used` : "—"}
+                      </span>
+                    </div>
+                    {school.aiCreditsLimit > 0 && (
+                      <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${(school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "bg-rose-500" : (school.aiCreditsUsed / school.aiCreditsLimit) > 0.5 ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.min((school.aiCreditsUsed / school.aiCreditsLimit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 p-4">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Plan</p>
+                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{school.plan}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Since</p>
+                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-amber-50/50 border border-amber-100/50 p-4 flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-xs font-black text-amber-800">Manage Plan</p>
+                  <p className="text-[10px] font-semibold text-amber-700/60">Go to the Subscription tab to change the plan for this school.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "campuses" && (
+            <div>
+              {school.campuses.length > 0 ? (
+                <div className="space-y-3">
+                  {school.campuses.map((campus) => (
+                    <div key={campus.id} className="rounded-2xl border border-[#cfc2d6]/10 p-5 hover:border-[#8127cf]/10 transition-all">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
+                          <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"}</p>
+                        </div>
+                        <div className="flex gap-4">
+                          <span className="text-[10px] font-bold text-[#4d4354]/50">{campus.students} students</span>
+                          <span className="text-[10px] font-bold text-[#4d4354]/50">{campus.staff} staff</span>
+                          <span className="text-[10px] font-bold text-[#4d4354]/50">{campus.classes} classes</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-[#f3f4f9]/50 p-8 text-center">
+                  <p className="text-sm font-bold text-[#4d4354]/40">No campuses registered.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "subscription" && (
+            <div className="space-y-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]/60">Select Plan for {school.name}</p>
+              <div className="grid gap-3">
+                {(["FREE", "BASIC", "PRO", "ENTERPRISE"] as const).map((plan) => {
+                  const isCurrent = school.plan === plan;
+                  const planStyles: Record<string, string> = {
+                    FREE: "border-[#cfc2d6]/20 bg-white",
+                    BASIC: "border-sky-200 bg-sky-50/30",
+                    PRO: "border-[#8127cf]/20 bg-[#fbf0fe]/30",
+                    ENTERPRISE: "border-[#1f1a23]/20 bg-gradient-to-br from-[#f3f4f9] to-white",
+                  };
+                  const dotStyles: Record<string, string> = {
+                    FREE: "bg-[#cfc2d6]/40",
+                    BASIC: "bg-sky-500",
+                    PRO: "bg-[#8127cf]",
+                    ENTERPRISE: "bg-[#1f1a23]",
+                  };
+                  return (
+                    <button
+                      key={plan}
+                      type="button"
+                      onClick={() => onPlanChange(school.id, plan)}
+                      disabled={isCurrent}
+                      className={`relative flex items-center justify-between rounded-2xl border-2 p-4 text-left transition-all cursor-pointer disabled:cursor-default ${
+                        isCurrent
+                          ? "border-[#8127cf] bg-[#fbf0fe]/50 shadow-md"
+                          : `${planStyles[plan]} hover:border-[#8127cf]/30 hover:shadow-sm`
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-[#8127cf]/30 ring-offset-2" : ""}`} />
+                        <div>
+                          <p className={`text-sm font-black ${isCurrent ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{plan}</p>
+                          <p className="text-[10px] font-bold text-[#4d4354]/50 mt-0.5">
+                            {plan === "FREE" ? "50 students, 2 teachers, 1 campus" :
+                             plan === "BASIC" ? "500 students, 10 teachers, 1 campus" :
+                             plan === "PRO" ? "2,500 students, 50 teachers, 5 campuses" :
+                             "Unlimited students, teachers & campuses"}
+                          </p>
+                        </div>
+                      </div>
+                      {isCurrent && (
+                        <span className="text-[9px] font-black text-[#8127cf] bg-white rounded-full px-3 py-1 border border-[#8127cf]/10">
+                          Current
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const planColors: Record<string, string> = {
+  FREE: "bg-[#f3f4f9] text-[#4d4354]/60 border border-[#cfc2d6]/10",
+  STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
+  PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
+  ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+};
 
 function ChangePasswordModal({
   user,
