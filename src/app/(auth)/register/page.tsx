@@ -137,16 +137,26 @@ export default function RegisterPage() {
 
       {/* ─── LEFT SIDE ─── */}
       <section className="hidden md:block relative overflow-hidden h-screen">
-        <div className="absolute inset-0 bg-[#8127cf]/10 mix-blend-multiply z-10"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf]/20 via-transparent to-[#9c48ea]/10 z-10"></div>
         <img src="/login.svg" alt="Skoolee Registration" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/40 to-transparent z-20"></div>
-        <div className="absolute bottom-12 left-12 z-30 max-w-md">
-          <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-normal text-[#9c48ea] uppercase mb-2 block">Get Started</span>
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1f1a23]/60 via-[#8127cf]/20 to-transparent z-20"></div>
+        <div className="absolute bottom-12 left-12 right-12 z-30">
+          <div className="bg-white/75 backdrop-blur-[24px] p-8 rounded-[32px] border border-white/30 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-[11px] font-black tracking-wider text-[#8127cf] uppercase">Get Started</span>
+            </div>
+            <h2 className="text-2xl font-black text-[#1f1a23] leading-snug mb-3">
               {type === 'school_group' ? "Manage all your campuses from one place." : "Set up your school in minutes."}
             </h2>
-            <p className="text-[#4d4354] font-medium text-sm">Create your account and start managing your school with AI-powered tools.</p>
+            <p className="text-sm font-semibold text-[#4d4354]/70">Create your account and start managing your school with AI-powered tools.</p>
+            <div className="mt-5 flex gap-3">
+              <div className="h-2 w-2 rounded-full bg-[#8127cf]" />
+              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
+              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
+            </div>
           </div>
         </div>
       </section>
@@ -156,11 +166,11 @@ export default function RegisterPage() {
         <div className="w-full max-w-lg">
 
           <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg transform rotate-3 mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg shadow-[#8127cf]/20 transform rotate-3 mb-4">
               <GraduationCap className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
-            <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>
+            <h1 className="text-4xl font-black tracking-tight text-[#1f1a23] mb-2">Skoolee AI</h1>
+            <div className="h-1 w-12 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] rounded-full"></div>
           </div>
 
           <AnimatePresence mode="wait">
@@ -168,8 +178,8 @@ export default function RegisterPage() {
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
                 <div className="mb-8 text-center md:text-left">
-                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">How is your school set up?</h2>
-                  <p className="text-[#4d4354]/60 text-sm font-medium mt-1">Choose the option that best describes your institution.</p>
+                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">How is your school set up?</h2>
+                  <p className="text-[#4d4354]/60 text-sm font-semibold mt-1">Choose the option that best describes your institution.</p>
                 </div>
 
                 <div className="space-y-4 mb-8">
@@ -177,13 +187,13 @@ export default function RegisterPage() {
                   <TypeOption active={type === 'single_campus'} onClick={() => setType('single_campus')} icon={Building2} title="Single Campus School" desc="One school, one location — quick and simple." />
                 </div>
 
-                <button onClick={handleStep1} className="w-full h-14 bg-[#8127cf] text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 group hover:bg-[#9c48ea] active:scale-[0.98] transition-all cursor-pointer">
+                <button onClick={handleStep1} className="w-full h-14 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white font-black rounded-2xl shadow-lg shadow-[#8127cf]/25 hover:shadow-xl hover:shadow-[#8127cf]/30 flex items-center justify-center gap-2 group active:scale-[0.98] transition-all cursor-pointer">
                   Continue <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
 
                 <div className="mt-8 pt-6 border-t border-[#cfc2d6]/10 text-center">
-                  <p className="text-sm text-[#4d4354] font-medium">
-                    Already have an account? <Link href="/login" className="text-[#8127cf] font-bold hover:underline ml-1">Log in</Link>
+                  <p className="text-sm text-[#4d4354] font-semibold">
+                    Already have an account? <Link href="/login" className="text-[#8127cf] font-black hover:text-[#9c48ea] transition-colors ml-1">Log in</Link>
                   </p>
                 </div>
               </motion.div>
@@ -194,10 +204,10 @@ export default function RegisterPage() {
               <motion.div key="s2" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
                 <div className="mb-8 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Create Your Account</h2>
-                    <p className="text-xs font-bold text-[#8127cf] uppercase tracking-normal mt-1">{type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}</p>
+                    <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight">Create Your Account</h2>
+                    <p className="text-[10px] font-black text-[#8127cf] uppercase tracking-wider mt-1">{type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}</p>
                   </div>
-                  <button onClick={() => setStep(1)} className="p-2 bg-[#fbf0fe] rounded-lg text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"><ArrowRight className="w-4 h-4 rotate-180" /></button>
+                  <button onClick={() => setStep(1)} className="p-2 bg-[#fbf0fe] rounded-xl text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"><ArrowRight className="w-4 h-4 rotate-180" /></button>
                 </div>
 
                 <form className="space-y-5" onSubmit={handleStep2Submit}>
@@ -208,33 +218,33 @@ export default function RegisterPage() {
                   </div>
 
                   {type === 'school_group' && (
-                    <div className="p-6 bg-[#fbf0fe] rounded-3xl border border-[#cfc2d6]/20 space-y-5">
+                    <div className="p-6 bg-[#fbf0fe] rounded-[24px] border border-[#cfc2d6]/20 space-y-5">
                       <InputField label="School Group Name" placeholder="e.g. Beaconhouse School System" value={formData.schoolName} onChange={(v: string) => setFormData({ ...formData, schoolName: v })} icon={Building} className="bg-white" />
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-[#8127cf] tracking-normal uppercase">School ID</Label>
-                        <div className="relative">
+                        <Label className="text-[10px] font-black text-[#8127cf] tracking-wider uppercase">School ID</Label>
+                        <div className="relative group">
                           <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/40" />
                           <Input
                             readOnly={formData.autoId}
                             value={formData.regId}
                             onChange={e => setFormData({ ...formData, regId: e.target.value.toUpperCase() })}
-                            className="h-12 pl-11 bg-white border-0 font-bold tracking-normal text-[#1f1a23] rounded-xl"
+                            className="h-12 pl-11 bg-white border-0 font-bold tracking-normal text-[#1f1a23] rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20"
                           />
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => handleAutoId(true)} className={`text-[9px] font-black px-2 py-0.5 rounded cursor-pointer ${formData.autoId ? 'bg-[#8127cf] text-white' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto</button>
-                          <button type="button" onClick={() => handleAutoId(false)} className={`text-[9px] font-black px-2 py-0.5 rounded cursor-pointer ${!formData.autoId ? 'bg-[#8127cf] text-white' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
+                          <button type="button" onClick={() => handleAutoId(true)} className={`text-[9px] font-black px-3 py-1 rounded-lg cursor-pointer transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto</button>
+                          <button type="button" onClick={() => handleAutoId(false)} className={`text-[9px] font-black px-3 py-1 rounded-lg cursor-pointer transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
                         </div>
                       </div>
                     </div>
                   )}
 
                   {type === 'single_campus' && (
-                    <div className="p-5 bg-emerald-50/50 rounded-2xl border border-emerald-100 flex items-center gap-4">
+                    <div className="p-5 bg-emerald-50/50 rounded-[20px] border border-emerald-100 flex items-center gap-4">
                       <ShieldCheck className="w-8 h-8 text-emerald-500" />
                       <div>
-                        <p className="text-xs font-bold text-[#1f1a23]">Quick Setup Mode</p>
-                        <p className="text-[10px] text-[#4d4354]/60">Your school will be created automatically with a single campus.</p>
+                        <p className="text-xs font-black text-[#1f1a23]">Quick Setup Mode</p>
+                        <p className="text-[10px] font-semibold text-[#4d4354]/60">Your school will be created automatically with a single campus.</p>
                       </div>
                     </div>
                   )}
@@ -244,7 +254,7 @@ export default function RegisterPage() {
                     <InputField label="Confirm Password" type="password" placeholder="Re-enter password" value={formData.confirmPassword} onChange={(v: string) => setFormData({ ...formData, confirmPassword: v })} icon={ShieldCheck} />
                   </div>
 
-                  <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-emerald-100/30 grid grid-cols-2 gap-y-1.5">
+                  <div className="p-4 bg-[#fbf0fe] rounded-[20px] border border-emerald-100/30 grid grid-cols-2 gap-y-1.5">
                     {passwordRequirements.map((r, i) => (
                       <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
                         {r.met ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />} {r.label}
@@ -253,8 +263,8 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="flex gap-4">
-                    <button type="button" onClick={() => setStep(1)} className="h-14 px-6 border border-[#cfc2d6]/30 text-[#4d4354]/60 rounded-xl font-bold hover:bg-white transition-all cursor-pointer"><ChevronLeft className="w-5 h-5" /></button>
-                    <button type="submit" disabled={loading} className="flex-1 h-14 bg-[#8127cf] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#9c48ea] shadow-lg shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">
+                    <button type="button" onClick={() => setStep(1)} className="h-14 w-14 flex items-center justify-center border border-[#cfc2d6]/30 text-[#4d4354]/60 rounded-2xl font-bold hover:bg-white hover:border-[#8127cf]/20 hover:text-[#8127cf] transition-all cursor-pointer"><ChevronLeft className="w-5 h-5" /></button>
+                    <button type="submit" disabled={loading} className="flex-1 h-14 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:shadow-xl hover:shadow-[#8127cf]/30 shadow-lg shadow-[#8127cf]/25 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">
                       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Create Account <ArrowRight className="h-5 w-5" /></>}
                     </button>
                   </div>
@@ -264,15 +274,15 @@ export default function RegisterPage() {
 
             {/* ─── Step 3: Success ─── */}
             {step === 3 && (
-              <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[40px] p-10 text-center shadow-xl border border-emerald-100/50">
-                <div className="w-20 h-20 bg-emerald-50 rounded-[28px] flex items-center justify-center mx-auto mb-8 text-emerald-500 shadow-inner">
+              <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] p-10 text-center shadow-xl border border-emerald-100/50">
+                <div className="w-20 h-20 bg-emerald-50 rounded-[24px] flex items-center justify-center mx-auto mb-8 text-emerald-500 shadow-inner">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-3 tracking-normal text-center">Account Created!</h2>
-                <p className="text-sm font-medium text-[#4d4354]/60 mb-10 leading-relaxed px-4">
-                  We've sent a verification email to your inbox. Please check your email and click the link to activate your account, then log in to start setting up your school.
+                <h2 className="text-3xl font-black text-[#1f1a23] mb-3 tracking-tight">Account Created!</h2>
+                <p className="text-sm font-semibold text-[#4d4354]/60 mb-10 leading-relaxed px-4">
+                  We&apos;ve sent a verification email to your inbox. Please check your email and click the link to activate your account, then log in to start setting up your school.
                 </p>
-                <Link href="/login" className="inline-flex w-full h-16 bg-emerald-500 text-white rounded-2xl font-extrabold items-center justify-center hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-200/50 cursor-pointer">
+                <Link href="/login" className="inline-flex w-full h-16 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-2xl font-black items-center justify-center hover:shadow-xl hover:shadow-emerald-200/50 transition-all shadow-lg shadow-emerald-200/30 cursor-pointer">
                   Go to Login
                 </Link>
               </motion.div>
@@ -288,13 +298,13 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
   return (
     <div
       onClick={onClick}
-      className={`relative group p-6 rounded-[24px] cursor-pointer transition-all border-2 flex items-center gap-5 overflow-hidden ${active ? 'border-[#8127cf] bg-[#fbf0fe]/30 shadow-xl shadow-[#8127cf]/10' : 'border-transparent bg-[#f3f4f9] hover:bg-white border-[#cfc2d6]/20'}`}
+      className={`relative group p-6 rounded-[24px] cursor-pointer transition-all border-2 flex items-center gap-5 overflow-hidden ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-transparent bg-[#f3f4f9] hover:bg-white border-[#cfc2d6]/20'}`}
     >
-      <div className={`p-3 rounded-2xl transition-all ${active ? 'bg-[#8127cf] text-white shadow-lg' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
+      <div className={`p-3 rounded-2xl transition-all ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-normal text-left">{title}</h3>
+        <h3 className="text-sm font-black text-[#1f1a23] tracking-tight text-left">{title}</h3>
         <p className="text-[10px] text-[#4d4354]/60 font-semibold leading-tight mt-1 text-left">{desc}</p>
       </div>
       {active && (
@@ -309,15 +319,15 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
 function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text", className = "" }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-normal ml-1.5">{label}</Label>
+      <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-wider ml-1.5">{label}</Label>
       <div className="relative group flex items-center">
-        <Icon className="absolute left-4 w-4 h-4 text-[#4d4354]/40 group-focus-within:text-[#8127cf] transition-colors" />
+        <Icon className="absolute left-4 w-4 h-4 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors" />
         <Input
           type={type}
           placeholder={placeholder}
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={`h-12 pl-11 bg-[#f3f4f9] border-0 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/30 ${className}`}
+          className={`h-12 pl-11 bg-[#f3f4f9] border-0 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/25 ${className}`}
         />
       </div>
     </div>
