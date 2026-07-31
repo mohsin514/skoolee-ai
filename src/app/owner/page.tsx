@@ -252,10 +252,7 @@ export default function OwnerDashboard() {
     { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
     { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Support", onClick: () => toast.info("Platform support is available from this workspace.") },
-    { icon: LogOut, label: "Logout", onClick: handleLogout },
-  ];
+  const bottomItems: RoleNavItem[] = [];
 
   if (statsLoading && !stats) return <OwnerSkeleton />;
 

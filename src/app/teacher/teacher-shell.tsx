@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Calendar, CalendarCheck, FileText, HelpCircle, LogOut, Star, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
+import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
 import { useTeacherData } from "./teacher-data-context";
 
 export function TeacherShell({ children }: { children: React.ReactNode }) {
@@ -25,22 +26,23 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
     { icon: Calendar, label: "Timetable", href: "/teacher/timetable" },
     { icon: Zap, label: "AI Insights", href: "/teacher/ai" },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Help & Support", onClick: () => toast.info("Teacher support is available from this role workspace.") },
-    { icon: LogOut, label: "Sign Out", onClick: handleLogout },
-  ];
+  const bottomItems: RoleNavItem[] = [];
 
   return (
-    <RoleShell
-      navItems={navItems}
-      bottomItems={bottomItems}
-      eyebrow="My Academic Workspace"
-      userName={teacherName}
-      userRole="Faculty Console"
-      avatarSeed={teacherName}
-      dashboardHref="/teacher"
-    >
-      {children}
-    </RoleShell>
+    <CycleProvider>
+      <RoleShell
+        navItems={navItems}
+        bottomItems={bottomItems}
+        eyebrow="My Academic Workspace"
+        userName={teacherName}
+        userRole="Faculty Console"
+        avatarSeed={teacherName}
+        dashboardHref="/teacher"
+      >
+        <CycleGate>
+          {children}
+        </CycleGate>
+      </RoleShell>
+    </CycleProvider>
   );
 }

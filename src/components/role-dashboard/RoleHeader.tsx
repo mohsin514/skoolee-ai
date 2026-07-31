@@ -29,6 +29,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
+import { CycleBadge } from "@/components/academic-year/CycleBadge";
 
 interface Notification {
   id: number;
@@ -81,9 +82,18 @@ export function RoleHeader({
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
-  const displayName = headerProfile?.fullName || userName;
+  const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   const displayRole = headerProfile?.roleLabel || userRole;
   const displayAvatar = headerProfile?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(avatarSeed || displayName)}`;
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   useEffect(() => {
     let cancelled = false;
@@ -134,27 +144,18 @@ export function RoleHeader({
   return (
     <>
       <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/12 rounded-[28px] px-5 py-3 shadow-sm z-40", compact ? "mb-5" : "mb-8")}>
-      {searchPlaceholder ? (
-        <div className="flex items-center gap-4 w-full max-w-[400px] group">
-          <div className="flex items-center gap-3 rounded-2xl bg-white/80 border border-[#cfc2d6]/20 px-4 py-2.5 w-full shadow-sm transition-all group-focus-within:border-[#8127cf]/30 group-focus-within:shadow-md hover:border-[#8127cf]/20">
-            <Search className="w-4 h-4 text-[#4d4354]/40 shrink-0" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              className="bg-transparent border-none outline-none text-sm font-semibold w-full min-w-0 placeholder:text-[#4d4354]/35"
-            />
+        <div className="flex items-center gap-4">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
+            <LayoutDashboard className="h-[18px] w-[18px] text-white" />
+          </div>
+          <div className="hidden sm:block">
+            <p className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
+            <p className="text-[9px] font-semibold text-[#4d4354]/50 leading-tight mt-px">{today}</p>
           </div>
         </div>
-      ) : (
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-[#fbf0fe] to-white border border-[#cfc2d6]/12 px-4 py-2 shadow-sm">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-[#8127cf] shadow-sm shadow-[#8127cf]/30" />
-            <span className="text-xs font-semibold text-[#4d4354]/60 tracking-wide">{eyebrow}</span>
-          </div>
-        </div>
-      )}
 
-      <div className="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-4">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <CycleBadge />
         {actions}
         <div ref={notifRef} className="relative">
           <button
@@ -244,8 +245,7 @@ export function RoleHeader({
               <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
             </div>
             <div className="hidden sm:block text-left">
-              <p className="max-w-28 truncate text-sm font-semibold text-[#1d1b20] leading-none mb-0.5">{displayName}</p>
-              <p className="max-w-28 truncate text-[9px] font-semibold text-[#8127cf] uppercase tracking-wider">{displayRole}</p>
+              <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
             <ChevronDown className={cn("h-3.5 w-3.5 text-[#4d4354]/40 transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
           </button>
@@ -261,8 +261,8 @@ export function RoleHeader({
                     <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-[#1d1b20]">{displayName}</p>
-                    <p className="truncate text-xs font-semibold text-[#4d4354]/60">{displayRole}</p>
+                    <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
+                    <p className="truncate text-[11px] font-semibold text-[#4d4354]/60">{displayRole}</p>
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
                       <UserRound className="h-3 w-3" />
                       Active account
@@ -279,7 +279,7 @@ export function RoleHeader({
                     setMenuOpen(false);
                     setSettingsOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
                   <Settings className="h-4 w-4" />
@@ -291,7 +291,7 @@ export function RoleHeader({
                     setMenuOpen(false);
                     setPasswordModalOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
                   <KeyRound className="h-4 w-4" />
@@ -300,7 +300,7 @@ export function RoleHeader({
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                  className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
                   role="menuitem"
                 >
                   <LogOut className="h-4 w-4" />
@@ -569,7 +569,7 @@ function MenuLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

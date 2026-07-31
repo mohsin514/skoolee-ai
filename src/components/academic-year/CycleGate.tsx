@@ -1,0 +1,90 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, Loader2, Lock } from "lucide-react";
+
+interface CycleContextValue {
+  hasActiveCycle: boolean;
+  cycleLabel: string | null;
+  cycleStatus: string | null;
+  loading: boolean;
+}
+
+const CycleContext = createContext<CycleContextValue>({
+  hasActiveCycle: false,
+  cycleLabel: null,
+  cycleStatus: null,
+  loading: true,
+});
+
+export function useCycleStatus() {
+  return useContext(CycleContext);
+}
+
+export function CycleProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<CycleContextValue>({
+    hasActiveCycle: false,
+    cycleLabel: null,
+    cycleStatus: null,
+    loading: true,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/academic-cycle");
+        const json = await res.json();
+        if (!cancelled) {
+          const active = json.active;
+          setState({
+            hasActiveCycle: !!active,
+            cycleLabel: active?.label || null,
+            cycleStatus: active?.status || (json.data?.[0]?.status || null),
+            loading: false,
+          });
+        }
+      } catch {
+        if (!cancelled) setState((s) => ({ ...s, loading: false }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return <CycleContext.Provider value={state}>{children}</CycleContext.Provider>;
+}
+
+export function CycleGate({ children }: { children: ReactNode }) {
+  const { hasActiveCycle, loading } = useCycleStatus();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+      </div>
+    );
+  }
+
+  if (!hasActiveCycle) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-400 shadow-sm mb-6">
+          <Lock className="h-10 w-10" />
+        </div>
+        <h2 className="text-2xl font-black text-[#1d1b20] tracking-tight mb-2">Operations Locked</h2>
+        <p className="text-sm font-semibold text-[#4d4354]/60 max-w-md leading-relaxed">
+          No academic cycle is currently active. Your admin needs to create and activate a cycle
+          before you can take attendance, enter marks, or generate reports.
+        </p>
+        <div className="mt-6 flex items-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-50 px-5 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+          <span className="text-xs font-bold text-amber-700">
+            Contact your campus administrator to start the academic cycle.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

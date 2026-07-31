@@ -22,10 +22,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
     { icon: FileText, label: "Report Cards", href: "/student/reports" },
     { icon: CreditCard, label: "Fee Tokens", href: "/student/fees" },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Help Center", onClick: () => toast.info("Student help is available from this role workspace.") },
-    { icon: LogOut, label: "Sign Out", onClick: handleLogout },
-  ];
+  const bottomItems: RoleNavItem[] = [];
 
   return (
     <RoleShell

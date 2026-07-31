@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  AlertCircle, ArrowRight, BarChart3, BookOpen, Calendar, CalendarCheck,
-  ClipboardList, Clock, FileText, GraduationCap, Loader2, Send, Star, TrendingUp, Users, Zap,
+  AlertCircle, ArrowRight, BarChart3, BookOpen, Calendar, CalendarCheck, CheckCircle2,
+  ClipboardList, Clock, FileText, GraduationCap, Loader2, Send, Star, TrendingUp, UserCheck, Users, Zap,
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { BrandButton } from "@/components/role-dashboard";
@@ -53,6 +53,42 @@ export default function TeacherDashboardHub() {
 
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
+  const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked">("loading");
+  const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
+  const [markingSelf, setMarkingSelf] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const res = await fetch(`/api/teacher-attendance?userId=self&date=${today}`);
+        const json = await res.json();
+        if (json.success && json.data?.length > 0) {
+          setSelfAttendanceStatus("marked");
+          setSelfAttendanceTime(json.data[0].checkInTime);
+        } else {
+          setSelfAttendanceStatus("unmarked");
+        }
+      } catch { setSelfAttendanceStatus("unmarked"); }
+    })();
+  }, []);
+
+  const handleMarkSelfAttendance = useCallback(async () => {
+    setMarkingSelf(true);
+    try {
+      const res = await fetch("/api/teacher-attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to mark attendance");
+      setSelfAttendanceStatus("marked");
+      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }));
+      toast.success(json.alreadyMarked ? "Already marked today" : "Attendance marked successfully!");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setMarkingSelf(false); }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -282,6 +318,37 @@ export default function TeacherDashboardHub() {
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-7">
+
+        {/* ── Self Attendance Card ── */}
+        {selfAttendanceStatus !== "loading" && (
+          <div className="rounded-[28px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-lg">
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-4">
+                <div className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center shadow-sm ${selfAttendanceStatus === "marked" ? "bg-emerald-100 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                  {selfAttendanceStatus === "marked" ? <CheckCircle2 className="h-6 w-6" /> : <UserCheck className="h-6 w-6" />}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[#1d1b20]">
+                    {selfAttendanceStatus === "marked" ? "You're Checked In Today" : "Mark Your Attendance"}
+                  </p>
+                  <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">
+                    {selfAttendanceStatus === "marked" && selfAttendanceTime
+                      ? `Checked in at ${selfAttendanceTime}`
+                      : "Tap to mark yourself present for today"}
+                  </p>
+                </div>
+              </div>
+              {selfAttendanceStatus === "unmarked" && (
+                <BrandButton variant="dark" onClick={handleMarkSelfAttendance} disabled={markingSelf}>
+                  {markingSelf ? <Loader2 className="w-4 h-4 animate-spin" /> : "I'm Present"}
+                </BrandButton>
+              )}
+              {selfAttendanceStatus === "marked" && (
+                <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600">Present</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Action Alerts ── */}
         {(hasUnmarkedAttendance || hasMissingMarks) && (

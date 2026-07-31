@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  Award,
   BookOpen,
   Briefcase,
   Building,
@@ -19,6 +20,7 @@ import {
   GraduationCap,
   Heart,
   HelpCircle,
+  History,
   LayoutGrid,
   Loader2,
   LogOut,
@@ -33,10 +35,12 @@ import {
   Sparkles,
   Trash2,
   User,
+  UserCheck,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
@@ -61,8 +65,12 @@ import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
+import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
+import { TeacherAttendancePanel } from "@/components/academic-year/TeacherAttendancePanel";
+import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
+import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
 
-type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai" | "fees" | "timetable";
+type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai" | "fees" | "timetable" | "year-cycle" | "teacher-performance" | "exam-cycles" | "report-cards";
 type ClassFormState = {
   name: string;
   section: string;
@@ -118,6 +126,22 @@ const viewCopy: Record<AdminView, { title: string; description: string }> = {
   timetable: {
     title: "Timetable Manager",
     description: "Create class schedules, assign subjects and teachers to time slots, detect conflicts, and publish for staff and students.",
+  },
+  "year-cycle": {
+    title: "Academic Year Cycle",
+    description: "Close academic years, promote students to next class, and view historical records across all past years.",
+  },
+  "teacher-performance": {
+    title: "Teacher Performance",
+    description: "Evaluate teacher accountability based on class results, marks entry, and attendance rates.",
+  },
+  "exam-cycles": {
+    title: "Exam Cycles",
+    description: "View all exam cycles, monitor marks entry status, and generate report cards.",
+  },
+  "report-cards": {
+    title: "Report Cards",
+    description: "Review generated report cards, send to parents, and track delivery status.",
   },
 };
 
@@ -298,14 +322,6 @@ export default function CampusAdminDashboard() {
 
   const handleCreateClass = async () => {
     if (!classForm.name.trim()) return toast.error("Class name is required");
-    const sections = [
-      ...new Set(
-        classForm.section
-          .split(/[,\n]/)
-          .map((section) => section.trim())
-          .filter(Boolean)
-      ),
-    ];
     setSavingClass(true);
     try {
       const res = await fetch("/api/classes", {
@@ -313,15 +329,13 @@ export default function CampusAdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: classForm.name.trim(),
-          section: sections[0] || "",
-          sections,
+          section: "",
           academicYear: classForm.academicYear,
-          classTeacherId: classForm.classTeacherId || undefined,
         }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Class could not be created");
-      toast.success(result.count > 1 ? `${result.count} sections created` : "Class section created");
+      toast.success("Class created");
       setShowClassModal(false);
       setClassForm({ name: "", section: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
       await loadData();
@@ -335,6 +349,22 @@ export default function CampusAdminDashboard() {
   const handleAdmissionSuccess = () => {
     setShowAdmissionForm(false);
     loadData();
+  };
+
+  const handleAddSection = async (name: string, section: string, academicYear: number) => {
+    try {
+      const res = await fetch("/api/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, section, sections: [section], academicYear }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Section could not be created");
+      toast.success(`Section "${section}" created`);
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Section could not be created");
+    }
   };
 
   const handleMoveStudent = async () => {
@@ -674,11 +704,12 @@ export default function CampusAdminDashboard() {
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
     { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
+    { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+    { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
+    { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
+    { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Help Center", onClick: () => setShowHelpModal(true) },
-    { icon: LogOut, label: "Logout", onClick: handleLogout },
-  ];
+  const bottomItems: RoleNavItem[] = [];
   const adminAIFeatures = [
     { feature: "at_risk_students", label: "At-risk Students", placeholder: "Class, exam, or attendance focus" },
     { feature: "class_performance_summary", label: "Class Summary", placeholder: "Class or term" },
@@ -697,84 +728,18 @@ export default function CampusAdminDashboard() {
 
   return (
     <RoleShell
-      tagline={data.isStandaloneCampus ? "Standalone Campus Owner" : "Joyful Management"}
+      tagline={data.campusName ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}` : "Campus"}
       navItems={navItems}
       bottomItems={bottomItems}
       searchPlaceholder="Search campus records..."
       userName={data.adminName}
-      userRole={data.isStandaloneCampus ? "Standalone Campus Owner" : data.roleLabel}
+      userRole="School Group Campus"
       avatarSeed={data.adminEmail || data.adminName}
       dashboardHref="/admin"
-      headerActions={
-        <div className="hidden xl:flex items-center gap-2">
-          {data.canInviteAdmins ? (
-            <BrandButton variant="soft" icon={<Shield className="w-4 h-4" />} onClick={() => openAddStaff("CAMPUS_ADMIN")}>
-              Add Admin
-            </BrandButton>
-          ) : null}
-          <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>
-            Add Class
-          </BrandButton>
-          <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAdmissionForm()} disabled={data.classes.length === 0}>
-            Add Student
-          </BrandButton>
-          {canInvitePrincipal ? (
-            <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAddStaff("PRINCIPAL")}>
-              Add Principal
-            </BrandButton>
-          ) : null}
-          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowAddTeacherForm(true)}>
-            Add Teacher
-          </BrandButton>
-        </div>
-      }
+      headerActions={null}
     >
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-        <div className="p-7 px-9 border-b border-[#f3f4f9] bg-white z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between shrink-0">
-          <div>
-            <p className="text-[10px] font-black uppercase text-[#8127cf] tracking-normal mb-2">
-              {data.campusName} {data.campusCity ? `- ${data.campusCity}` : ""}
-            </p>
-            <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal">{viewCopy[activeView].title}</h2>
-            <p className="mt-2 max-w-3xl text-sm font-semibold text-[#4d4354]/60 leading-relaxed">
-              {viewCopy[activeView].description}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 xl:hidden">
-            {data.canInviteAdmins ? (
-              <BrandButton variant="soft" icon={<Shield className="w-4 h-4" />} onClick={() => openAddStaff("CAMPUS_ADMIN")}>
-                Add Admin
-              </BrandButton>
-            ) : null}
-            <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>
-              Add Class
-            </BrandButton>
-            <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAdmissionForm()} disabled={data.classes.length === 0}>
-              Add Student
-            </BrandButton>
-            {canInvitePrincipal ? (
-              <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAddStaff("PRINCIPAL")}>
-                Add Principal
-              </BrandButton>
-            ) : null}
-            <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowAddTeacherForm(true)}>
-              Add Teacher
-            </BrandButton>
-          </div>
-        </div>
-
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20">
-          {activeView === "leadership" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-5 mb-8">
-              <StatCard icon={Building} label="Campus" value="1" onClick={() => setActiveView("leadership")} />
-              <StatCard icon={Users} label="Students" value={data.studentCount} tone="green" onClick={() => setActiveView("students")} />
-              <StatCard icon={BookOpen} label="Classes" value={data.classes.length} tone="rose" onClick={() => setActiveView("classes")} />
-              <StatCard icon={School} label="Teachers" value={data.teachers.length} tone="purple" onClick={() => setActiveView("teachers")} />
-              <StatCard icon={Shield} label="Admins" value={data.campusAdmins.length} tone="dark" onClick={() => setActiveView("leadership")} />
-              <StatCard icon={Clock} label="Pending Invites" value={data.pendingInviteCount || 0} tone="purple" onClick={() => setActiveView("leadership")} />
-            </div>
-          ) : null}
-
           {activeView === "leadership" ? (
             <LeadershipPanel
               data={data}
@@ -794,9 +759,6 @@ export default function CampusAdminDashboard() {
               reports={data.recentReportCards}
               teachers={data.teachers}
               students={data.students}
-              attendanceRecords={data.attendanceRecords}
-              attendanceSummary={data.attendanceSummary}
-              invoiceSummary={data.invoiceSummary}
               campusName={data.campusName}
               onAddClass={() => setShowClassModal(true)}
               onAddStudent={openAdmissionForm}
@@ -806,6 +768,7 @@ export default function CampusAdminDashboard() {
               onUpdateClass={handleUpdateClass}
               onDeleteSubject={handleDeleteSubject}
               onUpdateSubject={handleUpdateSubject}
+              onAddSection={(name, section, academicYear) => handleAddSection(name, section, academicYear)}
             />
           ) : null}
 
@@ -834,7 +797,13 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "attendance" ? (
-            <AttendanceOverview />
+            <div className="space-y-8">
+              <AttendanceOverview />
+              <div className="border-t border-[#cfc2d6]/15 pt-6">
+                <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Teacher Attendance</h3>
+                <TeacherAttendancePanel readOnly />
+              </div>
+            </div>
           ) : null}
 
           {activeView === "ai" ? (
@@ -852,6 +821,28 @@ export default function CampusAdminDashboard() {
 
           {activeView === "timetable" ? (
             <TimetablePanel />
+          ) : null}
+
+          {activeView === "year-cycle" ? (
+            <div className="space-y-8">
+              <CycleManagementPanel />
+              <div className="border-t border-[#cfc2d6]/15 pt-6">
+                <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
+                <AcademicYearPanel />
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "teacher-performance" ? (
+            <TeacherPerformancePanel />
+          ) : null}
+
+          {activeView === "exam-cycles" ? (
+            <ExamCyclesPanel exams={data.recentExams} />
+          ) : null}
+
+          {activeView === "report-cards" ? (
+            <ReportCardsPanel reports={data.recentReportCards} />
           ) : null}
         </div>
       </section>
@@ -997,78 +988,228 @@ function LeadershipPanel({
   onCancel: (id: string) => void;
   onActivityLog?: () => void;
 }) {
-  const summary = [
-    { icon: Shield, label: "Admins", value: data.campusAdmins?.length || 0, color: "from-[#8127cf]/10 to-[#b876f0]/5 text-[#8127cf]" },
-    { icon: GraduationCap, label: "Principal", value: data.principal ? 1 : 0, color: data.principal ? "from-emerald-50 to-emerald-100/50 text-emerald-600" : "from-amber-50 to-amber-100/50 text-amber-600" },
-    { icon: Clock, label: "Pending", value: data.pendingAdminInvitations?.length || 0, color: "from-amber-50 to-amber-100/50 text-amber-600" },
-    { icon: Building, label: "Campus", value: data.campusName || "—", color: "from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]" },
-  ];
+  const adminCount = data.campusAdmins?.length || 0;
+  const principalAssigned = data.principal ? 1 : 0;
+  const pendingCount = data.pendingAdminInvitations?.length || 0;
+  const totalRoles = adminCount + principalAssigned + pendingCount || 1;
+
+  const donutData = [
+    { name: "Admins", value: adminCount, color: "#8127cf" },
+    { name: "Principal", value: principalAssigned, color: "#10b981" },
+    { name: "Pending", value: pendingCount, color: "#f59e0b" },
+  ].filter((d) => d.value > 0);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-black text-[#1f1a23] tracking-normal">Campus Control</h2>
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Manage campus ownership, admin access, and identity</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onInviteAdmin}>
-            Add Admin
-          </BrandButton>
-          <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={onInvitePrincipal}>
-            Add Principal
-          </BrandButton>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {summary.map((s, i) => (
-          <div
-            key={i}
-            className="relative rounded-2xl bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border border-[#cfc2d6]/10 p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
-          >
-            <div className="absolute -top-8 -right-8 w-16 h-16 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-[40px] pointer-events-none" />
-            <div className="relative flex items-center justify-between mb-2">
-              <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">{s.label}</p>
-              <div className={`h-8 w-8 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shadow-sm`}>
-                <s.icon className="w-4 h-4" />
+    <div className="space-y-7">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/10 p-7">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
+                <LayoutGrid className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">{data.campusName}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#8127cf]">Campus Control</p>
+                <p className="text-[9px] font-semibold text-[#4d4354]/50">Manage the single campus owner workspace, admin access, principal authority, and pending invitations.</p>
               </div>
             </div>
-            <div className="relative">
-              <p className="text-2xl font-black text-[#1f1a23]">{s.value}</p>
-              <div className="mt-1 h-1 w-full max-w-[40px] rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0]" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <BrandButton variant="soft" icon={<Plus className="w-3.5 h-3.5" />} onClick={onInviteAdmin}>
+              Add Admin
+            </BrandButton>
+            <BrandButton variant="soft" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
+              Appoint Principal
+            </BrandButton>
+            {onActivityLog ? (
+              <BrandButton variant="dark" icon={<ClipboardList className="w-3.5 h-3.5" />} onClick={onActivityLog}>
+                Activity Log
+              </BrandButton>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts & Panels Row ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_2.2fr] gap-6">
+        {/* Donut + Campus Identity */}
+        <div className="space-y-6">
+          {/* Donut Chart */}
+          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Leadership</p>
+                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Team Overview</h3>
+              </div>
+              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+            {donutData.length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="shrink-0">
+                  <ResponsiveContainer width={130} height={130}>
+                    <PieChart>
+                      <Pie data={donutData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={3} dataKey="value" stroke="none">
+                        {donutData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 space-y-2.5">
+                  {[
+                    { label: "Admins", value: adminCount, color: "#8127cf" },
+                    { label: "Principal", value: principalAssigned, color: "#10b981" },
+                    { label: "Pending", value: pendingCount, color: "#f59e0b" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                      </div>
+                      <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[130px] rounded-2xl bg-[#fbf0fe]/40">
+                <p className="text-xs font-bold text-[#4d4354]/40">No team data yet</p>
+              </div>
+            )}
+          </div>
+
+          {/* Campus Identity */}
+          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Identity</p>
+                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Campus Details</h3>
+              </div>
+              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <Building className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { icon: Building, label: "Campus", value: data.campusName },
+                { icon: School, label: "School", value: data.schoolName },
+                { icon: MapPin, label: "City", value: data.campusCity || "Not set" },
+                { icon: FileText, label: "Reg ID", value: data.campusRegId || "Not set" },
+                { icon: GraduationCap, label: "Year", value: data.academicYear || "Not set" },
+                { icon: Users, label: "Students", value: `${data.studentCount || 0}` },
+              ].map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/40 px-3 py-2">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] shrink-0">
+                    <f.icon className="w-3 h-3" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[7px] font-black uppercase tracking-wider text-[#4d4354]/40">{f.label}</p>
+                    <p className="text-[11px] font-bold text-[#1f1a23] truncate">{f.value}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        <ManagementCard
-          title="Campus Administrator"
-          icon={Shield}
-          description="Standalone campus ownership and operational control for this one campus."
-          user={data.campusAdmin}
-          emptyLabel="Add Admin"
-          onAdd={onInviteAdmin}
-          onRemove={data.campusAdmin?.id === data.currentUserId ? undefined : (id) => onRemove(id, "Admin")}
-          onResendInvite={onResend}
-          onCancelInvite={onCancel}
-        />
-        <ManagementCard
-          title="Principal / Academic Head"
-          icon={GraduationCap}
-          description="Academic authority for teachers, exams, report cards, and parent-facing review."
-          user={data.principal}
-          emptyLabel="Add Principal"
-          onAdd={onInvitePrincipal}
-          onRemove={(id) => onRemove(id, "Principal")}
-          onResendInvite={onResend}
-          onCancelInvite={onCancel}
-        />
-      </div>
+        {/* Admin Team & Principal Panel */}
+        <div className="space-y-6">
+          {/* Admin Team + Pending In One Card */}
+          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Team</p>
+                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Admin Team</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {adminCount > 0 ? (
+                  <span className="rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#8127cf]">
+                    {adminCount} active
+                  </span>
+                ) : null}
+                {pendingCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                    <Clock className="w-3 h-3" />
+                    {pendingCount}
+                  </span>
+                ) : null}
+                <StatusPill status="Owner Managed" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              {data.campusAdmins?.map((admin: any) => (
+                <AdminRow key={admin.id} admin={admin} currentUserId={data.currentUserId} onRemove={() => onRemove(admin.id, "Admin")} />
+              ))}
+              {data.pendingAdminInvitations?.map((invite: any) => (
+                <PendingFacultyRow key={invite.id} invite={invite} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
+              ))}
+              {!data.campusAdmins?.length && !data.pendingAdminInvitations?.length ? (
+                <div className="flex items-center justify-center h-20 rounded-2xl bg-[#fbf0fe]/40">
+                  <p className="text-xs font-bold text-[#4d4354]/40">No admin access assigned yet.</p>
+                </div>
+              ) : null}
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.9fr] gap-8">
-        <AdminTeamPanel data={data} onInvite={onInviteAdmin} onRemove={onRemove} onResend={onResend} onCancel={onCancel} />
-        <CampusIdentityPanel data={data} onActivityLog={onActivityLog} />
+          {/* Principal Card */}
+          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Authority</p>
+                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Principal</h3>
+              </div>
+              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <GraduationCap className="h-5 w-5" />
+              </div>
+            </div>
+            {data.principal ? (
+              <div className="flex items-center gap-5">
+                <div className="relative shrink-0">
+                  <div className="absolute -inset-2 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-2xl blur-md" />
+                  <div className="relative h-16 w-16 rounded-2xl bg-white border-2 border-emerald-100 shadow-sm flex items-center justify-center overflow-hidden">
+                    <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.principal.email)}`} alt="" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-base font-black text-[#1f1a23] tracking-normal truncate">{data.principal.fullName}</h4>
+                  <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-600">
+                      <UserCheck className="w-2.5 h-2.5" />
+                      Active
+                    </span>
+                  </div>
+                </div>
+                <button type="button" onClick={() => onRemove(data.principal.id, "Principal")}
+                  className="shrink-0 h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 cursor-pointer">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Revoke
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-200 flex items-center justify-center text-amber-400">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#1f1a23]">No Principal Assigned</p>
+                    <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">Tap below to appoint a principal</p>
+                  </div>
+                </div>
+                <BrandButton variant="dark" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
+                  Appoint
+                </BrandButton>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1169,13 +1310,7 @@ function AdminTeamPanel({
                 {pending} pending
               </span>
             ) : null}
-            {data.canInviteAdmins ? (
-              <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
-                Add Admin
-              </BrandButton>
-            ) : (
-              <StatusPill status="Owner Managed" />
-            )}
+            <StatusPill status="Owner Managed" />
           </div>
         </div>
         <div className="space-y-3">
@@ -1210,9 +1345,6 @@ function AcademicPanel({
   reports,
   teachers,
   students,
-  attendanceRecords,
-  attendanceSummary,
-  invoiceSummary,
   campusName,
   onAddClass,
   onAddStudent,
@@ -1222,15 +1354,13 @@ function AcademicPanel({
   onUpdateClass,
   onDeleteSubject,
   onUpdateSubject,
+  onAddSection,
 }: {
   classes: any[];
   exams: any[];
   reports: any[];
   teachers: any[];
   students?: any[];
-  attendanceRecords?: any[];
-  attendanceSummary?: { present: number; absent: number; leave: number };
-  invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] };
   campusName?: string;
   onAddClass: () => void;
   onAddStudent: (classId?: string) => void;
@@ -1240,6 +1370,7 @@ function AcademicPanel({
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onAddSection?: (name: string, section: string, academicYear: number) => Promise<void>;
 }) {
   const classGroups = groupClasses(classes);
   const [showAllExams, setShowAllExams] = useState(false);
@@ -1248,10 +1379,6 @@ function AcademicPanel({
   const lockedExams = exams.filter((e) => e.isLocked);
   const displayExams = showAllExams ? exams : exams.slice(0, 6);
   const displayReports = showAllReports ? reports : reports.slice(0, 6);
-  const totalCollected = invoiceSummary?.byStatus?.reduce((sum, g: any) => {
-    const paid = g.status === "PAID" || g.status === "PARTIAL";
-    return paid ? sum + (g._sum?.totalAmount || 0) : sum;
-  }, 0) || 0;
 
   const generateReportCards = async (examId: string) => {
     setGeneratingExamId(examId);
@@ -1277,18 +1404,7 @@ function AcademicPanel({
         <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={onAddClass}>
           Add Class
         </BrandButton>
-        <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => onAddStudent()} disabled={classes.length === 0}>
-          Add Student
-        </BrandButton>
       </div>
-
-      <AttendanceView
-        attendanceRecords={attendanceRecords || []}
-        classes={classes}
-        students={students || []}
-        invoiceSummary={invoiceSummary}
-        totalCollected={totalCollected}
-      />
 
       {classGroups.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
@@ -1297,6 +1413,7 @@ function AcademicPanel({
               key={group.key}
               group={group}
               teachers={teachers}
+              students={students || []}
               onAddStudent={onAddStudent}
               onViewClass={onViewClass}
               onChangeTeacher={onChangeTeacher}
@@ -1304,6 +1421,7 @@ function AcademicPanel({
               onUpdateClass={onUpdateClass}
               onDeleteSubject={onDeleteSubject}
               onUpdateSubject={onUpdateSubject}
+              onAddSection={onAddSection}
             />
           ))}
         </div>
@@ -1315,305 +1433,121 @@ function AcademicPanel({
           action={<BrandButton onClick={onAddClass}>Add Class</BrandButton>}
         />
       )}
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
-        <SnapshotColumn
-          icon={FileText}
-          title="Exam Cycles"
-          after={exams.length > 6 ? (
-            <button
-              type="button"
-              onClick={() => setShowAllExams(!showAllExams)}
-              className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
-            >
-              {showAllExams ? "Show Less" : `View All (${exams.length})`}
-            </button>
-          ) : null}
-        >
-          {displayExams.map((exam: any) => (
-            <div key={exam.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{exam.title}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {exam.term} - {classLabel(exam.class)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <StatusPill status={exam.status} />
-                  {exam.isLocked && exam._count?.reportCards === 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => generateReportCards(exam.id)}
-                      disabled={generatingExamId === exam.id}
-                      className="flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2 text-[8px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50"
-                    >
-                      {generatingExamId === exam.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ))}
-          {exams.length === 0 ? <EmptyInline text="No exam cycles available yet." /> : null}
-        </SnapshotColumn>
-
-        <SnapshotColumn
-          icon={GraduationCap}
-          title="Report Cards"
-          after={reports.length > 6 ? (
-            <button
-              type="button"
-              onClick={() => setShowAllReports(!showAllReports)}
-              className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
-            >
-              {showAllReports ? "Show Less" : `View All (${reports.length})`}
-            </button>
-          ) : null}
-        >
-          {displayReports.map((report: any) => (
-            <div key={report.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                    {report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}
-                  </p>
-                </div>
-                <StatusPill status={report.status} />
-              </div>
-            </div>
-          ))}
-          {reports.length === 0 ? <EmptyInline text="Report cards will appear after exams are processed." /> : null}
-        </SnapshotColumn>
-      </div>
     </div>
   );
 }
 
-function AttendanceView({
-  attendanceRecords,
-  classes,
-  students,
-  invoiceSummary,
-  totalCollected,
+function ExamCyclesPanel({
+  exams,
 }: {
-  attendanceRecords: any[];
-  classes: any[];
-  students: any[];
-  invoiceSummary?: { total: number; totalAmount: number; byStatus: any[] };
-  totalCollected: number;
+  exams: any[];
 }) {
-  const sections = useMemo(() => classes.map((c) => ({ id: c.id, label: `${c.name} ${c.section || ""}`.trim() })), [classes]);
-  const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
-  useEffect(() => { setSelectedSectionId((prev: string) => sections.some((s) => s.id === prev) ? prev : sections[0]?.id || ""); }, [sections]);
-  const [open, setOpen] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [dateAttendance, setDateAttendance] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [loadingAtt, setLoadingAtt] = useState(false);
-  const [loadingInv, setLoadingInv] = useState(false);
+  const [showAllExams, setShowAllExams] = useState(false);
+  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
+  const displayExams = showAllExams ? exams : exams.slice(0, 12);
 
-  const sectionStudents = useMemo(() => students.filter((s) => s.class?.id === selectedSectionId), [students, selectedSectionId]);
-
-  const fetchAttendance = useCallback(async (classId: string, date: string) => {
-    setLoadingAtt(true);
+  const generateReportCards = async (examId: string) => {
+    setGeneratingExamId(examId);
     try {
-      const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`);
-      const json = await res.json();
-      if (json.success) setDateAttendance(json.students || []);
-    } catch { /* ignore */ } finally { setLoadingAtt(false); }
-  }, []);
-
-  const fetchInvoices = useCallback(async (classId: string) => {
-    setLoadingInv(true);
-    try {
-      const res = await fetch(`/api/billing/invoices?classId=${classId}`);
-      const json = await res.json();
-      if (json.success) setInvoices(json.invoices || []);
-    } catch { /* ignore */ } finally { setLoadingInv(false); }
-  }, []);
-
-  useEffect(() => {
-    if (selectedSectionId) {
-      fetchAttendance(selectedSectionId, selectedDate);
-      fetchInvoices(selectedSectionId);
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate", examId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Generation failed");
+      toast.success("Report cards generated");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setGeneratingExamId(null);
     }
-  }, [selectedSectionId, selectedDate, fetchAttendance, fetchInvoices]);
-
-  const roster = dateAttendance;
-  const present = roster.filter((s: any) => s.attendance?.status === "PRESENT").length;
-  const absent = roster.filter((s: any) => s.attendance?.status === "ABSENT").length;
-  const leave = roster.filter((s: any) => s.attendance?.status === "LEAVE").length;
-  const unmarked = roster.filter((s: any) => !s.attendance).length;
+  };
 
   return (
-    <div className={cn(
-      "rounded-[32px] border bg-white shadow-lg transition-all",
-      open
-        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
-        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
-    )}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
-          open ? "p-5" : "px-4 py-3"
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{exams.length} Exam{exams.length !== 1 ? "s" : ""}</p>
+          <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Exam Cycles</h3>
+        </div>
+        {exams.length > 12 && (
+          <button type="button" onClick={() => setShowAllExams(!showAllExams)}
+            className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">
+            {showAllExams ? "Show Less" : `View All (${exams.length})`}
+          </button>
         )}
-        aria-expanded={open}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={cn(
-            "flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
-            open ? "h-10 w-10" : "h-8 w-8"
-          )}>
-            <Users className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
-          </div>
-          <div className="min-w-0">
-            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
-              Attendance &amp; Fees
-            </p>
-            {open ? (
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-                {sections.find((s) => s.id === selectedSectionId)?.label || "Select a section"}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {sections.length > 1 ? (
-            <select
-              value={selectedSectionId}
-              onChange={(e) => { e.stopPropagation(); setSelectedSectionId(e.target.value); }}
-              onClick={(e) => e.stopPropagation()}
-              className="h-9 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer border border-[#cfc2d6]/10"
-            >
-              {sections.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
-          ) : null}
-          <ChevronDown
-            className={cn(
-              "text-[#8127cf] transition-all duration-200 shrink-0",
-              open ? "h-5 w-5 rotate-180" : "h-4 w-4"
-            )}
-          />
-        </div>
-      </button>
-
-      {open ? (
-        <div className="border-t border-[#cfc2d6]/10 px-5 pb-5 pt-4 space-y-6">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Attendance</p>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="h-8 rounded-lg border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354] outline-none cursor-pointer"
-                />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {displayExams.map((exam: any) => (
+          <div key={exam.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-[#1f1a23] truncate">{exam.title}</p>
+                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">{exam.term} - {classLabel(exam.class)}</p>
               </div>
-              {loadingAtt ? (
-                <Loader2 className="h-4 w-4 animate-spin text-[#8127cf]" />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-emerald-700">P {present}</span>
-                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-rose-700">A {absent}</span>
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-amber-700">L {leave}</span>
-                  <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">? {unmarked}</span>
-                </div>
-              )}
+              <StatusPill status={exam.status} />
             </div>
-            {selectedSectionId && roster.length > 0 ? (
-              <div className="max-h-80 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 divide-y divide-[#cfc2d6]/5">
-                <div className="flex items-center gap-2 bg-[#fbf0fe]/40 px-4 py-2 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60 sticky top-0">
-                  <span className="w-7 text-center">#</span>
-                  <span className="flex-[2]">Student</span>
-                  <span className="w-14 text-center">Date</span>
-                  <span className="w-12 text-center">%</span>
-                  <span className="w-20 text-center">Fee</span>
-                  <span className="w-16 text-center">Balance</span>
-                </div>
-                {roster.map((entry: any, i: number) => {
-                  const student = sectionStudents.find((s) => s.id === entry.id);
-                  const totalAtt = student?.attendance?.length || 0;
-                  const presentAtt = student?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0;
-                  const pct = totalAtt ? Math.round((presentAtt / totalAtt) * 100) : null;
-                  const inv = invoices.find((inv) => inv.studentId === entry.id);
-                  return (
-                    <div key={entry.id} className="flex items-center gap-2 px-4 py-2.5 text-xs">
-                      <span className="w-7 text-center text-[#4d4354]/40 font-black">{i + 1}</span>
-                      <span className="flex-[2] font-black text-[#1f1a23] truncate">{entry.fullName}</span>
-                      <span className="w-14 flex justify-center">
-                        {entry.attendance ? (
-                          <span className={cn(
-                            "rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-normal",
-                            entry.attendance.status === "PRESENT" && "bg-emerald-50 text-emerald-700",
-                            entry.attendance.status === "ABSENT" && "bg-rose-50 text-rose-700",
-                            entry.attendance.status === "LEAVE" && "bg-amber-50 text-amber-700",
-                          )}>
-                            {entry.attendance.status === "PRESENT" ? "P" : entry.attendance.status === "ABSENT" ? "A" : "L"}
-                          </span>
-                        ) : (
-                          <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>
-                        )}
-                      </span>
-                      <span className="w-12 flex justify-center">
-                        <span className={cn(
-                          "rounded-full px-1.5 py-0.5 text-[8px] font-black",
-                          pct === null ? "text-[#4d4354]/30" : pct >= 80 ? "bg-emerald-50 text-emerald-700" : pct >= 60 ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"
-                        )}>
-                          {pct !== null ? `${pct}%` : "—"}
-                        </span>
-                      </span>
-                      <span className="w-20 flex justify-center">
-                        {inv ? (
-                          <StatusPill status={inv.status} />
-                        ) : (
-                          <span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/30">—</span>
-                        )}
-                      </span>
-                      <span className="w-16 text-right font-black text-[#1f1a23]">
-                        {inv ? (inv.balanceDue || 0).toLocaleString() : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : selectedSectionId ? (
-              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-6 text-center">
-                <p className="text-[10px] font-bold text-[#4d4354]/45">{loadingAtt ? "Loading..." : "No students enrolled in this section."}</p>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="border-t border-[#cfc2d6]/10 pt-4">
-            <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 mb-3">Fee Summary</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Invoices</p>
-                <p className="mt-1 text-xl font-black text-[#1f1a23]">{invoiceSummary?.total ?? "—"}</p>
-              </div>
-              <div className="rounded-2xl border border-[#cfc2d6]/10 px-4 py-3">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60">Total Collected</p>
-                <p className="mt-1 text-xl font-black text-[#1f1a23]">{totalCollected ? `${(totalCollected / 100).toLocaleString()}` : "—"}</p>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#cfc2d6]/10">
+              <span className="text-[9px] font-semibold text-[#4d4354]/50">{exam.missingMarks ?? 0} missing marks</span>
+              {exam.isLocked && exam._count?.reportCards === 0 ? (
+                <button type="button" onClick={() => generateReportCards(exam.id)} disabled={generatingExamId === exam.id}
+                  className="ml-auto flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2.5 text-[8px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50">
+                  {generatingExamId === exam.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate Reports"}
+                </button>
+              ) : null}
             </div>
-            {invoiceSummary?.byStatus?.length ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {invoiceSummary.byStatus.map((g: any) => (
-                  <div key={g.status} className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
-                    <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/60">{g.status}</p>
-                    <p className="text-xs font-black text-[#1f1a23]">{g._count} ({((g._sum?.totalAmount || 0) / 100).toLocaleString()})</p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </div>
+        ))}
+      </div>
+      {exams.length === 0 ? (
+        <div className="flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/10">
+          <p className="text-xs font-bold text-[#4d4354]/40">No exam cycles available yet.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReportCardsPanel({
+  reports,
+}: {
+  reports: any[];
+}) {
+  const [showAllReports, setShowAllReports] = useState(false);
+  const displayReports = showAllReports ? reports : reports.slice(0, 12);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{reports.length} Report{reports.length !== 1 ? "s" : ""}</p>
+          <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Report Cards</h3>
+        </div>
+        {reports.length > 12 && (
+          <button type="button" onClick={() => setShowAllReports(!showAllReports)}
+            className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">
+            {showAllReports ? "Show Less" : `View All (${reports.length})`}
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {displayReports.map((report: any) => (
+          <div key={report.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-[#1f1a23] truncate">{report.student?.fullName || "Student"}</p>
+                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">{report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}</p>
+              </div>
+              <StatusPill status={report.status} />
+            </div>
+            <p className="text-[9px] font-semibold text-[#4d4354]/50">{report.student?.class ? classLabel(report.student.class) : "—"}</p>
+          </div>
+        ))}
+      </div>
+      {reports.length === 0 ? (
+        <div className="flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/10">
+          <p className="text-xs font-bold text-[#4d4354]/40">Report cards will appear after exams are processed.</p>
         </div>
       ) : null}
     </div>
@@ -1948,7 +1882,7 @@ function ClassModal({
   onSave: () => void;
 }) {
   return (
-    <ModalFrame title="Add Class / Section" eyebrow="Academic setup" onClose={onClose}>
+    <ModalFrame title="Add Class" eyebrow="Academic setup" onClose={onClose}>
       <div className="space-y-4">
         <FormInput
           label="Class Name"
@@ -1956,35 +1890,15 @@ function ClassModal({
           placeholder="e.g. Grade 8"
           onChange={(value) => onChange({ ...form, name: value })}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput
-            label="Sections"
-            value={form.section}
-            placeholder="A, B, C"
-            onChange={(value) => onChange({ ...form, section: value })}
-          />
-          <FormInput
-            label="Academic Year"
-            type="number"
-            value={String(form.academicYear)}
-            placeholder="2026"
-            onChange={(value) => onChange({ ...form, academicYear: Number(value) || new Date().getFullYear() })}
-          />
-        </div>
-        <FormSelect
-          label="Class Teacher"
-          value={form.classTeacherId}
-          onChange={(value) => onChange({ ...form, classTeacherId: value })}
-        >
-          <option value="">Unassigned</option>
-          {teachers.map((teacher) => (
-            <option key={teacher.id} value={teacher.id}>
-              {teacher.fullName}
-            </option>
-          ))}
-        </FormSelect>
+        <FormInput
+          label="Academic Year"
+          type="number"
+          value={String(form.academicYear)}
+          placeholder="2026"
+          onChange={(value) => onChange({ ...form, academicYear: Number(value) || new Date().getFullYear() })}
+        />
       </div>
-      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Class Sections" onClose={onClose} onSave={onSave} />
+      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Class" onClose={onClose} onSave={onSave} />
     </ModalFrame>
   );
 }
@@ -3250,6 +3164,7 @@ function FormSelect({
 function ClassGroupCard({
   group,
   teachers,
+  students,
   onAddStudent,
   onViewClass,
   onChangeTeacher,
@@ -3257,9 +3172,11 @@ function ClassGroupCard({
   onUpdateClass,
   onDeleteSubject,
   onUpdateSubject,
+  onAddSection,
 }: {
   group: { name: string; academicYear: number | string; sections: any[] };
   teachers: any[];
+  students: any[];
   onAddStudent: (classId?: string) => void;
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
@@ -3267,10 +3184,28 @@ function ClassGroupCard({
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onAddSection?: (name: string, section: string, academicYear: number) => Promise<void>;
 }) {
   const [open, setOpen] = useState(true);
+  const [addingSection, setAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
+  const [addingSectionBusy, setAddingSectionBusy] = useState(false);
   const studentCount = group.sections.reduce((sum, cls) => sum + (cls._count?.students || 0), 0);
   const subjectCount = group.sections.reduce((sum, cls) => sum + (cls._count?.subjects || cls.subjects?.length || 0), 0);
+
+  const handleAddSection = async () => {
+    if (!newSectionName.trim()) return;
+    setAddingSectionBusy(true);
+    try {
+      if (onAddSection) {
+        await onAddSection(group.name, newSectionName.trim(), Number(group.academicYear));
+      }
+      setNewSectionName("");
+      setAddingSection(false);
+    } finally {
+      setAddingSectionBusy(false);
+    }
+  };
 
   return (
     <div className={cn(
@@ -3341,6 +3276,7 @@ function ClassGroupCard({
               cls={cls}
               teachers={teachers}
               classTeacherId={cls.classTeacher?.id || ""}
+              students={(students || []).filter((s: any) => s.class?.id === cls.id || s.classId === cls.id)}
               onViewClass={onViewClass}
               onAddStudent={onAddStudent}
               onChangeTeacher={onChangeTeacher}
@@ -3350,6 +3286,45 @@ function ClassGroupCard({
               onUpdateSubject={onUpdateSubject}
             />
           ))}
+          <div className="pt-2">
+            {addingSection ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  placeholder="Section name (e.g. C)"
+                  className="h-10 flex-1 rounded-xl bg-white border border-[#8127cf]/20 px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-[#4d4354]/30"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSection}
+                  disabled={addingSectionBusy || !newSectionName.trim()}
+                  className="flex h-10 items-center gap-1 rounded-xl bg-[#8127cf] px-4 text-[9px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50"
+                >
+                  {addingSectionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAddingSection(false); setNewSectionName(""); }}
+                  className="flex h-10 items-center gap-1 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingSection(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/40 transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Add Section
+              </button>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -3360,6 +3335,7 @@ function SectionCard({
   cls,
   teachers,
   classTeacherId,
+  students,
   onViewClass,
   onAddStudent,
   onChangeTeacher,
@@ -3371,6 +3347,7 @@ function SectionCard({
   cls: any;
   teachers: any[];
   classTeacherId: string;
+  students: any[];
   onViewClass: (cls: any) => void;
   onAddStudent: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
@@ -3379,68 +3356,38 @@ function SectionCard({
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  const [subjectsOpen, setSubjectsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const [changingTeacher, setChangingTeacher] = useState(false);
-  const [editingSection, setEditingSection] = useState(false);
-  const [editName, setEditName] = useState(cls.name || "");
-  const [editSection, setEditSection] = useState(cls.section || "");
-
-  const saveSection = async () => {
-    if (onUpdateClass) {
-      await onUpdateClass(cls.id, { name: editName, section: editSection });
-      setEditingSection(false);
-    }
-  };
-
-  if (editingSection) {
-    return (
-      <div className="rounded-2xl bg-white border border-[#8127cf]/20 p-4 space-y-3">
-        <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Edit Section</p>
-        <div className="grid grid-cols-2 gap-3">
-          <FormInput label="Class Name" value={editName} placeholder="e.g. Class 10" onChange={setEditName} />
-          <FormInput label="Section" value={editSection} placeholder="e.g. A" onChange={setEditSection} />
-        </div>
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={() => setEditingSection(false)}
-            className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] cursor-pointer"
-          >
-            Cancel
-          </button>
-          <BrandButton variant="dark" className="h-10" onClick={saveSection}>
-            Save
-          </BrandButton>
-        </div>
-      </div>
-    );
-  }
+  const [showAllStudents, setShowAllStudents] = useState(false);
+  const subjectCount = cls.subjects?.length || cls._count?.subjects || 0;
+  const studentCount = students.length || cls._count?.students || 0;
+  const displayStudents = showAllStudents ? students : students.slice(0, 6);
 
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/55">
+    <div className="rounded-2xl bg-[#fbf0fe]/55 overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4">
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewClass(cls);
-          }}
-          className="min-w-0 flex-1 cursor-pointer text-left"
-        >
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p>
-          <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
-            {cls.classTeacher?.fullName || "No class teacher"} - {cls._count?.students || 0} students
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+              <UserCheck className="h-3 w-3" />
+              {cls.classTeacher?.fullName || "No class teacher"}
+            </span>
+            <span className="text-[#4d4354]/20">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
+            <span className="text-[#4d4354]/20">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setEditingSection(true); }}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
-            title="Edit section"
+            onClick={(e) => { e.stopPropagation(); onViewClass(cls); }}
+            className="flex h-8 items-center gap-1 rounded-lg bg-[#8127cf]/10 px-2.5 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white cursor-pointer"
+            title="Edit section details"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-            </svg>
+            <Pencil className="h-3 w-3" />
+            Edit
           </button>
           {onDeleteClass ? (
             <button
@@ -3457,9 +3404,7 @@ function SectionCard({
               value={classTeacherId || ""}
               onChange={(e) => {
                 const val = e.target.value;
-                if (val !== classTeacherId) {
-                  onChangeTeacher(cls.id, val);
-                }
+                if (val !== classTeacherId) onChangeTeacher(cls.id, val);
                 setChangingTeacher(false);
               }}
               className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer"
@@ -3468,18 +3413,13 @@ function SectionCard({
             >
               <option value="">No teacher</option>
               {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.fullName}
-                </option>
+                <option key={t.id} value={t.id}>{t.fullName}</option>
               ))}
             </select>
           ) : (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setChangingTeacher(true);
-              }}
+              onClick={(e) => { e.stopPropagation(); setChangingTeacher(true); }}
               className={cn(
                 "flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-normal transition-all",
                 cls.classTeacher
@@ -3494,10 +3434,7 @@ function SectionCard({
           {onAddStudent ? (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddStudent(cls.id);
-              }}
+              onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }}
               className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
             >
               + Student
@@ -3505,45 +3442,101 @@ function SectionCard({
           ) : null}
           <button
             type="button"
-            onClick={() => setSubjectsOpen((v) => !v)}
+            onClick={() => setDetailsOpen((v) => !v)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"
           >
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 transition-transform duration-200",
-                subjectsOpen && "rotate-180"
-              )}
-            />
+            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", detailsOpen && "rotate-180")} />
           </button>
         </div>
       </div>
-      {subjectsOpen ? (
-        <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
-          {cls.subjects?.length ? (
-            <div className="flex flex-wrap gap-2">
-              {cls.subjects.slice(0, 5).map((subject: any) => (
-                <div key={subject.id} className="flex items-center gap-1 rounded-full bg-white pl-3 pr-1 py-1">
-                  <span className="text-[8px] font-black uppercase tracking-normal text-[#8127cf]">
-                    {subject.name}{subject.teacher?.fullName ? ` - ${subject.teacher.fullName}` : ""}
-                  </span>
-                  {onDeleteSubject ? (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }}
-                      className="flex h-5 w-5 items-center justify-center rounded-full text-[#4d4354]/30 transition-all hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
-                      title="Delete subject"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  ) : null}
-                </div>
-              ))}
+
+      {detailsOpen ? (
+        <div className="border-t border-[#cfc2d6]/10">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 flex items-center gap-1">
+                <BookOpen className="h-3 w-3" />
+                Subjects ({subjectCount})
+              </p>
             </div>
-          ) : (
-            <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
-              No subjects yet. Open this section to add subjects and assign teachers.
-            </p>
-          )}
+            {cls.subjects?.length ? (
+              <div className="space-y-1.5">
+                {cls.subjects.map((subject: any) => (
+                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 group/subj">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
+                      <p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/40 mt-0.5">
+                        {subject.teacher?.fullName || "No teacher"} · {subject.totalMarks || 100} marks
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase tracking-normal",
+                        subject.teacher?.id ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                      )}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
+                        {subject.teacher?.id ? "Assigned" : "Unassigned"}
+                      </span>
+                      {onDeleteSubject ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }}
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-[#4d4354]/20 transition-all opacity-0 group-hover/subj:opacity-100 hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
+                No subjects yet. Click Edit to add subjects and assign teachers.
+              </p>
+            )}
+          </div>
+
+          <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 flex items-center gap-1">
+                <GraduationCap className="h-3 w-3" />
+                Students ({studentCount})
+              </p>
+              {students.length > 6 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllStudents(!showAllStudents)}
+                  className="text-[8px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer"
+                >
+                  {showAllStudents ? "Show Less" : `View All ${students.length}`}
+                </button>
+              ) : null}
+            </div>
+            {students.length > 0 ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                {displayStudents.map((student: any) => (
+                  <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
+                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-[#fbf0fe] border border-white">
+                      <img
+                        src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-[#1f1a23] truncate">{student.fullName}</p>
+                      <p className="text-[7px] font-bold uppercase tracking-normal text-[#4d4354]/35">Roll {student.rollNo || "—"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
+                No students enrolled yet. Click + Student to add.
+              </p>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -3594,6 +3587,23 @@ function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserI
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function CompactRoleRow({ icon: Icon, label, name, email }: { icon: any; label: string; name: string; email?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] shrink-0">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[7px] font-black uppercase tracking-wider text-[#4d4354]/40">{label}</p>
+        <p className="text-xs font-bold text-[#1f1a23] truncate">{name}</p>
+      </div>
+      {email ? (
+        <p className="text-[9px] font-medium text-[#4d4354]/50 truncate hidden sm:block">{email}</p>
+      ) : null}
     </div>
   );
 }

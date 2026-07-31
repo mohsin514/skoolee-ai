@@ -248,10 +248,7 @@ export default function SuperAdminDashboard() {
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Support", onClick: () => toast.info("Network support is available from this role workspace.") },
-    { icon: LogOut, label: "Logout", onClick: handleLogout },
-  ];
+const bottomItems: RoleNavItem[] = [];
   const superAIFeatures = [
     { feature: "campus_comparison", label: "Campus Comparison", placeholder: "Optional academic year or term" },
     { feature: "weak_campuses", label: "Weak Campuses", placeholder: "Support focus or threshold" },

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertCircle, BookOpen, Briefcase, Building, Calendar, CalendarCheck, Check, CheckCircle2, ChevronDown, ClipboardList, Clock, Copy, Download,
-  ExternalLink, FileText, GraduationCap, Heart, HelpCircle, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus,
-  Receipt, School, Send, Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, Users, X, type LucideIcon,
+  AlertCircle, Award, BookOpen, Briefcase, Building, Calendar, CalendarCheck, Check, CheckCircle2, ChevronDown, ClipboardList, Clock, Copy, Download,
+  ExternalLink, FileText, GraduationCap, Heart, HelpCircle, History, LayoutGrid, Loader2, LogOut, Mail, MapPin, MessageSquare, Pencil, Plus,
+  Receipt, School, Send, Shield, ShieldCheck, Sparkles, Trash2, TrendingUp, Upload, User, UserCheck, Users, X, type LucideIcon,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
@@ -25,8 +25,12 @@ import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { AttendanceOverview } from "@/components/attendance/attendance-overview";
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
+import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
+import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
+import { TeacherAttendancePanel } from "@/components/academic-year/TeacherAttendancePanel";
+import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 
-type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai" | "fees" | "timetable";
+type PrincipalView = "overview" | "academics" | "faculty" | "reports" | "engagement" | "students" | "attendance" | "ai" | "fees" | "timetable" | "year-cycle" | "teacher-performance";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 type StudentFormState = { fullName: string; rollNo: string; gender: string; classId: string; guardianName: string; guardianPhone: string; guardianEmail: string; };
@@ -42,6 +46,8 @@ const viewCopy: Record<PrincipalView, { title: string; description: string }> = 
   ai: { title: "AI Insights", description: "AI-powered analysis and review items for academic oversight." },
   fees: { title: "Fee Management", description: "Manage fee structures, generate invoices, and process payments." },
   timetable: { title: "Timetable Manager", description: "Create and publish class schedules, assign subjects and teachers, and detect scheduling conflicts." },
+  "year-cycle": { title: "Academic Year Cycle", description: "Close academic years, promote students to next class, and view historical records." },
+  "teacher-performance": { title: "Teacher Performance", description: "Evaluate teacher accountability based on class results and attendance." },
 };
 
 const principalAIFeatures = [
@@ -191,9 +197,16 @@ export default function PrincipalDashboard() {
     catch (error: any) { toast.error(error.message); } finally { setSavingStudentUpdate(false); }
   };
 
+  const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string }) => {
+    if (!subject.name.trim()) { toast.error("Subject name is required"); return false; }
+    setCreatingSubjectClassId(classId);
+    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to create subject"); toast.success("Subject added"); await refetch(); return true; }
+    catch (error: any) { toast.error(error.message); return false; } finally { setCreatingSubjectClassId(null); }
+  };
+
   const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
     setSavingSubjectUpdateId(subjectId);
-    try { const res = await fetch(`/api/subjects/${subjectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...updates, classId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update subject"); toast.success("Subject updated"); await refetch(); }
+    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update subject"); toast.success("Subject updated"); await refetch(); }
     catch (error: any) { toast.error(error.message); } finally { setSavingSubjectUpdateId(null); }
   };
 
@@ -207,7 +220,7 @@ export default function PrincipalDashboard() {
   };
 
   const handleDeleteSubject = (subject: any) => {
-    setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects/${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+    setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
   };
 
   const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
@@ -256,11 +269,10 @@ export default function PrincipalDashboard() {
     { icon: FileText, label: "Reports", active: activeView === "reports", onClick: () => setActiveView("reports") },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Insights", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+    { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
   ];
-  const bottomItems: RoleNavItem[] = [
-    { icon: HelpCircle, label: "Help", onClick: () => setShowHelpModal(true) },
-    { icon: LogOut, label: "Logout", onClick: handleLogout },
-  ];
+  const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
 
   if (loading && !data) return <PrincipalSkeleton />;
@@ -293,12 +305,30 @@ export default function PrincipalDashboard() {
         {activeView === "academics" ? <AcademicPanel classes={data.classes} exams={data.recentExams} reports={data.recentReportCards} teachers={data.teachers} students={data.students} attendanceRecords={data.attendanceRecords} attendanceSummary={data.attendanceSummary} invoiceSummary={data.invoiceSummary} campusName={data.campusName} onAddClass={() => setShowClassModal(true)} onAddStudent={openAdmissionForm} onViewClass={setSelectedClass} onChangeTeacher={handleChangeClassTeacher} onDeleteClass={handleDeleteClass} onUpdateClass={handleUpdateClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} /> : null}
         {activeView === "faculty" ? <FacultyPanel teachers={data.teachers} pendingInvites={data.pendingTeacherInvitations} campusAdmins={data.campusAdmins} pendingAdminInvites={data.pendingAdminInvitations} onInvite={(role) => { if (role === "TEACHER") { setShowAddTeacherForm(true); } else { openAddStaff(role as "CAMPUS_ADMIN" | "PRINCIPAL"); } }} onRemove={(id, label) => handleRemove(id, label)} onViewTeacher={setSelectedTeacher} onResend={handleResendInvite} onCancel={handleCancelInvite} /> : null}
         {activeView === "students" ? <StudentsPanel students={data.students} classes={data.classes} onAddStudent={openAdmissionForm} onMoveStudent={(student) => { setSelectedStudent(student); setMoveClassId(""); setShowMoveStudentModal(true); }} onViewStudent={setSelectedStudent} onBulkImport={() => setShowBulkImportModal(true)} onExport={exportStudentsCSV} onDeleteStudent={handleDeleteStudent} /> : null}
-        {activeView === "attendance" ? <AttendanceOverview /> : null}
+        {activeView === "attendance" ? (
+          <div className="space-y-8">
+            <AttendanceOverview />
+            <div className="border-t border-[#cfc2d6]/15 pt-6">
+              <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Teacher Attendance</h3>
+              <TeacherAttendancePanel readOnly />
+            </div>
+          </div>
+        ) : null}
         {activeView === "reports" ? <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} /> : null}
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
         {activeView === "ai" ? <AIPanel insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} /> : null}
         {activeView === "fees" ? <FeesPanel /> : null}
         {activeView === "timetable" ? <TimetablePanel /> : null}
+        {activeView === "year-cycle" ? (
+          <div className="space-y-8">
+            <CycleManagementPanel />
+            <div className="border-t border-[#cfc2d6]/15 pt-6">
+              <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
+              <AcademicYearPanel />
+            </div>
+          </div>
+        ) : null}
+        {activeView === "teacher-performance" ? <TeacherPerformancePanel /> : null}
       </section>
 
       <ClassModal open={showClassModal} onClose={() => setShowClassModal(false)} form={classForm} onChange={setClassForm} onSave={handleCreateClass} saving={savingClass} teachers={data.teachers} />
@@ -311,7 +341,7 @@ export default function PrincipalDashboard() {
         />
       )}
       {selectedStudent && showMoveStudentModal ? <MoveStudentModal student={selectedStudent} classes={data.classes} selectedClassId={moveClassId} onSelectClass={setMoveClassId} onMove={handleMoveStudent} busy={movingStudentBusy} onClose={() => { setShowMoveStudentModal(false); setSelectedStudent(null); }} /> : null}
-      {selectedClass ? <ClassDetailModal cls={selectedClass} teachers={data.teachers} onChangeTeacher={handleChangeClassTeacher} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} onClose={() => setSelectedClass(null)} /> : null}
+      {selectedClass ? <ClassDetailModal cls={selectedClass} teachers={data.teachers} onChangeTeacher={handleChangeClassTeacher} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} onCreateSubject={handleCreateSubject} creatingSubject={creatingSubjectClassId === selectedClass.id} onDeleteSubject={handleDeleteSubject} onUpdateSubject={handleUpdateSubject} onClose={() => setSelectedClass(null)} /> : null}
       {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
       {selectedTeacher ? <TeacherDetailModal teacher={selectedTeacher} onUpdate={handleUpdateTeacher} onClose={() => setSelectedTeacher(null)} /> : null}
       {showAddTeacherForm && (
@@ -386,7 +416,7 @@ function AcademicPanel({ classes, exams, reports, teachers, students, attendance
       <div className="flex flex-wrap justify-end gap-3"><BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={onAddClass}>Add Class</BrandButton><BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => onAddStudent()} disabled={classes.length === 0}>Add Student</BrandButton></div>
       <AttendanceView attendanceRecords={attendanceRecords || []} classes={classes} students={students || []} invoiceSummary={invoiceSummary} totalCollected={totalCollected} />
       {classGroups.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">{classGroups.map((group) => (<ClassGroupCard key={group.key} group={group} teachers={teachers} onAddStudent={onAddStudent} onViewClass={onViewClass} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">{classGroups.map((group) => (<ClassGroupCard key={group.key} group={group} teachers={teachers} students={students || []} onAddStudent={onAddStudent} onViewClass={onViewClass} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>
       ) : (<EmptyState icon={BookOpen} title="No classes defined" description="Create classes during onboarding or from the class management flow." action={<BrandButton onClick={onAddClass}>Add Class</BrandButton>} />)}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
         <SnapshotColumn icon={FileText} title="Exam Cycles" after={exams.length > 6 ? (<button type="button" onClick={() => setShowAllExams(!showAllExams)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{showAllExams ? "Show Less" : `View All (${exams.length})`}</button>) : null}>
@@ -465,7 +495,7 @@ function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvi
   return (
     <div className="space-y-8">
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/30 via-white to-[#fbf0fe]/20 p-6 shadow-lg">
-        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"><BrandButton variant="soft" onClick={() => onInvite("CAMPUS_ADMIN")}>Add Admin</BrandButton><BrandButton variant="soft" onClick={() => onInvite("PRINCIPAL")}>Add Principal</BrandButton></div></div>
+        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"></div></div>
         {campusAdmins.length > 0 ? (<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{campusAdmins.map((admin: any) => (<AdminRow key={admin.id} admin={admin} onRemove={admin.id ? () => onRemove(admin.id, "Admin") : undefined} />))}</div>) : null}
         {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
         {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (<p className="rounded-2xl bg-white/70 px-4 py-3 text-[10px] font-bold text-[#4d4354]/45">No admins yet. Invite campus administrators to manage this campus.</p>) : null}
@@ -568,20 +598,108 @@ function MoveStudentModal({ student, classes, selectedClassId, onSelectClass, on
 }
 
 
-function ClassGroupCard({ group, teachers, onAddStudent, onViewClass, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
-  group: { name: string; academicYear: number | string; sections: any[] }; teachers: any[]; onAddStudent: (classId?: string) => void; onViewClass: (cls: any) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+function ClassGroupCard({ group, teachers, students, onAddStudent, onViewClass, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
+  group: { name: string; academicYear: number | string; sections: any[] }; teachers: any[]; students: any[]; onAddStudent: (classId?: string) => void; onViewClass: (cls: any) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
   const [open, setOpen] = useState(true); const studentCount = group.sections.reduce((sum, cls) => sum + (cls._count?.students || 0), 0); const subjectCount = group.sections.reduce((sum, cls) => sum + (cls._count?.subjects || cls.subjects?.length || 0), 0);
-  return (<div className={cn("rounded-[32px] border bg-white shadow-lg transition-all self-start relative overflow-hidden", open ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl" : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10")}><button type="button" onClick={() => setOpen((v) => !v)} className={cn("flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all", open ? "p-5" : "px-4 py-3")} aria-expanded={open}><div className="flex items-center gap-3 min-w-0"><div className={cn("flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm transition-all", open ? "h-10 w-10" : "h-8 w-8")}><BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} /></div><div className="min-w-0"><p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>{group.name}</p>{open ? (<p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}</p>) : null}</div></div><div className="flex shrink-0 items-center gap-2">{onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }} className="flex h-8 items-center gap-1 rounded-lg bg-rose-50 px-2 text-[8px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"><Trash2 className="h-3 w-3" />Delete</button>) : null}<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{group.sections.length} cls</span><ChevronDown className={cn("text-[#8127cf] transition-all duration-200", open ? "h-5 w-5 rotate-180" : "h-4 w-4")} /></div></button>{open ? (<div className="border-t border-[#cfc2d6]/10 p-5 space-y-3"><div className="grid grid-cols-2 gap-3"><MiniMetric label="Students" value={studentCount} active /><MiniMetric label="Subjects" value={subjectCount} /></div>{group.sections.map((cls) => (<SectionCard key={cls.id} cls={cls} teachers={teachers} classTeacherId={cls.classTeacher?.id || ""} onViewClass={onViewClass} onAddStudent={onAddStudent} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>) : null}</div>);
+  return (<div className={cn("rounded-[32px] border bg-white shadow-lg transition-all self-start relative overflow-hidden", open ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl" : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10")}><button type="button" onClick={() => setOpen((v) => !v)} className={cn("flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all", open ? "p-5" : "px-4 py-3")} aria-expanded={open}><div className="flex items-center gap-3 min-w-0"><div className={cn("flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm transition-all", open ? "h-10 w-10" : "h-8 w-8")}><BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} /></div><div className="min-w-0"><p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>{group.name}</p>{open ? (<p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}</p>) : null}</div></div><div className="flex shrink-0 items-center gap-2">{onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }} className="flex h-8 items-center gap-1 rounded-lg bg-rose-50 px-2 text-[8px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"><Trash2 className="h-3 w-3" />Delete</button>) : null}<span className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{group.sections.length} cls</span><ChevronDown className={cn("text-[#8127cf] transition-all duration-200", open ? "h-5 w-5 rotate-180" : "h-4 w-4")} /></div></button>{open ? (<div className="border-t border-[#cfc2d6]/10 p-5 space-y-3"><div className="grid grid-cols-2 gap-3"><MiniMetric label="Students" value={studentCount} active /><MiniMetric label="Subjects" value={subjectCount} /></div>{group.sections.map((cls) => (<SectionCard key={cls.id} cls={cls} teachers={teachers} classTeacherId={cls.classTeacher?.id || ""} students={(students || []).filter((s: any) => s.class?.id === cls.id || s.classId === cls.id)} onViewClass={onViewClass} onAddStudent={onAddStudent} onChangeTeacher={onChangeTeacher} onDeleteClass={onDeleteClass} onUpdateClass={onUpdateClass} onDeleteSubject={onDeleteSubject} onUpdateSubject={onUpdateSubject} />))}</div>) : null}</div>);
 }
 
-function SectionCard({ cls, teachers, classTeacherId, onViewClass, onAddStudent, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
-  cls: any; teachers: any[]; classTeacherId: string; onViewClass: (cls: any) => void; onAddStudent: (classId?: string) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+function SectionCard({ cls, teachers, classTeacherId, students, onViewClass, onAddStudent, onChangeTeacher, onDeleteClass, onUpdateClass, onDeleteSubject, onUpdateSubject }: {
+  cls: any; teachers: any[]; classTeacherId: string; students: any[]; onViewClass: (cls: any) => void; onAddStudent: (classId?: string) => void; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onDeleteClass?: (cls: any) => void; onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteSubject?: (subject: any) => void; onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  const [subjectsOpen, setSubjectsOpen] = useState(true); const [changingTeacher, setChangingTeacher] = useState(false); const [editingSection, setEditingSection] = useState(false); const [editName, setEditName] = useState(cls.name || ""); const [editSection, setEditSection] = useState(cls.section || "");
-  const saveSection = async () => { if (onUpdateClass) { await onUpdateClass(cls.id, { name: editName, section: editSection }); setEditingSection(false); } };
-  if (editingSection) return (<div className="rounded-2xl bg-white border border-[#8127cf]/20 p-4 space-y-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">Edit Section</p><div className="grid grid-cols-2 gap-3"><FormInput label="Class Name" value={editName} placeholder="e.g. Class 10" onChange={setEditName} /><FormInput label="Section" value={editSection} placeholder="e.g. A" onChange={setEditSection} /></div><div className="flex gap-2 justify-end"><button type="button" onClick={() => setEditingSection(false)} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] cursor-pointer">Cancel</button><BrandButton variant="dark" className="h-10" onClick={saveSection}>Save</BrandButton></div></div>);
-  return (<div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10"><div className="flex items-center justify-between gap-3 p-4"><div onClick={(e) => { e.stopPropagation(); onViewClass(cls); }} className="min-w-0 flex-1 cursor-pointer text-left"><p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{cls.classTeacher?.fullName || "No class teacher"} - {cls._count?.students || 0} students</p></div><div className="flex shrink-0 items-center gap-1.5"><button type="button" onClick={(e) => { e.stopPropagation(); setEditingSection(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer" title="Edit section"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg></button>{onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer" title="Delete section"><Trash2 className="h-3.5 w-3.5" /></button>) : null}{changingTeacher ? (<select value={classTeacherId || ""} onChange={(e) => { const val = e.target.value; if (val !== classTeacherId) onChangeTeacher(cls.id, val); setChangingTeacher(false); }} className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer" autoFocus onBlur={() => setChangingTeacher(false)}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</select>) : (<button type="button" onClick={(e) => { e.stopPropagation(); setChangingTeacher(true); }} className={cn("flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-normal transition-all", cls.classTeacher ? "bg-emerald-50 text-emerald-700 hover:bg-amber-50 hover:text-amber-700" : "bg-amber-50 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700")}><Users className="h-3 w-3" />{cls.classTeacher ? "Chg" : "Asgn"}</button>)}{onAddStudent ? (<button type="button" onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }} className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">+ Student</button>) : null}<button type="button" onClick={() => setSubjectsOpen((v) => !v)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"><ChevronDown className={cn("h-4 w-4 transition-transform duration-200", subjectsOpen && "rotate-180")} /></button></div></div>{subjectsOpen ? (<div className="border-t border-[#cfc2d6]/10 px-4 py-3">{cls.subjects?.length ? (<div className="flex flex-wrap gap-2">{cls.subjects.slice(0, 5).map((subject: any) => (<div key={subject.id} className="flex items-center gap-1 rounded-full bg-white pl-3 pr-1 py-1"><span className="text-[8px] font-black uppercase tracking-normal text-[#8127cf]">{subject.name}{subject.teacher?.fullName ? ` - ${subject.teacher.fullName}` : ""}</span>{onDeleteSubject ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }} className="flex h-5 w-5 items-center justify-center rounded-full text-[#4d4354]/30 transition-all hover:bg-rose-50 hover:text-rose-500 cursor-pointer"><Trash2 className="h-3 w-3" /></button>) : null}</div>))}</div>) : (<p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">No subjects yet. Open this section to add subjects and assign teachers.</p>)}</div>) : null}</div>);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [changingTeacher, setChangingTeacher] = useState(false);
+  const [showAllStudents, setShowAllStudents] = useState(false);
+  const subjectCount = cls.subjects?.length || cls._count?.subjects || 0;
+  const studentCount = students.length || cls._count?.students || 0;
+  const displayStudents = showAllStudents ? students : students.slice(0, 6);
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 overflow-hidden">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+              <UserCheck className="h-3 w-3" />
+              {cls.classTeacher?.fullName || "No class teacher"}
+            </span>
+            <span className="text-[#4d4354]/20">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
+            <span className="text-[#4d4354]/20">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={(e) => { e.stopPropagation(); onViewClass(cls); }} className="flex h-8 items-center gap-1 rounded-lg bg-[#8127cf]/10 px-2.5 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white cursor-pointer" title="Edit section details">
+            <Pencil className="h-3 w-3" />Edit
+          </button>
+          {onDeleteClass ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer" title="Delete section"><Trash2 className="h-3.5 w-3.5" /></button>) : null}
+          {changingTeacher ? (
+            <select value={classTeacherId || ""} onChange={(e) => { const val = e.target.value; if (val !== classTeacherId) onChangeTeacher(cls.id, val); setChangingTeacher(false); }} className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-normal text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer" autoFocus onBlur={() => setChangingTeacher(false)}>
+              <option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}
+            </select>
+          ) : (
+            <button type="button" onClick={(e) => { e.stopPropagation(); setChangingTeacher(true); }} className={cn("flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-normal transition-all", cls.classTeacher ? "bg-emerald-50 text-emerald-700 hover:bg-amber-50 hover:text-amber-700" : "bg-amber-50 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700")}><Users className="h-3 w-3" />{cls.classTeacher ? "Chg" : "Asgn"}</button>
+          )}
+          {onAddStudent ? (<button type="button" onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }} className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white">+ Student</button>) : null}
+          <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"><ChevronDown className={cn("h-4 w-4 transition-transform duration-200", detailsOpen && "rotate-180")} /></button>
+        </div>
+      </div>
+
+      {detailsOpen ? (
+        <div className="border-t border-[#cfc2d6]/10">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 flex items-center gap-1"><BookOpen className="h-3 w-3" />Subjects ({subjectCount})</p>
+            </div>
+            {cls.subjects?.length ? (
+              <div className="space-y-1.5">
+                {cls.subjects.map((subject: any) => (
+                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 group/subj">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
+                      <p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/40 mt-0.5">{subject.teacher?.fullName || "No teacher"} · {subject.totalMarks || 100} marks</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase tracking-normal", subject.teacher?.id ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
+                        {subject.teacher?.id ? "Assigned" : "Unassigned"}
+                      </span>
+                      {onDeleteSubject ? (<button type="button" onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }} className="flex h-6 w-6 items-center justify-center rounded-md text-[#4d4354]/20 transition-all opacity-0 group-hover/subj:opacity-100 hover:bg-rose-50 hover:text-rose-500 cursor-pointer"><Trash2 className="h-3 w-3" /></button>) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (<p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">No subjects yet. Click Edit to add subjects and assign teachers.</p>)}
+          </div>
+
+          <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 flex items-center gap-1"><GraduationCap className="h-3 w-3" />Students ({studentCount})</p>
+              {students.length > 6 ? (<button type="button" onClick={() => setShowAllStudents(!showAllStudents)} className="text-[8px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{showAllStudents ? "Show Less" : `View All ${students.length}`}</button>) : null}
+            </div>
+            {students.length > 0 ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                {displayStudents.map((student: any) => (
+                  <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
+                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-[#fbf0fe] border border-white">
+                      <img src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`} alt="" className="h-full w-full object-cover" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-[#1f1a23] truncate">{student.fullName}</p>
+                      <p className="text-[7px] font-bold uppercase tracking-normal text-[#4d4354]/35">Roll {student.rollNo || "—"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (<p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">No students enrolled yet. Click + Student to add.</p>)}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onResend: () => void; onCancel: () => void }) {
@@ -1271,12 +1389,14 @@ function PrincipalSkeleton() {
   );
 }
 
-function ClassDetailModal({ cls, teachers, onChangeTeacher, onUpdateClass, onDeleteClass, onDeleteSubject, onUpdateSubject, onClose }: {
-  cls: any; teachers: any[]; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteClass: (cls: any) => void; onDeleteSubject: (subject: any) => void; onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>; onClose: () => void;
+function ClassDetailModal({ cls, teachers, onChangeTeacher, onUpdateClass, onDeleteClass, onCreateSubject, creatingSubject, onDeleteSubject, onUpdateSubject, onClose }: {
+  cls: any; teachers: any[]; onChangeTeacher: (classId: string, teacherId: string) => Promise<void>; onUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>; onDeleteClass: (cls: any) => void; onCreateSubject: (classId: string, subject: { name: string; totalMarks: number; teacherId: string }) => Promise<boolean>; creatingSubject: boolean; onDeleteSubject: (subject: any) => void; onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>; onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false); const [editName, setEditName] = useState(cls.name || ""); const [editSection, setEditSection] = useState(cls.section || ""); const [editYear, setEditYear] = useState(cls.academicYear || new Date().getFullYear()); const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null); const [editSubjectName, setEditSubjectName] = useState(""); const [editSubjectMarks, setEditSubjectMarks] = useState(100); const [teachingMode, setTeachingMode] = useState<"one" | "multi">("one"); const [teacherId, setTeacherId] = useState(cls.classTeacher?.id || ""); const [saving, setSaving] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState(""); const [newSubjectMarks, setNewSubjectMarks] = useState("100"); const [newSubjectTeacherId, setNewSubjectTeacherId] = useState(cls.classTeacher?.id || "");
   const handleSave = async () => { setSaving(true); try { await onChangeTeacher(cls.id, teacherId); await onUpdateClass(cls.id, { name: editName, section: editSection, academicYear: editYear }); toast.success("Class updated"); setEditing(false); } finally { setSaving(false); } };
   const handleUpdateSubject = async (subjectId: string) => { await onUpdateSubject(cls.id, subjectId, { name: editSubjectName, totalMarks: editSubjectMarks }); setEditingSubjectId(null); };
+  const handleAddSubject = async () => { const created = await onCreateSubject(cls.id, { name: newSubjectName, totalMarks: Number(newSubjectMarks) || 100, teacherId: newSubjectTeacherId }); if (created) { setNewSubjectName(""); setNewSubjectMarks("100"); } };
   return (<ModalFrame title={classLabel(cls)} onClose={onClose}><div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
     <div><div className="flex items-center justify-between gap-3 mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Class Details</p><button type="button" onClick={() => setEditing(!editing)} className="text-[9px] font-black uppercase tracking-normal text-[#8127cf] hover:underline cursor-pointer">{editing ? "Cancel" : "Edit"}</button></div>
     {editing ? (<div className="space-y-3"><div className="grid grid-cols-3 gap-3"><FormInput label="Name" value={editName} onChange={setEditName} /><FormInput label="Section" value={editSection} onChange={setEditSection} /><FormInput label="Year" value={String(editYear)} onChange={(v) => setEditYear(Number(v) || new Date().getFullYear())} /></div><FormSelect label="Class Teacher" value={teacherId} onChange={setTeacherId}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</FormSelect><div className="flex gap-2"><BrandButton variant="soft" onClick={handleSave} disabled={saving}>Save</BrandButton><BrandButton variant="danger" onClick={() => onDeleteClass(cls)}>Delete Class</BrandButton></div></div>) : (<div className="space-y-2"><DetailRow label="Name" value={cls.name} /><DetailRow label="Section" value={cls.section || "—"} /><DetailRow label="Year" value={cls.academicYear} /><DetailRow label="Class Teacher" value={cls.classTeacher?.fullName || "Unassigned"} /><DetailRow label="Students" value={cls._count?.students || 0} /><DetailRow label="Subjects" value={cls._count?.subjects || 0} /><DetailRow label="Exams" value={cls.exams?.length || 0} /></div>)}
@@ -1284,7 +1404,24 @@ function ClassDetailModal({ cls, teachers, onChangeTeacher, onUpdateClass, onDel
     <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Teacher Assignment</p><div className="flex gap-1"><button type="button" onClick={() => setTeachingMode("one")} className={cn("px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal cursor-pointer transition-all", teachingMode === "one" ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/60")}>One Teacher</button><button type="button" onClick={() => setTeachingMode("multi")} className={cn("px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal cursor-pointer transition-all", teachingMode === "multi" ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/60")}>Subject Teachers</button></div></div>
     {teachingMode === "one" ? (<div className="space-y-3"><select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer"><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</select><BrandButton variant="soft" onClick={async () => { await onChangeTeacher(cls.id, teacherId); toast.success("Teacher assigned"); }}>Apply</BrandButton></div>) : null}
     </div>
-    <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subjects</p></div><div className="space-y-2">{cls.subjects?.map((subject: any) => (<div key={subject.id}>{editingSubjectId === subject.id ? (<div className="rounded-2xl bg-white border border-[#8127cf]/20 p-3 space-y-2"><div className="grid grid-cols-2 gap-2"><FormInput label="Name" value={editSubjectName} onChange={setEditSubjectName} /><FormInput label="Marks" value={String(editSubjectMarks)} onChange={(v) => setEditSubjectMarks(Number(v) || 100)} /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={() => handleUpdateSubject(subject.id)}>Save</BrandButton><button type="button" onClick={() => setEditingSubjectId(null)} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 cursor-pointer">Cancel</button></div></div>) : (<div className="flex items-center justify-between gap-2 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{subject.name}</p><p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/45">{subject.teacher?.fullName || "Unassigned"} · {subject.totalMarks || 100} marks</p></div><div className="flex gap-1"><button type="button" onClick={() => { setEditingSubjectId(subject.id); setEditSubjectName(subject.name); setEditSubjectMarks(subject.totalMarks || 100); }} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"><Pencil className="h-3.5 w-3.5 mx-auto" /></button>{onDeleteSubject ? (<button type="button" onClick={() => onDeleteSubject(subject)} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"><Trash2 className="h-3.5 w-3.5 mx-auto" /></button>) : null}</div></div>)}</div>))}{(!cls.subjects?.length) ? <p className="text-[10px] font-bold text-[#4d4354]/45">No subjects yet.</p> : null}</div></div>
+    <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subjects</p></div><div className="space-y-2">{cls.subjects?.map((subject: any) => (<div key={subject.id}>{editingSubjectId === subject.id ? (<div className="rounded-2xl bg-white border border-[#8127cf]/20 p-3 space-y-2"><div className="grid grid-cols-2 gap-2"><FormInput label="Name" value={editSubjectName} onChange={setEditSubjectName} /><FormInput label="Marks" value={String(editSubjectMarks)} onChange={(v) => setEditSubjectMarks(Number(v) || 100)} /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={() => handleUpdateSubject(subject.id)}>Save</BrandButton><button type="button" onClick={() => setEditingSubjectId(null)} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/60 cursor-pointer">Cancel</button></div></div>) : (<div className="flex items-center justify-between gap-2 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{subject.name}</p><p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/45">{subject.teacher?.fullName || "Unassigned"} · {subject.totalMarks || 100} marks</p></div><div className="flex gap-1"><button type="button" onClick={() => { setEditingSubjectId(subject.id); setEditSubjectName(subject.name); setEditSubjectMarks(subject.totalMarks || 100); }} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"><Pencil className="h-3.5 w-3.5 mx-auto" /></button>{onDeleteSubject ? (<button type="button" onClick={() => onDeleteSubject(subject)} className="h-8 w-8 rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"><Trash2 className="h-3.5 w-3.5 mx-auto" /></button>) : null}</div></div>)}</div>))}{(!cls.subjects?.length) ? <p className="text-[10px] font-bold text-[#4d4354]/45">No subjects yet.</p> : null}
+      <div className="mt-4 rounded-2xl border border-[#cfc2d6]/10 bg-white p-4">
+        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-3">Add Subject</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <FormInput label="Name" value={newSubjectName} placeholder="e.g. Mathematics" onChange={setNewSubjectName} />
+          <FormInput label="Marks" type="number" value={newSubjectMarks} placeholder="100" onChange={setNewSubjectMarks} />
+        </div>
+        <div className="flex items-end gap-3">
+          <FormSelect label="Teacher" value={newSubjectTeacherId} onChange={setNewSubjectTeacherId}>
+            <option value="">Unassigned</option>
+            {teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}
+          </FormSelect>
+          <BrandButton variant="soft" onClick={handleAddSubject} disabled={creatingSubject || !newSubjectName.trim()}>
+            {creatingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+          </BrandButton>
+        </div>
+      </div>
+    </div></div>
     <div><div className="flex items-center justify-between mb-3"><p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Students ({cls.students?.length || 0})</p></div><div className="space-y-2 max-h-40 overflow-y-auto">{cls.students?.map((student: any) => (<div key={student.id} className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/40 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 px-4 py-2"><div className="min-w-0"><p className="truncate text-xs font-black text-[#1f1a23]">{student.fullName}</p><p className="text-[8px] font-bold uppercase tracking-normal text-[#4d4354]/45">Roll {student.rollNo}</p></div><StatusPill status={student.reportCards?.[0]?.status || "NO_REPORT"} /></div>))}{!cls.students?.length ? <p className="text-[10px] font-bold text-[#4d4354]/45">No students enrolled.</p> : null}</div></div>
   </div></ModalFrame>);
 }

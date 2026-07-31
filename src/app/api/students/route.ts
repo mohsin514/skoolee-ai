@@ -358,10 +358,15 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        const admissionYear = new Date().getFullYear();
+        const admissionCount = await tx.student.count({ where: { campusId: targetClass.campusId } });
+        const admissionNo = `ADM-${admissionYear}-${String(admissionCount + 1).padStart(4, "0")}`;
+
         const createdStudent = await tx.student.create({
           data: {
             campusId: targetClass.campusId,
             classId: student.classId,
+            admissionNo,
             studentUserId,
             parentUserId,
             fullName: student.fullName,

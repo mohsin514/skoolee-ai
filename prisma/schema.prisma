@@ -73,6 +73,9 @@ model Campus {
   parentCommunications  ParentCommunication[]
   gradeWeightConfigs GradeWeightConfig[]
   timetables    Timetable[]
+  teacherAttendance TeacherAttendance[]
+  studentClassHistory StudentClassHistory[]
+  academicCycles AcademicCycle[]
 
   @@map("campuses")
 }
@@ -125,6 +128,7 @@ model User {
   auditLogs      SuperAdminAuditLog[] @relation("AuditLogUser")
   loginSessions  LoginSession[]       @relation("UserSessions")
   passwordHistory PasswordHistory[]   @relation("PasswordHistory")
+  teacherAttendance TeacherAttendance[] @relation("TeacherAttendanceUser")
   lastLogin      DateTime?            @map("last_login")
   lastPasswordChange DateTime?        @map("last_password_change")
 
@@ -141,6 +145,7 @@ model Class {
   classTeacherId String?   @map("class_teacher_id")
   classTeacher   User?     @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   academicYear   Int       @map("academic_year")
+  status         String    @default("ACTIVE") // ACTIVE, COMPLETED
 
   // Relations
   students       Student[]
@@ -150,6 +155,7 @@ model Class {
   gradeWeightConfigs GradeWeightConfig[]
   attendance     Attendance[]
   timetables     Timetable[]
+  classHistory   StudentClassHistory[]
 
   @@map("classes")
 }
@@ -165,6 +171,7 @@ model Student {
   studentUser   User?     @relation("StudentUser", fields: [studentUserId], references: [id])
   parentUserId  String?   @map("parent_user_id")
   parent        User?     @relation("Parent", fields: [parentUserId], references: [id])
+  admissionNo   String?   @unique @map("admission_no") // Permanent ID across years
   fullName      String    @map("full_name")
   nameUr        String?   @map("name_ur")
   rollNo        String    @map("roll_no")
@@ -201,6 +208,7 @@ model Student {
   payments      Payment[]
   paymentPlans  PaymentPlan[]
   parentCommunications ParentCommunication[]
+  classHistory  StudentClassHistory[]
 
   @@unique([campusId, rollNo])
   @@map("students")
@@ -861,6 +869,46 @@ model PasswordReset {
   @@map("password_resets")
 }
 
+// ─── 18. STUDENT CLASS HISTORY ────────────────────────────
+model StudentClassHistory {
+  id              String    @id @default(uuid())
+  studentId       String    @map("student_id")
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId         String    @map("class_id")
+  class           Class     @relation(fields: [classId], references: [id])
+  campusId        String    @map("campus_id")
+  campus          Campus    @relation(fields: [campusId], references: [id])
+  rollNo          String    @map("roll_no")
+  academicYear    Int       @map("academic_year")
+  status          String    @default("ACTIVE") // ACTIVE, PROMOTED, TRANSFERRED, GRADUATED, DROPPED
+  finalGrade      String?   @map("final_grade")
+  finalPercentage Float?    @map("final_percentage")
+  promotedToClassId String? @map("promoted_to_class_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@unique([studentId, classId, academicYear])
+  @@index([campusId, academicYear])
+  @@map("student_class_history")
+}
+
+// ─── 19. TEACHER ATTENDANCE ──────────────────────────────
+model TeacherAttendance {
+  id          String           @id @default(uuid())
+  campusId    String           @map("campus_id")
+  campus      Campus           @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  userId      String           @map("user_id")
+  user        User             @relation("TeacherAttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime         @db.Date
+  status      AttendanceStatus @default(PRESENT)
+  checkInTime String?          @map("check_in_time") // "08:15"
+  notes       String?          @db.Text
+  markedAt    DateTime         @default(now()) @map("marked_at")
+
+  @@unique([userId, date])
+  @@index([campusId, date])
+  @@map("teacher_attendance")
+}
+
 // ─── Enums ────────────────────────────────────────────────
 
 enum UserRole {
@@ -892,4 +940,22 @@ enum InvoiceStatus {
   PARTIAL
   OVERDUE
   CANCELLED
+}
+
+// ─── ACADEMIC CYCLE ──────────────────────────────────────
+model AcademicCycle {
+  id            String    @id @default(uuid())
+  campusId      String    @map("campus_id")
+  campus        Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  label         String
+  academicYear  Int       @map("academic_year")
+  status        String    @default("DRAFT") // DRAFT, ACTIVE, PAUSED, ENDED
+  startDate     DateTime? @map("start_date") @db.Date
+  endDate       DateTime? @map("end_date") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, academicYear])
+  @@index([campusId, status])
+  @@map("academic_cycles")
 }
