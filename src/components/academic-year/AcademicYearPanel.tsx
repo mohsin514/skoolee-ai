@@ -142,9 +142,11 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
         <div className="space-y-4">
           {yearGroups.map((yg) => (
             <div key={yg.year} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-lg overflow-hidden">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpandedYear(expandedYear === yg.year ? null : yg.year)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedYear(expandedYear === yg.year ? null : yg.year); } }}
                 className="w-full flex items-center justify-between p-5 text-left cursor-pointer hover:bg-[#fbf0fe]/30 transition-colors"
               >
                 <div className="flex items-center gap-4">
@@ -175,7 +177,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   )}
                   {expandedYear === yg.year ? <ChevronDown className="h-5 w-5 text-[#4d4354]/30" /> : <ChevronRight className="h-5 w-5 text-[#4d4354]/30" />}
                 </div>
-              </button>
+              </div>
 
               {expandedYear === yg.year && (
                 <div className="border-t border-[#cfc2d6]/10 p-5 bg-[#fbf0fe]/10">

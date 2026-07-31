@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { addTeacher } from "@/app/actions/addTeacher";
+import { inviteStaff } from "@/app/actions/invite";
 
 interface AddTeacherFormProps {
   onSuccess: () => void;
@@ -118,15 +118,32 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
     setIsSubmitting(true);
     try {
-      await addTeacher({
-        ...form,
-        dateOfBirth: form.dateOfBirth || undefined,
-        joiningDate: form.joiningDate || undefined,
+      await inviteStaff({
+        email: form.email.trim().toLowerCase(),
+        fullName: form.fullName.trim(),
+        role: "TEACHER",
+        profile: {
+          fullName: form.fullName.trim(),
+          phone: form.phone.trim() || undefined,
+          cnic: form.cnic.trim() || undefined,
+          dateOfBirth: form.dateOfBirth || undefined,
+          gender: form.gender || undefined,
+          qualification: form.qualification || undefined,
+          specialization: form.specialization.trim() || undefined,
+          experience: form.experience.trim() || undefined,
+          address: form.address.trim() || undefined,
+          city: form.city.trim() || undefined,
+          province: form.province || undefined,
+          postalCode: form.postalCode.trim() || undefined,
+          joiningDate: form.joiningDate || undefined,
+          emergencyContact: form.emergencyContact.trim() || undefined,
+          emergencyPhone: form.emergencyPhone.trim() || undefined,
+        },
       });
-      toast.success("Teacher added successfully");
+      toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
       onSuccess();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add teacher");
+      toast.error(error instanceof Error ? error.message : "Could not send invitation");
     } finally {
       setIsSubmitting(false);
     }
@@ -443,7 +460,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-bold text-amber-700">
-                  Default password <span className="font-black">skoolee123</span> will be set. The teacher should change it on first login.
+                  An invitation email will be sent to the teacher. They must click the invite link, set their password, and complete onboarding.
                 </p>
               </div>
             </div>

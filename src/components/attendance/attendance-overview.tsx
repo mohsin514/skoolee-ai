@@ -478,14 +478,11 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       {/* ===== Header ===== */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8127cf]">
-            Attendance
-          </p>
-          <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">
-            {selectedClassId && classDetail
-              ? classDetail.className
-              : "Attendance Overview"}
-          </h2>
+          {selectedClassId && classDetail ? (
+            <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">
+              {classDetail.className}
+            </h2>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">

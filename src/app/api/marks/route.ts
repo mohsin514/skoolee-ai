@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       const isClassTeacher = exam.class.classTeacherId === user.userId;
       const allowedSubjectIds = new Set(
         exam.class.subjects
-          .filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
+          .filter((subject) => subject.teacherId === user.userId || isClassTeacher)
           .map((subject) => subject.id)
       );
 
@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
   const isTeacher = user.role === "TEACHER";
   const isClassTeacher = exam.class.classTeacherId === user.userId;
   const visibleSubjects = isTeacher
-    ? filteredSubjects.filter((subject) => subject.teacherId === user.userId || (isClassTeacher && !subject.teacherId))
+    ? filteredSubjects.filter((subject) => subject.teacherId === user.userId || isClassTeacher)
     : filteredSubjects;
   const visibleSubjectIds = new Set(visibleSubjects.map((subject) => subject.id));
 

@@ -7,6 +7,11 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 
+function parseLocalDate(date: string): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -23,7 +28,9 @@ export async function GET(req: NextRequest) {
 
     if (userId) {
       const where: any = { userId, campusId };
-      if (month) {
+      if (date) {
+        where.date = parseLocalDate(date);
+      } else if (month) {
         const [y, m] = month.split("-").map(Number);
         where.date = {
           gte: new Date(`${y}-${String(m).padStart(2, "0")}-01`),
@@ -48,8 +55,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (date) {
-      const targetDate = new Date(date);
-      targetDate.setHours(0, 0, 0, 0);
+      const targetDate = parseLocalDate(date);
 
       const teachers = await prisma.user.findMany({
         where: { campusId, role: "TEACHER", isActive: true },
@@ -78,6 +84,56 @@ export async function GET(req: NextRequest) {
       };
 
       return Response.json({ success: true, data: roster, summary });
+    }
+
+    if (month) {
+      const [y, m] = month.split("-").map(Number);
+      const startDate = new Date(`${y}-${String(m).padStart(2, "0")}-01`);
+      const endDate = new Date(m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`);
+
+      const teachers = await prisma.user.findMany({
+        where: { campusId, role: "TEACHER", isActive: true },
+        select: { id: true, fullName: true, email: true, profileImageUrl: true },
+        orderBy: { fullName: "asc" },
+      });
+
+      const records = await prisma.teacherAttendance.findMany({
+        where: { campusId, date: { gte: startDate, lt: endDate } },
+        select: { userId: true, status: true },
+      });
+
+      const perTeacher = new Map<string, { present: number; absent: number; leave: number; total: number }>();
+      for (const r of records) {
+        const entry = perTeacher.get(r.userId) || { present: 0, absent: 0, leave: 0, total: 0 };
+        entry.total++;
+        if (r.status === "PRESENT") entry.present++;
+        else if (r.status === "ABSENT") entry.absent++;
+        else if (r.status === "LEAVE") entry.leave++;
+        perTeacher.set(r.userId, entry);
+      }
+
+      const data = teachers.map((teacher) => {
+        const stats = perTeacher.get(teacher.id) || { present: 0, absent: 0, leave: 0, total: 0 };
+        return {
+          userId: teacher.id,
+          fullName: teacher.fullName,
+          email: teacher.email,
+          profileImageUrl: teacher.profileImageUrl,
+          presentDays: stats.present,
+          absentDays: stats.absent,
+          leaveDays: stats.leave,
+          totalDays: stats.total,
+        };
+      });
+
+      const summary = {
+        total: teachers.length,
+        present: data.reduce((s, d) => s + d.presentDays, 0),
+        absent: data.reduce((s, d) => s + d.absentDays, 0),
+        leave: data.reduce((s, d) => s + d.leaveDays, 0),
+      };
+
+      return Response.json({ success: true, data, summary });
     }
 
     throw new ApiError("Provide date or userId parameter", 400);
@@ -137,8 +193,7 @@ export async function POST(req: NextRequest) {
     }
 
     const campusId = await resolveCampusId(user, body.campusId);
-    const targetDate = new Date(dateStr);
-    targetDate.setHours(0, 0, 0, 0);
+    const targetDate = parseLocalDate(dateStr);
 
     const results = await prisma.$transaction(
       entries.map((entry: { userId: string; status: "PRESENT" | "ABSENT" | "LEAVE"; notes?: string }) =>

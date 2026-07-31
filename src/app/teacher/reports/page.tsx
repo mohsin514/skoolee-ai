@@ -19,6 +19,7 @@ export default function ReportsPage() {
   const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [remarkGeneratingFor, setRemarkGeneratingFor] = useState<string | null>(null);
+  const [savingRemarks, setSavingRemarks] = useState(false);
 
   const classHubs = data?.classHubs || [];
 
@@ -97,6 +98,28 @@ export default function ReportsPage() {
     finally { setSendingReport(null); }
   }, [loadData]);
 
+  const openReportCard = useCallback(async (report: any) => {
+    setSelectedReportCard(report);
+  }, []);
+
+  const saveRemarks = useCallback(async (remarks: { en: string; ur: string }) => {
+    if (!selectedReportCard) return;
+    setSavingRemarks(true);
+    try {
+      const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remarksEn: remarks.en || null, remarksUr: remarks.ur || null }),
+      });
+      const text = await res.text();
+      const result = JSON.parse(text);
+      if (!res.ok) throw new Error(result.error || "Could not save remarks");
+      toast.success("Remarks saved");
+      setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
+      await loadData();
+    } catch (error: any) { toast.error(error.message); }
+    finally { setSavingRemarks(false); }
+  }, [selectedReportCard, loadData]);
+
   if (loading && !data) return <ReportsSkeleton />;
   if (!data) return null;
 
@@ -173,7 +196,7 @@ export default function ReportsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-3">Recent Report Cards</p>
           <div className="space-y-2">
             {(data.recentReportCards || []).slice(0, 12).map((report: any) => (
-              <button key={report.id} type="button" onClick={() => setSelectedReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
+              <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className={cn(
                   "group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/10 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99]",
                   "hover:border-[#8127cf]/25 hover:shadow-xl hover:-translate-y-0.5",
@@ -201,8 +224,10 @@ export default function ReportsPage() {
 
       {selectedReportCard ? (
         <ReportCardDetailModal report={selectedReportCard} busy={sendingReport === selectedReportCard.id} remarkBusy={remarkGeneratingFor}
+          savingRemarks={savingRemarks}
           onClose={() => setSelectedReportCard(null)}
           onSend={() => sendReportCard(selectedReportCard.id)}
+          onSaveRemarks={saveRemarks}
           onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
         />
       ) : null}

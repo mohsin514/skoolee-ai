@@ -60,7 +60,7 @@ export default function TeacherDashboardHub() {
   useEffect(() => {
     (async () => {
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = new Date().toLocaleDateString("en-CA");
         const res = await fetch(`/api/teacher-attendance?userId=self&date=${today}`);
         const json = await res.json();
         if (json.success && json.data?.length > 0) {
@@ -188,7 +188,7 @@ export default function TeacherDashboardHub() {
     try {
       const res = await fetch("/api/grade-config", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), config: gradeConfig }),
+        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), ...gradeConfig }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
@@ -308,6 +308,8 @@ export default function TeacherDashboardHub() {
             </BrandButton>
             <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => {
               if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id);
+              setWeightedGradeResult(null);
+              setReportCardsGenerated(false);
               setShowGradeOverviewModal(true);
             }}>
               <span title="View weighted final grades">Final Grades</span>

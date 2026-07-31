@@ -380,10 +380,12 @@ export async function sendReportCardPublishedNotifications({
   reportCardId,
   channels = ["WHATSAPP", "EMAIL"],
   createdById,
+  approvedData,
 }: {
   reportCardId: string;
   channels?: NotificationChannel[];
   createdById?: string | null;
+  approvedData?: boolean;
 }) {
   const reportCard = await prisma.reportCard.findUnique({
     where: { id: reportCardId },
@@ -395,11 +397,12 @@ export async function sendReportCardPublishedNotifications({
 
   if (!reportCard) throw new Error("Report card not found");
 
-  const approvedData =
-    reportCard.remarksApproved &&
-    (reportCard.status === "PUBLISHED" || reportCard.status === "SENT") &&
-    reportCard.exam.status === "PUBLISHED" &&
-    Boolean(reportCard.exam.publishedAt);
+  const dataApproved =
+    approvedData ??
+    (reportCard.remarksApproved &&
+      (reportCard.status === "PUBLISHED" || reportCard.status === "SENT") &&
+      reportCard.exam.status === "PUBLISHED" &&
+      Boolean(reportCard.exam.publishedAt));
 
   return sendStudentTemplatedCommunication({
     studentId: reportCard.student.id,
@@ -415,7 +418,7 @@ export async function sendReportCardPublishedNotifications({
     attachmentUrl: absoluteUrl(reportCard.pdfUrl),
     relatedType: "REPORT_CARD",
     relatedId: reportCard.id,
-    approvedData,
+    approvedData: dataApproved,
     idempotencyBase: `report-card-published:${reportCard.id}`,
     metadata: { examStatus: reportCard.exam.status, reportCardStatus: reportCard.status },
   });

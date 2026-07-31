@@ -49,13 +49,17 @@ export default function MarksPage() {
       const res = await fetch(`/api/marks?examId=${examId}`);
       const text = await res.text();
       const result = JSON.parse(text);
-      if (result.markSheet) {
-        setMarkSheet(result.markSheet);
+      if (result.success) {
+        setMarkSheet({
+          students: result.students || [],
+          subjects: result.subjects || [],
+          existingMarks: result.marks || [],
+        });
         const map: Record<string, string> = {};
-        for (const student of result.markSheet.students || []) {
-          for (const subject of result.markSheet.subjects || []) {
+        for (const student of result.students || []) {
+          for (const subject of result.subjects || []) {
             const key = `${student.id}:${subject.id}`;
-            const mark = (result.markSheet.existingMarks || []).find((m: any) => m.studentId === student.id && m.subjectId === subject.id);
+            const mark = (result.marks || []).find((m: any) => m.studentId === student.id && m.subjectId === subject.id);
             if (mark) map[key] = String(mark.marksObtained);
           }
         }
@@ -79,22 +83,24 @@ export default function MarksPage() {
         for (const subject of markSheet.subjects || []) {
           const key = `${student.id}:${subject.id}`;
           const value = marksByKey[key];
-          const existing = (markSheet.existingMarks || []).find((m: any) => m.studentId === student.id && m.subjectId === subject.id);
-          payload.push({ id: existing?.id || null, studentId: student.id, subjectId: subject.id, marksObtained: value ? Number(value) : null });
+          if (value === "" || value === undefined) continue;
+          payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
         }
       }
+      if (payload.length === 0) { toast.error("Enter marks first"); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedExamId, marks: payload }),
+        body: JSON.stringify({ examId: selectedExamId, entries: payload }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
       if (!res.ok) throw new Error(result.error || "Failed to save marks");
       toast.success("Marks saved");
       await loadMarks(selectedExamId);
+      await loadData();
     } catch (error: any) { toast.error(error.message); }
     finally { setMarksSaving(false); }
-  }, [selectedExamId, markSheet, marksByKey, loadMarks]);
+  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData]);
 
   const exportMarksCSV = useCallback(() => {
     if (!markSheet) return;
@@ -152,7 +158,7 @@ export default function MarksPage() {
     try {
       const res = await fetch("/api/grade-config", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), config: gradeConfig }),
+        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), ...gradeConfig }),
       });
       const text = await res.text(); const result = JSON.parse(text);
       if (!res.ok) throw new Error(result.error || "Failed to save");
@@ -211,7 +217,7 @@ export default function MarksPage() {
         <div className="relative flex flex-wrap gap-2">
           <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => setShowExamModal(true)}><span title="Create a new exam or test">Create Assessment</span></BrandButton>
           <BrandButton variant="soft" icon={<Star className="w-4 h-4" />} onClick={() => { if (classHubs[0]) { setSelectedGradeClassId(classHubs[0].id); loadGradeConfig(classHubs[0].id); } setShowGradeConfigModal(true); }}><span title="Configure grading weights and thresholds">Grade Config</span></BrandButton>
-          <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => { if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id); setShowGradeOverviewModal(true); }}><span title="View weighted final grade calculations">Final Grades</span></BrandButton>
+          <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => { if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id); setWeightedGradeResult(null); setReportCardsGenerated(false); setShowGradeOverviewModal(true); }}><span title="View weighted final grade calculations">Final Grades</span></BrandButton>
         </div>
       </header>
 

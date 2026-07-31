@@ -5,6 +5,7 @@ import { getPlanLimits } from "@/config/plans";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
+import { transliterateToUrdu } from "@/lib/urdu";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
 type ChatRole = "system" | "user" | "assistant";
@@ -481,9 +482,11 @@ export async function generateRemark(
 
   if (request.language === "both") {
     const parts = result.text.split("---").map((s) => s.trim()).filter(Boolean);
+    const remarkEn = parts[0] || result.text;
+    const remarkUr = parts[1] || transliterateToUrdu(remarkEn);
     return {
-      remarkEn: parts[0] || result.text,
-      remarkUr: parts[1] || "",
+      remarkEn,
+      remarkUr,
       tokensUsed: result.tokensUsed,
       model: result.model,
       promptVersion: AI_PROMPT_VERSION,

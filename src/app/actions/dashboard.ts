@@ -80,7 +80,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
         },
         staffInvitations: {
           where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"] }, status: "pending" },
-          select: { id: true, email: true, role: true, status: true, expiresAt: true },
+          select: { id: true, email: true, role: true, status: true, expiresAt: true, profile: true },
           orderBy: { createdAt: "desc" },
         },
         classes: {
@@ -466,7 +466,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.school.findUnique({ where: { id: session.schoolId } }),
@@ -827,7 +827,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
       : classSubjects;
 
     const editableSubjects = relevantClassSubjects.filter((subject) =>
-      subject.teacherId === session.userId || (ledClassIds.has(exam.class.id) && (!subject.teacherId || subject.teacherId === session.userId))
+      subject.teacherId === session.userId || ledClassIds.has(exam.class.id)
     );
     const editableSubjectIds = new Set(editableSubjects.map((subject) => subject.id));
     const relevantMarks = exam.marks.filter((mark) => editableSubjectIds.has(mark.subjectId));
@@ -1182,7 +1182,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.campus.count({ where: { schoolId: session.schoolId } }),

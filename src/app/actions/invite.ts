@@ -9,12 +9,32 @@ import bcrypt from "bcryptjs";
 import { headers } from "next/headers";
 import { sendInviteEmail } from "@/lib/email";
 import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entitlements";
+import { Prisma } from "@prisma/client";
+
+const InviteProfileSchema = z.object({
+  fullName: z.string().optional(),
+  phone: z.string().optional(),
+  cnic: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  qualification: z.string().optional(),
+  specialization: z.string().optional(),
+  experience: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  postalCode: z.string().optional(),
+  joiningDate: z.string().optional(),
+  emergencyContact: z.string().optional(),
+  emergencyPhone: z.string().optional(),
+});
 
 const InviteSchema = z.object({
   email: z.string().email(),
   fullName: z.string().optional(),
   role: z.enum(['CAMPUS_ADMIN', 'PRINCIPAL', 'TEACHER']),
   campusId: z.string().uuid().optional(),
+  profile: InviteProfileSchema.optional(),
 });
 
 function isCompatibleInviteRole(existingRole: string, inviteRole: string) {
@@ -180,6 +200,7 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
       campusId: targetCampusId,
       token,
       expiresAt,
+      profile: valid.profile ?? Prisma.JsonNull,
     }
   });
 
@@ -337,8 +358,8 @@ export async function acceptInvite(token: string, password: string) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const placeholderName = invite.email.split("@")[0].replace(/[._-]/g, " ");
-  const needsOnboarding = invite.role === "TEACHER";
+  const storedProfile = (invite.profile as Record<string, string> | null) || {};
+  const placeholderName = storedProfile.fullName || invite.email.split("@")[0].replace(/[._-]/g, " ");
 
   const user = await prisma.$transaction(async (tx) => {
     const acceptedUser = existingUser
@@ -347,10 +368,24 @@ export async function acceptInvite(token: string, password: string) {
           data: {
             password: passwordHash,
             fullName: placeholderName,
+            phone: storedProfile.phone || null,
+            cnic: storedProfile.cnic || null,
+            dateOfBirth: storedProfile.dateOfBirth ? new Date(storedProfile.dateOfBirth) : null,
+            gender: storedProfile.gender || null,
+            qualification: storedProfile.qualification || null,
+            specialization: storedProfile.specialization || null,
+            experience: storedProfile.experience || null,
+            address: storedProfile.address || null,
+            city: storedProfile.city || null,
+            province: storedProfile.province || null,
+            postalCode: storedProfile.postalCode || null,
+            joiningDate: storedProfile.joiningDate ? new Date(storedProfile.joiningDate) : null,
+            emergencyContact: storedProfile.emergencyContact || null,
+            emergencyPhone: storedProfile.emergencyPhone || null,
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            onboardingComplete: !needsOnboarding,
+            onboardingComplete: true,
             isActive: true,
           },
         })
@@ -359,10 +394,24 @@ export async function acceptInvite(token: string, password: string) {
             email: invite.email,
             password: passwordHash,
             fullName: placeholderName,
+            phone: storedProfile.phone || null,
+            cnic: storedProfile.cnic || null,
+            dateOfBirth: storedProfile.dateOfBirth ? new Date(storedProfile.dateOfBirth) : null,
+            gender: storedProfile.gender || null,
+            qualification: storedProfile.qualification || null,
+            specialization: storedProfile.specialization || null,
+            experience: storedProfile.experience || null,
+            address: storedProfile.address || null,
+            city: storedProfile.city || null,
+            province: storedProfile.province || null,
+            postalCode: storedProfile.postalCode || null,
+            joiningDate: storedProfile.joiningDate ? new Date(storedProfile.joiningDate) : null,
+            emergencyContact: storedProfile.emergencyContact || null,
+            emergencyPhone: storedProfile.emergencyPhone || null,
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            onboardingComplete: !needsOnboarding,
+            onboardingComplete: true,
             isActive: true,
           }
         });

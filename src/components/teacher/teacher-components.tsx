@@ -5,11 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  AlertCircle, BarChart3, BookOpen, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Loader2, Loader, LogOut, Mail, School, Send, Star, Trash2, Users, X, Zap,
+  AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Languages, Loader2, Loader, LogOut, Mail, RefreshCw, Save, School, Send, Star, Trash2, Users, X, Zap,
 } from "lucide-react";
 import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { UrduInput } from "@/components/ui/urdu-input";
+import { transliterateToUrdu } from "@/lib/urdu";
 import {
   AiActionPanel, BrandButton, EmptyState, RoleShell, StatCard, type RoleNavItem,
 } from "@/components/role-dashboard";
@@ -234,10 +237,32 @@ export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave }: 
 }
 
 export function ConfigField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState<string>(value === undefined || value === null || Number.isNaN(value) ? "" : String(value));
+  const editing = useRef(false);
+
+  useEffect(() => {
+    if (!editing.current) {
+      setText(value === undefined || value === null || Number.isNaN(value) ? "" : String(value));
+    }
+  }, [value]);
+
   return (
     <div>
       <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
-      <input type="number" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value) || 0)}
+      <input type="number" min={0} max={100} value={text}
+        onFocus={() => { editing.current = true; }}
+        onBlur={() => {
+          editing.current = false;
+          const n = Number(text);
+          const valid = text !== "" && Number.isFinite(n) && n >= 0;
+          setText(valid ? String(Math.min(n, 100)) : "0");
+          onChange(valid ? Math.min(n, 100) : 0);
+        }}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Number(e.target.value);
+          if (e.target.value !== "" && Number.isFinite(n) && n >= 0 && n <= 100) onChange(n);
+        }}
         className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
     </div>
   );
@@ -351,14 +376,6 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
         </FormSelect>
       </div>
 
-      {!weightedGradeResult && !weightedGradeLoading && selectedGradeClassId ? (
-        <div className="mb-4">
-          <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => onGenerate(selectedGradeClassId)}>
-            Generate Final Grades
-          </BrandButton>
-        </div>
-      ) : null}
-
       {weightedGradeLoading ? (
         <LoadingBlock label="Calculating grades..." />
       ) : weightedGradeResult?.length ? (
@@ -403,7 +420,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
             <div className="flex flex-wrap gap-3">
               <BrandButton variant="dark" icon={generatingReportCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}>
-                {generatingReportCards ? "Generating..." : reportCardsGenerated ? "Report Cards Generated" : "Generate Report Cards"}
+                {generatingReportCards ? "Saving..." : reportCardsGenerated ? "Grades Saved" : "Generate & Save Grades"}
               </BrandButton>
               <BrandButton variant="dark" icon={<Download className="w-4 h-4" />} onClick={() => window.print()}>
                 Print / Download PDF
@@ -413,9 +430,9 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
         </>
       ) : selectedGradeClassId ? (
         <div className="space-y-4">
-          <EmptyInline text="Click 'Generate Final Grades' to calculate weighted grades from locked exams." />
+          <EmptyInline text="Click 'View Possible Grades' to calculate weighted grades from your exams." />
           <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => onGenerate(selectedGradeClassId)}>
-            Generate Final Grades
+            View Possible Grades
           </BrandButton>
         </div>
       ) : (
@@ -500,101 +517,288 @@ export function StudentDetailModal({ student, exams, onClose }: { student: any; 
 
 /* ── Modal: Report Card Detail ── */
 
-export function ReportCardDetailModal({ report, busy, remarkBusy, onClose, onSend, onGenerateRemarks }: {
-  report: any; busy: boolean; remarkBusy: string | null;
+export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks, onClose, onSend, onGenerateRemarks, onSaveRemarks }: {
+  report: any; busy: boolean; remarkBusy: string | null; savingRemarks?: boolean;
   onClose: () => void; onSend: () => void;
   onGenerateRemarks?: (studentId: string, examId: string) => void;
+  onSaveRemarks?: (remarks: { en: string; ur: string }) => void | Promise<void>;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [detailReport, setDetailReport] = useState<any>(report);
+  const [detailLoading, setDetailLoading] = useState(!report.subjectDistribution);
+  const [remarks, setRemarks] = useState({ en: report.remarksEn || "", ur: report.remarksUr || "" });
+  const [translatingUr, setTranslatingUr] = useState(false);
+  const urduTouchedRef = useRef(Boolean(report.remarksUr));
+  const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translateSeq = useRef(0);
   const avatar = report.student?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(report.student?.fullName || "Student")}`;
 
+  useEffect(() => {
+    setDetailReport(report);
+  }, [report]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (report.subjectDistribution) { setDetailLoading(false); return; }
+    setDetailLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/reports/${report.id}/detail`);
+        const result = JSON.parse(await res.text());
+        if (!cancelled && result.reportCard) setDetailReport(result.reportCard);
+      } catch {}
+      finally { if (!cancelled) setDetailLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [report.id, report.subjectDistribution]);
+
+  useEffect(() => {
+    setRemarks({ en: detailReport.remarksEn || "", ur: detailReport.remarksUr || "" });
+    urduTouchedRef.current = Boolean(detailReport.remarksUr);
+  }, [detailReport.id, detailReport.remarksEn, detailReport.remarksUr]);
+
+  useEffect(() => {
+    return () => {
+      if (translateTimer.current) clearTimeout(translateTimer.current);
+      translateSeq.current += 1;
+    };
+  }, []);
+
+  const runUrduTranslation = async (en: string) => {
+    const seq = ++translateSeq.current;
+    setTranslatingUr(true);
+    try {
+      const res = await fetch("/api/ai/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: en }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Translation failed");
+      if (seq === translateSeq.current && !urduTouchedRef.current && result.translation) {
+        setRemarks((r) => ({ ...r, ur: result.translation }));
+      }
+    } catch {}
+    finally {
+      if (seq === translateSeq.current) setTranslatingUr(false);
+    }
+  };
+
+  const handleRemarksEnChange = (en: string) => {
+    setRemarks((r) => {
+      const next = { ...r, en };
+      if (!urduTouchedRef.current) next.ur = transliterateToUrdu(en);
+      return next;
+    });
+    if (translateTimer.current) clearTimeout(translateTimer.current);
+    if (!urduTouchedRef.current && en.trim().length >= 4) {
+      translateTimer.current = setTimeout(() => runUrduTranslation(en.trim()), 800);
+    }
+  };
+
+  const handleRemarksUrChange = (ur: string) => {
+    urduTouchedRef.current = true;
+    if (translateTimer.current) clearTimeout(translateTimer.current);
+    translateSeq.current += 1;
+    setTranslatingUr(false);
+    setRemarks((r) => ({ ...r, ur }));
+  };
+
+  const handleTranslateUrdu = () => {
+    urduTouchedRef.current = false;
+    if (translateTimer.current) clearTimeout(translateTimer.current);
+    const en = remarks.en.trim();
+    setRemarks((r) => ({ ...r, ur: transliterateToUrdu(en) }));
+    if (en.length >= 4) runUrduTranslation(en);
+  };
+
+  const viewReport = detailReport || report;
+
   return (
-    <ModalFrame title={`${report.student?.fullName || "Student"} \u2014 Report Card`} eyebrow="Academic result" onClose={onClose} wide>
+    <ModalFrame title={`${viewReport.student?.fullName || "Student"} \u2014 Report Card`} eyebrow="Academic result" onClose={onClose} wide>
       <div ref={printRef} id="report-card-print" className="space-y-6">
         <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-xl">
             <img src={avatar} alt="" className="h-full w-full object-cover" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{report.exam?.title || "Final Grade"} &middot; {report.exam?.term || ""}</p>
-            <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{report.student?.fullName || "Student"}</h3>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
+            <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{viewReport.student?.fullName || "Student"}</h3>
             <p className="mt-2 text-sm font-semibold text-[#4d4354]/55">
-              {report.student?.rollNo ? `Roll No: ${report.student.rollNo}` : ""} &middot; {classLabel(report.student?.class)}
+              {viewReport.student?.rollNo ? `Roll No: ${viewReport.student.rollNo}` : ""} &middot; {classLabel(viewReport.student?.class)}
             </p>
-            <p className="mt-1 text-[11px] font-medium text-[#4d4354]/50">Generated {formatDate(report.generatedAt)}</p>
+            <p className="mt-1 text-[11px] font-medium text-[#4d4354]/50">Generated {formatDate(viewReport.generatedAt)}</p>
           </div>
           <div className="flex items-center gap-5 shrink-0">
             <div className="text-center">
-              <p className="text-4xl font-bold text-[#8127cf]">{Math.round(report.percentage || 0)}%</p>
+              <p className="text-4xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Percentage</p>
             </div>
             <div className="text-center">
-              <p className="text-4xl font-bold text-[#1d1b20]">{report.grade || "\u2014"}</p>
+              <p className="text-4xl font-bold text-[#1d1b20]">{viewReport.grade || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Grade</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <MiniMetric label="Roll No" value={report.student?.rollNo || "N/A"} active />
-          <MiniMetric label="Class" value={classLabel(report.student?.class)} />
-          <MiniMetric label="Status" value={<StatusPill status={report.status} />} />
-          <MiniMetric label="Delivery" value={report.deliveryStatus || "Pending"} />
+          <MiniMetric label="Roll No" value={viewReport.student?.rollNo || "N/A"} active />
+          <MiniMetric label="Class" value={classLabel(viewReport.student?.class)} />
+          <MiniMetric label="Status" value={<StatusPill status={viewReport.status} />} />
+          <MiniMetric label="Delivery" value={viewReport.deliveryStatus || "Pending"} />
         </div>
 
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
           <PanelTitle icon={BarChart3} title="Final Result" />
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
-              <p className="text-2xl font-bold text-[#1d1b20]">{report.totalMarks || "\u2014"}</p>
+              <p className="text-2xl font-bold text-[#1d1b20]">{viewReport.totalMarks || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Total Marks</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
-              <p className="text-2xl font-bold text-[#8127cf]">{report.obtainedMarks || "\u2014"}</p>
+              <p className="text-2xl font-bold text-[#8127cf]">{viewReport.obtainedMarks || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Obtained</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
-              <p className="text-2xl font-bold text-[#8127cf]">{Math.round(report.percentage || 0)}%</p>
+              <p className="text-2xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Percentage</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
-              <p className={`text-2xl font-bold ${report.passed !== false ? "text-[#1d1b20]" : "text-rose-600"}`}>{report.grade || "\u2014"}</p>
+              <p className={`text-2xl font-bold ${viewReport.passed !== false ? "text-[#1d1b20]" : "text-rose-600"}`}>{viewReport.grade || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Grade</p>
             </div>
           </div>
         </div>
 
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
-          <PanelTitle icon={BookOpen} title="Subject Marks" />
-          {report.marks?.length ? (
-            <div className="mt-4 space-y-2">
-              {report.marks.map((mark: any) => (
-                <DetailRow key={mark.id || mark.subjectId} label={mark.subject?.name || "Subject"} value={`${mark.marksObtained}/${mark.subject?.totalMarks || 100}`} />
+          <PanelTitle icon={BarChart3} title="Marks Distribution" />
+          {viewReport.weightConfig ? (
+            <p className="mt-3 text-[11px] font-semibold text-[#4d4354]/55">
+              Weights &mdash; Quiz {viewReport.weightConfig.quizWeight}% &middot; Class Test {viewReport.weightConfig.classTestWeight}% &middot; Mid Term {viewReport.weightConfig.midTermWeight}% &middot; Final {viewReport.weightConfig.finalWeight}%
+            </p>
+          ) : null}
+          {detailLoading ? (
+            <div className="mt-4 space-y-4">
+              {[0, 1, 2].map((i) => (
+                <div key={i}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <SkeletonBlock className="h-4 w-32 rounded-xl" />
+                    <div className="flex items-center gap-2">
+                      <SkeletonBlock className="h-6 w-20 rounded-full" />
+                      <SkeletonBlock className="h-6 w-24 rounded-full" />
+                    </div>
+                  </div>
+                  <SkeletonBlock className="h-24 rounded-2xl" />
+                </div>
               ))}
             </div>
-          ) : report.subjectBreakdown?.length ? (
-            <div className="mt-4 space-y-2">
-              {report.subjectBreakdown.map((sb: any) => (
-                <DetailRow key={sb.subjectId} label={sb.subjectName || "Subject"} value={`${sb.obtainedMarks}/${sb.totalMarks} (${sb.percentage}% \u2014 ${sb.grade})`} />
+          ) : (
+            <>
+          {viewReport.subjectDistribution?.length ? (
+            <div className="mt-4 space-y-5">
+              {viewReport.subjectDistribution.map((subject: any) => (
+                <div key={subject.subjectId}>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-bold text-[#1d1b20]">{subject.subjectName || "Subject"}</p>
+                  </div>
+                  {subject.exams?.length ? (
+                    <div className="overflow-hidden rounded-2xl border border-[#cfc2d6]/10 bg-white">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                            <th className="px-4 py-2.5">Exam</th>
+                            <th className="px-4 py-2.5 text-center">Weight</th>
+                            <th className="px-4 py-2.5 text-center">Marks</th>
+                            <th className="px-4 py-2.5 text-center">%</th>
+                            <th className="px-4 py-2.5 text-center">Contribution</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#f3f4f9]">
+                          {subject.exams.map((exam: any) => (
+                            <tr key={exam.examId} className="hover:bg-[#fbf0fe]/20 transition-colors">
+                              <td className="px-4 py-2.5 text-sm font-semibold text-[#1d1b20]">{exam.examTitle}</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#8127cf]">{exam.weight}%</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#1d1b20]">{exam.obtainedMarks}/{exam.totalMarks}</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#1d1b20]">{exam.percentage}%</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#8127cf]">{Math.round((exam.contribution || 0) * 10) / 10}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (<div className="mt-2"><EmptyInline text="No exam records for this subject." /></div>)}
+                </div>
               ))}
             </div>
-          ) : (<div className="mt-4"><EmptyInline text="Marks breakdown not available." /></div>)}
+          ) : (<div className="mt-4"><EmptyInline text="Exam breakdown not available." /></div>)}
+          {viewReport.overall ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3">
+              <p className="text-sm font-bold text-[#1d1b20]">Overall Weighted Result</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-[#fbf0fe] px-3 py-1 text-[11px] font-bold text-[#8127cf]">{viewReport.overall.overallPercentage}%</span>
+                <span className="rounded-full bg-white border border-[#cfc2d6]/10 px-3 py-1 text-[11px] font-bold text-[#1d1b20]">{viewReport.overall.overallGrade}</span>
+                <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase ${viewReport.overall.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                  {viewReport.overall.passed ? "Pass" : "Fail"}
+                </span>
+              </div>
+            </div>
+          ) : null}
+            </>
+          )}
         </div>
 
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
           <PanelTitle icon={FileText} title="Remarks" />
-          {report.remarksEn || report.remarksUr ? (
+          {onSaveRemarks ? (
             <div className="mt-4 space-y-3">
-              {report.remarksEn ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">English</p>
+                <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5 text-sm" placeholder="Write remarks for this student..." />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Urdu</p>
+                  <div className="flex items-center gap-1.5">
+                    {translatingUr ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#8127cf]">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Translating...
+                      </span>
+                    ) : null}
+                    <button type="button"
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-[#8127cf] hover:bg-[#fbf0fe] transition-colors"
+                      onClick={handleTranslateUrdu} title="Auto-convert from English remarks">
+                      <Languages className="h-3 w-3" /> Auto-translate
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-1.5">
+                  <UrduInput value={remarks.ur} onChange={handleRemarksUrChange} textarea placeholder="اردو میں نوٹس لکھیں..." />
+                </div>
+                {!remarks.ur && remarks.en ? (
+                  <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-[#4d4354]/45">
+                    <RefreshCw className="h-3 w-3" /> Urdu auto-translates from the English remark as you type.
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex justify-end">
+                <BrandButton variant="dark" icon={savingRemarks ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  onClick={() => onSaveRemarks({ en: remarks.en, ur: remarks.ur })} disabled={savingRemarks}>
+                  {savingRemarks ? "Saving..." : "Save Remarks"}
+                </BrandButton>
+              </div>
+            </div>
+          ) : viewReport.remarksEn || viewReport.remarksUr ? (
+            <div className="mt-4 space-y-3">
+              {viewReport.remarksEn ? (
                 <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">English</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{report.remarksEn}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksEn}</p>
                 </div>
               ) : null}
-              {report.remarksUr ? (
+              {viewReport.remarksUr ? (
                 <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20" dir="rtl">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Urdu</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{report.remarksUr}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksUr}</p>
                 </div>
               ) : null}
             </div>
@@ -603,14 +807,14 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, onClose, onSen
       </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#cfc2d6]/10 pt-5">
-        {report.exam?.id && report.student?.id && onGenerateRemarks ? (
+        {viewReport.exam?.id && viewReport.student?.id && onGenerateRemarks ? (
           <BrandButton variant="soft" icon={<BrainCircuit className="w-4 h-4" />}
-            onClick={() => onGenerateRemarks(report.student.id, report.exam.id)}
-            disabled={remarkBusy === report.student.id}>
-            {remarkBusy === report.student.id ? "Generating..." : "Generate Remarks"}
+            onClick={() => onGenerateRemarks(viewReport.student.id, viewReport.exam.id)}
+            disabled={remarkBusy === viewReport.student.id}>
+            {remarkBusy === viewReport.student.id ? "Generating..." : "Generate Remarks"}
           </BrandButton>
         ) : null}
-        {report.isSent ? (
+        {viewReport.isSent ? (
           <span className="rounded-full bg-emerald-50 border border-emerald-200 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">Already Sent</span>
         ) : (
           <BrandButton variant="dark" icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} onClick={onSend} disabled={busy}>

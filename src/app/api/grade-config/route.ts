@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { defaultWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
+import { type WeightConfig } from "@/lib/academic/grade-calculator";
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +23,21 @@ export async function GET(request: NextRequest) {
     });
 
     if (!config) {
-      return NextResponse.json({ exists: false, config: defaultWeightConfig() });
+      return NextResponse.json({
+        exists: false,
+        config: {
+          quizWeight: 10,
+          classTestWeight: 20,
+          midTermWeight: 30,
+          finalWeight: 40,
+          passingPercentage: 50,
+          gradeAplus: 90,
+          gradeA: 80,
+          gradeB: 70,
+          gradeC: 60,
+          gradeD: 50,
+        },
+      });
     }
 
     return NextResponse.json({

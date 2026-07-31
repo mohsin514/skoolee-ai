@@ -774,6 +774,7 @@ model StaffInvitation {
   token     String   @unique
   expiresAt DateTime @map("expires_at")
   status    String   @default("pending") // pending, accepted
+  profile   Json? // captured at invite time (fullName, phone, qualification, etc.)
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("staff_invitations")
