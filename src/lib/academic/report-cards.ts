@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { buildSubjectDistribution, calculateWeightedGrade, getOrCreateGradeWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
 
 export const EXAM_STATUSES = [
   "DRAFT",
@@ -281,10 +282,10 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     where: { id: reportCardId },
     include: {
       campus: { select: { name: true, city: true, address: true, phone: true, board: true, logoUrl: true } },
-      exam: { select: { title: true, term: true, academicYear: true } },
+      exam: { select: { id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true } },
       student: {
         include: {
-          class: { select: { name: true, section: true, academicYear: true } },
+          class: { select: { id: true, name: true, section: true, academicYear: true } },
         },
       },
     },
@@ -298,8 +299,37 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     orderBy: { subject: { name: "asc" } },
   });
 
+  let weightConfig: WeightConfig | null = null;
+  let subjectDistribution: any[] = [];
+  let overall: { overallPercentage: number; overallGrade: string; passed: boolean } | null = null;
+
+  const classId = reportCard.student.class?.id;
+  if (classId) {
+    try {
+      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear);
+      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear);
+      overall = {
+        overallPercentage: grade.overallPercentage,
+        overallGrade: grade.overallGrade,
+        passed: grade.passed,
+      };
+      const isAggregateFinal = reportCard.exam.subjectId === null && reportCard.exam.examType === "FINAL";
+      subjectDistribution = await buildSubjectDistribution({
+        studentId: reportCard.studentId,
+        campusId: reportCard.campusId,
+        classId,
+        academicYear: reportCard.exam.academicYear,
+        weightConfig,
+        ...(isAggregateFinal ? { excludeExamId: reportCard.examId } : {}),
+      });
+    } catch {}
+  }
+
   return {
     reportCard,
+    weightConfig,
+    subjectDistribution,
+    overall,
     marks: marks.map((mark) => ({
       subject: mark.subject.name,
       obtained: mark.marksObtained,

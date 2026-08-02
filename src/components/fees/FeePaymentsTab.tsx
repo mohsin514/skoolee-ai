@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
+import { downloadPdfFile } from "@/lib/download";
 import type { PaymentRecord } from "./fee-types";
 import {
   API,
@@ -282,6 +283,20 @@ function PaymentModal({
   const [step, setStep] = useState<"search" | "payment" | "receipt">("search");
   const [receipt, setReceipt] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!receipt?.id) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadPdfFile(`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`, `receipt-${receipt.receiptNumber || "payment"}.pdf`);
+      toast.success("Receipt PDF downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const searchStudents = async () => {
     if (!searchQuery.trim()) return;
@@ -348,6 +363,7 @@ function PaymentModal({
       const json = await res.json();
       if (json.success) {
         setReceipt({
+          id: json.data?.id || "",
           receiptNumber: json.data?.receiptNumber || "",
           studentName: json.data?.studentName || "",
           invoiceNumber: json.data?.invoiceNumber || "",
@@ -413,9 +429,9 @@ function PaymentModal({
               <BrandButton variant="soft" className="flex-1 h-12" onClick={onSaved}>
                 Close
               </BrandButton>
-              <BrandButton className="flex-1 h-12" onClick={() => window.print()}>
-                <Printer className="w-4 h-4" />
-                Print Receipt
+              <BrandButton className="flex-1 h-12" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                {downloadingPdf ? "Preparing PDF..." : "Download Receipt"}
               </BrandButton>
             </div>
           </div>

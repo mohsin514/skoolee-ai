@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Calendar, Loader2 } from "lucide-react";
+import { Calendar, CalendarX2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
+import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 
 interface TeacherSlot {
   id: string;
@@ -39,15 +40,7 @@ export default function TeacherTimetablePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="flex items-center justify-center py-32">
-          <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <TimetableSkeleton />;
 
   const today = new Date().getDay(); // 0=Sun, 1=Mon...
   const todaySlots = slots.filter((s) => s.dayOfWeek === (today === 0 ? 7 : today) && s.slotType === "CLASS" && s.subject);
@@ -60,37 +53,51 @@ export default function TeacherTimetablePage() {
         <p className="text-sm font-semibold text-[#4d4354]/60 mt-2">Your published class schedule across all assigned classes</p>
       </div>
 
-      {/* Today's classes highlight */}
-      {todaySlots.length > 0 && (
-        <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-7 w-7 rounded-lg bg-[#8127cf] flex items-center justify-center">
-              <Calendar className="w-3.5 h-3.5 text-white" />
-            </div>
-            <h3 className="text-xs font-black text-[#1f1a23]">Today&apos;s Classes</h3>
+      {slots.length === 0 ? (
+        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">
+            <CalendarX2 className="h-7 w-7 text-[#8127cf]" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {todaySlots.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 rounded-xl bg-white/80 border border-[#cfc2d6]/10 px-3 py-2">
-                <span className="text-[10px] font-black text-[#8127cf]">{s.startTime}</span>
-                <span className="text-[10px] font-bold text-[#4d4354]/30">|</span>
-                <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
-                <span className="text-[9px] font-semibold text-[#4d4354]/40">
-                  {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-base font-black text-[#1f1a23]">No classes assigned yet</h3>
+          <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-[#4d4354]/55">
+            Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later.
+          </p>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Today's classes highlight */}
+          {todaySlots.length > 0 && (
+            <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-7 w-7 rounded-lg bg-[#8127cf] flex items-center justify-center">
+                  <Calendar className="w-3.5 h-3.5 text-white" />
+                </div>
+                <h3 className="text-xs font-black text-[#1f1a23]">Today&apos;s Classes</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {todaySlots.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 rounded-xl bg-white/80 border border-[#cfc2d6]/10 px-3 py-2">
+                    <span className="text-[10px] font-black text-[#8127cf]">{s.startTime}</span>
+                    <span className="text-[10px] font-bold text-[#4d4354]/30">|</span>
+                    <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
+                    <span className="text-[9px] font-semibold text-[#4d4354]/40">
+                      {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-      <TimetableReadOnly
-        slots={slots.map((s) => ({
-          ...s,
-          teacher: null,
-        }))}
-        title="Full Week Schedule"
-      />
+          <TimetableReadOnly
+            slots={slots.map((s) => ({
+              ...s,
+              teacher: null,
+            }))}
+            title="Full Week Schedule"
+          />
+        </>
+      )}
     </div>
   );
 }

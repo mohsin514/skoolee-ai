@@ -1,9 +1,17 @@
-import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
 
 type ReportPayload = Awaited<ReturnType<typeof getReportCardPdfPayload>>;
+
+Font.register({
+  family: "NotoNaskhArabic",
+  fonts: [
+    { src: path.join(process.cwd(), "public", "fonts", "NotoNaskhArabic-Regular.ttf"), fontWeight: 400 },
+    { src: path.join(process.cwd(), "public", "fonts", "NotoNaskhArabic-Bold.ttf"), fontWeight: 700 },
+  ],
+});
 
 const styles = StyleSheet.create({
   page: {
@@ -12,105 +20,226 @@ const styles = StyleSheet.create({
     color: "#172033",
     fontFamily: "Helvetica",
   },
-  header: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#d7dde8",
-    paddingBottom: 14,
-    marginBottom: 16,
-  },
-  headerRow: {
+  headerCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    backgroundColor: "#fbf0fe",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
   },
-  logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 6,
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
   },
-  headerText: {
+  headerInfo: {
     flex: 1,
+    paddingLeft: 14,
   },
-  schoolName: {
+  eyebrow: {
+    fontSize: 8,
+    color: "#8127cf",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  studentName: {
     fontSize: 20,
     fontWeight: 700,
+    color: "#1d1b20",
   },
-  muted: {
-    color: "#667085",
+  subline: {
+    fontSize: 8,
+    color: "#4d4354",
+    marginTop: 4,
   },
-  title: {
-    marginTop: 8,
-    fontSize: 14,
+  headerStats: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  bigStat: {
+    textAlign: "center",
+    paddingLeft: 14,
+  },
+  bigValue: {
+    fontSize: 22,
     fontWeight: 700,
+    color: "#8127cf",
   },
-  grid: {
+  bigLabel: {
+    fontSize: 7,
+    color: "#4d4354",
+    textTransform: "uppercase",
+    fontWeight: 700,
+    marginTop: 2,
+  },
+  statRow: {
     flexDirection: "row",
     marginBottom: 14,
   },
-  panel: {
+  statBox: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#d7dde8",
-    borderRadius: 6,
-    padding: 10,
-    marginRight: 12,
+    borderColor: "#e8e0ec",
+    borderRadius: 10,
+    paddingVertical: 8,
+    textAlign: "center",
+    marginRight: 8,
   },
-  label: {
-    color: "#667085",
-    fontSize: 8,
-    textTransform: "uppercase",
-    marginBottom: 3,
+  statBoxLast: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e8e0ec",
+    borderRadius: 10,
+    paddingVertical: 8,
+    textAlign: "center",
   },
-  value: {
+  statValue: {
     fontSize: 11,
     fontWeight: 700,
+    color: "#1d1b20",
+  },
+  statLabel: {
+    fontSize: 7,
+    color: "#4d4354",
+    textTransform: "uppercase",
+    fontWeight: 700,
+    marginTop: 2,
+  },
+  section: {
+    backgroundColor: "#fbf0fe",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#1d1b20",
     marginBottom: 8,
+  },
+  weightsLine: {
+    fontSize: 8,
+    color: "#4d4354",
+    fontWeight: 600,
+    marginBottom: 8,
+  },
+  subjectHeader: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#1d1b20",
+    marginTop: 10,
+    marginBottom: 6,
   },
   table: {
     borderWidth: 1,
-    borderColor: "#d7dde8",
-    borderRadius: 6,
-    marginBottom: 14,
+    borderColor: "#e8e0ec",
+    borderRadius: 8,
+    marginBottom: 4,
+    overflow: "hidden",
   },
-  row: {
+  tr: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#e8ecf3",
+    borderBottomColor: "#f3f4f9",
   },
-  lastRow: {
-    borderBottomWidth: 0,
+  trLast: {
+    flexDirection: "row",
   },
   th: {
-    backgroundColor: "#f3f6fb",
+    backgroundColor: "#f5eefb",
+  },
+  thText: {
+    fontSize: 7,
+    color: "#4d4354",
+    textTransform: "uppercase",
     fontWeight: 700,
+    padding: 6,
   },
-  cell: {
-    padding: 8,
+  tdText: {
+    fontSize: 8,
+    paddingVertical: 6,
   },
-  subjectCell: {
-    flex: 2,
+  flexExam: {
+    flex: 2.4,
+    paddingLeft: 6,
   },
-  numberCell: {
+  flexCell: {
     flex: 1,
-    textAlign: "right",
+    textAlign: "center",
   },
-  remarks: {
+  overallRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#d7dde8",
-    borderRadius: 6,
+    borderColor: "#e8e0ec",
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 8,
+  },
+  overallLabel: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#1d1b20",
+  },
+  pillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    fontSize: 8,
+    fontWeight: 700,
+    marginLeft: 6,
+  },
+  pillPass: {
+    backgroundColor: "#e7f6ee",
+    color: "#047857",
+  },
+  pillFail: {
+    backgroundColor: "#fee2e2",
+    color: "#b91c1c",
+  },
+  pillPlain: {
+    backgroundColor: "#fbf0fe",
+    color: "#8127cf",
+  },
+  remarksBox: {
+    borderWidth: 1,
+    borderColor: "#e8e0ec",
+    borderRadius: 10,
     padding: 10,
-    marginBottom: 10,
+    marginBottom: 8,
+  },
+  remarkLabel: {
+    fontSize: 7,
+    color: "#4d4354",
+    textTransform: "uppercase",
+    fontWeight: 700,
+    marginBottom: 4,
   },
   remarkText: {
-    fontSize: 10,
+    fontSize: 9,
     lineHeight: 1.5,
+    color: "#1d1b20",
+  },
+  urduText: {
+    fontSize: 12,
+    lineHeight: 1.7,
+    fontFamily: "NotoNaskhArabic",
+    color: "#1d1b20",
+    direction: "rtl",
   },
   footer: {
-    marginTop: 20,
+    marginTop: 24,
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     color: "#667085",
-    fontSize: 8,
+    fontSize: 9,
   },
 });
 
@@ -119,91 +248,144 @@ function classLabel(payload: ReportPayload) {
   return [cls.name, cls.section].filter(Boolean).join(" - ");
 }
 
+function formatDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function StatBox({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={last ? styles.statBoxLast : styles.statBox}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MarksDistribution({ payload }: { payload: ReportPayload }) {
+  const { subjectDistribution, weightConfig, overall } = payload;
+  const subjects = subjectDistribution.filter((s: any) => s.exams?.length);
+
+  if (subjects.length === 0 && !overall) return null;
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Marks Distribution</Text>
+      {weightConfig ? (
+        <Text style={styles.weightsLine}>
+          Weights — Quiz {weightConfig.quizWeight}% · Class Test {weightConfig.classTestWeight}% · Mid Term {weightConfig.midTermWeight}% · Final {weightConfig.finalWeight}%
+        </Text>
+      ) : null}
+
+      {subjects.map((subject: any, i: number) => (
+        <View key={subject.subjectId}>
+          <Text style={[styles.subjectHeader, i === 0 ? { marginTop: 0 } : {}]}>{subject.subjectName}</Text>
+          <View style={styles.table}>
+            <View style={[styles.tr, styles.th]}>
+              <Text style={[styles.thText, styles.flexExam]}>Exam</Text>
+              <Text style={[styles.thText, styles.flexCell]}>Weight</Text>
+              <Text style={[styles.thText, styles.flexCell]}>Marks</Text>
+              <Text style={[styles.thText, styles.flexCell]}>%</Text>
+              <Text style={[styles.thText, styles.flexCell]}>Contribution</Text>
+            </View>
+            {subject.exams.map((exam: any, j: number) => (
+              <View key={exam.examId} style={j === subject.exams.length - 1 ? styles.trLast : styles.tr}>
+                <Text style={[styles.tdText, styles.flexExam]}>{exam.examTitle}</Text>
+                <Text style={[styles.tdText, styles.flexCell]}>{exam.weight}%</Text>
+                <Text style={[styles.tdText, styles.flexCell]}>{exam.obtainedMarks}/{exam.totalMarks}</Text>
+                <Text style={[styles.tdText, styles.flexCell]}>{exam.percentage}%</Text>
+                <Text style={[styles.tdText, styles.flexCell]}>{Math.round((exam.contribution || 0) * 10) / 10}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ))}
+
+      {overall ? (
+        <View style={styles.overallRow}>
+          <Text style={styles.overallLabel}>Overall Weighted Result</Text>
+          <View style={styles.pillRow}>
+            <Text style={[styles.pill, styles.pillPlain]}>{overall.overallPercentage}%</Text>
+            <Text style={[styles.pill, styles.pillPlain]}>{overall.overallGrade}</Text>
+            <Text style={[styles.pill, overall.passed ? styles.pillPass : styles.pillFail]}>
+              {overall.passed ? "PASS" : "FAIL"}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function ReportCardDocument({ payload }: { payload: ReportPayload }) {
-  const { reportCard, marks } = payload;
-  const attendance = reportCard.attendanceTotal
-    ? `${reportCard.attendancePresent}/${reportCard.attendanceTotal}`
-    : "Not recorded";
-  const logoUrl = reportCard.campus.logoUrl;
+  const { reportCard, subjectDistribution, overall } = payload;
+  const student = reportCard.student;
+  const exam = reportCard.exam;
+  const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
+  const displayPercentage = overall ? overall.overallPercentage : Math.round(reportCard.percentage || 0);
+  const displayGrade = overall ? overall.overallGrade : reportCard.grade || "—";
+
+  const remarkSections: { label: string; value: string; urdu?: boolean }[] = [];
+  if (reportCard.remarksEn) remarkSections.push({ label: "English", value: reportCard.remarksEn });
+  if (reportCard.remarksUr) remarkSections.push({ label: "Urdu", value: reportCard.remarksUr, urdu: true });
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : null}
-            <View style={styles.headerText}>
-              <Text style={styles.schoolName}>{reportCard.campus.name}</Text>
-              <Text style={styles.muted}>
-                {[reportCard.campus.board, reportCard.campus.city, reportCard.campus.phone].filter(Boolean).join(" | ")}
-              </Text>
+        <View style={styles.headerCard}>
+          {avatarUrl ? <Image src={avatarUrl} style={styles.avatar} /> : null}
+          <View style={styles.headerInfo}>
+            <Text style={styles.eyebrow}>{exam.title}{exam.term ? ` · ${exam.term}` : ""}</Text>
+            <Text style={styles.studentName}>{student.fullName}</Text>
+            <Text style={styles.subline}>
+              {student.rollNo ? `Roll No: ${student.rollNo} · ` : ""}{classLabel(payload)}
+            </Text>
+            <Text style={styles.subline}>Generated {formatDate(reportCard.generatedAt)}</Text>
+          </View>
+          <View style={styles.headerStats}>
+            <View style={styles.bigStat}>
+              <Text style={styles.bigValue}>{displayPercentage}%</Text>
+              <Text style={styles.bigLabel}>Percentage</Text>
+            </View>
+            <View style={styles.bigStat}>
+              <Text style={styles.bigValue}>{displayGrade}</Text>
+              <Text style={styles.bigLabel}>Grade</Text>
             </View>
           </View>
-          <Text style={styles.title}>
-            Report Card - {reportCard.exam.title} ({reportCard.exam.term} {reportCard.exam.academicYear})
-          </Text>
         </View>
 
-        <View style={styles.grid}>
-          <View style={styles.panel}>
-            <Text style={styles.label}>Student</Text>
-            <Text style={styles.value}>{reportCard.student.fullName}</Text>
-            <Text style={styles.label}>Roll No</Text>
-            <Text style={styles.value}>{reportCard.student.rollNo}</Text>
-            <Text style={styles.label}>Class</Text>
-            <Text style={styles.value}>{classLabel(payload)}</Text>
-          </View>
-          <View style={styles.panel}>
-            <Text style={styles.label}>Total</Text>
-            <Text style={styles.value}>
-              {reportCard.obtainedMarks}/{reportCard.totalMarks}
-            </Text>
-            <Text style={styles.label}>Percentage</Text>
-            <Text style={styles.value}>{reportCard.percentage.toFixed(1)}%</Text>
-            <Text style={styles.label}>Grade / Rank / Attendance</Text>
-            <Text style={styles.value}>
-              {reportCard.grade || "-"} / {reportCard.rank || "-"} / {attendance}
-            </Text>
-          </View>
+        <View style={styles.statRow}>
+          <StatBox label="Roll No" value={student.rollNo || "N/A"} />
+          <StatBox label="Class" value={classLabel(payload)} />
+          <StatBox label="Status" value={reportCard.status || "—"} />
+          <StatBox label="Delivery" value={reportCard.deliveryStatus || "Pending"} last />
         </View>
 
-        <View style={styles.table}>
-          <View style={[styles.row, styles.th]}>
-            <Text style={[styles.cell, styles.subjectCell]}>Subject</Text>
-            <Text style={[styles.cell, styles.numberCell]}>Marks</Text>
-            <Text style={[styles.cell, styles.numberCell]}>Grade</Text>
-          </View>
-          {marks.map((mark, index) => {
-            const rowStyle = index === marks.length - 1 ? [styles.row, styles.lastRow] : styles.row;
-            return (
-              <View key={mark.subject} style={rowStyle}>
-                <Text style={[styles.cell, styles.subjectCell]}>{mark.subject}</Text>
-                <Text style={[styles.cell, styles.numberCell]}>
-                  {mark.obtained}/{mark.total}
-                </Text>
-                <Text style={[styles.cell, styles.numberCell]}>{mark.grade}</Text>
+        <View style={styles.statRow}>
+          <StatBox label="Total Marks" value={String(reportCard.totalMarks ?? "—")} />
+          <StatBox label="Obtained" value={String(reportCard.obtainedMarks ?? "—")} />
+          <StatBox label="Percentage" value={`${displayPercentage}%`} />
+          <StatBox label="Grade" value={displayGrade} last />
+        </View>
+
+        {subjectDistribution?.length || overall ? <MarksDistribution payload={payload} /> : null}
+
+        {remarkSections.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Remarks</Text>
+            {remarkSections.map((r) => (
+              <View key={r.label} style={styles.remarksBox}>
+                <Text style={styles.remarkLabel}>{r.label}</Text>
+                <Text style={r.urdu ? styles.urduText : styles.remarkText}>{r.value}</Text>
               </View>
-            );
-          })}
-        </View>
-
-        {reportCard.remarksEn ? (
-          <View style={styles.remarks}>
-            <Text style={styles.label}>Principal Approved Remarks</Text>
-            <Text style={styles.remarkText}>{reportCard.remarksEn}</Text>
-          </View>
-        ) : null}
-
-        {reportCard.remarksUr ? (
-          <View style={styles.remarks}>
-            <Text style={styles.label}>Urdu Remarks</Text>
-            <Text style={styles.remarkText}>{reportCard.remarksUr}</Text>
+            ))}
           </View>
         ) : null}
 
         <View style={styles.footer}>
-          <Text>Generated by SkooleeAI</Text>
-          <Text>Principal signature: ____________________</Text>
+          <Text>Principal Signature: ____________________</Text>
         </View>
       </Page>
     </Document>

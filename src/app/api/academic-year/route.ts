@@ -264,14 +264,19 @@ async function generateRollNo(
   targetClass: { name: string; section: string | null; campusId: string; id: string },
   offset = 0
 ): Promise<string> {
-  const nameAbbrev = targetClass.name
-    .replace(/[^a-zA-Z0-9 ]/g, "")
-    .split(" ")
-    .map((word) => word.slice(0, 3).toUpperCase())
-    .join("");
-  const sectionChar = (targetClass.section || "A").charAt(0).toUpperCase();
+  const abbrev = targetClass.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase();
+  const secChar = (targetClass.section || "A").charAt(0).toUpperCase();
+  const prefix = `${abbrev}-${secChar}-`;
 
-  const existingCount = await tx.student.count({ where: { classId: targetClass.id } });
-  const seqNum = existingCount + 1 + offset;
-  return `${nameAbbrev}-${sectionChar}-${String(seqNum).padStart(3, "0")}`;
+  const existingRolls = await tx.student.findMany({
+    where: { classId: targetClass.id, rollNo: { startsWith: prefix } },
+    select: { rollNo: true },
+  });
+  let maxNum = 0;
+  for (const s of existingRolls) {
+    const num = parseInt(s.rollNo.slice(prefix.length), 10);
+    if (!isNaN(num) && num > maxNum) maxNum = num;
+  }
+  const seqNum = maxNum + 1 + offset;
+  return `${prefix}${String(seqNum).padStart(3, "0")}`;
 }

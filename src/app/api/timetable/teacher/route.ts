@@ -14,11 +14,14 @@ export async function GET(req: NextRequest) {
 
     const slots = await prisma.timetableSlot.findMany({
       where: {
-        teacherId,
         timetable: {
           campusId,
           status: "PUBLISHED",
         },
+        OR: [
+          { teacherId },
+          { subject: { teacherId } },
+        ],
       },
       include: {
         subject: { select: { id: true, name: true } },

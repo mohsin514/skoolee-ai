@@ -257,3 +257,81 @@ export async function calculateWeightedGradeForClass(
 
   return ranked;
 }
+
+export function weightForExamType(examType: string, config: WeightConfig): number {
+  switch (examType) {
+    case "QUIZ": return config.quizWeight;
+    case "CLASS_TEST": return config.classTestWeight;
+    case "MID_TERM": return config.midTermWeight;
+    case "FINAL": return config.finalWeight;
+    default: return 0;
+  }
+}
+
+export async function buildSubjectDistribution(opts: {
+  studentId: string;
+  campusId: string;
+  classId: string;
+  academicYear: number;
+  weightConfig: WeightConfig;
+  excludeExamId?: string;
+}) {
+  const subjects = await prisma.subject.findMany({
+    where: { classId: opts.classId, campusId: opts.campusId },
+    select: { id: true, name: true, totalMarks: true },
+    orderBy: { name: "asc" },
+  });
+  const exams = await prisma.exam.findMany({
+    where: {
+      classId: opts.classId,
+      campusId: opts.campusId,
+      academicYear: opts.academicYear,
+      status: { notIn: ["DRAFT", "ACTIVE"] },
+    },
+    select: { id: true, title: true, examType: true, subjectId: true },
+    orderBy: [{ examType: "asc" }, { title: "asc" }],
+  });
+  const marks = await prisma.mark.findMany({
+    where: {
+      studentId: opts.studentId,
+      examId: { in: exams.map((e) => e.id) },
+      subjectId: { in: subjects.map((s) => s.id) },
+    },
+  });
+
+  return subjects.map((subject) => {
+    const subjectMarks = marks.filter((m) => m.subjectId === subject.id);
+    const examRows = exams
+      .filter((exam) => (exam.subjectId ? exam.subjectId === subject.id : exam.id !== opts.excludeExamId))
+      .map((exam) => {
+        const obtainedMarks = subjectMarks.filter((m) => m.examId === exam.id).reduce((sum, m) => sum + m.marksObtained, 0);
+        const totalMarks = subject.totalMarks;
+        const percentage = totalMarks > 0 ? Math.round((obtainedMarks / totalMarks) * 100) : 0;
+        const weight = weightForExamType(exam.examType, opts.weightConfig);
+        return {
+          examId: exam.id,
+          examTitle: exam.title,
+          examType: exam.examType,
+          weight,
+          obtainedMarks,
+          totalMarks,
+          percentage,
+          grade: gradeForPercentage(percentage, opts.weightConfig.thresholds),
+          contribution: (percentage * weight) / 100,
+        };
+      })
+      .filter((row) => row.weight > 0);
+    const totalTotal = subjectMarks.length > 0 ? subjectMarks.length * subject.totalMarks : subject.totalMarks;
+    const obtainedTotal = subjectMarks.reduce((sum, m) => sum + m.marksObtained, 0);
+    const percentage = totalTotal > 0 ? Math.round((obtainedTotal / totalTotal) * 100) : 0;
+    return {
+      subjectId: subject.id,
+      subjectName: subject.name,
+      totalMarks: totalTotal,
+      obtainedMarks: obtainedTotal,
+      percentage,
+      grade: gradeForPercentage(percentage, opts.weightConfig.thresholds),
+      exams: examRows,
+    };
+  });
+}

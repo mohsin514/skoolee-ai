@@ -8,6 +8,7 @@ import {
   GraduationCap, Loader2, School, User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { downloadPdfFile } from "@/lib/download";
 
 interface ReportCard {
   id: string;
@@ -224,6 +225,19 @@ function MiniStat({ icon: Icon, label, value }: { icon: any; label: string; valu
 
 function ResultsTab({ reportCards, marksByExam }: { reportCards: ReportCard[]; marksByExam: ExamMarks[] }) {
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownloadPdf = async (rc: ReportCard) => {
+    if (!rc.pdfUrl) return;
+    setDownloadingId(rc.id);
+    try {
+      await downloadPdfFile(rc.pdfUrl, `report-card-${rc.examTitle.replace(/[^a-z0-9]+/gi, "-") || "report-card"}.pdf`);
+    } catch {
+      toast.error("Failed to download report card");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (reportCards.length === 0 && marksByExam.length === 0) {
     return (
@@ -262,15 +276,18 @@ function ResultsTab({ reportCards, marksByExam }: { reportCards: ReportCard[]; m
             )}
 
             {rc.pdfUrl && (
-              <a
-                href={rc.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-[#8127cf] hover:text-[#6a1fb0] transition-colors"
+              <button
+                onClick={() => handleDownloadPdf(rc)}
+                disabled={downloadingId === rc.id}
+                className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-[#8127cf] hover:text-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" />
-                Download PDF
-              </a>
+                {downloadingId === rc.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {downloadingId === rc.id ? "Downloading..." : "Download PDF"}
+              </button>
             )}
           </div>
         );

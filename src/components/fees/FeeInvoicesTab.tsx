@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { downloadPdfFile } from "@/lib/download";
 import type { ClassOption, Invoice, InvoiceStatus } from "./fee-types";
 import {
   API,
@@ -363,6 +364,20 @@ function InvoiceDetailModal({
 }) {
   const [confirmOverdue, setConfirmOverdue] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!inv?.id) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadPdfFile(`/api/fees/invoice-pdf?id=${encodeURIComponent(inv.id)}`, `invoice-${inv.invoiceNumber || "receipt"}.pdf`);
+      toast.success("Invoice PDF downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   return (
     <>
@@ -482,9 +497,9 @@ function InvoiceDetailModal({
             )}
 
             {inv.status === "PAID" && (
-              <BrandButton variant="soft" className="w-full h-12" onClick={() => window.print()}>
-                <Receipt className="w-4 h-4" />
-                Print Receipt
+              <BrandButton variant="soft" className="w-full h-12" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                {downloadingPdf ? "Preparing PDF..." : "Download Receipt"}
               </BrandButton>
             )}
           </div>

@@ -37,6 +37,7 @@ export default function TeacherDashboardHub() {
   const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [remarkGeneratingFor, setRemarkGeneratingFor] = useState<string | null>(null);
+  const [savingRemarks, setSavingRemarks] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
   const [showGradeConfigModal, setShowGradeConfigModal] = useState(false);
   const [showGradeOverviewModal, setShowGradeOverviewModal] = useState(false);
@@ -259,6 +260,22 @@ export default function TeacherDashboardHub() {
     } catch (error: any) { toast.error(error.message); }
     finally { setRemarkGeneratingFor(null); }
   }, []);
+
+  const handleSaveReportRemarks = useCallback(async (remarks: { en: string; ur: string }) => {
+    if (!selectedReportCard) return;
+    setSavingRemarks(true);
+    try {
+      const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remarksEn: remarks.en, remarksUr: remarks.ur }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to save remarks");
+      toast.success("Remarks saved");
+      setSelectedReportCard((c: any) => c ? { ...c, remarksEn: remarks.en, remarksUr: remarks.ur } : c);
+    } catch (error: any) { toast.error(error.message); }
+    finally { setSavingRemarks(false); }
+  }, [selectedReportCard]);
 
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return null;
@@ -637,17 +654,21 @@ export default function TeacherDashboardHub() {
                         <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold text-[#4d4354]/40">+{cls.subjects.length - 4}</span>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => router.push("/teacher/attendance")}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
                         <CalendarCheck className="h-3.5 w-3.5" /> Attendance
                       </button>
                       <button type="button" onClick={() => router.push("/teacher/marks")}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
                         <Star className="h-3.5 w-3.5" /> Marks
                       </button>
+                      <button type="button" onClick={() => router.push("/teacher/reports")}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        <FileText className="h-3.5 w-3.5" /> Reports
+                      </button>
                       <button type="button" onClick={() => router.push("/teacher/students")}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
                         <Users className="h-3.5 w-3.5" /> Students
                       </button>
                     </div>
@@ -688,6 +709,40 @@ export default function TeacherDashboardHub() {
         </div>
       </div>
 
+      {/* ── Recent Report Cards ── */}
+      {(data.recentReportCards?.length || 0) > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">Recent Report Cards</h3>
+            <button type="button" onClick={() => router.push("/teacher/reports")}
+              className="text-[10px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer">View All</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {data.recentReportCards.slice(0, 6).map((report: any) => (
+              <button key={report.id} type="button" onClick={() => setSelectedReportCard(report)}
+                className="text-left rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#1f1a23] truncate">{report.student?.fullName || "Student"}</p>
+                    <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/50">{report.exam?.title || "—"}</p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                    report.status === "PUBLISHED" || report.status === "SENT" ? "bg-emerald-50 text-emerald-600" :
+                    report.status === "GENERATED" || report.status === "REVIEWED" ? "bg-[#fbf0fe] text-[#8127cf]" :
+                    "bg-[#f3f4f9] text-[#4d4354]/50"
+                  }`}>{(report.status || "").replaceAll("_", " ")}</span>
+                </div>
+                <div className="flex items-center gap-3 pt-3 border-t border-[#cfc2d6]/10">
+                  <span className="text-xl font-black text-[#8127cf]">{report.grade || "—"}</span>
+                  <span className="text-sm font-bold text-[#4d4354]/50">{Math.round(report.percentage || 0)}%</span>
+                  <span className="ml-auto text-[10px] font-semibold text-[#4d4354]/40">{report.student?.class ? `${report.student.class.name}${report.student.class.section ? ` ${report.student.class.section}` : ""}` : "—"}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Modals ── */}
       <CreateAssessmentModal open={showExamModal} classHubs={classHubs} examForm={examForm} creatingExam={creatingExam}
         onClose={() => setShowExamModal(false)}
@@ -706,8 +761,10 @@ export default function TeacherDashboardHub() {
       {selectedStudent ? <StudentDetailModal student={selectedStudent} exams={data.exams || []} onClose={() => setSelectedStudent(null)} /> : null}
       {selectedReportCard ? (
         <ReportCardDetailModal report={selectedReportCard} busy={sendingReport === selectedReportCard.id} remarkBusy={remarkGeneratingFor}
+          savingRemarks={savingRemarks}
           onClose={() => setSelectedReportCard(null)} onSend={() => sendReportCard(selectedReportCard.id)}
-          onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)} />
+          onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
+          onSaveRemarks={handleSaveReportRemarks} />
       ) : null}
     </section>
   );

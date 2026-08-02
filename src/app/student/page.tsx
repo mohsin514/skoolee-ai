@@ -7,6 +7,7 @@ import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashbo
 import { DashboardSkeleton } from "@/components/student/student-components";
 import { useStudentData } from "./student-data-context";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { downloadPdfFile } from "@/lib/download";
 
 export default function StudentDashboard() {
   const { data, loading, refetch } = useStudentData();
@@ -19,7 +20,7 @@ export default function StudentDashboard() {
       const res = await fetch(`/api/reports/download?studentId=${data.user.id}`);
       const json = await res.json();
       if (json.success && json.pdfUrl) {
-        window.open(json.pdfUrl, "_blank");
+        await downloadPdfFile(json.pdfUrl, "report-card.pdf");
       } else {
         toast.error(json.error || "No report card available to download");
       }

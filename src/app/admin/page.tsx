@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   Award,
   BookOpen,
+  CheckCircle2,
   Briefcase,
   Building,
   Calendar,
@@ -69,6 +70,8 @@ import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel"
 import { TeacherAttendancePanel } from "@/components/academic-year/TeacherAttendancePanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
+import { ReportCardDetailModal } from "@/components/teacher/teacher-components";
+import { downloadReportCardPdf } from "@/lib/download";
 
 type AdminView = "leadership" | "classes" | "teachers" | "students" | "attendance" | "ai" | "fees" | "timetable" | "year-cycle" | "teacher-performance" | "exam-cycles" | "report-cards";
 type ClassFormState = {
@@ -251,6 +254,11 @@ export default function CampusAdminDashboard() {
   const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
   const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
+  const [sendingReport, setSendingReport] = useState<string | null>(null);
+  const [remarkGeneratingFor, setRemarkGeneratingFor] = useState<string | null>(null);
+  const [savingRemarks, setSavingRemarks] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -695,6 +703,49 @@ export default function CampusAdminDashboard() {
     }
   };
 
+  const handleSendReportCard = async (reportCardId: string) => {
+    setSendingReport(reportCardId);
+    try {
+      const res = await fetch(`/api/reports/${reportCardId}/send`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to send");
+      toast.success(result.message || "Report card sent");
+      await loadData();
+    } catch (error: any) { toast.error(error.message); }
+    finally { setSendingReport(null); }
+  };
+
+  const handleSaveReportRemarks = async (reportCardId: string, remarks: { en: string; ur: string }) => {
+    setSavingRemarks(true);
+    try {
+      const res = await fetch(`/api/reports/${reportCardId}/remarks`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remarksEn: remarks.en, remarksUr: remarks.ur }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to save remarks");
+      toast.success("Remarks saved");
+      setSelectedReportCard((c: any) => c ? { ...c, remarksEn: remarks.en, remarksUr: remarks.ur } : c);
+    } catch (error: any) { toast.error(error.message); }
+    finally { setSavingRemarks(false); }
+  };
+
+  const handleGenerateStudentRemarks = async (studentId: string, examId: string) => {
+    setRemarkGeneratingFor(studentId);
+    try {
+      const res = await fetch("/api/ai/generate-remarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, examId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to generate remarks");
+      toast.success("Remarks generated");
+    } catch (error: any) { toast.error(error.message); }
+    finally { setRemarkGeneratingFor(null); }
+  };
+
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
     { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
@@ -832,11 +883,11 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "exam-cycles" ? (
-            <ExamCyclesPanel exams={data.recentExams} />
+            <ExamCyclesPanel exams={data.recentExams} onSelect={setSelectedExam} />
           ) : null}
 
           {activeView === "report-cards" ? (
-            <ReportCardsPanel reports={data.recentReportCards} />
+            <ReportCardsPanel reports={data.recentReportCards} onSelect={setSelectedReportCard} />
           ) : null}
         </div>
       </section>
@@ -961,6 +1012,28 @@ export default function CampusAdminDashboard() {
         onCancel={() => setConfirmAction(null)}
         onConfirm={runConfirmedAction}
       />
+
+      {selectedExam ? (
+        <ExamDetailModal
+          exam={selectedExam}
+          onClose={() => setSelectedExam(null)}
+          onViewReportCard={setSelectedReportCard}
+          onRefresh={loadData}
+        />
+      ) : null}
+
+      {selectedReportCard ? (
+        <ReportCardDetailModal
+          report={selectedReportCard}
+          busy={sendingReport === selectedReportCard.id}
+          remarkBusy={remarkGeneratingFor}
+          savingRemarks={savingRemarks}
+          onClose={() => setSelectedReportCard(null)}
+          onSend={() => handleSendReportCard(selectedReportCard.id)}
+          onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
+          onSaveRemarks={(remarks) => handleSaveReportRemarks(selectedReportCard.id, remarks)}
+        />
+      ) : null}
     </RoleShell>
   );
 }
@@ -1802,10 +1875,335 @@ function UnifiedAttendancePanel() {
   );
 }
 
+function ExamDetailModal({
+  exam,
+  onClose,
+  onViewReportCard,
+  onRefresh,
+}: {
+  exam: any;
+  onClose: () => void;
+  onViewReportCard: (report: any) => void;
+  onRefresh: () => void;
+}) {
+  const [tab, setTab] = useState<"marks" | "reports" | "analytics">("marks");
+  const [marksData, setMarksData] = useState<any>(null);
+  const [reportsData, setReportsData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [marksRes, reportsRes] = await Promise.all([
+          fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
+          fetch(`/api/reports?examId=${exam.id}`).then((r) => r.json()).catch(() => null),
+        ]);
+        if (!cancelled) {
+          setMarksData(marksRes);
+          setReportsData(reportsRes);
+        }
+      } catch {}
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [exam.id]);
+
+  const handleLock = async () => {
+    setActionBusy("lock");
+    try {
+      const res = await fetch(`/api/exams/${exam.id}/lock`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to lock");
+      toast.success(`Exam locked. ${result.generated || 0} report cards generated.`);
+      onRefresh();
+      onClose();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setActionBusy(null); }
+  };
+
+  const handleStatusChange = async (status: string) => {
+    setActionBusy(status);
+    try {
+      const res = await fetch("/api/exams", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: exam.id, status }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to update status");
+      toast.success(`Exam status updated to ${status.replaceAll("_", " ")}`);
+      onRefresh();
+      onClose();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setActionBusy(null); }
+  };
+
+  const students = marksData?.students || [];
+  const subjects = marksData?.subjects || [];
+  const marks = marksData?.marks || [];
+  const reportCards = reportsData?.reportCards || [];
+  const analytics = reportsData?.analytics || null;
+
+  const getMarkValue = (studentId: string, subjectId: string) => {
+    const mark = marks.find((m: any) => m.studentId === studentId && m.subjectId === subjectId);
+    return mark ? mark.marksObtained : null;
+  };
+
+  const canLock = !exam.isLocked && (exam.status === "ACTIVE" || exam.status === "MARKS_ENTRY");
+  const canReview = exam.status === "LOCKED";
+  const canPublish = exam.status === "PRINCIPAL_REVIEWED";
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4">
+      <div className="bg-white w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{exam.examType?.replaceAll("_", " ") || "Exam"}</p>
+              <StatusPill status={exam.status} />
+            </div>
+            <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">{exam.title}</h2>
+            <p className="text-xs font-semibold text-[#4d4354]/50 mt-1">{exam.term} — {classLabel(exam.class)} — Total: {exam.totalMarks} marks</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {canLock && (
+              <button type="button" onClick={handleLock} disabled={actionBusy !== null}
+                className="flex items-center gap-1.5 rounded-2xl bg-amber-50 border border-amber-200/40 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer disabled:opacity-50">
+                {actionBusy === "lock" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />} Lock Exam
+              </button>
+            )}
+            {canReview && (
+              <button type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
+                className="flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/20 px-4 py-2.5 text-xs font-bold text-[#8127cf] hover:bg-[#f0d6fa] transition-all cursor-pointer disabled:opacity-50">
+                {actionBusy === "PRINCIPAL_REVIEWED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mark Reviewed
+              </button>
+            )}
+            {canPublish && (
+              <button type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
+                className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200/40 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer disabled:opacity-50">
+                {actionBusy === "PUBLISHED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />} Publish
+              </button>
+            )}
+            <button type="button" onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1 mb-6">
+          {(["marks", "reports", "analytics"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={cn("rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                tab === t ? "bg-white text-[#8127cf] shadow-md" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+              )}>
+              {t === "marks" ? "Marks Sheet" : t === "reports" ? `Report Cards (${reportCards.length})` : "Analytics"}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" /></div>
+        ) : (
+          <>
+            {tab === "marks" && (
+              <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
+                {students.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <Users className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
+                    <p className="text-sm font-bold text-[#4d4354]/40">No students found for this exam</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">#</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Student</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Roll No</th>
+                        {subjects.map((s: any) => (
+                          <th key={s.id} className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">{s.name}<br /><span className="text-[8px] font-semibold">/ {s.totalMarks}</span></th>
+                        ))}
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">Total</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student: any, idx: number) => {
+                        const total = subjects.reduce((s: number, sub: any) => s + (getMarkValue(student.id, sub.id) ?? 0), 0);
+                        const maxTotal = subjects.reduce((s: number, sub: any) => s + sub.totalMarks, 0);
+                        const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
+                        return (
+                          <tr key={student.id} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20 transition-colors">
+                            <td className="px-4 py-3 text-xs font-bold text-[#4d4354]/30">{idx + 1}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-bold text-[#1f1a23] truncate max-w-[180px]">{student.fullName}</p>
+                            </td>
+                            <td className="px-4 py-3 text-xs font-semibold text-[#4d4354]/50">{student.rollNo}</td>
+                            {subjects.map((sub: any) => {
+                              const val = getMarkValue(student.id, sub.id);
+                              return (
+                                <td key={sub.id} className="px-4 py-3 text-center">
+                                  <span className={cn("text-sm font-bold", val === null ? "text-[#4d4354]/20" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-[#1f1a23]")}>
+                                    {val ?? "—"}
+                                  </span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-3 text-center text-sm font-black text-[#8127cf]">{total}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={cn("text-sm font-black", pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-rose-500")}>{pct}%</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {tab === "reports" && (
+              <div>
+                {reportCards.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <ClipboardList className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
+                    <p className="text-sm font-bold text-[#4d4354]/40">No report cards generated yet</p>
+                    <p className="text-xs font-semibold text-[#4d4354]/30 mt-1">Lock the exam to auto-generate report cards</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {reportCards.map((rc: any) => (
+                      <button key={rc.id} type="button" onClick={() => { onClose(); onViewReportCard(rc); }}
+                        className="text-left rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/20 p-4 hover:bg-[#fbf0fe]/50 hover:shadow-md transition-all cursor-pointer">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#1f1a23] truncate">{rc.student?.fullName}</p>
+                            <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
+                          </div>
+                          <StatusPill status={rc.status} />
+                        </div>
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[#cfc2d6]/10">
+                          <span className="text-xl font-black text-[#8127cf]">{rc.grade || "—"}</span>
+                          <span className="text-sm font-bold text-[#4d4354]/50">{Math.round(rc.percentage || 0)}%</span>
+                          <span className="ml-auto text-[10px] font-bold text-[#4d4354]/40">Rank #{rc.rank || "—"}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "analytics" && (
+              <div>
+                {!analytics ? (
+                  <div className="py-16 text-center">
+                    <Award className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
+                    <p className="text-sm font-bold text-[#4d4354]/40">Analytics available after report cards are generated</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: "Class Average", value: `${Math.round(analytics.classAverage || 0)}%`, icon: Award, tone: "bg-[#fbf0fe] text-[#8127cf]" },
+                        { label: "Passed", value: analytics.passCount ?? 0, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
+                        { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
+                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-[#4d4354]" },
+                      ].map((s) => (
+                        <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-2">{s.label}</p>
+                              <p className="text-2xl font-black text-[#1f1a23]">{s.value}</p>
+                            </div>
+                            <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", s.tone)}>
+                              <s.icon className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {analytics.subjectAverages?.length > 0 && (
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Subject Performance</p>
+                        <div className="space-y-3">
+                          {analytics.subjectAverages.map((sa: any) => {
+                            const avg = Math.round(sa.average || 0);
+                            return (
+                              <div key={sa.subjectId || sa.name}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-xs font-bold text-[#1f1a23]">{sa.name}</span>
+                                  <span className={cn("text-xs font-black", avg >= 80 ? "text-emerald-600" : avg >= 50 ? "text-amber-600" : "text-rose-500")}>{avg}%</span>
+                                </div>
+                                <div className="h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
+                                  <div className={cn("h-full rounded-full transition-all duration-700",
+                                    avg >= 80 ? "bg-emerald-500" : avg >= 50 ? "bg-amber-500" : "bg-rose-500"
+                                  )} style={{ width: `${avg}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {analytics.topStudents?.length > 0 && (
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Top Performers</p>
+                        <div className="space-y-2">
+                          {analytics.topStudents.map((ts: any, idx: number) => (
+                            <div key={ts.studentId || idx} className="flex items-center gap-3 p-3 rounded-2xl bg-[#fbf0fe]/30">
+                              <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black shrink-0",
+                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-[#e8e0ec] text-[#4d4354]" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-[#f3f4f9] text-[#4d4354]/50"
+                              )}>#{idx + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-[#1f1a23] truncate">{ts.name || ts.fullName}</p>
+                              </div>
+                              <span className="text-sm font-black text-[#8127cf]">{Math.round(ts.percentage || 0)}%</span>
+                              <span className="text-sm font-bold text-[#1f1a23]">{ts.grade}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {analytics.needsAttention?.length > 0 && (
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
+                        <div className="space-y-2">
+                          {analytics.needsAttention.map((ns: any) => (
+                            <div key={ns.studentId} className="flex items-center gap-3 p-3 rounded-2xl bg-rose-50/30 border border-rose-100">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-[#1f1a23] truncate">{ns.name || ns.fullName}</p>
+                                <p className="text-[10px] font-semibold text-rose-500 mt-0.5">{ns.reason}</p>
+                              </div>
+                              <span className="text-sm font-black text-rose-500">{Math.round(ns.percentage || 0)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ExamCyclesPanel({
   exams,
+  onSelect,
 }: {
   exams: any[];
+  onSelect?: (exam: any) => void;
 }) {
   const [showAllExams, setShowAllExams] = useState(false);
   const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
@@ -1845,7 +2243,9 @@ function ExamCyclesPanel({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {displayExams.map((exam: any) => (
-          <div key={exam.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+          <div key={exam.id} role="button" tabIndex={0} onClick={() => onSelect?.(exam)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(exam); } }}
+            className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] truncate">{exam.title}</p>
@@ -1855,8 +2255,9 @@ function ExamCyclesPanel({
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#cfc2d6]/10">
               <span className="text-[9px] font-semibold text-[#4d4354]/50">{exam.missingMarks ?? 0} missing marks</span>
+              <span className="text-[9px] font-semibold text-[#4d4354]/50">{exam._count?.reportCards || 0} reports</span>
               {exam.isLocked && exam._count?.reportCards === 0 ? (
-                <button type="button" onClick={() => generateReportCards(exam.id)} disabled={generatingExamId === exam.id}
+                <button type="button" onClick={(e) => { e.stopPropagation(); generateReportCards(exam.id); }} disabled={generatingExamId === exam.id}
                   className="ml-auto flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2.5 text-[8px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fad] cursor-pointer disabled:opacity-50">
                   {generatingExamId === exam.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate Reports"}
                 </button>
@@ -1876,8 +2277,10 @@ function ExamCyclesPanel({
 
 function ReportCardsPanel({
   reports,
+  onSelect,
 }: {
   reports: any[];
+  onSelect?: (report: any) => void;
 }) {
   const [showAllReports, setShowAllReports] = useState(false);
   const displayReports = showAllReports ? reports : reports.slice(0, 12);
@@ -1898,7 +2301,9 @@ function ReportCardsPanel({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {displayReports.map((report: any) => (
-          <div key={report.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+          <div key={report.id} role="button" tabIndex={0} onClick={() => onSelect?.(report)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(report); } }}
+            className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] truncate">{report.student?.fullName || "Student"}</p>

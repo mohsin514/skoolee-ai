@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UrduInput } from "@/components/ui/urdu-input";
 import { transliterateToUrdu } from "@/lib/urdu";
+import { downloadPdfFile, downloadReportCardPdf } from "@/lib/download";
 import {
   AiActionPanel, BrandButton, EmptyState, RoleShell, StatCard, type RoleNavItem,
 } from "@/components/role-dashboard";
@@ -365,6 +366,20 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
   onGenerateReportCards: () => void;
 }) {
   const router = useRouter();
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!selectedGradeClassId) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadPdfFile(`/api/reports/class-grades-pdf?classId=${encodeURIComponent(selectedGradeClassId)}`, "final-grades.pdf");
+      toast.success("Final grades PDF downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   if (!open) return null;
   return (
@@ -422,8 +437,8 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                 onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}>
                 {generatingReportCards ? "Saving..." : reportCardsGenerated ? "Grades Saved" : "Generate & Save Grades"}
               </BrandButton>
-              <BrandButton variant="dark" icon={<Download className="w-4 h-4" />} onClick={() => window.print()}>
-                Print / Download PDF
+              <BrandButton variant="dark" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+                {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
               </BrandButton>
             </div>
           </div>
@@ -528,6 +543,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   const [detailLoading, setDetailLoading] = useState(!report.subjectDistribution);
   const [remarks, setRemarks] = useState({ en: report.remarksEn || "", ur: report.remarksUr || "" });
   const [translatingUr, setTranslatingUr] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const urduTouchedRef = useRef(Boolean(report.remarksUr));
   const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translateSeq = useRef(0);
@@ -610,6 +626,20 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     const en = remarks.en.trim();
     setRemarks((r) => ({ ...r, ur: transliterateToUrdu(en) }));
     if (en.length >= 4) runUrduTranslation(en);
+  };
+
+  const handleDownloadPdf = async () => {
+    const id = viewReport?.id;
+    if (!id) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadReportCardPdf(id, `${viewReport.student?.fullName || "report-card"}.pdf`);
+      toast.success("Report card PDF downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const viewReport = detailReport || report;
@@ -821,8 +851,8 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             {busy ? "Sending..." : "Send to Guardian"}
           </BrandButton>
         )}
-        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={() => window.print()}>
-          Download PDF
+        <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+          {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
         </BrandButton>
       </div>
     </ModalFrame>
@@ -1293,6 +1323,65 @@ export function AISkeleton() {
         </div>
       </div>
     </section>
+  );
+}
+
+export function TimetableSkeleton() {
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <SkeletonBlock className="h-3 w-28 mb-2" />
+        <SkeletonBlock className="h-8 w-56" />
+        <SkeletonBlock className="h-4 w-80 mt-2" />
+      </div>
+
+      <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <SkeletonBlock className="h-7 w-7 rounded-lg" />
+          <SkeletonBlock className="h-4 w-36" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[...Array(3)].map((_, i) => (
+            <SkeletonBlock key={i} className="h-8 w-40 rounded-xl" />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <SkeletonBlock className="h-8 w-8 rounded-xl" />
+          <SkeletonBlock className="h-4 w-44" />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
+          ))}
+        </div>
+        <div className="overflow-hidden rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
+          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+            <div className="p-2" />
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
+                <SkeletonBlock className="h-3 w-10 rounded-md" />
+              </div>
+            ))}
+          </div>
+          {[...Array(6)].map((_, p) => (
+            <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+              <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
+                <SkeletonBlock className="h-3 w-6 rounded-md" />
+                <SkeletonBlock className="h-2 w-8 rounded-md mt-1" />
+              </div>
+              {[...Array(6)].map((_, d) => (
+                <div key={d} className="border-l border-[#f3f4f9] p-1.5">
+                  <SkeletonBlock className="h-12 w-full rounded-lg" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
