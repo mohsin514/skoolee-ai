@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { Award, BookOpen, ChevronRight, TrendingUp } from "lucide-react";
-import { CourseworkSkeleton } from "@/components/student/student-components";
+import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
 export default function CourseworkPage() {
-  const { data, loading } = useStudentData();
+  const { data, loading, error, refetch } = useStudentData();
 
   const averages = useMemo(() => {
     if (!data?.user?.marks) return { overall: 0, best: 0, worst: 0 };
@@ -19,6 +19,7 @@ export default function CourseworkPage() {
   }, [data]);
 
   if (loading && !data) return <CourseworkSkeleton />;
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
   const user = data.user;
 

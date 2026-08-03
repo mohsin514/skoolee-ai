@@ -8,7 +8,7 @@ import {
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
-  AttendanceSkeleton, classLabel, EmptyInline, StudentMini, todayIso, useTeacherData,
+  AttendanceSkeleton, classLabel, EmptyInline, StudentMini, TeacherErrorState, todayIso, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ const STATUS_CONFIG = {
 };
 
 export default function AttendancePage() {
-  const { data, loading, loadData } = useTeacherData();
+  const { data, loading, error, loadData } = useTeacherData();
   const [activeTab, setActiveTab] = useState<ViewTab>("marking");
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [attendanceDate, setAttendanceDate] = useState(todayIso());
@@ -164,7 +164,7 @@ export default function AttendancePage() {
   const completion = stats.total ? Math.round(((stats.present + stats.absent + stats.leave) / stats.total) * 100) : 0;
 
   if (loading && !data) return <AttendanceSkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -184,7 +184,7 @@ export default function AttendancePage() {
             ]).map(({ key, label, icon: Icon }) => (
               <button key={key} type="button" onClick={() => setActiveTab(key)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]",
+                  "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/30",
                   activeTab === key
                     ? "bg-[#8127cf] text-white border-[#8127cf] shadow-lg shadow-[#8127cf]/20"
                     : "bg-white text-[#4d4354]/70 border-[#cfc2d6]/20 hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/50"
@@ -291,13 +291,13 @@ export default function AttendancePage() {
                 { status: "LEAVE" as AttendanceStatus, label: "All Leave", icon: Plus },
               ]).map(({ status, label, icon: Icon }) => (
                 <button key={status} type="button" onClick={() => markAllAttendance(status)} title={`Mark all as ${label.toLowerCase()}`}
-                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]", STATUS_CONFIG[status].chipClass)}>
+                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25", STATUS_CONFIG[status].chipClass)}>
                   <Icon className="w-3.5 h-3.5" />{label}
                 </button>
               ))}
               <button type="button" onClick={copyFromPrevious} disabled={copyingPrevious}
                 title="Copy attendance from previous day"
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] bg-[#fbf0fe] text-[#8127cf] border-[#8127cf]/15 hover:bg-[#f3eeff] hover:border-[#8127cf]/30 disabled:opacity-50">
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] bg-[#fbf0fe] text-[#8127cf] border-[#8127cf]/15 hover:bg-[#f3eeff] hover:border-[#8127cf]/30 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
                 {copyingPrevious ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                 Copy Yesterday
               </button>
@@ -337,7 +337,7 @@ export default function AttendancePage() {
                         onClick={() => setAttendanceRows((rows) => rows.map((r) => (r.id === student.id ? { ...r, status } : r)))}
                         title={`Mark as ${STATUS_CONFIG[status].label.toLowerCase()}`}
                         className={cn(
-                          "flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]",
+                          "flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                           student.status === status
                             ? STATUS_CONFIG[status].activeClass
                             : "bg-white text-[#4d4354]/60 border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"

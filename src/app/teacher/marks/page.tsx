@@ -6,12 +6,12 @@ import { BarChart3, CheckCircle2, Download, FileText, Loader2, Plus, Star } from
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
-  classLabel, CreateAssessmentModal, EmptyInline, FinalGradesModal, GradeConfigModal, MarksSkeleton, MiniMetric, StatusPill, StudentMini, useTeacherData,
+  classLabel, CreateAssessmentModal, EmptyInline, FinalGradesModal, GradeConfigModal, MarksSkeleton, MiniMetric, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { cn } from "@/lib/utils";
 
 export default function MarksPage() {
-  const { data, loading, loadData } = useTeacherData();
+  const { data, loading, error, loadData } = useTeacherData();
   const [selectedExamId, setSelectedExamId] = useState("");
   const [markSheet, setMarkSheet] = useState<any>(null);
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
@@ -196,7 +196,7 @@ export default function MarksPage() {
   }, [selectedGradeClassId]);
 
   if (loading && !data) return <MarksSkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   const totalCells = markSheet ? markSheet.students.length * markSheet.subjects.length : 0;
   const filledCells = Object.values(marksByKey).filter((v) => v !== "" && v !== undefined).length;
@@ -250,7 +250,7 @@ export default function MarksPage() {
             return (
               <button key={exam.id} type="button" onClick={() => setSelectedExamId(exam.id)} title={`Select ${exam.title}`}
                 className={cn(
-                  "rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer active:scale-[0.98]",
+                  "rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                   isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20" : "border-[#cfc2d6]/10 bg-white"
                 )}>
                 <div className="flex items-start justify-between gap-3 mb-3">

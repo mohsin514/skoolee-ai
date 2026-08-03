@@ -2,11 +2,11 @@
 
 import { BrainCircuit, BookOpen, Users, GraduationCap, BarChart3, Sparkles, TrendingUp, Zap, Bot, Lightbulb, Stars } from "lucide-react";
 import { AiActionPanel } from "@/components/role-dashboard";
-import { AISkeleton, useTeacherData } from "@/components/teacher/teacher-components";
+import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { CornerSparkles } from "@/components/CornerSparkles";
 
 export default function AIPage() {
-  const { data, loading, loadData } = useTeacherData();
+  const { data, loading, error, loadData } = useTeacherData();
 
   const classHubs = data?.classHubs || [];
   const teacherSubjects = data?.subjects || [];
@@ -26,7 +26,7 @@ export default function AIPage() {
   ];
 
   if (loading && !data) return <AISkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">

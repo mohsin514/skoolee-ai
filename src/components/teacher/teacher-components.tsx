@@ -167,22 +167,50 @@ export function EmptyInline({ text }: { text: string }) {
   return <p className="rounded-2xl bg-[#fbf0fe]/60 border border-[#8127cf]/10 p-4 text-sm font-semibold text-[#4d4354]/55">{text}</p>;
 }
 
-export function LoadingBlock({ label }: { label: string }) {
+export function TeacherErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
-    <div className="space-y-3 py-6 animate-skeleton-in">
-      <div className="flex items-center gap-3 px-4">
-        <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="space-y-1.5 flex-1">
-          <div className="h-3.5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-2.5 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col items-center justify-center p-8">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
+        <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your workspace</h2>
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+          {error || "We couldn't load your teacher workspace. This may be a permission or connectivity issue."}
+        </p>
+        <div className="mt-6 inline-block">
+          <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={onRetry}>
+            Try Again
+          </BrandButton>
         </div>
       </div>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-4 py-2 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-          <div className="h-3 flex-1 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-          <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
-        </div>
-      ))}
+    </section>
+  );
+}
+
+export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
+  return (
+    <div className="space-y-5 animate-skeleton-in">
+      <div>
+        <SkeletonBlock className="h-3 w-24 mb-2" />
+        <SkeletonBlock className="h-12 w-full rounded-2xl" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {[...Array(Math.min(fieldRows, 4))].map((_, i) => (
+          <div key={i}>
+            <SkeletonBlock className="h-3 w-20 mb-2" />
+            <SkeletonBlock className="h-12 w-full rounded-2xl" />
+          </div>
+        ))}
+      </div>
+      <div className="rounded-2xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-4">
+        <SkeletonBlock className="h-4 w-40 rounded-full" />
+      </div>
+      <div className="flex gap-4 pt-2">
+        <SkeletonBlock className="h-14 flex-1 rounded-2xl" />
+        <SkeletonBlock className="h-14 flex-[2] rounded-2xl" />
+      </div>
     </div>
   );
 }
@@ -337,7 +365,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
         </FormSelect>
       </div>
       {gradeConfigLoading ? (
-        <LoadingBlock label="Loading config..." />
+        <ModalSkeleton fieldRows={3} />
       ) : selectedGradeClassId ? (
         <div className="space-y-5">
           <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Exam Type Weights (must total 100%)</p>
@@ -406,7 +434,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
       </div>
 
       {weightedGradeLoading ? (
-        <LoadingBlock label="Calculating grades..." />
+        <ModalSkeleton fieldRows={3} />
       ) : weightedGradeResult?.length ? (
         <>
           <div className="overflow-hidden rounded-2xl border border-[#f3f4f9]">
@@ -1458,6 +1486,6 @@ export function TimetableSkeleton() {
 /* ── Hook to load teacher dashboard data ── */
 
 export function useTeacherData() {
-  const { data, loading, refetch } = useTeacherDataContext();
-  return { data, loading, loadData: refetch };
+  const { data, loading, error, refetch } = useTeacherDataContext();
+  return { data, loading, error, loadData: refetch };
 }

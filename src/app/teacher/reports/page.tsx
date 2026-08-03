@@ -7,12 +7,12 @@ import { BrainCircuit, FileText, Loader2 } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
-  classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, useTeacherData,
+  classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { cn } from "@/lib/utils";
 
 export default function ReportsPage() {
-  const { data, loading, loadData } = useTeacherData();
+  const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
   const [selectedReportExamId, setSelectedReportExamId] = useState("");
   const [remarkBusy, setRemarkBusy] = useState(false);
@@ -121,7 +121,7 @@ export default function ReportsPage() {
   }, [selectedReportCard, loadData]);
 
   if (loading && !data) return <ReportsSkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -199,7 +199,7 @@ export default function ReportsPage() {
               <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className={cn(
                   "group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/10 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99]",
-                  "hover:border-[#8127cf]/25 hover:shadow-xl hover:-translate-y-0.5",
+                  "hover:border-[#8127cf]/25 hover:shadow-xl hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 )}>
                 <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />

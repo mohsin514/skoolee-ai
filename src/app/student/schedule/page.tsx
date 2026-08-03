@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { CalendarCheck, Clock, MapPin, UserRound, X } from "lucide-react";
-import { ScheduleSkeleton } from "@/components/student/student-components";
+import { ScheduleSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
 export default function SchedulePage() {
-  const { data, loading } = useStudentData();
+  const { data, loading, error, refetch } = useStudentData();
 
   const stats = useMemo(() => {
     if (!data?.user?.attendance) return { total: 0, present: 0, absent: 0, late: 0, rate: 0 };
@@ -35,6 +35,7 @@ export default function SchedulePage() {
   }, [data]);
 
   if (loading && !data) return <ScheduleSkeleton />;
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
 
   const user = data.user;

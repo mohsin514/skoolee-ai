@@ -7,12 +7,12 @@ import {
 } from "lucide-react";
 import { useTeacherData } from "../teacher-data-context";
 import {
-  classLabel, StudentDetailModal, StudentsSkeleton,
+  classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 
 export default function TeacherStudentsPage() {
   const router = useRouter();
-  const { data, loading } = useTeacherData();
+  const { data, loading, error, refetch } = useTeacherData();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -37,7 +37,7 @@ export default function TeacherStudentsPage() {
   }, [allStudents, classFilter, search]);
 
   if (loading && !data) return <StudentsSkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -103,7 +103,7 @@ export default function TeacherStudentsPage() {
                   key={student.id}
                   type="button"
                   onClick={() => setSelectedStudent(student)}
-                  className="group text-left rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]"
+                  className="group text-left rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
                 >
                   <div className="flex items-start gap-4 mb-4">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">

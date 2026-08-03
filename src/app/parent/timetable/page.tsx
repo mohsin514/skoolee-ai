@@ -1,0 +1,148 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Clock } from "lucide-react";
+import { ParentEmptyState } from "@/components/parent/parent-components";
+import { useParentData } from "../parent-data-context";
+
+export const dynamic = "force-dynamic";
+
+const DAYS = [
+  { num: 1, short: "Mon" }, { num: 2, short: "Tue" }, { num: 3, short: "Wed" },
+  { num: 4, short: "Thu" }, { num: 5, short: "Fri" }, { num: 6, short: "Sat" },
+];
+
+const COLORS = [
+  { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
+  { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
+  { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
+  { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
+  { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
+  { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
+  { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300" },
+  { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300" },
+];
+
+export default function ParentTimetablePage() {
+  const { token } = useParentData();
+  const [timetableData, setTimetableData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadTimetable = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (token) params.set("token", token);
+      const res = await fetch(`/api/parent/timetable?${params}`);
+      const json = await res.json();
+      if (json.success) setTimetableData(json.data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { loadTimetable(); }, [loadTimetable]);
+
+  const subjectNames: string[] = timetableData ? [...new Set<string>(timetableData.slots.filter((s: any) => s.subject).map((s: any) => s.subject.name))] : [];
+  const colorMap = new Map<string, typeof COLORS[0]>();
+  subjectNames.forEach((n, i) => colorMap.set(n, COLORS[i % COLORS.length]));
+
+  const periods: any[] = timetableData
+    ? [...new Map(timetableData.slots.map((s: any) => [s.periodNumber, { num: s.periodNumber, start: s.startTime, end: s.endTime, type: s.slotType }])).values()].sort((a: any, b: any) => a.num - b.num)
+    : [];
+
+  const getSlot = (day: number, period: number) => timetableData?.slots.find((s: any) => s.dayOfWeek === day && s.periodNumber === period);
+
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
+            <Clock className="w-4 h-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">
+              {timetableData ? `${periods.length} periods · Mon-Sat` : "Weekly class schedule"}
+            </span>
+          </div>
+          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Timetable</h2>
+          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your child&apos;s weekly class schedule.</p>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9">
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] animate-pulse" />
+          </div>
+        ) : hasTable() ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-1.5">
+              {subjectNames.map((name) => {
+                const c = colorMap.get(name);
+                return (
+                  <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg} px-2 py-1`}>
+                    <span className={`text-[8px] font-black ${c?.text}`}>{name}</span>
+                  </span>
+                );
+              })}
+            </div>
+            <div className="overflow-x-auto rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
+              <div className="min-w-[700px]">
+                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
+                  <div className="flex items-center justify-center p-2">
+                    <Clock className="w-3 h-3 text-[#4d4354]/25" />
+                  </div>
+                  {DAYS.map((d) => (
+                    <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
+                      <span className="text-[8px] font-black uppercase text-[#4d4354]/30">{d.short}</span>
+                    </div>
+                  ))}
+                </div>
+                {periods.map((p: any) => {
+                  const isSpecial = p.type !== "CLASS";
+                  return (
+                    <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
+                      <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
+                        <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
+                        <span className="text-[6px] font-bold text-[#4d4354]/20">{p.start}</span>
+                      </div>
+                      {DAYS.map((d) => {
+                        const slot = getSlot(d.num, p.num);
+                        if (!slot || slot.slotType !== "CLASS") {
+                          const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
+                          return (
+                            <div key={d.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-0.5">
+                              <span className="text-[7px] font-bold text-[#4d4354]/25">{label}</span>
+                            </div>
+                          );
+                        }
+                        const c = slot.subject ? colorMap.get(slot.subject.name) : null;
+                        return (
+                          <div key={d.num} className="border-l border-[#f3f4f9] p-0.5">
+                            {slot.subject ? (
+                              <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
+                                <p className={`text-[8px] font-black ${c?.text} leading-tight`}>{slot.subject.name}</p>
+                                {slot.teacher && <p className="text-[6px] font-semibold text-[#4d4354]/30 mt-0.5">{slot.teacher.fullName}</p>}
+                              </div>
+                            ) : (
+                              <div className="h-full flex items-center justify-center"><span className="text-[7px] text-[#4d4354]/15">—</span></div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ParentEmptyState icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />
+        )}
+      </div>
+    </section>
+  );
+
+  function hasTable() {
+    return timetableData && timetableData.slots && timetableData.slots.length > 0;
+  }
+}

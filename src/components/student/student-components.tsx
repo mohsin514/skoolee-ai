@@ -1,5 +1,8 @@
 "use client";
 
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { BrandButton } from "@/components/role-dashboard";
+
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
     <div className={`relative isolate overflow-hidden rounded-2xl bg-[#e8e0ec]/50 ${className}`}>
@@ -339,6 +342,152 @@ export function ReportsSkeleton() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function AttendanceSkeleton() {
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-3 w-44" />
+          </div>
+          <SkeletonBlock className="h-9 w-52 mb-2" />
+          <SkeletonBlock className="h-4 w-64" />
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <SkeletonBlock className="h-3 w-16" />
+                <SkeletonBlock className="h-9 w-9 rounded-xl" />
+              </div>
+              <SkeletonBlock className="h-7 w-16 mb-1" />
+              <SkeletonBlock className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-5">
+            <SkeletonBlock className="h-5 w-40" />
+            <div className="flex gap-3">
+              <SkeletonBlock className="h-8 w-8 rounded-xl" />
+              <SkeletonBlock className="h-8 w-32 rounded-xl" />
+              <SkeletonBlock className="h-8 w-8 rounded-xl" />
+            </div>
+          </div>
+          <div className="flex items-center gap-4 mb-4">
+            <SkeletonBlock className="h-7 w-24 rounded-xl" />
+            <SkeletonBlock className="h-3 w-28" />
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {[...Array(7)].map((_, i) => (
+              <SkeletonBlock key={i} className="h-3 w-full mb-1" />
+            ))}
+            {[...Array(35)].map((_, i) => (
+              <SkeletonBlock key={i} className="h-12 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <SkeletonBlock className="h-5 w-40" />
+            <div className="flex gap-3">
+              <SkeletonBlock className="h-3 w-14" />
+              <SkeletonBlock className="h-3 w-12" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="group flex items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3.5 border border-[#cfc2d6]/8 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-center w-10 space-y-0.5">
+                    <SkeletonBlock className="h-2.5 w-8" />
+                    <SkeletonBlock className="h-4 w-6" />
+                  </div>
+                  <SkeletonBlock className="h-8 w-[1px]" />
+                  <div className="space-y-0.5">
+                    <SkeletonBlock className="h-3 w-28" />
+                    <SkeletonBlock className="h-2.5 w-20" />
+                  </div>
+                </div>
+                <SkeletonBlock className="h-6 w-20 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function TimetableSkeleton() {
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-3 w-40" />
+          </div>
+          <SkeletonBlock className="h-9 w-52 mb-2" />
+          <SkeletonBlock className="h-4 w-56" />
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-6">
+        <div className="flex flex-wrap gap-2">
+          <SkeletonBlock className="h-8 w-40 rounded-xl" />
+          <SkeletonBlock className="h-8 w-52 rounded-xl" />
+        </div>
+        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4">
+          <div className="space-y-3">
+            <div className="flex flex-col items-center justify-center py-2.5">
+              <SkeletonBlock className="h-3 w-24" />
+              <SkeletonBlock className="h-3 w-16 mt-1" />
+            </div>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="flex flex-col items-center justify-center w-16 space-y-1">
+                  <SkeletonBlock className="h-3 w-6" />
+                  <SkeletonBlock className="h-2.5 w-10" />
+                </div>
+                {[...Array(6)].map((_, j) => (
+                  <SkeletonBlock key={j} className="h-12 flex-1 rounded-xl" />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function StudentErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col items-center justify-center p-8">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
+        <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your portal</h2>
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+          {error || "We couldn't load your student portal. This may be a permission or connectivity issue."}
+        </p>
+        <div className="mt-6 inline-block">
+          <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={onRetry}>
+            Try Again
+          </BrandButton>
         </div>
       </div>
     </section>

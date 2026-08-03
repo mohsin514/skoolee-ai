@@ -4,13 +4,13 @@ import { useState } from "react";
 import { Award, BookOpen, Calendar, CreditCard, GraduationCap, Loader2, Printer, Share2, Sparkles, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashboard";
-import { DashboardSkeleton } from "@/components/student/student-components";
+import { DashboardSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "./student-data-context";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { downloadPdfFile } from "@/lib/download";
 
 export default function StudentDashboard() {
-  const { data, loading, refetch } = useStudentData();
+  const { data, loading, refetch, error } = useStudentData();
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -31,7 +31,7 @@ export default function StudentDashboard() {
     }
   };
   if (loading && !data) return <DashboardSkeleton />;
-
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
 
   const user = data.user;

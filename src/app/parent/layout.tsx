@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { ParentDataProvider } from "./parent-data-context";
+import { ParentShell } from "./parent-shell";
 
 export const metadata = {
   title: "Parent Portal - SkooleeAI",
@@ -6,5 +8,11 @@ export const metadata = {
 };
 
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
-  return <Suspense>{children}</Suspense>;
+  return (
+    <Suspense>
+      <ParentDataProvider>
+        <ParentShell>{children}</ParentShell>
+      </ParentDataProvider>
+    </Suspense>
+  );
 }

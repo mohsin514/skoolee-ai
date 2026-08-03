@@ -1,562 +1,150 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
-  Award, BookOpen, Calendar, CalendarCheck, Clock,
-  ChevronDown, ChevronUp, Download, FileText,
-  GraduationCap, Loader2, School, User,
+  Award, CalendarCheck, ChevronRight, Clock, CreditCard, FileText, GraduationCap,
 } from "lucide-react";
-import { toast } from "sonner";
-import { downloadPdfFile } from "@/lib/download";
+import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+import { useParentData } from "./parent-data-context";
 
-interface ReportCard {
-  id: string;
-  examTitle: string;
-  term: string;
-  academicYear: number;
-  percentage: number;
-  grade: string | null;
-  rank: number | null;
-  obtainedMarks: number;
-  totalMarks: number;
-  remarksEn: string | null;
-  remarksUr: string | null;
-  pdfUrl: string | null;
-  status: string;
-}
+export const dynamic = "force-dynamic";
 
-interface MarkEntry {
-  subject: string;
-  obtained: number;
-  total: number;
-  grade: string | null;
-}
+export default function ParentOverviewPage() {
+  const { data, loading, error, refetch, token } = useParentData();
 
-interface ExamMarks {
-  examId: string;
-  examTitle: string;
-  term: string;
-  marks: MarkEntry[];
-}
-
-interface AttendanceData {
-  rate: number | null;
-  total: number;
-  present: number;
-  recent: { date: string; status: string }[];
-}
-
-interface FeeItem {
-  id: string;
-  invoiceNumber: string | null;
-  totalAmount: number;
-  paid: number;
-  balance: number;
-  status: string;
-  dueDate: string;
-}
-
-interface ParentData {
-  student: {
-    fullName: string;
-    rollNo: string;
-    gender: string;
-    profileImageUrl: string | null;
-    className: string;
-    academicYear: number;
-  };
-  campus: {
-    name: string;
-    city: string | null;
-    phone: string | null;
-    logoUrl: string | null;
-  };
-  reportCards: ReportCard[];
-  marksByExam: ExamMarks[];
-  attendance: AttendanceData;
-  fees: FeeItem[];
-}
-
-type Tab = "results" | "attendance" | "fees" | "timetable";
-
-export default function ParentPortal() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const [data, setData] = useState<ParentData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("results");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (token) params.set("token", token);
-      const res = await fetch(`/api/parent/data?${params}`);
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-      } else {
-        setError(json.error || "Access denied");
-      }
-    } catch {
-      setError("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-[#8127cf]" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] flex items-center justify-center p-6">
-        <div className="max-w-md text-center">
-          <div className="h-16 w-16 rounded-[28px] bg-rose-50 flex items-center justify-center mx-auto mb-5">
-            <School className="w-8 h-8 text-rose-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-[#1d1b20] mb-2">Access Denied</h1>
-          <p className="text-sm text-[#4d4354]/60">
-            {error || "This link may have expired. Please contact the school for a new access link."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (loading && !data) return <ParentOverviewSkeleton />;
+  if (error) return <ParentErrorState error={error} onRetry={refetch} />;
+  if (!data) return null;
 
   const { student, campus } = data;
+  const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const profileImage = student.profileImageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const latestPct = data.reportCards?.[0]?.percentage;
+  const feeOutstanding = data.fees?.reduce((sum, f) => sum + (f.balance || 0), 0) || 0;
 
-  const TABS: { key: Tab; label: string; icon: typeof FileText }[] = [
-    { key: "results", label: "Results", icon: FileText },
-    { key: "attendance", label: "Attendance", icon: CalendarCheck },
-    { key: "fees", label: "Fee Status", icon: BookOpen },
-    { key: "timetable", label: "Timetable", icon: Clock },
+  const stats = [
+    { icon: FileText, label: "Report Cards", value: data.reportCards.length },
+    { icon: Award, label: "Latest Score", value: latestPct !== undefined ? `${Math.round(latestPct)}%` : "N/A" },
+    { icon: CalendarCheck, label: "Attendance", value: data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A" },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff]">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-[#cfc2d6]/10 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
-          {campus.logoUrl ? (
-            <img src={campus.logoUrl} alt="" className="h-10 w-10 rounded-xl object-cover" />
-          ) : (
-            <div className="h-10 w-10 rounded-xl bg-[#8127cf] flex items-center justify-center">
-              <School className="w-5 h-5 text-white" />
-            </div>
-          )}
-          <div>
-            <h1 className="text-sm font-bold text-[#1d1b20]">{campus.name}</h1>
-            <p className="text-[10px] font-semibold text-[#4d4354]/40 uppercase tracking-wider">Parent Portal</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-        <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-          <div className="flex items-center gap-5">
-            <img src={profileImage} alt="" className="h-16 w-16 rounded-[20px] border-2 border-[#cfc2d6]/15 object-cover" />
-            <div>
-              <h2 className="text-xl font-bold text-[#1d1b20]">{student.fullName}</h2>
-              <p className="text-xs font-semibold text-[#4d4354]/50">
-                {student.rollNo} &middot; {student.className} &middot; {student.academicYear}
-              </p>
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative p-7 px-9">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="flex gap-6 items-start group">
+              <div className="h-24 w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
+                <img src={profileImage} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+              </div>
+              <div className="pt-2">
+                <h2 className="text-4xl font-bold tracking-tight text-[#1d1b20] leading-none mb-2 transition-colors group-hover:text-[#8127cf]">{student.fullName}</h2>
+                <p className="text-sm font-semibold text-[#4d4354]/60 uppercase tracking-wider">
+                  {student.rollNo} - {student.className}
+                </p>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+                  {campus.name}{campus.city ? ` - ${campus.city}` : ""}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 mt-5">
-            <MiniStat icon={Award} label="Report Cards" value={data.reportCards.length} />
-            <MiniStat icon={Calendar} label="Attendance" value={data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A"} />
-            <MiniStat icon={GraduationCap} label="Exams" value={data.marksByExam.length} />
-          </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
-          {TABS.map((t) => {
-            const Icon = t.icon;
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {stats.map((s, i) => {
+            const Icon = s.icon;
+            const tones = [
+              "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white",
+              "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white",
+              "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white",
+            ];
             return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
-                  tab === t.key
-                    ? "bg-white text-[#8127cf] shadow-sm"
-                    : "text-[#4d4354]/50 hover:text-[#8127cf]"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {t.label}
-              </button>
+              <div key={s.label} className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/20 hover:shadow-2xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-2 transition-colors group-hover:text-[#4d4354]/60">{s.label}</p>
+                    <p className="text-3xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{s.value}</p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${tones[i]} shadow-md group-hover:shadow-xl group-hover:scale-110`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
 
-        {tab === "results" && <ResultsTab reportCards={data.reportCards} marksByExam={data.marksByExam} />}
-        {tab === "attendance" && <AttendanceTab attendance={data.attendance} />}
-        {tab === "fees" && <FeesTab fees={data.fees} />}
-        {tab === "timetable" && <ParentTimetableTab token={token} />}
-      </main>
-
-      <footer className="text-center py-8 text-[10px] font-semibold text-[#4d4354]/30 uppercase tracking-wider">
-        Powered by SkooleeAI
-      </footer>
-    </div>
-  );
-}
-
-function MiniStat({ icon: Icon, label, value }: { icon: any; label: string; value: string | number }) {
-  return (
-    <div className="rounded-xl bg-[#fbf0fe]/40 p-3 text-center">
-      <Icon className="w-4 h-4 text-[#8127cf] mx-auto mb-1" />
-      <p className="text-lg font-bold text-[#1d1b20]">{value}</p>
-      <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">{label}</p>
-    </div>
-  );
-}
-
-function ResultsTab({ reportCards, marksByExam }: { reportCards: ReportCard[]; marksByExam: ExamMarks[] }) {
-  const [expandedExam, setExpandedExam] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  const handleDownloadPdf = async (rc: ReportCard) => {
-    if (!rc.pdfUrl) return;
-    setDownloadingId(rc.id);
-    try {
-      await downloadPdfFile(rc.pdfUrl, `report-card-${rc.examTitle.replace(/[^a-z0-9]+/gi, "-") || "report-card"}.pdf`);
-    } catch {
-      toast.error("Failed to download report card");
-    } finally {
-      setDownloadingId(null);
-    }
-  };
-
-  if (reportCards.length === 0 && marksByExam.length === 0) {
-    return (
-      <EmptySection icon={FileText} title="No results yet" description="Results will appear here after exams are published." />
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {reportCards.map((rc) => {
-        const pct = Math.round(rc.percentage);
-        const scoreColor = pct >= 80 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
-
-        return (
-          <div key={rc.id} className="bg-white rounded-[24px] border border-[#cfc2d6]/10 p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase">{rc.term} {rc.academicYear}</p>
-                <h3 className="text-base font-bold text-[#1d1b20] mt-0.5">{rc.examTitle}</h3>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${scoreColor}`}>{pct}%</span>
-                  <span className="text-[10px] font-bold text-[#4d4354]/40">Grade: {rc.grade || "N/A"}</span>
-                  {rc.rank && <span className="text-[10px] font-bold text-[#4d4354]/40">Rank: #{rc.rank}</span>}
-                </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <FileText className="w-5 h-5" />
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-black text-[#8127cf]">{rc.obtainedMarks}<span className="text-sm font-bold text-[#4d4354]/30">/{rc.totalMarks}</span></p>
-              </div>
+              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Latest Report Card</h3>
             </div>
-
-            {rc.remarksEn && (
-              <div className="mt-3 p-3 rounded-xl bg-[#fbf0fe]/30 border border-[#cfc2d6]/5">
-                <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase mb-1">Teacher Remarks</p>
-                <p className="text-xs text-[#4d4354]/70 leading-relaxed">{rc.remarksEn}</p>
-              </div>
-            )}
-
-            {rc.pdfUrl && (
-              <button
-                onClick={() => handleDownloadPdf(rc)}
-                disabled={downloadingId === rc.id}
-                className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-[#8127cf] hover:text-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {downloadingId === rc.id ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
+            {data.reportCards[0] ? (
+              <div className="rounded-2xl bg-[#fbf0fe]/30 p-5 border border-[#cfc2d6]/8 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
+                    <p className="mt-0.5 text-sm font-bold text-[#1d1b20]">{data.reportCards[0].examTitle}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-[#8127cf]">{Math.round(data.reportCards[0].percentage)}%</p>
+                    <p className="text-[10px] font-semibold text-[#4d4354]/40">Grade {data.reportCards[0].grade || "N/A"}</p>
+                  </div>
+                </div>
+                {data.reportCards[0].remarksEn && (
+                  <p className="text-xs font-semibold leading-relaxed text-[#4d4354]/60 line-clamp-2">{data.reportCards[0].remarksEn}</p>
                 )}
-                {downloadingId === rc.id ? "Downloading..." : "Download PDF"}
-              </button>
+              </div>
+            ) : (
+              <p className="text-xs font-semibold text-[#4d4354]/40 italic">No report cards published yet.</p>
             )}
-          </div>
-        );
-      })}
-
-      {marksByExam.map((exam) => {
-        const isExpanded = expandedExam === exam.examId;
-        return (
-          <div key={exam.examId} className="bg-white rounded-[24px] border border-[#cfc2d6]/10 shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
-              className="w-full flex items-center justify-between p-5 hover:bg-[#fbf0fe]/20 transition-colors cursor-pointer"
+            <Link
+              href={`/parent/results${q}`}
+              className="mt-5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#6a1fb0]"
             >
-              <div className="text-left">
-                <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase">{exam.term}</p>
-                <h3 className="text-sm font-bold text-[#1d1b20]">{exam.examTitle}</h3>
-                <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">{exam.marks.length} subjects</p>
-              </div>
-              {isExpanded ? <ChevronUp className="w-4 h-4 text-[#4d4354]/40" /> : <ChevronDown className="w-4 h-4 text-[#4d4354]/40" />}
-            </button>
-            {isExpanded && (
-              <div className="border-t border-[#f3f4f9] px-5 pb-4">
-                <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-[9px] font-black uppercase text-[#4d4354]/40">
-                  <span>Subject</span>
-                  <span className="text-right">Marks</span>
-                  <span className="text-right">Grade</span>
-                </div>
-                {exam.marks.map((m) => (
-                  <div key={m.subject} className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 border-t border-[#f3f4f9]/50">
-                    <span className="text-xs font-semibold text-[#1d1b20]">{m.subject}</span>
-                    <span className="text-xs font-bold text-[#4d4354]/60 text-right">{m.obtained}/{m.total}</span>
-                    <span className="text-xs font-black text-[#8127cf] text-right">{m.grade || "-"}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+              View all results <ChevronRight className="w-3 h-3" />
+            </Link>
           </div>
-        );
-      })}
-    </div>
+
+          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Quick Access</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <QuickLink href={`/parent/results${q}`} icon={FileText} label="Results" sub={`${data.marksByExam.length} exams`} />
+              <QuickLink href={`/parent/attendance${q}`} icon={CalendarCheck} label="Attendance" sub={`${data.attendance.total} days recorded`} />
+              <QuickLink href={`/parent/timetable${q}`} icon={Clock} label="Timetable" sub="Weekly class schedule" />
+              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `Rs ${feeOutstanding.toLocaleString()} outstanding` : "All cleared"} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function AttendanceTab({ attendance }: { attendance: AttendanceData }) {
-  if (attendance.total === 0) {
-    return <EmptySection icon={CalendarCheck} title="No attendance data" description="Attendance records will appear here once marked." />;
-  }
-
-  const statusColors: Record<string, string> = {
-    PRESENT: "bg-emerald-500",
-    ABSENT: "bg-rose-500",
-    LATE: "bg-amber-500",
-    LEAVE: "bg-blue-500",
-  };
-
+function QuickLink({ href, icon: Icon, label, sub }: { href: string; icon: any; label: string; sub: string }) {
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[24px] border border-[#cfc2d6]/10 p-6 shadow-sm">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-3xl font-black text-[#8127cf]">{attendance.rate !== null ? `${attendance.rate}%` : "N/A"}</p>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase mt-1">Attendance Rate</p>
-          </div>
-          <div>
-            <p className="text-3xl font-black text-emerald-600">{attendance.present}</p>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase mt-1">Present</p>
-          </div>
-          <div>
-            <p className="text-3xl font-black text-rose-600">{attendance.total - attendance.present}</p>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase mt-1">Absent / Leave</p>
-          </div>
-        </div>
+    <Link
+      href={href}
+      className="group flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:border-[#8127cf]/20"
+    >
+      <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center text-[#8127cf] shadow-sm transition-all group-hover:bg-[#8127cf] group-hover:text-white">
+        <Icon className="w-4 h-4" />
       </div>
-
-      <div className="bg-white rounded-[24px] border border-[#cfc2d6]/10 p-5 shadow-sm">
-        <p className="text-xs font-black text-[#1d1b20] mb-3">Recent Attendance</p>
-        <div className="grid grid-cols-7 gap-1.5">
-          {attendance.recent.map((a, i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <div className={`w-6 h-6 rounded-lg ${statusColors[a.status] || "bg-gray-300"}`} title={`${a.date}: ${a.status}`} />
-              <span className="text-[7px] font-semibold text-[#4d4354]/30">{new Date(a.date).getDate()}</span>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 mt-4">
-          {Object.entries(statusColors).map(([status, color]) => (
-            <div key={status} className="flex items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-sm ${color}`} />
-              <span className="text-[9px] font-semibold text-[#4d4354]/40 capitalize">{status.toLowerCase()}</span>
-            </div>
-          ))}
-        </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-[#1d1b20]">{label}</p>
+        <p className="text-[9px] font-semibold text-[#4d4354]/40 truncate">{sub}</p>
       </div>
-    </div>
-  );
-}
-
-function FeesTab({ fees }: { fees: FeeItem[] }) {
-  if (fees.length === 0) {
-    return <EmptySection icon={BookOpen} title="No fee records" description="Fee invoices will appear here when generated." />;
-  }
-
-  const statusColors: Record<string, string> = {
-    PAID: "bg-emerald-50 text-emerald-600",
-    PENDING: "bg-amber-50 text-amber-600",
-    OVERDUE: "bg-rose-50 text-rose-600",
-    PARTIAL: "bg-blue-50 text-blue-600",
-    CANCELLED: "bg-gray-50 text-gray-500",
-  };
-
-  return (
-    <div className="space-y-3">
-      {fees.map((fee) => (
-        <div key={fee.id} className="bg-white rounded-[24px] border border-[#cfc2d6]/10 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold text-[#1d1b20]">{fee.invoiceNumber || "Invoice"}</p>
-              <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">Due: {fee.dueDate}</p>
-            </div>
-            <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusColors[fee.status] || "bg-gray-50 text-gray-500"}`}>
-              {fee.status}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mt-3">
-            <div>
-              <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Total</p>
-              <p className="text-sm font-black text-[#1d1b20]">Rs {(fee.totalAmount / 100).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Paid</p>
-              <p className="text-sm font-black text-emerald-600">Rs {(fee.paid / 100).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Balance</p>
-              <p className="text-sm font-black text-rose-600">Rs {(fee.balance / 100).toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ParentTimetableTab({ token }: { token: string | null }) {
-  const [timetableData, setTimetableData] = useState<any>(null);
-  const [ttLoading, setTtLoading] = useState(true);
-
-  useEffect(() => {
-    const loadTimetable = async () => {
-      setTtLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (token) params.set("token", token);
-        const res = await fetch(`/api/parent/timetable?${params}`);
-        const json = await res.json();
-        if (json.success) setTimetableData(json.data);
-      } catch { /* ignore */ }
-      setTtLoading(false);
-    };
-    loadTimetable();
-  }, [token]);
-
-  if (ttLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-      </div>
-    );
-  }
-
-  if (!timetableData || !timetableData.slots || timetableData.slots.length === 0) {
-    return <EmptySection icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />;
-  }
-
-  const DAYS = [
-    { num: 1, short: "Mon" }, { num: 2, short: "Tue" }, { num: 3, short: "Wed" },
-    { num: 4, short: "Thu" }, { num: 5, short: "Fri" }, { num: 6, short: "Sat" },
-  ];
-
-  const COLORS = [
-    { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
-    { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-    { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-    { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-    { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
-    { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-    { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300" },
-    { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300" },
-  ];
-
-  const subjectNames: string[] = [...new Set<string>(timetableData.slots.filter((s: any) => s.subject).map((s: any) => s.subject.name))];
-  const colorMap = new Map<string, typeof COLORS[0]>();
-  subjectNames.forEach((n, i) => colorMap.set(n, COLORS[i % COLORS.length]));
-
-  const periods = [...new Map(timetableData.slots.map((s: any) => [s.periodNumber, { num: s.periodNumber, start: s.startTime, end: s.endTime, type: s.slotType }])).values()].sort((a: any, b: any) => a.num - b.num);
-
-  const getSlot = (day: number, period: number) => timetableData.slots.find((s: any) => s.dayOfWeek === day && s.periodNumber === period);
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {subjectNames.map((name) => {
-          const c = colorMap.get(name);
-          return (
-            <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg} px-2 py-1`}>
-              <span className={`text-[8px] font-black ${c?.text}`}>{name}</span>
-            </span>
-          );
-        })}
-      </div>
-      <div className="overflow-x-auto rounded-[20px] border border-[#cfc2d6]/10 bg-white shadow-lg">
-        <div className="min-w-[600px]">
-          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
-            <div className="flex items-center justify-center p-2">
-              <Clock className="w-3 h-3 text-[#4d4354]/25" />
-            </div>
-            {DAYS.map((d) => (
-              <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
-                <span className="text-[8px] font-black uppercase text-[#4d4354]/30">{d.short}</span>
-              </div>
-            ))}
-          </div>
-          {(periods as any[]).map((p: any) => (
-            <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${p.type !== "CLASS" ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
-              <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
-                <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
-                <span className="text-[6px] font-bold text-[#4d4354]/20">{p.start}</span>
-              </div>
-              {DAYS.map((d) => {
-                const slot = getSlot(d.num, p.num);
-                if (!slot || slot.slotType !== "CLASS") {
-                  const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType || "";
-                  return (
-                    <div key={d.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-0.5">
-                      <span className="text-[7px] font-bold text-[#4d4354]/25">{label}</span>
-                    </div>
-                  );
-                }
-                const c = slot.subject ? colorMap.get(slot.subject.name) : null;
-                return (
-                  <div key={d.num} className="border-l border-[#f3f4f9] p-0.5">
-                    {slot.subject ? (
-                      <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
-                        <p className={`text-[8px] font-black ${c?.text} leading-tight`}>{slot.subject.name}</p>
-                        {slot.teacher && <p className="text-[6px] font-semibold text-[#4d4354]/30 mt-0.5">{slot.teacher.fullName}</p>}
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center"><span className="text-[7px] text-[#4d4354]/15">—</span></div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmptySection({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="h-14 w-14 rounded-[24px] bg-[#fbf0fe] flex items-center justify-center mb-4">
-        <Icon className="w-7 h-7 text-[#8127cf]/40" />
-      </div>
-      <h3 className="text-base font-bold text-[#1d1b20]">{title}</h3>
-      <p className="mt-1 text-xs text-[#4d4354]/50 max-w-xs">{description}</p>
-    </div>
+    </Link>
   );
 }

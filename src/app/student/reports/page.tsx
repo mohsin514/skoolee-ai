@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { Award, ChevronRight, FileText, GraduationCap } from "lucide-react";
-import { ReportsSkeleton } from "@/components/student/student-components";
+import { ReportsSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
 export default function ReportsPage() {
-  const { data, loading } = useStudentData();
+  const { data, loading, error, refetch } = useStudentData();
 
   const summary = useMemo(() => {
     if (!data?.user?.reportCards?.length) return { total: 0, best: 0, average: 0, published: 0, draft: 0 };
@@ -22,6 +22,7 @@ export default function ReportsPage() {
   }, [data]);
 
   if (loading && !data) return <ReportsSkeleton />;
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
 
   const user = data.user;

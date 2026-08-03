@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Receipt } from "lucide-react";
-import { FeesSkeleton } from "@/components/student/student-components";
+import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
 const dummyInvoices = [
@@ -14,7 +14,7 @@ const dummyInvoices = [
 ];
 
 export default function FeesPage() {
-  const { data, loading } = useStudentData();
+  const { data, loading, error, refetch } = useStudentData();
 
   const { invoices, balanceDue } = useMemo(() => {
     const hasRealInvoices = data?.user?.invoices?.length > 0;
@@ -52,6 +52,7 @@ export default function FeesPage() {
   }, [invoices]);
 
   if (loading && !data) return <FeesSkeleton />;
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
 
   return (

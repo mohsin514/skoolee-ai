@@ -11,7 +11,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import { BrandButton } from "@/components/role-dashboard";
 import {
   classLabel, CreateAssessmentModal, DashboardSkeleton, FinalGradesModal, GradeConfigModal,
-  ReportCardDetailModal, StudentDetailModal,
+  ReportCardDetailModal, StudentDetailModal, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "./teacher-data-context";
 
@@ -31,7 +31,7 @@ interface TimetableSlot {
 
 export default function TeacherDashboardHub() {
   const router = useRouter();
-  const { data, loading, refetch } = useTeacherData();
+  const { data, loading, error, refetch } = useTeacherData();
 
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
@@ -278,7 +278,7 @@ export default function TeacherDashboardHub() {
   }, [selectedReportCard]);
 
   if (loading && !data) return <DashboardSkeleton />;
-  if (!data) return null;
+  if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -339,7 +339,16 @@ export default function TeacherDashboardHub() {
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-7">
 
         {/* ── Self Attendance Card ── */}
-        {selfAttendanceStatus !== "loading" && (
+        {selfAttendanceStatus === "loading" ? (
+          <div className="rounded-[28px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-lg p-5 flex items-center gap-4 animate-skeleton-in">
+            <div className="skeleton-shimmer h-12 w-12 shrink-0 rounded-2xl bg-[#e8e0ec]/60" />
+            <div className="flex-1 space-y-2">
+              <div className="skeleton-shimmer h-4 w-52 rounded-full bg-[#e8e0ec]/50" />
+              <div className="skeleton-shimmer h-3 w-72 rounded-full bg-[#e8e0ec]/40" />
+            </div>
+            <div className="skeleton-shimmer h-10 w-28 shrink-0 rounded-2xl bg-[#e8e0ec]/50" />
+          </div>
+        ) : (
           <div className="rounded-[28px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-lg">
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
@@ -406,7 +415,22 @@ export default function TeacherDashboardHub() {
         )}
 
         {/* ── Today's Schedule Strip ── */}
-        {!slotsLoading && todaySlots.length > 0 && (
+        {slotsLoading ? (
+          <div className="rounded-[28px] bg-gradient-to-r from-[#8127cf]/[0.04] to-[#fbf0fe]/60 border border-[#8127cf]/10 p-5 animate-skeleton-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="skeleton-shimmer h-8 w-8 rounded-xl bg-[#e8e0ec]/60" />
+                <div className="skeleton-shimmer h-4 w-36 rounded-full bg-[#e8e0ec]/50" />
+              </div>
+              <div className="skeleton-shimmer h-3 w-20 rounded-full bg-[#e8e0ec]/40" />
+            </div>
+            <div className="flex gap-3 overflow-hidden">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="skeleton-shimmer h-[76px] w-[160px] shrink-0 rounded-2xl bg-[#e8e0ec]/50" />
+              ))}
+            </div>
+          </div>
+        ) : todaySlots.length > 0 ? (
           <div className="rounded-[28px] bg-gradient-to-r from-[#8127cf]/[0.04] to-[#fbf0fe]/60 border border-[#8127cf]/10 p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
@@ -463,7 +487,7 @@ export default function TeacherDashboardHub() {
               })}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* ── Stat Cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -477,7 +501,7 @@ export default function TeacherDashboardHub() {
           ].map((card) => (
             <button key={card.label} type="button" onClick={card.onClick}
               title={`${card.value} ${card.label} — click to view`}
-              className="group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97]"
+              className="group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-300`} />
               <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md`}>
@@ -655,22 +679,22 @@ export default function TeacherDashboardHub() {
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => router.push("/teacher/attendance")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
-                        <CalendarCheck className="h-3.5 w-3.5" /> Attendance
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/marks")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
-                        <Star className="h-3.5 w-3.5" /> Marks
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/reports")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
-                        <FileText className="h-3.5 w-3.5" /> Reports
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/students")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97]">
-                        <Users className="h-3.5 w-3.5" /> Students
-                      </button>
+<button type="button" onClick={() => router.push("/teacher/attendance")}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                      <CalendarCheck className="h-3.5 w-3.5" /> Attendance
+                    </button>
+                    <button type="button" onClick={() => router.push("/teacher/marks")}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                      <Star className="h-3.5 w-3.5" /> Marks
+                    </button>
+                    <button type="button" onClick={() => router.push("/teacher/reports")}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                      <FileText className="h-3.5 w-3.5" /> Reports
+                    </button>
+                    <button type="button" onClick={() => router.push("/teacher/students")}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                      <Users className="h-3.5 w-3.5" /> Students
+                    </button>
                     </div>
                   </div>
                 );
@@ -695,7 +719,7 @@ export default function TeacherDashboardHub() {
             ].map((card) => (
               <button key={card.label} type="button" onClick={() => router.push(card.href)}
                 title={`Go to ${card.label}`}
-                className="group relative cursor-pointer rounded-[24px] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl bg-white border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97]"
+                className="group relative cursor-pointer rounded-[24px] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl bg-white border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.04] group-hover:opacity-[0.08] transition-opacity`} />
                 <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${card.color} shadow-md`}>

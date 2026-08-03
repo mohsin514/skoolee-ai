@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, X, Clock } from "lucide-react";
+import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
 export default function StudentAttendancePage() {
-  const { data, loading } = useStudentData();
+  const { data, loading, error, refetch } = useStudentData();
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -93,20 +94,8 @@ export default function StudentAttendancePage() {
     return new Date(y, m - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   })();
 
-  if (loading && !data) {
-    return (
-      <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col animate-pulse">
-        <div className="p-7 px-9 space-y-4">
-          <div className="h-8 bg-[#fbf0fe] rounded-2xl w-64" />
-          <div className="h-4 bg-[#fbf0fe] rounded-xl w-96" />
-          <div className="grid grid-cols-4 gap-4 mt-6">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-[#fbf0fe] rounded-[28px]" />)}
-          </div>
-          <div className="h-72 bg-[#fbf0fe] rounded-[28px] mt-6" />
-        </div>
-      </section>
-    );
-  }
+  if (loading && !data) return <AttendanceSkeleton />;
+  if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
 
   const isAtRisk = stats.rate > 0 && stats.rate < 75;
