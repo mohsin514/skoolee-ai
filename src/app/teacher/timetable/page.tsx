@@ -46,13 +46,20 @@ export default function TeacherTimetablePage() {
   const todaySlots = slots.filter((s) => s.dayOfWeek === (today === 0 ? 7 : today) && s.slotType === "CLASS" && s.subject);
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">My Schedule</p>
-        <h2 className="text-3xl font-black tracking-normal text-[#1f1a23] mt-1">Weekly Timetable</h2>
-        <p className="text-sm font-semibold text-[#4d4354]/60 mt-2">Your published class schedule across all assigned classes</p>
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
+            <Calendar className="w-4 h-4" />
+            <p className="text-[10px] font-semibold uppercase tracking-wider">My Schedule</p>
+          </div>
+          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h2>
+          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your published class schedule across all assigned classes</p>
+        </div>
       </div>
 
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
       {slots.length === 0 ? (
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-10 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">
@@ -98,6 +105,7 @@ export default function TeacherTimetablePage() {
           />
         </>
       )}
-    </div>
+      </div>
+    </section>
   );
 }

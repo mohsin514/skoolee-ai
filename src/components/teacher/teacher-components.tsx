@@ -189,14 +189,17 @@ export function LoadingBlock({ label }: { label: string }) {
 
 export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
-      <div className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter`}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" role="presentation" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter`}>
         <div className="flex justify-between items-start gap-5 mb-8">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-            <h3 className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">{title}</h3>
+            <h3 id="modal-title" className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all active:scale-90">
+          <button type="button" onClick={onClose} aria-label="Close dialog"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1337,62 +1340,118 @@ export function AISkeleton() {
   );
 }
 
-export function TimetableSkeleton() {
+export function StudentsSkeleton() {
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <SkeletonBlock className="h-3 w-28 mb-2" />
-        <SkeletonBlock className="h-8 w-56" />
-        <SkeletonBlock className="h-4 w-80 mt-2" />
-      </div>
-
-      <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <SkeletonBlock className="h-7 w-7 rounded-lg" />
-          <SkeletonBlock className="h-4 w-36" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {[...Array(3)].map((_, i) => (
-            <SkeletonBlock key={i} className="h-8 w-40 rounded-xl" />
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <SkeletonBlock className="h-8 w-8 rounded-xl" />
-          <SkeletonBlock className="h-4 w-44" />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {[...Array(4)].map((_, i) => (
-            <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
-          ))}
-        </div>
-        <div className="overflow-hidden rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
-          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
-            <div className="p-2" />
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
-                <SkeletonBlock className="h-3 w-10 rounded-md" />
-              </div>
-            ))}
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-3 w-36" />
           </div>
-          {[...Array(6)].map((_, p) => (
-            <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
-              <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
-                <SkeletonBlock className="h-3 w-6 rounded-md" />
-                <SkeletonBlock className="h-2 w-8 rounded-md mt-1" />
-              </div>
-              {[...Array(6)].map((_, d) => (
-                <div key={d} className="border-l border-[#f3f4f9] p-1.5">
-                  <SkeletonBlock className="h-12 w-full rounded-lg" />
+          <SkeletonBlock className="h-9 w-48 mb-2" />
+          <SkeletonBlock className="h-4 w-64" />
+        </div>
+      </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-6">
+        {/* Filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <SkeletonBlock className="h-12 w-full sm:w-96 rounded-2xl" />
+          <SkeletonBlock className="h-12 w-full sm:w-40 rounded-2xl" />
+          <SkeletonBlock className="h-3 w-24" />
+        </div>
+        {/* Student cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg">
+              <div className="flex items-start gap-4 mb-4">
+                <SkeletonBlock className="h-14 w-14 rounded-2xl shrink-0" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <SkeletonBlock className="h-4 w-3/4" />
+                  <SkeletonBlock className="h-3 w-2/4" />
                 </div>
-              ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <SkeletonBlock className="h-14 rounded-xl" />
+                <SkeletonBlock className="h-14 rounded-xl" />
+              </div>
+              <SkeletonBlock className="h-12 rounded-xl" />
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+export function TimetableSkeleton() {
+  return (
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      {/* Header card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative p-7 px-9">
+          <div className="flex items-center gap-2 mb-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-3 w-28" />
+          </div>
+          <SkeletonBlock className="h-9 w-56 mb-2" />
+          <SkeletonBlock className="h-4 w-80" />
+        </div>
+      </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+        <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <SkeletonBlock className="h-7 w-7 rounded-lg" />
+            <SkeletonBlock className="h-4 w-36" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[...Array(3)].map((_, i) => (
+              <SkeletonBlock key={i} className="h-8 w-40 rounded-xl" />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[26px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-sm">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-[#cfc2d6]/10">
+            <SkeletonBlock className="h-6 w-6 rounded-lg" />
+            <SkeletonBlock className="h-4 w-44" />
+          </div>
+          <div className="px-5 py-3 flex flex-wrap gap-1.5">
+            {[...Array(4)].map((_, i) => (
+              <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
+            ))}
+          </div>
+          <div className="overflow-hidden border-t border-[#f3f4f9]">
+            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+              <div className="p-2" />
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
+                  <SkeletonBlock className="h-3 w-10 rounded-md" />
+                </div>
+              ))}
+            </div>
+            {[...Array(6)].map((_, p) => (
+              <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+                <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
+                  <SkeletonBlock className="h-3 w-6 rounded-md" />
+                  <SkeletonBlock className="h-2 w-8 rounded-md mt-1" />
+                </div>
+                {[...Array(6)].map((_, d) => (
+                  <div key={d} className="border-l border-[#f3f4f9] p-1.5">
+                    <SkeletonBlock className="h-12 w-full rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

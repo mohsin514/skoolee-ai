@@ -290,21 +290,21 @@ export default function MarksPage() {
           {marksLoading ? (
             <div>
               <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">
-                <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
-                <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
-                <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
+                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
+                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
+                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
               </div>
               {[...Array(4)].map((_, ri) => (
                 <div key={ri} className="flex items-center gap-4 px-5 py-4 border-t border-[#f3f4f9]">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="animate-pulse bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
+                    <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
                     <div>
-                      <div className="animate-pulse bg-[#e8e0ec]/60 h-4 w-28 mb-1 rounded-2xl" />
-                      <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-4 w-28 mb-1 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
                     </div>
                   </div>
                   {[...Array(3)].map((_, ci) => (
-                    <div key={ci} className="animate-pulse bg-[#e8e0ec]/60 h-11 w-20 rounded-2xl" />
+                    <div key={ci} className="skeleton-shimmer bg-[#e8e0ec]/60 h-11 w-20 rounded-2xl" />
                   ))}
                 </div>
               ))}

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useTeacherData } from "../teacher-data-context";
 import {
-  classLabel, DashboardSkeleton, StudentDetailModal,
+  classLabel, StudentDetailModal, StudentsSkeleton,
 } from "@/components/teacher/teacher-components";
 
 export default function TeacherStudentsPage() {
@@ -36,21 +36,21 @@ export default function TeacherStudentsPage() {
     return list;
   }, [allStudents, classFilter, search]);
 
-  if (loading && !data) return <DashboardSkeleton />;
+  if (loading && !data) return <StudentsSkeleton />;
   if (!data) return null;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative p-7 px-9">
           <div className="flex items-center gap-2 text-[#8127cf] mb-2">
             <Users className="w-4 h-4" />
-            <p className="text-[10px] font-black uppercase tracking-wider">Student Directory</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider">Student Directory</p>
           </div>
-          <h2 className="text-3xl font-black tracking-normal text-[#1f1a23]">My Students</h2>
-          <p className="text-sm font-semibold text-[#4d4354]/60 mt-2">
+          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Students</h2>
+          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
             {allStudents.length} students across {classHubs.length} class{classHubs.length !== 1 ? "es" : ""}
           </p>
         </div>
@@ -71,7 +71,7 @@ export default function TeacherStudentsPage() {
               className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white pl-11 pr-10 text-sm font-semibold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:shadow-md hover:border-[#8127cf]/20"
             />
             {search && (
-              <button type="button" onClick={() => setSearch("")}
+              <button type="button" onClick={() => setSearch("")} aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4d4354]/30 hover:text-rose-500 cursor-pointer">
                 <X className="h-4 w-4" />
               </button>

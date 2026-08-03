@@ -230,12 +230,12 @@ export default function AttendancePage() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => adjustDate(-1)} title="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+              <button type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronLeft className="w-4 h-4 text-[#4d4354]" />
               </button>
               <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
                 className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
-              <button type="button" onClick={() => adjustDate(1)} title="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+              <button type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronRight className="w-4 h-4 text-[#4d4354]" />
               </button>
             </div>
@@ -312,13 +312,13 @@ export default function AttendancePage() {
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="animate-pulse bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
+                    <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
                     <div>
-                      <div className="animate-pulse bg-[#e8e0ec]/60 h-4 w-32 mb-1 rounded-2xl" />
-                      <div className="animate-pulse bg-[#e8e0ec]/60 h-3 w-24 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-4 w-32 mb-1 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-24 rounded-2xl" />
                     </div>
                   </div>
-                  <div className="animate-pulse bg-[#e8e0ec]/60 h-10 w-44 rounded-xl" />
+                  <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-10 w-44 rounded-xl" />
                 </div>
               ))}
             </div>
@@ -438,11 +438,11 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => adjustMonth(-1)} title="Previous month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+            <button type="button" onClick={() => adjustMonth(-1)} title="Previous month" aria-label="Previous month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
               <ChevronLeft className="w-4 h-4 text-[#4d4354]" />
             </button>
             <div className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-4 flex items-center text-sm font-semibold text-[#1d1b20] min-w-[140px] justify-center">{monthLabel}</div>
-            <button type="button" onClick={() => adjustMonth(1)} title="Next month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+            <button type="button" onClick={() => adjustMonth(1)} title="Next month" aria-label="Next month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
               <ChevronRight className="w-4 h-4 text-[#4d4354]" />
             </button>
           </div>
@@ -453,8 +453,8 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5">
-              <div className="animate-pulse bg-[#e8e0ec]/50 h-5 w-40 rounded-lg mb-3" />
-              <div className="animate-pulse bg-[#e8e0ec]/50 h-3 w-64 rounded-lg" />
+              <div className="skeleton-shimmer bg-[#e8e0ec]/50 h-5 w-40 rounded-lg mb-3" />
+              <div className="skeleton-shimmer bg-[#e8e0ec]/50 h-3 w-64 rounded-lg" />
             </div>
           ))}
         </div>

@@ -20,7 +20,7 @@ export function BrandButton({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl font-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
+        "inline-flex items-center justify-center gap-2 rounded-2xl font-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-2",
         "min-h-10 px-5 text-sm",
         variant === "gradient" &&
           "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-xl shadow-indigo-100 hover:scale-[1.02]",
