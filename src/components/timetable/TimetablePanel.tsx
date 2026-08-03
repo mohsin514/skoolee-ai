@@ -369,8 +369,28 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit animate-skeleton-in">
+          <div className="h-9 w-24 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-9 w-28 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto animate-skeleton-in" style={{ animationDelay: "80ms" }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-9 w-20 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+          ))}
+        </div>
+        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-10 w-16 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <div key={j} className="h-10 flex-1 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -382,7 +402,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <button
           type="button"
           onClick={() => setViewMode("class")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
             viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
           }`}
         >
@@ -391,7 +411,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <button
           type="button"
           onClick={() => setViewMode("teacher")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
             viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
           }`}
         >
@@ -499,7 +519,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 key={cls.id}
                 type="button"
                 onClick={() => setSelectedClassId(cls.id)}
-                className={`relative flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-normal transition-all cursor-pointer whitespace-nowrap ${
+                className={`relative flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                   selectedClassId === cls.id
                     ? "bg-white text-[#8127cf] shadow-sm"
                     : "text-[#4d4354]/50 hover:text-[#8127cf]"
@@ -583,14 +603,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   setCustomPeriods(p);
                   setShowPeriodConfig(true);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
               >
                 <Clock className="h-3.5 w-3.5" />Periods
               </button>
               <button
                 type="button"
                 onClick={handleDeleteTimetable}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-normal text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
               >
                 <Trash2 className="h-3.5 w-3.5" />Delete
               </button>
@@ -599,7 +619,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   type="button"
                   onClick={handleSaveAll}
                   disabled={saving}
-                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-normal text-white transition-all hover:bg-[#6a1fb0] cursor-pointer disabled:opacity-50"
+                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] cursor-pointer disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Save Changes
@@ -609,7 +629,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 type="button"
                 onClick={handlePublish}
                 disabled={publishing}
-                className={`flex h-9 items-center gap-1.5 rounded-xl px-4 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer disabled:opacity-50 ${
+                className={`flex h-9 items-center gap-1.5 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 ${
                   activeTimetable.status === "PUBLISHED"
                     ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
                     : "bg-emerald-500 text-white hover:bg-emerald-600"
@@ -835,8 +855,8 @@ function PeriodConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
           <X className="w-4 h-4" />
         </button>
@@ -887,7 +907,7 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/40 hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />Add Period
           </button>
@@ -897,14 +917,14 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => onSave(localPeriods)}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-normal text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
           >
             <Check className="w-3.5 h-3.5" />{isNew ? "Create Timetable" : "Save Periods"}
           </button>
@@ -971,9 +991,9 @@ function SlotEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
       <div
-        className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
@@ -1055,14 +1075,14 @@ function SlotEditorModal({
           <button
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-normal text-[#4d4354]/60 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
           >
             <X className="w-3 h-3" />Clear
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-normal text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
           >
             <Check className="w-3.5 h-3.5" />Apply
           </button>

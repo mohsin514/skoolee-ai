@@ -59,8 +59,20 @@ export function CycleGate({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+      <div className="space-y-4 py-8 px-4 animate-skeleton-in">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div className="space-y-1.5">
+            <div className="h-4 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-2.5 w-24 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+          </div>
+        </div>
+        <div className="h-px bg-[#e8e0ec]/20" />
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-20 rounded-2xl bg-[#e8e0ec]/20 skeleton-shimmer animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }} />
+          ))}
+        </div>
       </div>
     );
   }

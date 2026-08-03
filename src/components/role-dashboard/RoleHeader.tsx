@@ -314,8 +314,8 @@ export function RoleHeader({
       </header>
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm">
-          <div className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter">
+          <div className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
             <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white shadow-inner ring-1 ring-[#cfc2d6]/15">
@@ -402,8 +402,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter">
+      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
         <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] shadow-sm ring-1 ring-[#cfc2d6]/15">
@@ -471,7 +471,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                     />
                   ))}
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-normal ${
+                <span className={`text-[9px] font-black uppercase tracking-wider ${
                   strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
                 }`}>
                   {strength.label}

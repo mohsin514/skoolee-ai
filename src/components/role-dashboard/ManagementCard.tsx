@@ -57,7 +57,7 @@ export function ManagementCard({
             </div>
           </div>
           <div>
-            <h3 className="text-lg font-black text-[#1f1a23] tracking-normal transition-colors group-hover:text-[#8127cf]">{title}</h3>
+            <h3 className="text-lg font-black text-[#1f1a23] tracking-wider transition-colors group-hover:text-[#8127cf]">{title}</h3>
             <p className="text-[10px] font-semibold text-[#4d4354]/40 leading-relaxed italic mt-0.5">{description}</p>
           </div>
         </div>

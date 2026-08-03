@@ -95,17 +95,17 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/30" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teachers..."
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30" />
+            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
         </div>
         <div className="flex items-center gap-2">
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-            className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none cursor-pointer">
+            className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none cursor-pointer focus:border-[#8127cf]/30 transition-colors">
             {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none cursor-pointer">
+            className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none cursor-pointer focus:border-[#8127cf]/30 transition-colors">
             <option value="avgPercentage">Sort: Avg Score</option>
             <option value="passRate">Sort: Pass Rate</option>
             <option value="teacherAttendanceRate">Sort: Own Attendance</option>
@@ -116,15 +116,34 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
 
       {/* Teacher List */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="flex items-start gap-4">
+                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-11 w-11 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-36 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                  <div className="h-3 w-48 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="rounded-xl bg-[#f3f4f9] p-2">
+                    <div className="h-4 w-10 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer mb-1" />
+                    <div className="h-2 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : sorted.length === 0 ? (
         <EmptyState icon={Award} title="No Performance Data" description="No teacher performance data available for this year." />
       ) : (
         <div className="space-y-3">
           {sorted.map((teacher, rank) => (
-            <div key={teacher.teacherId} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5 hover:shadow-md transition-all">
+            <div key={teacher.teacherId} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5 hover:shadow-md hover:border-[#8127cf]/15 transition-all duration-200">
               <div className="flex items-start gap-4">
                 {/* Rank */}
                 <div className={`h-8 w-8 shrink-0 rounded-xl flex items-center justify-center text-xs font-bold ${
@@ -147,7 +166,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold text-[#1d1b20] truncate">{teacher.fullName}</p>
+                    <p className="text-sm font-bold text-[#1d1b20] truncate tracking-tight">{teacher.fullName}</p>
                     {rank === 0 && teacher.avgPercentage !== null && (
                       <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Top Performer</span>
                     )}

@@ -1190,6 +1190,9 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
 
   return {
     principalName: session.fullName || "Principal",
+    principal: { id: session.userId, fullName: session.fullName || "Principal", email: session.email },
+    studentCount: totalStudents,
+    academicYear: new Date().getFullYear(),
     campusName: campus?.name || "Campus",
     campusCity: campus?.city || "",
     campusRegId: campus?.regId || "",

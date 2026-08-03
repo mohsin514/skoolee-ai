@@ -141,13 +141,13 @@ function pct(n: number, total: number): number {
 
 function StatSkeleton() {
   return (
-    <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 shadow-lg p-6 animate-pulse">
+    <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 shadow-lg p-6 animate-skeleton-in">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3 flex-1">
-          <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/50" />
-          <div className="h-8 w-16 rounded-full bg-[#e8e0ec]/50" />
+          <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-8 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
         </div>
-        <div className="h-11 w-11 rounded-2xl bg-[#e8e0ec]/50" />
+        <div className="h-11 w-11 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
       </div>
     </div>
   );
@@ -155,15 +155,16 @@ function StatSkeleton() {
 
 function TableSkeleton() {
   return (
-    <div className="space-y-3 animate-pulse">
+    <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-4 rounded-2xl bg-[#e8e0ec]/20 p-4"
+          className="flex items-center gap-4 rounded-2xl bg-[#e8e0ec]/20 p-4 animate-skeleton-in"
+          style={{ animationDelay: `${i * 60}ms` }}
         >
-          <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50" />
-          <div className="h-4 flex-1 rounded-full bg-[#e8e0ec]/50" />
-          <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50" />
+          <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-4 flex-1 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
         </div>
       ))}
     </div>
@@ -172,8 +173,8 @@ function TableSkeleton() {
 
 function ChartSkeleton() {
   return (
-    <div className="flex items-center justify-center animate-pulse">
-      <div className="h-40 w-40 rounded-full bg-[#e8e0ec]/50" />
+    <div className="flex items-center justify-center animate-skeleton-in">
+      <div className="h-40 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
     </div>
   );
 }
@@ -802,14 +803,14 @@ function SummaryStatCard({
     <div className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-2">
+          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">
             {label}
           </p>
           <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">
             {value}
           </p>
           {sub && (
-            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-normal mt-2">
+            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mt-2">
               {sub}
             </p>
           )}

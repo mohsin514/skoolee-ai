@@ -166,8 +166,23 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       <p className="text-[9px] font-bold text-[#4d4354]/40">{total} payment{total !== 1 ? "s" : ""}</p>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
+        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+          <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            ))}
+          </div>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 border-t border-[#f3f4f9]">
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+              </div>
+              {Array.from({ length: 5 }).map((_, j) => (
+                <div key={j} className="h-3.5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer self-center" />
+              ))}
+            </div>
+          ))}
         </div>
       ) : payments.length === 0 ? (
         <EmptyState
@@ -178,7 +193,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
               <span>Student</span>
               <span>Receipt</span>
               <span>Amount</span>
@@ -385,8 +400,8 @@ function PaymentModal({
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Record Payment</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
@@ -401,7 +416,7 @@ function PaymentModal({
                 <Banknote className="h-7 w-7 text-green-600" />
               </div>
               <h3 className="text-lg font-black text-[#1f1a23]">Payment Successful</h3>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">Receipt #{receipt.receiptNumber}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">Receipt #{receipt.receiptNumber}</p>
             </div>
             <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-4 border border-[#cfc2d6]/10 space-y-3">
               <div className="flex justify-between">
@@ -438,7 +453,7 @@ function PaymentModal({
         ) : step === "search" ? (
           <div className="space-y-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Find Student</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Find Student</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -470,8 +485,16 @@ function PaymentModal({
               </div>
             )}
             {loadingInvoices && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-[#8127cf]" />
+              <div className="space-y-2 py-2 animate-skeleton-in">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[#f3f4f9]/50 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                    <div className="space-y-1.5">
+                      <div className="h-3 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                      <div className="h-2 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    </div>
+                    <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  </div>
+                ))}
               </div>
             )}
             {!loadingInvoices && selectedStudent && invoices.length === 0 && (
@@ -486,7 +509,7 @@ function PaymentModal({
             )}
             {invoices.length > 0 && !loadingInvoices && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-2">Select Invoice</p>
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">Select Invoice</p>
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-[#8127cf]/30 bg-[#fbf0fe]" : "border-[#cfc2d6]/10 bg-[#f3f4f9]/50 hover:border-[#8127cf]/20"}`}>
@@ -515,15 +538,15 @@ function PaymentModal({
               ) : null;
             })()}
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Amount (PKR)</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Amount (PKR)</label>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Payment Date</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Payment Date</label>
               <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Method</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Method</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
@@ -533,7 +556,7 @@ function PaymentModal({
               </select>
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Reference (optional)</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Reference (optional)</label>
               <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction ID / Cheque #" className={inputClass} />
             </div>
             <div className="flex gap-3">
@@ -595,8 +618,8 @@ function BankImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Import Bank Statement</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
@@ -605,21 +628,21 @@ function BankImportModal({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Account Name</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Account Name</label>
             <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">From</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">From</label>
               <input type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">To</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">To</label>
               <input type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">CSV File</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">CSV File</label>
             <label className="flex flex-col items-center justify-center h-28 rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20 cursor-pointer hover:bg-[#fbf0fe]/40 hover:border-[#8127cf]/30 transition-all">
               <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="hidden" />
               {file ? (

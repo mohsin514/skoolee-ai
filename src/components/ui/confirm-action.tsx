@@ -47,8 +47,8 @@ export function ConfirmAction({
   const styles = toneStyles[tone];
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-md">
-      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-md animate-backdrop-enter">
+      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
         <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-6">
           <div className="flex items-start justify-between gap-5">
             <div className="flex items-start gap-4">

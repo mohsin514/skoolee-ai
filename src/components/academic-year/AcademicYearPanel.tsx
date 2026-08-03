@@ -238,8 +238,24 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
+      <div className="space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-lg overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="space-y-2">
+                  <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                  <div className="flex items-center gap-3">
+                    <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+              <div className="h-5 w-5 rounded bg-[#e8e0ec]/30 skeleton-shimmer" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -356,21 +372,37 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
       {/* ── History Modal ── */}
       {historyYear && historyClassId && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-          <div className="bg-white w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
+          <div className="bg-white w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
             <div className="flex justify-between items-start gap-5 mb-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Academic Year {historyYear}</p>
                 <h3 className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">Class History</h3>
               </div>
               <button type="button" onClick={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all">
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {historyLoading ? (
-              <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" /></div>
+              <div className="space-y-2 py-4 animate-skeleton-in">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-2.5 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  ))}
+                </div>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                    <div className="h-3 w-5 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    <div className="h-3.5 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                    <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                  </div>
+                ))}
+              </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
@@ -417,8 +449,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
       {/* ── Promotion Wizard ── */}
       {showPromoteModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4">
-          <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4 animate-backdrop-enter">
+          <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
             <div className="flex justify-between items-start gap-5 mb-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Promotion</p>
@@ -430,7 +462,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </h3>
               </div>
               <button type="button" onClick={closePromotionWizard}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all">
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -520,7 +552,18 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 )}
 
                 {gradeLoading ? (
-                  <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" /></div>
+                  <div className="space-y-3 py-4 animate-skeleton-in">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                        <div className="h-8 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-3.5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                          <div className="h-2.5 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                        </div>
+                        <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <>
                     {gradeError && (

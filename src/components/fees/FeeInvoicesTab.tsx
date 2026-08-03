@@ -185,7 +185,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
               key={s.value}
               type="button"
               onClick={() => { setStatusFilter(s.value); setPage(1); }}
-              className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+              className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 statusFilter === s.value
                   ? "bg-white text-[#8127cf] shadow-sm"
                   : "text-[#4d4354]/50 hover:text-[#8127cf]"
@@ -232,8 +232,27 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       <p className="text-[9px] font-bold text-[#4d4354]/40">{total} invoice{total !== 1 ? "s" : ""}</p>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
+        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+          <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            ))}
+          </div>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 border-t border-[#f3f4f9]" style={{ animationDelay: `${i * 50}ms` }}>
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-2.5 w-14 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+              </div>
+              {Array.from({ length: 5 }).map((_, j) => (
+                <div key={j} className="h-3.5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer self-center" />
+              ))}
+            </div>
+          ))}
         </div>
       ) : invoices.length === 0 ? (
         <EmptyState
@@ -244,7 +263,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
-            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
               <span>Student</span>
               <span>Invoice</span>
               <span>Total</span>
@@ -399,8 +418,8 @@ function InvoiceDetailModal({
       tone="danger"
       confirmLabel="Cancel Invoice"
     />
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Invoice Detail</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
@@ -409,8 +428,21 @@ function InvoiceDetailModal({
         </div>
 
         {loading || !inv ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+          <div className="space-y-4 py-2 animate-skeleton-in">
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-6 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex justify-between animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                  <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  <div className="h-3 w-24 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                </div>
+              ))}
+            </div>
+            <div className="h-px bg-[#e8e0ec]/30" />
+            <div className="h-5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -456,7 +488,7 @@ function InvoiceDetailModal({
 
             {inv.payments && inv.payments.length > 0 && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">
                   Payment Receipts
                 </p>
                 <div className="space-y-2">
@@ -566,8 +598,8 @@ function GenerateInvoicesModal({
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Generate Invoices</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
@@ -576,11 +608,11 @@ function GenerateInvoicesModal({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Month</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Month</label>
             <input type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Class (optional)</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Class (optional)</label>
             <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
               <option value="">All Classes</option>
               {classes.map((c) => (

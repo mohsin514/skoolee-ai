@@ -709,40 +709,6 @@ export default function TeacherDashboardHub() {
         </div>
       </div>
 
-      {/* ── Recent Report Cards ── */}
-      {(data.recentReportCards?.length || 0) > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">Recent Report Cards</h3>
-            <button type="button" onClick={() => router.push("/teacher/reports")}
-              className="text-[10px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer">View All</button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {data.recentReportCards.slice(0, 6).map((report: any) => (
-              <button key={report.id} type="button" onClick={() => setSelectedReportCard(report)}
-                className="text-left rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#1f1a23] truncate">{report.student?.fullName || "Student"}</p>
-                    <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/50">{report.exam?.title || "—"}</p>
-                  </div>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                    report.status === "PUBLISHED" || report.status === "SENT" ? "bg-emerald-50 text-emerald-600" :
-                    report.status === "GENERATED" || report.status === "REVIEWED" ? "bg-[#fbf0fe] text-[#8127cf]" :
-                    "bg-[#f3f4f9] text-[#4d4354]/50"
-                  }`}>{(report.status || "").replaceAll("_", " ")}</span>
-                </div>
-                <div className="flex items-center gap-3 pt-3 border-t border-[#cfc2d6]/10">
-                  <span className="text-xl font-black text-[#8127cf]">{report.grade || "—"}</span>
-                  <span className="text-sm font-bold text-[#4d4354]/50">{Math.round(report.percentage || 0)}%</span>
-                  <span className="ml-auto text-[10px] font-semibold text-[#4d4354]/40">{report.student?.class ? `${report.student.class.name}${report.student.class.section ? ` ${report.student.class.section}` : ""}` : "—"}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Modals ── */}
       <CreateAssessmentModal open={showExamModal} classHubs={classHubs} examForm={examForm} creatingExam={creatingExam}
         onClose={() => setShowExamModal(false)}

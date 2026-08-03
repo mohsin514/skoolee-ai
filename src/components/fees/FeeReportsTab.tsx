@@ -48,7 +48,7 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
               key={tab.key}
               type="button"
               onClick={() => setSubTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-normal transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 subTab === tab.key
                   ? "bg-white text-[#8127cf] shadow-sm"
                   : "text-[#4d4354]/50 hover:text-[#8127cf]"
@@ -111,8 +111,17 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
+      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+        <div className="px-5 py-3 bg-[#f3f4f9]/50">
+          <div className="h-3 w-full max-w-md rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-[#f3f4f9]">
+            <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-3.5 flex-1 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -139,7 +148,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
           <span>Student</span>
           <span>Guardian</span>
           <span>Overdue</span>
@@ -222,8 +231,24 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
+      <div className="space-y-4 animate-skeleton-in">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3">
+              <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-2" />
+              <div className="h-5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-[#f3f4f9] first:border-t-0">
+              <div className="h-3.5 flex-1 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-3.5 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-2 w-24 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -279,7 +304,7 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
-        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
           <span>Class</span>
           <span>Students</span>
           <span>Total Due</span>
@@ -348,8 +373,19 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
+      <div className="space-y-4 animate-skeleton-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-[20px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              </div>
+              <div className="h-5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer mb-3" />
+              <div className="h-2 w-full rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

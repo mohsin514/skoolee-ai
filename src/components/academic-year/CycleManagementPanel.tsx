@@ -91,8 +91,29 @@ export function CycleManagementPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+      <div className="space-y-4">
+        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-6 animate-skeleton-in">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-3 w-52 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            </div>
+          </div>
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between rounded-[20px] border border-[#cfc2d6]/15 bg-white p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-3 w-44 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              </div>
+            </div>
+            <div className="h-7 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -219,8 +240,8 @@ export function CycleManagementPanel() {
               <div
                 key={cycle.id}
                 className={cn(
-                  "flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all",
-                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-[#cfc2d6]/15"
+                  "flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
+                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-[#cfc2d6]/15 hover:border-[#8127cf]/15 hover:shadow-md"
                 )}
               >
                 <div className="flex items-center gap-4">

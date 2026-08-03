@@ -74,8 +74,29 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="space-y-2">
+                <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              </div>
+              <div className="flex gap-1.5">
+                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="rounded-xl bg-[#f3f4f9]/50 p-2">
+                  <div className="h-2 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-1" />
+                  <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -85,7 +106,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee Structures</h3>
-          <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
             {activeStructures.length} active &middot; {unassignedClasses.length} classes without fees
           </p>
         </div>
@@ -96,7 +117,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 
       {unassignedClasses.length > 0 && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-[9px] font-black uppercase tracking-normal text-amber-700 mb-1">
+          <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-1">
             Classes Without Fee Structure
           </p>
           <p className="text-xs font-bold text-amber-800">
@@ -131,7 +152,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-3">
+          <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-3">
             Inactive Structures
           </h4>
           <div className="space-y-2 opacity-60">
@@ -189,7 +210,7 @@ function StructureCard({
           <p className="text-sm font-black text-[#1f1a23]">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45 mt-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45 mt-0.5">
             Since {new Date(fs.activeFrom).toLocaleDateString()} &middot; {fs.installmentType ?? "standard"}
           </p>
         </div>
@@ -356,11 +377,11 @@ function StructureModal({
   };
 
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
-  const labelClass = "text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1";
+  const labelClass = "text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">
             {editing ? "Edit Fee Structure" : "New Fee Structure"}
@@ -420,7 +441,7 @@ function StructureModal({
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
                 One-Time Fees
               </p>
               <button
@@ -475,7 +496,7 @@ function StructureModal({
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
                 Discount Rules
               </p>
               <button

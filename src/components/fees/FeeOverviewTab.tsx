@@ -49,8 +49,21 @@ export function FeeOverviewTab({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
+      <div className="space-y-6">
+        <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 animate-skeleton-in">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          </div>
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="rounded-2xl bg-[#f3f4f9]/50 p-4 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer mb-2" />
+                <div className="h-6 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -114,7 +127,7 @@ export function FeeOverviewTab({
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div>
-            <h4 className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-3">
+            <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-3">
               Collection by Class
             </h4>
             <div className="space-y-2">
@@ -154,7 +167,7 @@ export function FeeOverviewTab({
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+              <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
                 At-Risk Students
               </h4>
               {summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
@@ -177,7 +190,7 @@ export function FeeOverviewTab({
                     <p className="truncate text-sm font-black text-[#1f1a23]">
                       {s.studentName}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
                       {s.className} &middot; {s.daysOverdue}d overdue
                     </p>
                   </div>

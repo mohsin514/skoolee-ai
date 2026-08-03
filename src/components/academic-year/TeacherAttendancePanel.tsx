@@ -146,7 +146,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/30" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teachers..."
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30" />
+            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
         </div>
         <div className="flex items-center gap-2">
           {!readOnly ? (
@@ -167,8 +167,21 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
 
       {/* Roster */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-[#cfc2d6]/10 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+              <div className="h-11 w-11 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-3 w-44 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div key={j} className="h-9 w-16 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState icon={Calendar} title="No Teachers" description={search ? "No teachers match your search." : "No teachers found for this campus."} />

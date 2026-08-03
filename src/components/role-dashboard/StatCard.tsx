@@ -36,11 +36,11 @@ export function StatCard({ icon: Icon, label, value, sub, tone = "purple", onCli
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-2">
+          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">
             {label}
           </p>
           <p className="text-3xl font-black text-[#1f1a23] leading-none">{value}</p>
-          {sub && <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-normal mt-2">{sub}</p>}
+          {sub && <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mt-2">{sub}</p>}
         </div>
         <div className={cn("h-11 w-11 rounded-2xl flex items-center justify-center shrink-0", toneClass[tone])}>
           <Icon className="w-5 h-5" />

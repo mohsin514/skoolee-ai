@@ -149,8 +149,33 @@ button:disabled,
 }
 
 @keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes skeleton-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modal-enter {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drawer-enter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes dropdown-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .animate-in {
@@ -175,6 +200,22 @@ button:disabled,
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+.animate-skeleton-in {
+  animation: skeleton-fade-in 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-modal-enter {
+  animation: modal-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-backdrop-enter {
+  animation: backdrop-enter 200ms ease-out both;
+}
+
+.animate-dropdown-enter {
+  animation: dropdown-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
@@ -207,8 +248,37 @@ button:disabled,
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(207 194 214 / 0.75);
+  background: rgb(207 194 214 / 0.55);
   border-radius: 999px;
+  transition: background 200ms ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(207 194 214 / 0.85);
+}
+
+/* ─── Skeleton Shimmer ──────────────────────────────────── */
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.08) 80%,
+    transparent 100%
+  );
+  animation: shimmer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .skoolee-dashboard-main {

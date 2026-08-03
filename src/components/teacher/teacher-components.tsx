@@ -129,7 +129,7 @@ export function StudentMini({ student }: { student: any }) {
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+        <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
           {student.rollNo || "No roll"} {student.class ? `- ${classLabel(student.class)}` : ""}
         </p>
       </div>
@@ -169,17 +169,28 @@ export function EmptyInline({ text }: { text: string }) {
 
 export function LoadingBlock({ label }: { label: string }) {
   return (
-    <div className="flex h-32 items-center justify-center gap-3 text-sm font-black uppercase tracking-normal text-[#8127cf]">
-      <Loader2 className="h-5 w-5 animate-spin" />
-      {label}
+    <div className="space-y-3 py-6 animate-skeleton-in">
+      <div className="flex items-center gap-3 px-4">
+        <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="space-y-1.5 flex-1">
+          <div className="h-3.5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-2.5 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+        </div>
+      </div>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-4 py-2 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+          <div className="h-3 flex-1 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+        </div>
+      ))}
     </div>
   );
 }
 
 export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-      <div className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar`}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
+      <div className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter`}>
         <div className="flex justify-between items-start gap-5 mb-8">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
@@ -326,7 +337,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
         <LoadingBlock label="Loading config..." />
       ) : selectedGradeClassId ? (
         <div className="space-y-5">
-          <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Exam Type Weights (must total 100%)</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Exam Type Weights (must total 100%)</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ConfigField label="Quiz Weight (%)" value={gradeConfig.quizWeight} onChange={(v) => onConfigChange({ ...gradeConfig, quizWeight: v })} />
             <ConfigField label="Class Test Weight (%)" value={gradeConfig.classTestWeight} onChange={(v) => onConfigChange({ ...gradeConfig, classTestWeight: v })} />
@@ -337,7 +348,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             <p className="text-[10px] font-bold">Total: {Object.entries(gradeConfig).filter(([k]) => k.endsWith("Weight")).reduce((s, [, v]) => s + (v as number), 0)}%</p>
           </div>
           <div className="border-t border-[#cfc2d6]/10 pt-5">
-            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Grade Thresholds</p>
+            <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Grade Thresholds</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <ConfigField label="A+ ≥" value={gradeConfig.gradeAplus} onChange={(v) => onConfigChange({ ...gradeConfig, gradeAplus: v })} />
               <ConfigField label="A ≥" value={gradeConfig.gradeA} onChange={(v) => onConfigChange({ ...gradeConfig, gradeA: v })} />

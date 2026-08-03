@@ -30,9 +30,9 @@ export function RoleSidebar({
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
             <GraduationCap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="font-black text-xl tracking-normal text-[#8127cf]">Skoolee AI</h1>
+          <h1 className="font-black text-xl tracking-wider text-[#8127cf]">Skoolee AI</h1>
         </div>
-        <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-normal pl-11">
+        <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider pl-11">
           {tagline}
         </p>
       </div>

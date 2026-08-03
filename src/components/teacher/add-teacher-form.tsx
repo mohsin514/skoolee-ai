@@ -153,14 +153,14 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0" />
+      <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" />
 
-      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2">
+      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-7 py-5">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Faculty Onboarding</p>
-            <h3 className="mt-1 text-xl font-black tracking-normal text-[#1f1a23]">Add New Teacher</h3>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Faculty Onboarding</p>
+            <h3 className="mt-1 text-xl font-black tracking-tight text-[#1f1a23]">Add New Teacher</h3>
           </div>
           <button
             type="button"
@@ -183,7 +183,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                   key={s.label}
                   type="button"
                   onClick={() => { if (i < step) setStep(i); }}
-                  className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[9px] font-black uppercase tracking-normal transition-all ${
+                  className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${
                     active
                       ? "bg-[#8127cf] text-white shadow-md"
                       : done
@@ -215,7 +215,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
                     Full Name <span className="text-rose-500">*</span>
                   </Label>
                   <Input
@@ -228,7 +228,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
                     Email <span className="text-rose-500">*</span>
                   </Label>
                   <Input
@@ -242,7 +242,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
                     Phone <span className="text-rose-500">*</span>
                   </Label>
                   <Input
@@ -256,7 +256,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">CNIC</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">CNIC</Label>
                   <Input
                     value={form.cnic}
                     onChange={(e) => update("cnic", e.target.value)}
@@ -266,7 +266,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Date of Birth</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Date of Birth</Label>
                   <Input
                     type="date"
                     value={form.dateOfBirth}
@@ -276,7 +276,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Gender</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Gender</Label>
                   <Select
                     value={form.gender}
                     onChange={(e) => update("gender", e.target.value)}
@@ -299,7 +299,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Qualification</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Qualification</Label>
                   <Select
                     value={form.qualification}
                     onChange={(e) => update("qualification", e.target.value)}
@@ -313,7 +313,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Specialization</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Specialization</Label>
                   <Input
                     value={form.specialization}
                     onChange={(e) => update("specialization", e.target.value)}
@@ -323,7 +323,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Experience</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Experience</Label>
                   <Input
                     value={form.experience}
                     onChange={(e) => update("experience", e.target.value)}
@@ -333,7 +333,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Joining Date</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Joining Date</Label>
                   <Input
                     type="date"
                     value={form.joiningDate}
@@ -353,7 +353,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Address</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Address</Label>
                   <Textarea
                     value={form.address}
                     onChange={(e) => update("address", e.target.value)}
@@ -364,7 +364,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">City</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">City</Label>
                   <Input
                     value={form.city}
                     onChange={(e) => update("city", e.target.value)}
@@ -374,7 +374,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Province</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Province</Label>
                   <Select
                     value={form.province}
                     onChange={(e) => update("province", e.target.value)}
@@ -388,7 +388,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 </div>
 
                 <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Postal Code</Label>
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Postal Code</Label>
                   <Input
                     value={form.postalCode}
                     onChange={(e) => update("postalCode", e.target.value)}
@@ -399,12 +399,12 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
               </div>
 
               <div className="mt-6 rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/50 p-4">
-                <h5 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf]">
+                <h5 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
                   <Phone className="h-3.5 w-3.5" /> Emergency Contact
                 </h5>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Contact Person</Label>
+                    <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Contact Person</Label>
                     <Input
                       value={form.emergencyContact}
                       onChange={(e) => update("emergencyContact", e.target.value)}
@@ -413,7 +413,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                     />
                   </div>
                   <div>
-                    <Label className="ml-1 text-[10px] font-black uppercase tracking-normal text-[#4d4354]">Emergency Phone</Label>
+                    <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Emergency Phone</Label>
                     <Input
                       type="tel"
                       value={form.emergencyPhone}
@@ -497,7 +497,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/50 p-4">
-      <p className="mb-3 text-[10px] font-black uppercase tracking-normal text-[#8127cf]">{title}</p>
+      <p className="mb-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{title}</p>
       <div className="grid grid-cols-2 gap-x-6 gap-y-2">{children}</div>
     </div>
   );
@@ -506,7 +506,7 @@ function ReviewSection({ title, children }: { title: string; children: React.Rea
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{label}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{label}</p>
       <p className="text-sm font-bold text-[#1f1a23]">{value || "—"}</p>
     </div>
   );
