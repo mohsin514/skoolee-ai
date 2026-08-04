@@ -6,6 +6,7 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { bulkMarksSchema } from "@/lib/validators/schemas";
 import { gradeForMark, isLockedStatus } from "@/lib/academic/report-cards";
+import { notify } from "@/lib/notifications/in-app";
 
 function canEnterMarks(role: string) {
   return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
@@ -51,9 +52,12 @@ export async function POST(req: NextRequest) {
         status: true,
         isLocked: true,
         subjectId: true,
+        title: true,
         class: {
           select: {
             id: true,
+            name: true,
+            section: true,
             classTeacherId: true,
             students: { select: { id: true } },
             subjects: { select: { id: true, totalMarks: true, teacherId: true } },
@@ -172,6 +176,17 @@ export async function POST(req: NextRequest) {
         data: { status: "MARKS_ENTRY", marksEntryAt: new Date() },
       });
     }
+
+    notify("MARKS_ENTERED", {
+      schoolId: user.schoolId,
+      campusId: exam.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      examTitle: exam.title,
+      className: [exam.class?.name, exam.class?.section].join(" "),
+      classId: exam.classId,
+      count: savedCount,
+    });
 
     return Response.json({ success: true, count: savedCount, changed });
   } catch (error: any) {

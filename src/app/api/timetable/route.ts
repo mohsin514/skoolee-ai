@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, resolveCampusId, canManageOperations } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 export const runtime = "nodejs";
 
@@ -106,6 +107,14 @@ export async function POST(req: NextRequest) {
           orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
         },
       },
+    });
+
+    notify("TIMETABLE_CREATED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: cls.name,
     });
 
     return Response.json({ success: true, data: timetable }, { status: 201 });

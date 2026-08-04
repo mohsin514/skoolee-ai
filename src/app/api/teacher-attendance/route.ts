@@ -6,6 +6,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 function parseLocalDate(date: string): Date {
   const [y, m, d] = date.split("-").map(Number);
@@ -213,6 +214,15 @@ export async function POST(req: NextRequest) {
         })
       )
     );
+
+    notify("TEACHER_ATTENDANCE_MARKED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      date: dateStr,
+      count: results.length,
+    });
 
     return Response.json({ success: true, data: results, message: `Marked ${results.length} records` });
   } catch (error) {

@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 export async function GET(req: NextRequest) {
   try {
@@ -104,6 +105,14 @@ export async function POST(req: NextRequest) {
         newValue: { classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
         userId: user.userId,
       },
+    });
+
+    notify("FEE_STRUCTURE_CREATED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: structure.class.name,
     });
 
     return Response.json(

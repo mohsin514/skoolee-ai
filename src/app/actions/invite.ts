@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs";
 import { headers } from "next/headers";
 import { sendInviteEmail } from "@/lib/email";
 import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entitlements";
+import { notify } from "@/lib/notifications/in-app";
 import { Prisma } from "@prisma/client";
 
 const InviteProfileSchema = z.object({
@@ -218,6 +219,16 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, baseUrl);
 
   const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
+
+  notify("STAFF_INVITED", {
+    schoolId: session.schoolId,
+    campusId: targetCampusId,
+    actorId: session.userId,
+    actorName: session.fullName,
+    email: valid.email,
+    roleName: valid.role,
+  });
+
   return { success: true, inviteLink };
 }
 
@@ -234,7 +245,7 @@ export async function removeStaff(userId: string) {
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true, schoolId: true, campusId: true },
+    select: { id: true, role: true, schoolId: true, campusId: true, fullName: true },
   });
 
   if (!target || target.schoolId !== session.schoolId) {
@@ -253,6 +264,15 @@ export async function removeStaff(userId: string) {
     where: { id: userId },
     data: { isActive: false },
   });
+
+  notify("STAFF_REMOVED", {
+    schoolId: session.schoolId,
+    campusId: target.campusId,
+    actorId: session.userId,
+    actorName: session.fullName,
+    staffName: target.fullName,
+  });
+
   return { success: true };
 }
 
@@ -422,6 +442,15 @@ export async function acceptInvite(token: string, password: string) {
     });
 
     return acceptedUser;
+  });
+
+  notify("INVITE_ACCEPTED", {
+    schoolId: campus.schoolId,
+    campusId: invite.campusId,
+    actorId: user.id,
+    actorName: user.fullName,
+    staffName: user.fullName,
+    roleName: user.role,
   });
 
   return { success: true, user: { email: user.email, role: user.role } };

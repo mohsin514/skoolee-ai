@@ -5,21 +5,25 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Award,
-  BarChart3,
   Bell,
+  BookOpen,
+  Calendar,
   CalendarCheck,
   CheckCircle,
   ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
   FileText,
+  GraduationCap,
   KeyRound,
   LayoutDashboard,
+  LayoutGrid,
   Loader2,
   LogOut,
-  Search,
+  Mail,
+  Receipt,
   Settings,
+  UserCheck,
   UserRound,
   X,
   XCircle,
@@ -30,29 +34,31 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
+import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+import { playNotificationBell } from "@/lib/sounds/bell";
 
-interface Notification {
-  id: number;
-  type: "grade" | "attendance" | "exam" | "system";
-  title: string;
-  message: string;
-  time: string;
-  unread: boolean;
+const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
+  Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
+  GraduationCap, LayoutGrid, Mail, Receipt, UserCheck,
+};
+
+function resolveNotifIcon(name: string | null): LucideIcon {
+  return (name && NOTIF_ICON_MAP[name]) || Bell;
 }
 
-const dummyNotifications: Notification[] = [
-  { id: 1, type: "grade", title: "Term grades published", message: "Final grades for Term 1 are ready. Check your subject reports.", time: "2 hours ago", unread: true },
-  { id: 2, type: "attendance", title: "Attendance report ready", message: "Weekly attendance summary is now available for review.", time: "5 hours ago", unread: true },
-  { id: 3, type: "exam", title: "New assessment created", message: "Mid-term exam has been scheduled for next week.", time: "1 day ago", unread: false },
-  { id: 4, type: "system", title: "Profile updated", message: "Your profile changes have been saved successfully.", time: "2 days ago", unread: false },
-];
-
-const notifIconMap: Record<Notification["type"], LucideIcon> = {
-  grade: Award,
-  attendance: CalendarCheck,
-  exam: FileText,
-  system: Bell,
-};
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 interface RoleHeaderProps {
   eyebrow?: string;
@@ -82,6 +88,8 @@ export function RoleHeader({
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const toastedNotifIds = useRef<Set<string>>(new Set());
   const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   const displayRole = headerProfile?.roleLabel || userRole;
   const displayAvatar = headerProfile?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(avatarSeed || displayName)}`;
@@ -94,6 +102,34 @@ export function RoleHeader({
   })();
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  useEffect(() => {
+    const newest = liveNotifications[0];
+    if (!newest || newest.isRead) return;
+    if (toastedNotifIds.current.has(newest.id)) return;
+
+    const iconName = newest.icon;
+    const Icon = resolveNotifIcon(iconName);
+
+    playNotificationBell();
+    toast(iconName ? <Icon className="h-4 w-4 text-[#8127cf]" /> : undefined, {
+      description: (
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#1d1b20]">{newest.title}</p>
+          {newest.message && (
+            <p className="mt-0.5 text-xs font-medium text-[#4d4354]/70 line-clamp-2">{newest.message}</p>
+          )}
+        </div>
+      ),
+      duration: 5000,
+    });
+
+    toastedNotifIds.current.add(newest.id);
+    if (toastedNotifIds.current.size > 100) {
+      const ids = [...toastedNotifIds.current];
+      ids.slice(0, ids.length - 100).forEach((id) => toastedNotifIds.current.delete(id));
+    }
+  }, [liveNotifications, markAsRead]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,8 +204,8 @@ export function RoleHeader({
             title="View notifications"
           >
             <Bell className="w-[18px] h-[18px]" />
-            {dummyNotifications.some((n) => n.unread) && (
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#8127cf] ring-2 ring-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
           </button>
 
@@ -177,45 +213,59 @@ export function RoleHeader({
             <div className="absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
                 <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
-                <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{dummyNotifications.filter((n) => n.unread).length} new</span>
+                {unreadCount > 0 && (
+                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount} new</span>
+                )}
               </div>
-              <div className="max-h-[320px] overflow-y-auto p-1.5 space-y-0.5">
-                {dummyNotifications.map((n) => {
-                  const Icon = notifIconMap[n.type];
-                  return (
-                    <div
-                      key={n.id}
-                      className={cn(
-                        "flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60",
-                        n.unread && "bg-[#fbf0fe]/30"
-                      )}
-                    >
-                      <div className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        n.unread ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-[#4d4354]/50"
-                      )}>
-                        <Icon className="w-[18px] h-[18px]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={cn("text-sm truncate", n.unread ? "font-bold text-[#1d1b20]" : "font-semibold text-[#4d4354]/80")}>{n.title}</p>
-                          {n.unread && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
+              <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
+                {liveNotifications.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <Bell className="mx-auto h-8 w-8 text-[#4d4354]/15 mb-3" />
+                    <p className="text-sm font-bold text-[#4d4354]/40">No notifications yet</p>
+                    <p className="text-xs font-medium text-[#4d4354]/30 mt-1">You&#39;re all caught up</p>
+                  </div>
+                ) : (
+                  liveNotifications.map((n) => {
+                    const Icon = resolveNotifIcon(n.icon);
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => { if (!n.isRead) markAsRead([n.id]); }}
+                        className={cn(
+                          "flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60",
+                          !n.isRead && "bg-[#fbf0fe]/30"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                          !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-[#4d4354]/50"
+                        )}>
+                          <Icon className="w-[18px] h-[18px]" />
                         </div>
-                        <p className="text-xs font-medium text-[#4d4354]/50 mt-0.5 leading-snug line-clamp-2">{n.message}</p>
-                        <p className="text-[10px] font-semibold text-[#4d4354]/35 mt-1">{n.time}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={cn("text-sm truncate", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-[#4d4354]/80")}>{n.title}</p>
+                            {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
+                          </div>
+                          <p className="text-xs font-medium text-[#4d4354]/50 mt-0.5 leading-snug line-clamp-2">{n.message}</p>
+                          <p className="text-[10px] font-semibold text-[#4d4354]/35 mt-1">{relativeTime(n.createdAt)}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
-              <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                <button
-                  type="button"
-                  className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
-                >
-                  Mark all as read
-                </button>
-              </div>
+              {unreadCount > 0 && (
+                <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={markAllAsRead}
+                    className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
+                  >
+                    Mark all as read
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

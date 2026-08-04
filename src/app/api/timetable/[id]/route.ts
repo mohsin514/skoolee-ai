@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, resolveCampusId, canManageOperations } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 export const runtime = "nodejs";
 
@@ -62,6 +63,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
           },
         },
+      });
+      notify("TIMETABLE_PUBLISHED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        className: updated.class?.name,
       });
       return Response.json({ success: true, data: updated });
     }
@@ -162,10 +170,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const campusId = await resolveCampusId(user);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
 
-    const timetable = await prisma.timetable.findFirst({ where: { id, campusId } });
+    const timetable = await prisma.timetable.findFirst({
+      where: { id, campusId },
+      include: { class: { select: { name: true } } },
+    });
     if (!timetable) return Response.json({ error: "Not found" }, { status: 404 });
 
     await prisma.timetable.delete({ where: { id } });
+
+    notify("TIMETABLE_DELETED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: timetable.class?.name,
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[timetable/id] DELETE failed");

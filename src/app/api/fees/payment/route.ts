@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,6 +88,15 @@ export async function POST(req: NextRequest) {
         newValue: { invoiceId: invoice.id, amount: parsed.data.amount, receiptNo: payment.receiptNo },
         userId: user.userId,
       },
+    });
+
+    notify("PAYMENT_RECORDED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      studentName: invoice.student.fullName,
+      amount: payment.amount,
     });
 
     return Response.json(

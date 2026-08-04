@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
   canManageOperations,
@@ -120,6 +121,14 @@ export async function POST(req: NextRequest) {
             data: { status: "COMPLETED" },
           });
         }
+      });
+
+      notify("ACADEMIC_YEAR_CLOSED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        year: academicYear,
       });
 
       return Response.json({
@@ -248,6 +257,16 @@ export async function POST(req: NextRequest) {
 
           promoted++;
         }
+      });
+
+      notify("STUDENTS_PROMOTED", {
+        schoolId: user.schoolId,
+        campusId: toClass.campusId || user.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        count: promoted,
+        className: toClass.name,
+        classId: toClass.id,
       });
 
       return Response.json({ success: true, promoted, message: `Promoted ${promoted} students from ${fromClassId} to ${toClassId}` });

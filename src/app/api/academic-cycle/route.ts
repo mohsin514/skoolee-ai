@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
   errorResponse,
@@ -55,6 +56,15 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      notify("ACADEMIC_CYCLE_CHANGED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        label: cycle.label,
+        status: cycle.status,
+      });
+
       return Response.json({ success: true, data: cycle, message: "Cycle created in DRAFT" });
     }
 
@@ -77,6 +87,15 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      notify("ACADEMIC_CYCLE_CHANGED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        label: cycle.label,
+        status: cycle.status,
+      });
+
       return Response.json({ success: true, data: cycle, message: "Cycle activated" });
     }
 
@@ -87,6 +106,15 @@ export async function POST(req: NextRequest) {
       const cycle = await prisma.academicCycle.update({
         where: { id: cycleId },
         data: { status: "PAUSED" },
+      });
+
+      notify("ACADEMIC_CYCLE_CHANGED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        label: cycle.label,
+        status: cycle.status,
       });
 
       return Response.json({ success: true, data: cycle, message: "Cycle paused" });
@@ -106,6 +134,15 @@ export async function POST(req: NextRequest) {
         data: { status: "ACTIVE" },
       });
 
+      notify("ACADEMIC_CYCLE_CHANGED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        label: cycle.label,
+        status: cycle.status,
+      });
+
       return Response.json({ success: true, data: cycle, message: "Cycle resumed" });
     }
 
@@ -119,6 +156,15 @@ export async function POST(req: NextRequest) {
           status: "ENDED",
           endDate: new Date(),
         },
+      });
+
+      notify("ACADEMIC_CYCLE_CHANGED", {
+        schoolId: user.schoolId,
+        campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        label: cycle.label,
+        status: cycle.status,
       });
 
       return Response.json({ success: true, data: cycle, message: "Cycle ended" });

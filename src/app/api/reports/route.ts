@@ -11,6 +11,7 @@ import {
 import { notifyReportCardsGenerated } from "@/lib/notifications/automation";
 import { sendReportCardPublishedNotifications } from "@/lib/notifications/service";
 import { reportActionSchema } from "@/lib/validators/schemas";
+import { notify } from "@/lib/notifications/in-app";
 import { assertFeatureEnabled, assertSchoolOperational } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
@@ -173,6 +174,15 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
+      notify("REPORT_CARDS_REVIEWED", {
+        schoolId: user.schoolId,
+        campusId: exam.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        examTitle: exam.title,
+        classId: exam.class?.id,
+      });
+
       return Response.json({ success: true });
     }
 
@@ -196,6 +206,15 @@ export async function POST(req: NextRequest) {
           data: { status: "PUBLISHED", publishedAt: new Date() },
         }),
       ]);
+
+      notify("REPORT_CARDS_PUBLISHED", {
+        schoolId: user.schoolId,
+        campusId: exam.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        examTitle: exam.title,
+        classId: exam.class?.id,
+      });
 
       return Response.json({ success: true });
     }

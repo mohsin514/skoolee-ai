@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
+import { notify } from "@/lib/notifications/in-app";
 
 function canManageExams(role: string) {
   return role === "SUPER_ADMIN" || role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
@@ -114,10 +115,20 @@ export async function POST(req: NextRequest) {
       status: "ACTIVE",
       activatedAt: new Date(),
     },
-    include: {
+include: {
       class: { select: { id: true, name: true, section: true, academicYear: true } },
       _count: { select: { marks: true, reportCards: true } },
     },
+  });
+
+  notify("EXAM_CREATED", {
+    schoolId: user.schoolId,
+    campusId: cls.campusId,
+    actorId: user.userId,
+    actorName: user.fullName,
+    examTitle: exam.title,
+    className: [exam.class?.name, exam.class?.section].filter(Boolean).join(" "),
+    classId: parsed.data.classId,
   });
 
   return Response.json({ success: true, exam }, { status: 201 });
@@ -179,6 +190,17 @@ export async function PATCH(req: NextRequest) {
       _count: { select: { marks: true, reportCards: true } },
     },
   });
+
+  if (target === "PUBLISHED") {
+    notify("REPORT_CARDS_PUBLISHED", {
+      schoolId: user.schoolId,
+      campusId: exam.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      examTitle: updated.title,
+      classId: updated.classId,
+    });
+  }
 
   return Response.json({ success: true, exam: updated });
 }

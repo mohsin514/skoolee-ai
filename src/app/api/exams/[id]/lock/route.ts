@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardsForLockedExam } from "@/lib/academic/report-cards";
+import { notify } from "@/lib/notifications/in-app";
 
 function canLockExam(role: string) {
   return role === "SUPER_ADMIN" || role === "PRINCIPAL" || isCampusAdminRole(role);
@@ -81,6 +82,17 @@ export async function POST(
   });
 
   const generated = await generateReportCardsForLockedExam(id);
+
+  notify("EXAM_LOCKED", {
+    schoolId: user.schoolId,
+    campusId: exam.campusId,
+    actorId: user.userId,
+    actorName: user.fullName,
+    examTitle: locked.title,
+    className: [locked.class?.name, locked.class?.section].filter(Boolean).join(" "),
+    classId: exam.classId,
+    reportCardsGenerated: generated.generated,
+  });
 
   return Response.json({
     success: true,

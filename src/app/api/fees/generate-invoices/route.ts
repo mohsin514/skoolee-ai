@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 function generateInvoiceNumber(campusId: string, year: number, sequence: number): string {
   const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
@@ -170,6 +171,15 @@ export async function POST(req: NextRequest) {
 
     const generated = results.filter((r) => r.status === "generated").length;
     const errors = results.filter((r) => r.error);
+
+    notify("INVOICES_GENERATED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      count: generated,
+      className: students[0]?.class?.name,
+    });
 
     return Response.json(
       {

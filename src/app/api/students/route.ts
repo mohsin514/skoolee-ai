@@ -12,6 +12,7 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
+import { notify } from "@/lib/notifications/in-app";
 
 type StudentInput = {
   fullName: string;
@@ -411,6 +412,16 @@ export async function POST(req: NextRequest) {
           userId: user.userId,
         }
       });
+
+      const cls = classesById.get(s.classId);
+      notify("STUDENT_ADMITTED", {
+        schoolId: user.schoolId,
+        campusId: cls?.campusId ?? user.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        studentName: s.fullName,
+        classId: s.classId,
+      });
     }
 
     const guardianInviteFailures: string[] = [];
@@ -573,6 +584,19 @@ export async function PATCH(req: NextRequest) {
       }
     });
 
+    if (data.classId && data.classId !== existing.classId) {
+      notify("STUDENT_TRANSFERRED", {
+        schoolId: user.schoolId,
+        campusId: existing.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        studentName: student.fullName,
+        newClassName: [student.class?.name, student.class?.section].filter(Boolean).join(" "),
+        oldClassId: existing.classId,
+        newClassId: data.classId,
+      });
+    }
+
     return Response.json({ success: true, data: student });
   } catch (error: any) {
     if (error?.code === "P2002") {
@@ -593,11 +617,20 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.student.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true },
+      select: { id: true, campusId: true, fullName: true, classId: true, class: { select: { name: true, section: true } } },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
     await prisma.student.delete({ where: { id } });
+    notify("STUDENT_DELETED", {
+      schoolId: user.schoolId,
+      campusId: existing.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      studentName: existing.fullName,
+      className: [existing.class?.name, existing.class?.section].filter(Boolean).join(" "),
+      classId: existing.classId,
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[students] DELETE failed");

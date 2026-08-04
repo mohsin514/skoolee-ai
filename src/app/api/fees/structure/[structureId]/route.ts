@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 export async function PUT(
   req: NextRequest,
@@ -61,6 +62,14 @@ export async function PUT(
         newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
         userId: user.userId,
       },
+    });
+
+    notify("FEE_STRUCTURE_UPDATED", {
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: structure.class.name,
     });
 
     return Response.json({

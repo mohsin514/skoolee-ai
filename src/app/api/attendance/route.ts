@@ -9,6 +9,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
+import { notify } from "@/lib/notifications/in-app";
 
 function dateOnly(value: string) {
   const date = new Date(value);
@@ -171,6 +172,16 @@ export async function POST(req: NextRequest) {
         console.error("[attendance] absence alert failed", error);
       }
     }
+
+    notify("ATTENDANCE_SUBMITTED", {
+      schoolId: user.schoolId,
+      campusId: cls.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: [cls.name, cls.section].filter(Boolean).join(" "),
+      date: parsed.data.date,
+      count: records.length,
+    });
 
     return Response.json({ success: true, records, summary, absenceAlerts: absenceAlerts.length });
   } catch (error) {

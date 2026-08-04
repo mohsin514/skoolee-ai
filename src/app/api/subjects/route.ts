@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { subjectSchema } from "@/lib/validators/schemas";
+import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
   canManageOperations,
@@ -115,6 +116,17 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    notify("SUBJECT_CREATED", {
+      schoolId: user.schoolId,
+      campusId: cls.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      subjectName: subject.name,
+      className: [subject.class?.name, subject.class?.section].filter(Boolean).join(" "),
+      classId: subject.classId,
+      teacherId: subject.teacherId ?? undefined,
+    });
+
     return Response.json({ success: true, data: subject }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[subjects] POST failed");
@@ -162,6 +174,19 @@ export async function PATCH(req: NextRequest) {
         userId: user.userId,
       }
     });
+
+    if (body.teacherId !== undefined && subject.teacher) {
+      notify("SUBJECT_TEACHER_ASSIGNED", {
+        schoolId: user.schoolId,
+        campusId: existing.campusId,
+        actorId: user.userId,
+        actorName: user.fullName,
+        teacherName: subject.teacher.fullName,
+        subjectName: subject.name,
+        className: [subject.class?.name, subject.class?.section].filter(Boolean).join(" "),
+        teacherId: subject.teacherId ?? undefined,
+      });
+    }
 
     return Response.json({ success: true, data: subject });
   } catch (error) {

@@ -9,6 +9,7 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { notify } from "@/lib/notifications/in-app";
 
 async function assertTeacherInCampus(teacherId: string | null | undefined, campusId: string, schoolId: string) {
   if (!teacherId) return null;
@@ -114,6 +115,16 @@ export async function POST(req: NextRequest) {
       )
     );
 
+    notify("CLASS_CREATED", {
+      schoolId: user.schoolId,
+      campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className,
+      section: sections.length ? sections.join(",") : undefined,
+      classId: classes[0]?.id,
+    });
+
     for (const cls of classes) {
       await prisma.auditLog.create({
         data: {
@@ -178,6 +189,16 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    notify("CLASS_UPDATED", {
+      schoolId: user.schoolId,
+      campusId: existing.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: cls.name,
+      section: cls.section ?? undefined,
+      classId: id,
+    });
+
     return Response.json({ success: true, data: cls });
   } catch (error) {
     return errorResponse(error, "[classes] PATCH failed");
@@ -195,7 +216,7 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.class.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      include: { _count: { select: { students: true } } },
+      select: { id: true, campusId: true, name: true, _count: { select: { students: true } } },
     });
     if (!existing) throw new ApiError("Class not found", 404);
     if (existing._count.students > 0) {
@@ -203,6 +224,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.class.delete({ where: { id } });
+    notify("CLASS_DELETED", {
+      schoolId: user.schoolId,
+      campusId: existing.campusId,
+      actorId: user.userId,
+      actorName: user.fullName,
+      className: existing.name,
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[classes] DELETE failed");
