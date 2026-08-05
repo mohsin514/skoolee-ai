@@ -5,6 +5,7 @@ import { ProductPage } from "../product-page";
 export const metadata: Metadata = {
   title: "WhatsApp Report Card Software",
   description: "Send approved report card updates to parents on WhatsApp with plan controls, templates, delivery logging, and PDF attachments.",
+  alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["WhatsApp report card software", "send report cards on WhatsApp", "parent communication software", "school WhatsApp notifications"],
 };
 

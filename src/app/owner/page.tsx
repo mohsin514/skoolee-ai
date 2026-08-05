@@ -30,6 +30,7 @@ import {
   Monitor,
   Pause,
   Play,
+  Plus,
   RefreshCw,
   Save,
   School,
@@ -48,6 +49,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ProvisionSchoolModal, AddUserModal } from "@/components/owner/provisioning-modals";
 import {
   BrandButton,
   EmptyState,
@@ -288,6 +290,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
   const [planFilter, setPlanFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
+  const [showProvision, setShowProvision] = useState(false);
 
   const loadSchools = useCallback(async (page = 1) => {
     setLoading(true);
@@ -341,7 +344,21 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
             All registered schools and campuses across the platform
           </p>
         </div>
+        <button
+          onClick={() => setShowProvision(true)}
+          className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-5 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98]"
+        >
+          <Plus className="h-4 w-4" />
+          Provision School
+        </button>
       </div>
+
+      {showProvision && (
+        <ProvisionSchoolModal
+          onClose={() => setShowProvision(false)}
+          onCreated={() => { loadSchools(pagination.page); onRefreshStats(); }}
+        />
+      )}
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
@@ -573,6 +590,32 @@ function UsersView() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [schoolOptions, setSchoolOptions] = useState<
+    { id: string; name: string; plan?: string; campuses?: { id: string; name: string }[] }[]
+  >([]);
+
+  // The Add User modal needs every school with its campuses. Fetched once
+  // on demand rather than with the paginated user list.
+  const loadSchoolOptions = useCallback(async () => {
+    if (schoolOptions.length) return;
+    try {
+      const res = await fetch("/api/owner/schools?limit=100");
+      const json = await res.json();
+      if (json.success) {
+        setSchoolOptions(
+          json.data.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            plan: s.plan,
+            campuses: s.campuses?.map((c: any) => ({ id: c.id, name: c.name })) ?? [],
+          }))
+        );
+      }
+    } catch {
+      toast.error("Could not load schools");
+    }
+  }, [schoolOptions.length]);
 
   const loadUsers = useCallback(async (page = 1) => {
     setLoading(true);
@@ -607,7 +650,22 @@ function UsersView() {
             {pagination.total} users across all schools
           </p>
         </div>
+        <button
+          onClick={() => { loadSchoolOptions(); setShowAddUser(true); }}
+          className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-5 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98]"
+        >
+          <Plus className="h-4 w-4" />
+          Add User
+        </button>
       </div>
+
+      {showAddUser && (
+        <AddUserModal
+          schools={schoolOptions}
+          onClose={() => setShowAddUser(false)}
+          onCreated={() => loadUsers(pagination.page)}
+        />
+      )}
 
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
         <div className="flex flex-wrap items-center gap-3 mb-5">

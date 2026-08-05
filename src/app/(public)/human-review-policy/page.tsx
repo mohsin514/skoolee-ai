@@ -4,6 +4,7 @@ import { TrustPage } from "../trust-page";
 export const metadata: Metadata = {
   title: "Human Review Policy | SkooleeAI",
   description: "How SkooleeAI keeps educators in charge of AI drafts, report card remarks, analytics, and parent communication.",
+  alternates: { canonical: "https://app.skooleeai.com/human-review-policy" },
 };
 
 export default function Page() {

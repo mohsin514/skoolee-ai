@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       schoolSlug: user.school?.slug,
       schoolStatus: user.school?.status,
       onboardingComplete: user.onboardingComplete,
+      mustChangePassword: user.mustChangePassword,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("7d")
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
         campusName: user.campus?.name,
         schoolStatus: user.school?.status,
         onboardingComplete: user.onboardingComplete,
+        mustChangePassword: user.mustChangePassword,
       },
     });
 

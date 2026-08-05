@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { GraduationCap, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import SkooleeLogo from "@/components/SkooleeLogo";
 
 export interface RoleNavItem {
   label: string;
@@ -26,13 +27,10 @@ export function RoleSidebar({
   return (
     <aside className="hidden md:flex w-64 bg-white/70 backdrop-blur-xl border-r border-[#cfc2d6]/25 flex-col p-6 fixed h-full z-50 shadow-[12px_0_40px_rgba(129,39,207,0.05)]">
       <div className="mb-10">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
-            <GraduationCap className="h-6 w-6 text-white" />
-          </div>
-          <h1 className="font-black text-xl tracking-wider text-[#8127cf]">Skoolee AI</h1>
+        <div className="mb-1.5">
+          <SkooleeLogo size="1.5rem" />
         </div>
-        <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider pl-11">
+        <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider">
           {tagline}
         </p>
       </div>

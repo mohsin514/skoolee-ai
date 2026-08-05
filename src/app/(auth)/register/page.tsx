@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Mail, Lock,
-  User as UserIcon, Loader2, GraduationCap,
+  User as UserIcon, Loader2,
   CheckCircle, ShieldCheck, XCircle,
   ArrowRight, Hash, Building,
   LucideIcon, Network, ChevronLeft
@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SkooleeLogo from "@/components/SkooleeLogo";
 
 interface InputFieldProps {
   label: string;
@@ -143,10 +144,7 @@ export default function RegisterPage() {
         <div className="absolute bottom-12 left-12 right-12 z-30">
           <div className="bg-white/75 backdrop-blur-[24px] p-8 rounded-[32px] border border-white/30 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[11px] font-black tracking-wider text-[#8127cf] uppercase">Get Started</span>
+              <SkooleeLogo size="1.35rem" />
             </div>
             <h2 className="text-2xl font-black text-[#1f1a23] leading-snug mb-3">
               {type === 'school_group' ? "Manage all your campuses from one place." : "Set up your school in minutes."}
@@ -166,10 +164,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-lg">
 
           <div className="flex flex-col items-center mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-xl flex items-center justify-center shadow-md shadow-[#8127cf]/20 mb-3">
-              <GraduationCap className="h-7 w-7 text-white" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-[#1f1a23] mb-1">Skoolee AI</h1>
+            <SkooleeLogo size="1.6rem" className="mb-3" />
             <div className="h-0.5 w-10 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] rounded-full"></div>
           </div>
 

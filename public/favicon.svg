@@ -2,23 +2,19 @@
   <defs>
     <linearGradient id="paint0_linear" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
       <stop stop-color="#8127CF"/>
-      <stop offset="1" stop-color="#FF3399"/>
+      <stop offset="1" stop-color="#9C48EA"/>
     </linearGradient>
   </defs>
-  
-  <!-- Graduation Cap -->
-  <path d="M256 60L460 160L256 260L52 160L256 60Z" fill="url(#paint0_linear)"/>
-  <path d="M120 190V280C120 280 180 320 256 320C332 320 392 280 392 280V190" stroke="url(#paint0_linear)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <path d="M460 160V260" stroke="url(#paint0_linear)" stroke-width="12" stroke-linecap="round"/>
-  <circle cx="460" cy="275" r="15" fill="url(#paint0_linear)"/>
 
-  <!-- Eyes -->
-  <ellipse cx="180" cy="380" rx="60" ry="90" stroke="url(#paint0_linear)" stroke-width="24" fill="white"/>
-  <ellipse cx="332" cy="380" rx="60" ry="90" stroke="url(#paint0_linear)" stroke-width="24" fill="white"/>
-  
-  <!-- Pupils -->
-  <circle cx="180" cy="380" r="30" fill="#1F1A23"/>
-  <circle cx="332" cy="380" r="30" fill="#1F1A23"/>
-  <circle cx="195" cy="365" r="10" fill="white" fill-opacity="0.8"/>
-  <circle cx="347" cy="365" r="10" fill="white" fill-opacity="0.8"/>
+  <rect width="512" height="512" rx="112" fill="url(#paint0_linear)"/>
+
+  <!-- Graduation cap (cropped from the Skoolee wordmark) -->
+  <path d="M256 84 400 156 256 228 112 156 256 84Z" fill="#FFFFFF"/>
+  <path d="M168 196V252C168 252 216 284 256 284C296 284 344 252 344 252V196" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Eyes (the two "o"s from the wordmark, centred pupils) -->
+  <circle cx="182" cy="360" r="72" fill="#FFF7FE" stroke="#FFFFFF" stroke-width="14"/>
+  <circle cx="330" cy="360" r="72" fill="#FFF7FE" stroke="#FFFFFF" stroke-width="14"/>
+  <circle cx="182" cy="360" r="30" fill="#1F1A23"/>
+  <circle cx="330" cy="360" r="30" fill="#1F1A23"/>
 </svg>

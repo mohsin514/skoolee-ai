@@ -4,6 +4,7 @@ import { TrustPage } from "../trust-page";
 export const metadata: Metadata = {
   title: "Privacy | SkooleeAI",
   description: "How SkooleeAI handles school, student, parent, staff, billing, and AI usage data.",
+  alternates: { canonical: "https://app.skooleeai.com/privacy" },
 };
 
 export default function Page() {

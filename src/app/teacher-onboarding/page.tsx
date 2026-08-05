@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Briefcase,
   CheckCircle2,
-  GraduationCap,
   Loader2,
   MapPin,
   Phone,
@@ -17,6 +16,7 @@ import {
   User,
   UserRound,
 } from 'lucide-react';
+import SkooleeLogo from "@/components/SkooleeLogo";
 import { getTeacherOnboardingSession, completeTeacherOnboarding } from '@/app/actions/completeTeacherOnboarding';
 import { dashboardPathForRole } from '@/lib/roles';
 import { Input } from '@/components/ui/input';
@@ -148,10 +148,9 @@ export default function TeacherOnboardingPage() {
       <section className="flex min-h-screen items-center justify-center overflow-y-auto bg-[#fbf0fe] p-6 md:p-8">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center">
-            <div className="mb-4 flex h-16 w-16 rotate-3 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg">
-              <GraduationCap className="h-10 w-10 text-white" />
+            <div className="mb-4">
+              <SkooleeLogo size="1.6rem" />
             </div>
-            <h2 className="mb-2 text-4xl font-extrabold tracking-normal text-[#1f1a23]">Skoolee AI</h2>
             <div className="h-1 w-12 rounded-full bg-[#8127cf]" />
           </div>
 

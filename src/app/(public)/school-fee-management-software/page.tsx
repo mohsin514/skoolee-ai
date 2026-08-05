@@ -5,6 +5,7 @@ import { ProductPage } from "../product-page";
 export const metadata: Metadata = {
   title: "School Fee Management Software",
   description: "Create fee structures, generate invoices, track due balances, record payments, and view fee collection status in SkooleeAI.",
+  alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["school fee management software", "school invoices", "fee challan software", "school payment tracking"],
 };
 

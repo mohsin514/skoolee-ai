@@ -4,6 +4,7 @@ import { TrustPage } from "../trust-page";
 export const metadata: Metadata = {
   title: "AI Governance | SkooleeAI",
   description: "SkooleeAI's approach to AI drafts, credits, review queues, approvals, and school-controlled use.",
+  alternates: { canonical: "https://app.skooleeai.com/ai-governance" },
 };
 
 export default function Page() {

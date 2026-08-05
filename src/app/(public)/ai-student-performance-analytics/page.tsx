@@ -5,6 +5,7 @@ import { ProductPage } from "../product-page";
 export const metadata: Metadata = {
   title: "AI Student Performance Analytics",
   description: "Use AI student performance analytics for class summaries, at-risk student insights, campus comparisons, and intervention planning.",
+  alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["AI student performance analytics", "school analytics software", "at-risk student insights", "AI education analytics"],
 };
 

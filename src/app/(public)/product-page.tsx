@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import SkooleeLogo from "@/components/SkooleeLogo";
 
 export interface ProductPageCopy {
   eyebrow: string;
@@ -18,16 +19,39 @@ export interface ProductPageCopy {
   proof: string[];
 }
 
+// Skoolee is sold sales-led — there is no self-serve signup. Marketing
+// CTAs open a demo request addressed to the sales inbox; the APP_OWNER
+// provisions the school manually from /owner afterwards.
+const SALES_EMAIL = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai";
+
+function demoMailto(context: string) {
+  const subject = encodeURIComponent(`Demo request — ${context}`);
+  const body = encodeURIComponent(
+    [
+      "Assalam-o-Alaikum Skoolee team,",
+      "",
+      "We would like to see a demo. Our details:",
+      "",
+      "School / group name:",
+      "Contact person:",
+      "Phone / WhatsApp:",
+      "City:",
+      "Number of campuses:",
+      "Approximate students:",
+      "",
+      "Thank you.",
+    ].join("\n")
+  );
+  return `mailto:${SALES_EMAIL}?subject=${subject}&body=${body}`;
+}
+
 export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
     <main className="min-h-screen bg-white text-[#1f1a23]">
       <header className="border-b border-[#e8e0ed] bg-white/95">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2 font-black tracking-normal">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#8127cf] text-white">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            SkooleeAI
+            <SkooleeLogo size="1.15rem" />
           </Link>
           <nav className="flex items-center gap-3 text-sm font-semibold">
             <Link href="/privacy" className="hidden text-[#4d4354]/70 hover:text-[#8127cf] sm:block">
@@ -36,9 +60,9 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <Link href="/login" className="text-[#4d4354]/70 hover:text-[#8127cf]">
               Login
             </Link>
-            <Link href="/register">
-              <Button size="sm">Start free</Button>
-            </Link>
+            <a href={demoMailto(copy.eyebrow)}>
+              <Button size="sm">Book a demo</Button>
+            </a>
           </nav>
         </div>
       </header>
@@ -52,12 +76,12 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#4d4354]/75">{copy.description}</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link href="/register">
+              <a href={demoMailto(copy.eyebrow)}>
                 <Button>
-                  {copy.primaryCta || "Start free"}
+                  {copy.primaryCta || "Book a demo"}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-              </Link>
+              </a>
               <Link href="/security">
                 <Button variant="outline">{copy.secondaryCta || "Review security"}</Button>
               </Link>

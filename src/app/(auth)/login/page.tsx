@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,36 +8,85 @@ import { toast } from "sonner";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Loader2, Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
+import {
+  Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
+  AlertCircle, CheckCircle2, Users, GraduationCap, Building2, Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { dashboardPathForRole } from "@/lib/roles";
+import SkooleeLogo from "@/components/SkooleeLogo";
+
+// Rotating proof points on the brand panel. Each pairs a claim with a
+// concrete number so the panel says something instead of decorating.
+const PROOF = [
+  {
+    icon: GraduationCap,
+    stat: "32",
+    unit: "live event types",
+    quote: "Every mark, payment and absence reaches the right person the moment it happens.",
+    caption: "Real-time notifications across every role",
+  },
+  {
+    icon: Building2,
+    stat: "Multi",
+    unit: "campus by design",
+    quote: "One login for the whole group. Each campus stays sealed from the others.",
+    caption: "Built for school groups, not single classrooms",
+  },
+  {
+    icon: Users,
+    stat: "8",
+    unit: "role-aware dashboards",
+    quote: "Owners, principals, teachers and parents each see exactly their slice.",
+    caption: "Nothing more, nothing less",
+  },
+];
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [capsOn, setCapsOn] = useState(false);
+  const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const liveRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    if (searchParams.get("verified") === "true") {
-      toast.success("Account successfully verified! Please log in.", {
-        duration: 8000,
-      });
-      window.history.replaceState(null, '', '/login');
-    } else if (searchParams.get("invite") === "accepted") {
-      toast.success("Invitation accepted. Please log in with your new password.", {
-        duration: 8000,
-      });
-      window.history.replaceState(null, '', '/login');
+    const verified = searchParams.get("verified") === "true";
+    const invited = searchParams.get("invite") === "accepted";
+    if (verified) {
+      toast.success("Account verified. Please log in.", { duration: 8000 });
+    } else if (invited) {
+      toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
     }
+    if (verified || invited) window.history.replaceState(null, "", "/login");
   }, [searchParams]);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  });
+  // Rotate the proof panel; pause on hover and honour reduced motion.
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced || paused) return;
+    const id = setInterval(() => setSlide((s) => (s + 1) % PROOF.length), 6000);
+    return () => clearInterval(id);
+  }, [paused]);
+
+  const {
+    register, handleSubmit, formState: { errors },
+  } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
+
+  const trackCaps = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsOn(e.getModifierState?.("CapsLock") ?? false);
+  }, []);
+
+  // Spread this rather than register() inline: react-hook-form supplies its
+  // own onBlur, and we need to run ours alongside it instead of replacing it.
+  const passwordField = register("password");
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
+    setFormError(null);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -46,172 +95,279 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Login failed");
+
       toast.success(`Welcome back, ${json.user.fullName}!`);
 
-      if (json.user.role === "TEACHER" && !json.user.onboardingComplete) {
+      if (json.user.mustChangePassword) {
+        router.push("/first-login");
+      } else if (json.user.role === "TEACHER" && !json.user.onboardingComplete) {
         router.push("/teacher-onboarding");
       } else {
         router.push(dashboardPathForRole(json.user.role));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Login failed");
-    } finally {
+      const message = e instanceof Error ? e.message : "Login failed";
+      setFormError(message);
+      toast.error(message);
       setIsLoading(false);
     }
   };
 
+  const active = PROOF[slide];
+  const ActiveIcon = active.icon;
+
   return (
-    <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
+    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+      <style>{`
+        @keyframes skDrift {
+          0%,100% { transform: translate3d(0,0,0) scale(1); }
+          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
+          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
+        }
+        @keyframes skRise {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes skShake {
+          0%,100% { transform: translateX(0); }
+          25%     { transform: translateX(-5px); }
+          75%     { transform: translateX(5px); }
+        }
+        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
+        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
+        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
+        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
+        .sk-shake { animation: skShake .34s ease-in-out; }
+        @media (prefers-reduced-motion: reduce) {
+          .sk-blob, .sk-rise, .sk-shake { animation: none !important; }
+        }
+      `}</style>
 
-      {/* ─── LEFT SIDE: Visual Narrative ─── */}
-      <section className="hidden md:block relative overflow-hidden h-screen">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf]/20 via-transparent to-[#9c48ea]/10 z-10"></div>
-        <img
-          src="/login.svg"
-          alt="Skoolee Empowering Education"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1f1a23]/60 via-[#8127cf]/20 to-transparent z-20"></div>
+      {/* ─── BRAND PANEL ─────────────────────────────── */}
+      <section
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
+      >
+        {/* Animated mesh — kept strictly inside the brand purple family
+            so the panel reads as Skoolee rather than generic dark SaaS. */}
+        <div aria-hidden className="absolute inset-0 overflow-hidden">
+          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
+          />
+          {/* Softens the hard edge where the panel meets the form side. */}
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+        </div>
 
-        <div className="absolute bottom-12 left-12 right-12 z-30">
-          <div className="bg-white/75 backdrop-blur-[24px] p-8 rounded-[32px] border border-white/30 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
-                <GraduationCap className="w-5 h-5 text-white" />
+        <div className="relative z-10 flex items-center gap-2.5">
+          <span className="h-8 w-1 rounded-full bg-white/70" />
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+            Skoolee AI
+          </p>
+        </div>
+
+        <div className="relative z-10 max-w-xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+              AI-assisted school management
+            </span>
+          </div>
+
+          <h1 className="mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+            Run the whole
+            <br />
+            institution from
+            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent"> one place.</span>
+          </h1>
+
+          {/* Sits on a mid-purple ground, so the card needs a darker scrim
+              and near-opaque text to stay legible. */}
+          <div key={slide} className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
+                <ActiveIcon className="h-5 w-5 text-white" />
               </div>
-              <span className="text-[11px] font-black tracking-wider text-[#8127cf] uppercase">Skoolee AI</span>
-            </div>
-            <h2 className="text-2xl font-black text-[#1f1a23] leading-snug mb-3">&ldquo;The best way to predict the future is to create it.&rdquo;</h2>
-            <p className="text-sm font-semibold text-[#4d4354]/70">Join thousands of educators managing their campus with Skoolee&apos;s joyful architecture.</p>
-            <div className="mt-5 flex gap-3">
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]" />
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-2.5">
+                  <span className="text-2xl font-black tracking-tight text-white">{active.stat}</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#f0dcff]">{active.unit}</span>
+                </div>
+                <p ref={liveRef} aria-live="polite" className="mt-2 text-[15px] font-semibold leading-relaxed text-white">
+                  {active.quote}
+                </p>
+                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">{active.caption}</p>
+              </div>
             </div>
           </div>
+
+          <div className="mt-6 flex items-center gap-2.5" role="tablist" aria-label="Product highlights">
+            {PROOF.map((p, i) => (
+              <button
+                key={p.caption}
+                role="tab"
+                aria-selected={i === slide}
+                aria-label={p.caption}
+                onClick={() => setSlide(i)}
+                className={`h-1.5 rounded-full transition-all duration-400 cursor-pointer hover:bg-white/70 ${
+                  i === slide ? "w-9 bg-white" : "w-1.5 bg-white/30"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Human-reviewed AI</span>
         </div>
       </section>
 
-      {/* ─── RIGHT SIDE: Interaction Canvas ─── */}
-      <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#fbf0fe] relative h-screen overflow-y-auto w-full">
-        <div className="w-full max-w-md">
-
-          {/* Logo & Brand Header */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-xl flex items-center justify-center shadow-md shadow-[#8127cf]/20 mb-3">
-              <GraduationCap className="h-7 w-7 text-white" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-[#1f1a23] mb-1">Skoolee AI</h1>
-            <div className="h-0.5 w-10 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] rounded-full"></div>
+      {/* ─── FORM PANEL ──────────────────────────────── */}
+      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
+        <div className="w-full max-w-[30rem]">
+          {/* Brand mark sits above the form on every breakpoint. */}
+          <div className="mb-9 flex flex-col items-center">
+            <SkooleeLogo size="2.35rem" weight="heavy" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
 
-          {/* Form Section */}
-          <div className="bg-[#ffffff] rounded-[32px] p-7 shadow-[0_32px_64px_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
-            <div className="mb-6">
-              <h2 className="text-xl font-black text-[#1f1a23] tracking-tight">Welcome Back!</h2>
-              <p className="text-[#4d4354]/60 text-sm font-semibold mt-1">Please enter your details to access your dashboard.</p>
-            </div>
+          <div className="mb-7 text-center">
+            <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+              Welcome back
+            </h2>
+            <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+              Sign in to your campus dashboard.
+            </p>
+          </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+            {formError && (
+              <div
+                role="alert"
+                className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                <p className="text-[13px] font-bold leading-snug text-rose-600">{formError}</p>
+              </div>
+            )}
 
-              {/* Email Input */}
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[10px] font-black text-[#4d4354] ml-1 uppercase tracking-wider">
+                <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
                   Work Email
                 </Label>
-                <div className="relative flex items-center group">
-                  <div className="absolute left-3.5 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
-                    <Mail className="h-4 w-4" />
-                  </div>
+                <div className="group relative flex items-center">
+                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="principal@institution.edu"
-                    className="w-full h-12 pl-10 pr-4 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-[#4d4354]/25 text-[#1f1a23] font-bold shadow-none"
+                    autoComplete="email"
+                    autoFocus
+                    aria-invalid={!!errors.email}
+                    placeholder="principal@institution.edu.pk"
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                      errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                    }`}
                     {...register("email")}
                   />
                 </div>
-                {errors.email && <p className="text-xs text-red-500 font-bold px-1">{errors.email.message}</p>}
+                {errors.email && <p className="px-1 text-xs font-bold text-rose-500">{errors.email.message}</p>}
               </div>
 
-              {/* Password Input */}
               <div className="space-y-1.5">
-                <div className="flex justify-between items-center px-1">
-                  <Label htmlFor="password" className="text-[10px] font-black text-[#4d4354] uppercase tracking-wider">
+                <div className="flex items-center justify-between px-1">
+                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
                     Password
                   </Label>
-                  <Link href="/forgot-password" className="text-[10px] font-black text-[#8127cf] hover:text-[#9c48ea] transition-colors">
-                    Forgot Password?
+                  <Link
+                    href="/forgot-password"
+                    className="text-[10px] font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+                  >
+                    Forgot password?
                   </Link>
                 </div>
-                <div className="relative flex items-center group">
-                  <div className="absolute left-3.5 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
-                    <Lock className="h-4 w-4" />
-                  </div>
+                <div className="group relative flex items-center">
+                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
+                    autoComplete="current-password"
+                    aria-invalid={!!errors.password}
                     placeholder="••••••••"
-                    className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-[#4d4354]/25 text-[#1f1a23] font-bold shadow-none"
-                    {...register("password")}
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                      errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                    }`}
+                    {...passwordField}
+                    onKeyUp={trackCaps}
+                    onKeyDown={trackCaps}
+                    onBlur={(e) => { setCapsOn(false); passwordField.onBlur(e); }}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute right-4 text-[#4d4354]/30 hover:text-[#8127cf] transition-colors"
+                    onClick={() => setShowPass((v) => !v)}
+                    aria-label={showPass ? "Hide password" : "Show password"}
+                    className="absolute right-4 cursor-pointer text-[#4d4354]/30 transition-colors hover:text-[#8127cf]"
                   >
                     {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {errors.password && <p className="text-xs text-red-500 font-bold px-1">{errors.password.message}</p>}
+                {errors.password && <p className="px-1 text-xs font-bold text-rose-500">{errors.password.message}</p>}
+                {capsOn && !errors.password && (
+                  <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
+                    <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
+                  </p>
+                )}
               </div>
 
-              {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full h-12 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white font-black rounded-2xl shadow-lg shadow-[#8127cf]/25 hover:shadow-xl hover:shadow-[#8127cf]/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-1 cursor-pointer disabled:opacity-50"
                 disabled={isLoading}
+                className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
               >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>Login to Campus</span>}
-                {!isLoading && <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Signing in…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign in</span>
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </>
+                )}
               </button>
             </form>
 
-            {/* Social Logins */}
-            <div className="mt-6 relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#cfc2d6]/20"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="px-4 bg-white text-[#4d4354]/40 font-black tracking-wider text-[10px]">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" className="flex items-center justify-center gap-3 h-11 rounded-2xl bg-[#fbf0fe] hover:bg-[#f5eaf8] hover:shadow-md transition-all border border-[#cfc2d6]/10 cursor-pointer">
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                <span className="text-sm font-bold text-[#1f1a23]">Google</span>
-              </button>
-              <button type="button" className="flex items-center justify-center gap-3 h-11 rounded-2xl bg-[#fbf0fe] hover:bg-[#f5eaf8] hover:shadow-md transition-all border border-[#cfc2d6]/10 cursor-pointer">
-                <svg className="w-4 h-4" viewBox="0 0 23 23">
-                  <path d="M1 1h10v10H1z" fill="#f35325"/><path d="M12 1h10v10H12z" fill="#81bc06"/>
-                  <path d="M1 12h10v10H1z" fill="#05a6f0"/><path d="M12 12h10v10H12z" fill="#ffba08"/>
-                </svg>
-                <span className="text-sm font-bold text-[#1f1a23]">Microsoft</span>
-              </button>
-            </div>
-
-            <div className="mt-5 pt-5 border-t border-[#cfc2d6]/10 text-center">
-              <p className="text-sm text-[#4d4354] font-semibold">
-                Don&apos;t have an account?
-                <Link href="/register" className="text-[#8127cf] font-black hover:text-[#9c48ea] transition-colors ml-1">Create New Account</Link>
+            <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
+              <p className="text-center text-[12.5px] font-semibold leading-relaxed text-[#4d4354]/55">
+                Accounts are issued by your school administrator.
+                <br />
+                New institution?{" "}
+                <a
+                  href="mailto:sales@skoolee.ai?subject=Skoolee%20access%20request"
+                  className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+                >
+                  Talk to us
+                </a>
               </p>
             </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-[#4d4354]/45">
+            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
+            <span className="h-3 w-px bg-[#cfc2d6]/50" />
+            <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>
+            <span className="h-3 w-px bg-[#cfc2d6]/50" />
+            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">AI Governance</Link>
           </div>
         </div>
       </section>

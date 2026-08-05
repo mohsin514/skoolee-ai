@@ -109,6 +109,7 @@ model User {
   emergencyPhone     String?   @map("emergency_phone")
   isActive           Boolean   @default(true) @map("is_active")
   onboardingComplete Boolean   @default(false) @map("onboarding_complete")
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
   createdAt          DateTime  @default(now()) @map("created_at")
   // Action Tracking
   markedAttendance Attendance[] @relation("MarkedBy")

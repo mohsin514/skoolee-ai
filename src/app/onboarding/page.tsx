@@ -17,6 +17,7 @@ import { getPlanLimits } from '@/config/plans';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
+import SkooleeLogo from "@/components/SkooleeLogo";
 
 interface StepNavProps {
   active: boolean;
@@ -210,12 +211,9 @@ export default function OnboardingWizard() {
       <aside className="w-72 bg-white/50 backdrop-blur-md border-r border-[#cfc2d6]/30 hidden lg:flex flex-col p-8 fixed h-full z-50">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg">
-              <GraduationCap className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="font-black text-xl tracking-normal text-[#8127cf]">Skoolee AI</h1>
+            <SkooleeLogo size="1.4rem" />
           </div>
-          <p className="text-[10px] font-bold text-[#4d4354]/50 uppercase tracking-normal pl-[52px] leading-none">Setup Wizard</p>
+          <p className="text-[10px] font-bold text-[#4d4354]/50 uppercase tracking-normal leading-none">Setup Wizard</p>
         </div>
 
         <nav className="flex-1 space-y-3">
@@ -251,10 +249,7 @@ export default function OnboardingWizard() {
         {/* ─── MOBILE STEP BAR ─── */}
         <div className="lg:hidden px-6 pt-6 pb-2">
           <div className="flex items-center gap-3 mb-4">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center">
-              <GraduationCap className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-black text-lg text-[#8127cf]">Skoolee AI</span>
+            <SkooleeLogo size="1.2rem" />
           </div>
           <div className="flex items-center gap-2">
             {steps.map((s, i) => {

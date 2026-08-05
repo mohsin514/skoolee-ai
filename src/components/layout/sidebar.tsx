@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import SkooleeLogo from "@/components/SkooleeLogo";
 import {
   BarChart3,
   ClipboardList,
@@ -43,18 +44,11 @@ export function Sidebar() {
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[#cfc2d6]/25 bg-white/72 p-5 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
-        <Link href="/dashboard" className="mb-8 flex cursor-pointer items-center gap-3 rounded-[22px] p-1 transition-all hover:bg-white/70">
-          <div className="flex h-11 w-11 rotate-3 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
-            <GraduationCap className="h-7 w-7 text-white" />
-          </div>
-          <div>
-            <span className="block text-xl font-black leading-none text-[#8127cf]">
-              Skoolee AI
-            </span>
-            <span className="mt-1 block text-[10px] font-black text-[#b10e6b]/70">
-              Campus Console
-            </span>
-          </div>
+        <Link href="/dashboard" className="mb-8 block cursor-pointer rounded-[22px] p-1 transition-all hover:bg-white/70">
+          <SkooleeLogo size="1.35rem" />
+          <span className="mt-1.5 block text-[10px] font-black text-[#b10e6b]/70">
+            Campus Console
+          </span>
         </Link>
 
         <nav className="custom-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">

@@ -7,7 +7,6 @@ import {
   Calendar,
   ChevronDown,
   CreditCard,
-  GraduationCap,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import SkooleeLogo from "@/components/SkooleeLogo";
 
 interface HeaderProps {
   title: string;
@@ -116,8 +116,8 @@ export function Header({ title, description, actions }: HeaderProps) {
     <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/20 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl md:px-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-10 w-10 shrink-0 rotate-3 items-center justify-center rounded-[14px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20 md:hidden">
-            <GraduationCap className="h-6 w-6 text-white" />
+          <div className="shrink-0 -rotate-2 md:hidden">
+            <SkooleeLogo size="1.25rem" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">

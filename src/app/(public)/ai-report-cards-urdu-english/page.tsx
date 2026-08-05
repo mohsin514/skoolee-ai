@@ -5,6 +5,7 @@ import { ProductPage } from "../product-page";
 export const metadata: Metadata = {
   title: "AI Report Cards in Urdu and English",
   description: "Create bilingual AI report card remarks in Urdu and English with principal review, PDF export, and parent communication workflows.",
+  alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["AI report cards Urdu English", "bilingual report cards", "Urdu report card remarks", "school report card software"],
 };
 

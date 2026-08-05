@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,9 +9,12 @@ import { toast } from "sonner";
 import { requestPasswordReset, resetPassword, verifyToken } from "@/app/actions/auth/reset";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Loader2, ArrowRight, Mail, Lock, CheckCircle2, AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import {
+  Loader2, ArrowRight, Mail, Lock, CheckCircle2, AlertCircle,
+  CheckCircle, XCircle, ShieldCheck, Eye, Sparkles,
+} from "lucide-react";
+import SkooleeLogo from "@/components/SkooleeLogo";
 import Link from "next/link";
-import { useEffect } from "react";
 
 const requestSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -19,7 +22,7 @@ const requestSchema = z.object({
 
 const resetSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string()
+  confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -29,7 +32,7 @@ export default function ForgotPasswordPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const router = useRouter();
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
@@ -53,7 +56,7 @@ export default function ForgotPasswordPage() {
   // Form for Resetting Password
   const resetForm = useForm({
     resolver: zodResolver(resetSchema),
-    defaultValues: { password: '', confirmPassword: '' }
+    defaultValues: { password: '', confirmPassword: '' },
   });
 
   const watchPassword = resetForm.watch("password");
@@ -64,7 +67,7 @@ export default function ForgotPasswordPage() {
     { label: "One uppercase", met: /[A-Z]/.test(watchPassword) },
     { label: "One number", met: /[0-9]/.test(watchPassword) },
     { label: "Special character", met: /[^A-Za-z0-9]/.test(watchPassword) },
-    { label: "Passwords match", met: watchPassword === watchConfirm && watchPassword !== '' }
+    { label: "Passwords match", met: watchPassword === watchConfirm && watchPassword !== '' },
   ];
 
   const handleRequest = async (data: any) => {
@@ -82,7 +85,7 @@ export default function ForgotPasswordPage() {
 
   const handleReset = async (data: any) => {
     if (!token) return;
-    
+
     // Final check for requirements
     const unmet = passwordRequirements.filter(r => !r.met);
     if (unmet.length > 0) {
@@ -103,129 +106,303 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
-      {/* ─── LEFT SIDE ─── */}
-      <section className="hidden md:block relative overflow-hidden h-screen">
-        <div className="absolute inset-0 bg-[#8127cf]/10 mix-blend-multiply z-10"></div>
-        <img src="/login.svg" alt="Skoolee Access" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/40 to-transparent z-20"></div>
-        <div className="absolute bottom-12 left-12 z-30 max-w-md">
-          <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-normal text-[#9c48ea] uppercase mb-2 block">Security Recovery</span>
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"Security is not a product, but a process."</h2>
-            <p className="text-[#4d4354] font-medium">Reset your secure credentials to continue managing your institution.</p>
+    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+      <style>{`
+        @keyframes skDrift {
+          0%,100% { transform: translate3d(0,0,0) scale(1); }
+          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
+          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
+        }
+        @keyframes skRise {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
+        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
+        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
+        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .sk-blob, .sk-rise { animation: none !important; }
+        }
+      `}</style>
+
+      {/* ─── BRAND PANEL ─────────────────────────────── */}
+      <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14">
+        <div aria-hidden className="absolute inset-0 overflow-hidden">
+          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
+          />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+        </div>
+
+        <div className="relative z-10 flex items-center gap-2.5">
+          <span className="h-8 w-1 rounded-full bg-white/70" />
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+            Skoolee AI
+          </p>
+        </div>
+
+        <div className="relative z-10 max-w-xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+              Account recovery
+            </span>
           </div>
+
+          <h1 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+            Regain access to
+            <br />
+            your
+            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
+              {" "}campus.
+            </span>
+          </h1>
+
+          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
+                <ShieldCheck className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold leading-relaxed text-white">
+                  A secure, unique recovery link is sent only to your registered
+                  email. It expires quickly and is verified before any change.
+                </p>
+                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">
+                  We never store or reveal your credentials in plain text.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
+          <span className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" /> Single-use recovery links</span>
         </div>
       </section>
 
-      {/* ─── RIGHT SIDE ─── */}
-      <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#fbf0fe] relative h-screen overflow-y-auto w-full">
-        <div className="w-full max-w-md">
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[22px] flex items-center justify-center shadow-lg mb-4">
-               <GraduationCap className="h-10 w-10 text-white" />
-            </div>
-            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
-            <div className="h-1 w-12 bg-[#8127cf] rounded-full"></div>
+      {/* ─── FORM PANEL ──────────────────────────────── */}
+      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
+        <div className="w-full max-w-[30rem]">
+          <div className="mb-9 flex flex-col items-center">
+            <SkooleeLogo size="2.35rem" weight="heavy" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
 
-          <div className="bg-[#ffffff] rounded-[32px] p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)] border border-[#cfc2d6]/10">
-            
+          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
             {!token ? (
-              // REQUEST RESET UI
+              // ── REQUEST RESET ──
               !isSubmitted ? (
                 <>
-                  <div className="mb-8 text-left">
-                    <h2 className="text-2xl font-bold text-[#1f1a23] tracking-normal">Recover Account</h2>
-                    <p className="text-[#4d4354] text-sm mt-1">Enter your registered email below to receive a reset link.</p>
+                  <div className="mb-7 text-center">
+                    <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                      Recover account
+                    </h2>
+                    <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                      We&apos;ll email you a single-use recovery link.
+                    </p>
                   </div>
 
-                  <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-6">
-                    <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">Email Identity</Label>
-                       <div className="relative">
-                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
-                          <Input placeholder="admin@horizon.edu" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-lg focus:ring-2 focus:ring-[#8127cf]/20" {...requestForm.register("email")} />
-                       </div>
-                       {requestForm.formState.errors.email && <p className="text-xs text-red-500 font-medium px-1">{(requestForm.formState.errors.email as any).message}</p>}
+                  <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-4" noValidate>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                        Email Identity
+                      </Label>
+                      <div className="group relative flex items-center">
+                        <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                        <Input
+                          id="recover-email"
+                          type="email"
+                          autoComplete="email"
+                          placeholder="admin@horizon.edu"
+                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                            requestForm.formState.errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                          }`}
+                          {...requestForm.register("email")}
+                        />
+                      </div>
+                      {requestForm.formState.errors.email && (
+                        <p className="px-1 text-xs font-bold text-rose-500">
+                          {(requestForm.formState.errors.email as any).message}
+                        </p>
+                      )}
                     </div>
-                    <button type="submit" className="w-full h-14 bg-[#8127cf] text-white font-bold rounded-xl shadow-lg hover:bg-[#9c48ea] transition-all flex items-center justify-center gap-2" disabled={isLoading}>
-                       {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send Reset Link <ArrowRight className="h-5 w-5" /></>}
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Sending…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Send reset link</span>
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </>
+                      )}
                     </button>
                   </form>
                 </>
               ) : (
-                <div className="text-center py-6">
-                   <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
-                      <CheckCircle2 className="w-10 h-10" />
-                   </div>
-                   <h3 className="text-2xl font-bold text-[#1f1a23] mb-2">Check your inbox</h3>
-                   <p className="text-[#4d4354] text-sm mb-8">We've sent an encrypted security path to your registered email address.</p>
-                   <Link href="/login" className="text-sm font-bold text-[#8127cf] hover:underline">Back to Login</Link>
+                <div className="py-6 text-center">
+                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                    <CheckCircle2 className="h-10 w-10" />
+                  </div>
+                  <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Check your inbox</h3>
+                  <p className="mb-8 text-sm font-semibold leading-6 text-[#4d4354]/65">
+                    We&apos;ve sent an encrypted, single-use link to your registered email.
+                    It expires shortly — no worries if it lapses, you can start again.
+                  </p>
+                  <Link href="/login" className="text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                    Back to login
+                  </Link>
                 </div>
               )
             ) : isValidToken === false ? (
-               <div className="text-center py-6">
-                  <div className="h-16 w-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-600">
-                     <AlertCircle className="w-10 h-10" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-[#1f1a23] mb-2">Link Expired</h3>
-                  <p className="text-[#4d4354] text-sm mb-8 pr-1">This security path has reached its expiration or has already been used. Please request a new link.</p>
-                  <button onClick={() => router.push("/forgot-password")} className="text-sm font-bold text-[#8127cf] hover:underline">Request New Link</button>
-               </div>
+              <div className="py-6 text-center">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+                  <AlertCircle className="h-10 w-10" />
+                </div>
+                <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Link expired</h3>
+                <p className="mb-8 text-sm font-semibold leading-6 text-[#4d4354]/65">
+                  This recovery link has reached its expiration or has already been used.
+                  Request a fresh one to continue.
+                </p>
+                <button
+                  onClick={() => router.push("/forgot-password")}
+                  className="cursor-pointer text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+                >
+                  Request new link
+                </button>
+              </div>
             ) : isValidToken === null ? (
-               <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="h-10 w-10 text-[#8127cf] animate-spin" />
-                  <p className="text-xs font-bold text-[#4d4354] uppercase tracking-normal">Verifying path...</p>
-               </div>
+              <div className="flex flex-col items-center justify-center gap-4 py-12">
+                <Loader2 className="h-10 w-10 animate-spin text-[#8127cf]" />
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#4d4354]/50">Verifying link…</p>
+              </div>
             ) : (
-              // RESET PASSWORD UI
+              // ── RESET PASSWORD ──
               <>
-                <div className="mb-8 text-left">
-                  <h2 className="text-2xl font-bold text-[#1f1a23] tracking-normal">New Password</h2>
-                  <p className="text-[#4d4354] text-sm mt-1">Please define your new institutional access code.</p>
+                <div className="mb-7 text-center">
+                  <h2 className="text-[1.85rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                    New password
+                  </h2>
+                  <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                    Define your new institutional access code.
+                  </p>
                 </div>
 
-                <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-5">
-                   <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">New Password</Label>
-                       <div className="relative">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
-                          <Input type="password" placeholder="••••••••" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20" {...resetForm.register("password")} />
-                       </div>
-                       {resetForm.formState.errors.password && <p className="text-xs text-red-500 font-medium px-1">{(resetForm.formState.errors.password as any).message}</p>}
-                   </div>
-                   <div className="space-y-2">
-                       <Label className="text-xs font-bold text-[#4d4354] ml-1 uppercase tracking-normal">Confirm Identity Code</Label>
-                       <div className="relative">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#4d4354]" />
-                          <Input type="password" placeholder="••••••••" className="w-full h-14 pl-12 bg-[#fbf0fe] border-0 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#8127cf]/20" {...resetForm.register("confirmPassword")} />
-                       </div>
-                       {resetForm.formState.errors.confirmPassword && <p className="text-xs text-red-500 font-medium px-1">{(resetForm.formState.errors.confirmPassword as any).message}</p>}
-                   </div>
-
-                   <div className="p-4 bg-[#fbf0fe] rounded-2xl border border-[#cfc2d6]/20">
-                       <p className="text-[10px] font-bold text-[#8127cf] uppercase tracking-normal mb-2">Security Checklist</p>
-                       <div className="grid grid-cols-2 gap-y-1.5">
-                          {passwordRequirements.map((r, i) => (
-                            <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/40'}`}>
-                               {r.met ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />}
-                               {r.label}
-                            </div>
-                          ))}
-                       </div>
+                <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" noValidate>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                      New Password
+                    </Label>
+                    <div className="group relative flex items-center">
+                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                      <Input
+                        id="new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                          resetForm.formState.errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                        }`}
+                        {...resetForm.register("password")}
+                      />
                     </div>
+                    {resetForm.formState.errors.password && (
+                      <p className="px-1 text-xs font-bold text-rose-500">
+                        {(resetForm.formState.errors.password as any).message}
+                      </p>
+                    )}
+                  </div>
 
-                   <button type="submit" className="w-full h-14 bg-[#1f1a23] text-white rounded-xl text-lg font-black italic tracking-normal shadow-lg hover:bg-[#322a38] transition-all flex items-center justify-center gap-2" disabled={isLoading}>
-                      {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Save New Credentials <ArrowRight className="h-5 w-5" /></>}
-                   </button>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                      Confirm Password
+                    </Label>
+                    <div className="group relative flex items-center">
+                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                          resetForm.formState.errors.confirmPassword ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                        }`}
+                        {...resetForm.register("confirmPassword")}
+                      />
+                    </div>
+                    {resetForm.formState.errors.confirmPassword && (
+                      <p className="px-1 text-xs font-bold text-rose-500">
+                        {(resetForm.formState.errors.confirmPassword as any).message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">
+                      Security checklist
+                    </p>
+                    <div className="grid grid-cols-2 gap-y-1.5">
+                      {passwordRequirements.map((req, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
+                            req.met ? "text-emerald-600" : "text-[#4d4354]/40"
+                          }`}
+                        >
+                          {req.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />}
+                          {req.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Saving…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Save new password</span>
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </>
+                    )}
+                  </button>
                 </form>
               </>
             )}
+          </div>
 
-            <div className="mt-8 pt-6 border-t border-[#cfc2d6]/10 text-center">
-               <Link href="/login" className="text-sm font-bold text-[#4d4354]/60 hover:text-[#8127cf]">Nevermind, I remember it.</Link>
-            </div>
+          <div className="mt-5 border-t border-[#cfc2d6]/20 pt-4 text-center">
+            <Link
+              href="/login"
+              className="text-sm font-bold text-[#4d4354]/55 transition-colors hover:text-[#8127cf]"
+            >
+              Nevermind, I remember it.
+            </Link>
           </div>
         </div>
       </section>

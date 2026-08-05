@@ -7,6 +7,20 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "marketing",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "../skoolee-ai-marketing",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3200"
+      ],
+      "port": 3200
     }
   ]
 }

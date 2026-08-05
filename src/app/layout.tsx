@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { Suspense } from "react";
@@ -31,14 +31,33 @@ export const metadata: Metadata = {
     title: "SkooleeAI - AI School Management Software",
     description:
       "Manage school operations, AI report cards, WhatsApp parent updates, fees, campuses, and analytics in one SaaS platform.",
-    url: "/ai-school-management-software",
+    url: "/",
     siteName: "SkooleeAI",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Skoolee AI - AI School Management Software",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SkooleeAI - AI School Management Software",
+    description:
+      "Manage school operations, AI report cards, WhatsApp parent updates, fees, campuses, and analytics in one SaaS platform.",
+    images: ["/og-image.png"],
   },
   icons: {
     icon: "/favicon.svg",
-    apple: "/favicon.svg",
+    apple: "/apple-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#8127CF",
 };
 
 export default function RootLayout({

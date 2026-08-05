@@ -4,6 +4,7 @@ import { TrustPage } from "../trust-page";
 export const metadata: Metadata = {
   title: "Security | SkooleeAI",
   description: "SkooleeAI security overview for authentication, tenant scoping, billing controls, and operational safeguards.",
+  alternates: { canonical: "https://app.skooleeai.com/security" },
 };
 
 export default function Page() {

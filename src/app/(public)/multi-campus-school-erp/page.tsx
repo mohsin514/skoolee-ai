@@ -5,6 +5,7 @@ import { ProductPage } from "../product-page";
 export const metadata: Metadata = {
   title: "Multi-Campus School ERP",
   description: "Manage multi-campus school groups with campus limits, role-based admins, principals, teachers, students, and network analytics.",
+  alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["multi-campus school ERP", "school group software", "campus management software", "school ERP Pakistan"],
 };
 

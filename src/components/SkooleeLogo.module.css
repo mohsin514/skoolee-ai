@@ -1,0 +1,87 @@
+/* Animated "Skoolee" wordmark — the two o's are eyes.
+   Ported from the marketing site's .skoolee-logo styles so the product and
+   the marketing site share the same mark. Every measurement is in `em`, so
+   the whole logo scales from the single `font-size` set on .logo. */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #8127cf;
+}
+
+.eye {
+  position: relative;
+  flex: none;
+  width: 0.857em;
+  height: 0.857em;
+  margin: 0 0.018em;
+  border: 0.08em solid currentColor;
+  border-radius: 50%;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pupil {
+  width: 0.286em;
+  height: 0.286em;
+  border-radius: 50%;
+  background: #1f1a23;
+  animation: skooleeLook var(--skoolee-look-duration, 4s) ease-in-out infinite;
+}
+
+.capWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cap {
+  position: absolute;
+  top: -0.357em;
+  left: 50%;
+  width: 0.679em;
+  height: 0.679em;
+  transform: translateX(-50%) rotate(-15deg);
+  color: currentColor;
+}
+
+.ai {
+  margin-left: 0.16em;
+}
+
+/* Heavier letterforms + thicker eye rings, for hero/auth headers. */
+.logoHeavy {
+  font-weight: 900;
+  letter-spacing: -0.015em;
+}
+
+.logoHeavy .eye {
+  border-width: 0.1em;
+}
+
+.logoHeavy .pupil {
+  width: 0.31em;
+  height: 0.31em;
+}
+
+.logoHeavy .cap {
+  stroke-width: 3;
+}
+
+@keyframes skooleeLook {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0.071em, -0.036em); }
+  50% { transform: translate(-0.071em, 0.036em); }
+  75% { transform: translate(0.036em, 0.018em); }
+}
+
+/* Eyes settle in the centre when motion is unwelcome. */
+@media (prefers-reduced-motion: reduce) {
+  .pupil { animation: none; }
+}

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, ShieldCheck, ArrowRight, GraduationCap, Loader2 } from 'lucide-react';
+import { CheckCircle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import SkooleeLogo from "@/components/SkooleeLogo";
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -47,10 +48,9 @@ export default function VerifySuccessPage() {
         <div className="w-full max-w-md">
           
           <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-3 mb-4">
-              <GraduationCap className="h-10 w-10 text-white" />
+            <div className="mb-4">
+              <SkooleeLogo size="1.6rem" />
             </div>
-            <h1 className="text-4xl font-extrabold tracking-normal text-[#1f1a23] mb-2">Skoolee AI</h1>
             <div className="h-1 w-12 bg-emerald-500 rounded-full"></div>
           </div>
 

@@ -15,20 +15,42 @@ import {
 const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
 const PUBLIC_PATHS = [
-  "/", "/login", "/register", "/accept-invite", "/forgot-password",
+  "/", "/login", "/accept-invite", "/forgot-password",
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
   "/school-fee-management-software", "/ai-student-performance-analytics",
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
-  "/api/auth/login", "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
+  "/api/auth/login",
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
   "/api/parent/data",
   "/api/parent/timetable",
 ];
 
+// ─────────────────────────────────────────────────────────────────
+// Self-serve registration is disabled.
+//
+// Skoolee is sold sales-led: the APP_OWNER provisions every school and
+// every account from /owner. These routes and their source files are
+// intentionally left in the repo so the decision stays reversible —
+// removing an entry here re-opens that path. Page routes redirect to
+// /login, API routes answer 403 rather than leaking that they exist.
+// ─────────────────────────────────────────────────────────────────
+const DISABLED_PATHS = [
+  "/register", "/register-split", "/sign-up",
+  "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
+];
+
+function matchesPath(pathname: string, list: string[]) {
+  return list.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  return matchesPath(pathname, PUBLIC_PATHS);
+}
+
+function isDisabled(pathname: string) {
+  return matchesPath(pathname, DISABLED_PATHS);
 }
 
 export async function proxy(req: NextRequest) {
@@ -43,7 +65,19 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Pass through public routes
+  // 2. Registration is closed — turn these away before anything else,
+  //    so a stale bookmark or crawled link never reaches a handler.
+  if (isDisabled(pathname)) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json(
+        { error: "Self-serve registration is disabled. Contact your Skoolee representative." },
+        { status: 403 }
+      );
+    }
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // 3. Pass through public routes
   if (isPublic(pathname)) {
     return NextResponse.next();
   }
@@ -67,6 +101,30 @@ export async function proxy(req: NextRequest) {
 
     if (!role) {
       throw new Error("Invalid role");
+    }
+
+    // An owner-generated password must be replaced before the account
+    // can reach anything else — this outranks even onboarding.
+    const mustChangePassword = Boolean(payload.mustChangePassword);
+    if (mustChangePassword) {
+      const allowedDuringReset =
+        pathname === "/first-login" ||
+        pathname.startsWith("/api/auth/first-password") ||
+        pathname.startsWith("/api/auth/logout") ||
+        pathname.startsWith("/api/auth/session");
+
+      if (!allowedDuringReset) {
+        if (pathname.startsWith("/api")) {
+          return NextResponse.json(
+            { error: "You must set a new password before continuing." },
+            { status: 403 }
+          );
+        }
+        return NextResponse.redirect(new URL("/first-login", req.url));
+      }
+    } else if (pathname === "/first-login") {
+      // Nothing pending — don't let the reset screen be revisited.
+      return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
     if (!onboardingComplete && !pathname.startsWith("/onboarding") && !pathname.startsWith("/api")) {
