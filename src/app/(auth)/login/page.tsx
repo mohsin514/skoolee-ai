@@ -349,15 +349,10 @@ export default function LoginPage() {
 
             <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
               <p className="text-center text-[12.5px] font-semibold leading-relaxed text-[#4d4354]/55">
-                Accounts are issued by your school administrator.
-                <br />
-                New institution?{" "}
-                <a
-                  href="mailto:sales@skoolee.ai?subject=Skoolee%20access%20request"
-                  className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-                >
-                  Talk to us
-                </a>
+                Don&apos;t have an account?{" "}
+                <Link href="/register" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                  Create New Account
+                </Link>
               </p>
             </div>
           </div>

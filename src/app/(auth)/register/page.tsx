@@ -7,7 +7,7 @@ import {
   User as UserIcon, Loader2,
   CheckCircle, ShieldCheck, XCircle,
   ArrowRight, Hash, Building,
-  LucideIcon, Network, ChevronLeft
+  LucideIcon, Network, ChevronLeft, Sparkles,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -134,47 +134,116 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
+    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+      <style>{`
+        @keyframes skDrift {
+          0%,100% { transform: translate3d(0,0,0) scale(1); }
+          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
+          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
+        }
+        @keyframes skRise {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
+        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
+        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
+        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .sk-blob, .sk-rise { animation: none !important; }
+        }
+      `}</style>
 
-      {/* ─── LEFT SIDE ─── */}
-      <section className="hidden md:block relative overflow-hidden h-screen">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf]/20 via-transparent to-[#9c48ea]/10 z-10"></div>
-        <img src="/login.svg" alt="Skoolee Registration" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1f1a23]/60 via-[#8127cf]/20 to-transparent z-20"></div>
-        <div className="absolute bottom-12 left-12 right-12 z-30">
-          <div className="bg-white/75 backdrop-blur-[24px] p-8 rounded-[32px] border border-white/30 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <SkooleeLogo size="1.35rem" />
-            </div>
-            <h2 className="text-2xl font-black text-[#1f1a23] leading-snug mb-3">
-              {type === 'school_group' ? "Manage all your campuses from one place." : "Set up your school in minutes."}
-            </h2>
-            <p className="text-sm font-semibold text-[#4d4354]/70">Create your account and start managing your school with AI-powered tools.</p>
-            <div className="mt-5 flex gap-3">
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]" />
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
-              <div className="h-2 w-2 rounded-full bg-[#8127cf]/30" />
+      {/* ─── BRAND PANEL ─────────────────────────────── */}
+      <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14">
+        <div aria-hidden className="absolute inset-0 overflow-hidden">
+          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
+          />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+        </div>
+
+        <div className="relative z-10 flex items-center gap-2.5">
+          <span className="h-8 w-1 rounded-full bg-white/70" />
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+            Skoolee AI
+          </p>
+        </div>
+
+        <div className="relative z-10 max-w-xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+              Start in minutes
+            </span>
+          </div>
+
+          <h1 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+            Set up your school
+            <br />
+            in
+            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
+              {" "}an afternoon.
+            </span>
+          </h1>
+
+          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
+                <Network className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold leading-relaxed text-white">
+                  Free for up to 100 students, live the same day. AI report cards, fees,
+                  attendance and WhatsApp parent updates — one login.
+                </p>
+                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">
+                  No consultants. No six-month rollout.
+                </p>
+              </div>
             </div>
           </div>
         </div>
+
+        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
+          <span className="flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> Human-reviewed AI</span>
+        </div>
       </section>
 
-      {/* ─── RIGHT SIDE ─── */}
-      <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#fbf0fe] relative h-screen overflow-y-auto w-full">
+      {/* ─── FORM PANEL ──────────────────────────────── */}
+      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
         <div className="w-full max-w-lg">
-
-          <div className="flex flex-col items-center mb-6">
-            <SkooleeLogo size="1.6rem" className="mb-3" />
-            <div className="h-0.5 w-10 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] rounded-full"></div>
+          <div className="mb-9 flex flex-col items-center">
+            <SkooleeLogo size="2.35rem" weight="heavy" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
 
           <AnimatePresence mode="wait">
             {/* ─── Step 1: Choose Type ─── */}
             {step === 1 && (
-              <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#ffffff] rounded-[32px] p-7 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
-                <div className="mb-6 text-center md:text-left">
-                  <h2 className="text-xl font-black text-[#1f1a23] tracking-tight">How is your school set up?</h2>
-                  <p className="text-[#4d4354]/60 text-sm font-semibold mt-1">Choose the option that best describes your institution.</p>
+              <motion.div
+                key="s1"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+              >
+                <div className="mb-7 text-center">
+                  <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                    How is your school set up?
+                  </h2>
+                  <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                    Choose the option that best describes your institution.
+                  </p>
                 </div>
 
                 <div className="space-y-3 mb-6">
@@ -182,13 +251,19 @@ export default function RegisterPage() {
                   <TypeOption active={type === 'single_campus'} onClick={() => setType('single_campus')} icon={Building2} title="Single Campus School" desc="One school, one location — quick and simple." />
                 </div>
 
-                <button onClick={handleStep1} className="w-full h-12 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white font-black rounded-2xl shadow-lg shadow-[#8127cf]/25 hover:shadow-xl hover:shadow-[#8127cf]/30 flex items-center justify-center gap-2 group active:scale-[0.98] transition-all cursor-pointer">
-                  Continue <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                <button
+                  onClick={handleStep1}
+                  className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985]"
+                >
+                  Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
-                <div className="mt-6 pt-5 border-t border-[#cfc2d6]/10 text-center">
-                  <p className="text-sm text-[#4d4354] font-semibold">
-                    Already have an account? <Link href="/login" className="text-[#8127cf] font-black hover:text-[#9c48ea] transition-colors ml-1">Log in</Link>
+                <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
+                  <p className="text-sm font-semibold text-[#4d4354]/55">
+                    Already have an account?{" "}
+                    <Link href="/login" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                      Log in
+                    </Link>
                   </p>
                 </div>
               </motion.div>
@@ -196,47 +271,52 @@ export default function RegisterPage() {
 
             {/* ─── Step 2: Account Details ─── */}
             {step === 2 && (
-              <motion.div key="s2" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#ffffff] rounded-[32px] p-7 shadow-[0_32px_64px_rgba(129,39,207,0.05)] border border-[#cfc2d6]/10">
+              <motion.div
+                key="s2"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+              >
                 <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-[#1f1a23] tracking-tight">Create Your Account</h2>
-                    <p className="text-[10px] font-black text-[#8127cf] uppercase tracking-wider mt-1">{type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}</p>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}</p>
+                    <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-1">Create your account</h2>
                   </div>
-                  <button onClick={() => setStep(1)} className="p-2 bg-[#fbf0fe] rounded-xl text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"><ArrowRight className="w-4 h-4 rotate-180" /></button>
+                  <button onClick={() => setStep(1)} className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"><ArrowRight className="h-4 w-4 rotate-180" /></button>
                 </div>
 
                 <form className="space-y-4" onSubmit={handleStep2Submit}>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <InputField label="Full Name" placeholder="Your full name" value={formData.name} onChange={(v: string) => setFormData({ ...formData, name: v })} icon={UserIcon} />
                     <InputField label="Email" placeholder="email@school.edu" value={formData.email} onChange={(v: string) => setFormData({ ...formData, email: v })} icon={Mail} />
                   </div>
 
                   {type === 'school_group' && (
-                    <div className="p-5 bg-[#fbf0fe] rounded-[24px] border border-[#cfc2d6]/20 space-y-4">
+                    <div className="space-y-4 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5">
                       <InputField label="School Group Name" placeholder="e.g. Beaconhouse School System" value={formData.schoolName} onChange={(v: string) => setFormData({ ...formData, schoolName: v })} icon={Building} className="bg-white" />
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black text-[#8127cf] tracking-wider uppercase">School ID</Label>
-                        <div className="relative group">
-                          <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/40" />
+                      <div className="space-y-1.5">
+                        <Label className="ml-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">School ID</Label>
+                        <div className="relative flex items-center">
+                          <Hash className="absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
                           <Input
                             readOnly={formData.autoId}
                             value={formData.regId}
                             onChange={e => setFormData({ ...formData, regId: e.target.value.toUpperCase() })}
-                            className="h-11 pl-11 bg-white border-0 font-bold tracking-normal text-[#1f1a23] rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20"
+                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-4 font-bold tracking-normal text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
                           />
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => handleAutoId(true)} className={`text-[9px] font-black px-3 py-1 rounded-lg cursor-pointer transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto</button>
-                          <button type="button" onClick={() => handleAutoId(false)} className={`text-[9px] font-black px-3 py-1 rounded-lg cursor-pointer transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
+                          <button type="button" onClick={() => handleAutoId(true)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto</button>
+                          <button type="button" onClick={() => handleAutoId(false)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
                         </div>
                       </div>
                     </div>
                   )}
 
                   {type === 'single_campus' && (
-                    <div className="p-4 bg-emerald-50/50 rounded-[20px] border border-emerald-100 flex items-center gap-3">
-                      <ShieldCheck className="w-7 h-7 text-emerald-500" />
+                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                      <ShieldCheck className="h-7 w-7 text-emerald-500" />
                       <div>
                         <p className="text-xs font-black text-[#1f1a23]">Quick Setup Mode</p>
                         <p className="text-[10px] font-semibold text-[#4d4354]/60">Your school will be created automatically with a single campus.</p>
@@ -244,23 +324,24 @@ export default function RegisterPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <InputField label="Password" type="password" placeholder="Min 8 characters" value={formData.password} onChange={(v: string) => setFormData({ ...formData, password: v })} icon={Lock} />
                     <InputField label="Confirm Password" type="password" placeholder="Re-enter password" value={formData.confirmPassword} onChange={(v: string) => setFormData({ ...formData, confirmPassword: v })} icon={ShieldCheck} />
                   </div>
 
-                  <div className="p-3 bg-[#fbf0fe] rounded-[20px] border border-emerald-100/30 grid grid-cols-2 gap-y-1">
+                  <div className="grid grid-cols-2 gap-y-1.5 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
+                    <p className="col-span-2 mb-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Password checklist</p>
                     {passwordRequirements.map((r, i) => (
-                      <div key={i} className={`flex items-center gap-1.5 text-[10px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
-                        {r.met ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />} {r.label}
+                      <div key={i} className={`flex items-center gap-1.5 text-[11px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+                        {r.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />} {r.label}
                       </div>
                     ))}
                   </div>
 
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => setStep(1)} className="h-12 w-12 flex items-center justify-center border border-[#cfc2d6]/30 text-[#4d4354]/60 rounded-2xl font-bold hover:bg-white hover:border-[#8127cf]/20 hover:text-[#8127cf] transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
-                    <button type="submit" disabled={loading} className="flex-1 h-12 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:shadow-xl hover:shadow-[#8127cf]/30 shadow-lg shadow-[#8127cf]/25 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create Account <ArrowRight className="h-4 w-4" /></>}
+                    <button type="button" onClick={() => setStep(1)} className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-[#4d4354]/60 transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"><ChevronLeft className="h-4 w-4" /></button>
+                    <button type="submit" disabled={loading} className="group mt-0 flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60">
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
                     </button>
                   </div>
                 </form>
@@ -269,15 +350,15 @@ export default function RegisterPage() {
 
             {/* ─── Step 3: Success ─── */}
             {step === 3 && (
-              <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] p-8 text-center shadow-xl border border-emerald-100/50">
-                <div className="w-16 h-16 bg-emerald-50 rounded-[24px] flex items-center justify-center mx-auto mb-6 text-emerald-500 shadow-inner">
-                  <CheckCircle className="w-8 h-8" />
+              <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="rounded-[30px] border border-emerald-100/50 bg-white p-8 text-center shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-emerald-50 text-emerald-500 shadow-inner">
+                  <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="text-2xl font-black text-[#1f1a23] mb-2 tracking-tight">Account Created!</h2>
-                <p className="text-sm font-semibold text-[#4d4354]/60 mb-8 leading-relaxed px-4">
+                <h2 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Account created!</h2>
+                <p className="mb-8 px-4 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
                   We&apos;ve sent a verification email to your inbox. Please check your email and click the link to activate your account, then log in to start setting up your school.
                 </p>
-                <Link href="/login" className="inline-flex w-full h-12 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-2xl font-black items-center justify-center hover:shadow-xl hover:shadow-emerald-200/50 transition-all shadow-lg shadow-emerald-200/30 cursor-pointer">
+                <Link href="/login" className="inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 font-black text-white shadow-lg shadow-emerald-200/30 transition-all hover:shadow-xl hover:shadow-emerald-200/50">
                   Go to Login
                 </Link>
               </motion.div>
@@ -293,18 +374,18 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
   return (
     <div
       onClick={onClick}
-      className={`relative group p-6 rounded-[24px] cursor-pointer transition-all border-2 flex items-center gap-5 overflow-hidden ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-transparent bg-[#f3f4f9] hover:bg-white border-[#cfc2d6]/20'}`}
+      className={`relative group flex cursor-pointer items-center gap-5 overflow-hidden rounded-2xl border-2 p-5 transition-all ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-[#cfc2d6]/20 bg-[#f3f4f9] hover:border-[#8127cf]/20 hover:bg-white'}`}
     >
-      <div className={`p-3 rounded-2xl transition-all ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
-        <Icon className="w-6 h-6" />
+      <div className={`rounded-2xl p-3 transition-all ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
+        <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-tight text-left">{title}</h3>
-        <p className="text-[10px] text-[#4d4354]/60 font-semibold leading-tight mt-1 text-left">{desc}</p>
+        <h3 className="text-left text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+        <p className="mt-1 text-left text-[11px] font-semibold leading-tight text-[#4d4354]/60">{desc}</p>
       </div>
       {active && (
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-[#8127cf] text-white p-1 rounded-full border-2 border-white absolute top-4 right-4 shadow-md">
-          <CheckCircle className="w-3 h-3" />
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#8127cf] p-1 text-white shadow-md">
+          <CheckCircle className="h-3 w-3" />
         </motion.div>
       )}
     </div>
@@ -313,16 +394,16 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
 
 function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text", className = "" }: InputFieldProps) {
   return (
-    <div className="space-y-1">
-      <Label className="text-[10px] font-black text-[#4d4354] uppercase tracking-wider ml-1.5">{label}</Label>
-      <div className="relative group flex items-center">
-        <Icon className="absolute left-3.5 w-3.5 h-3.5 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors" />
+    <div className="space-y-1.5">
+      <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">{label}</Label>
+      <div className="group relative flex items-center">
+        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
         <Input
           type={type}
           placeholder={placeholder}
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={`h-11 pl-10 bg-[#f3f4f9] border-0 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/25 ${className}`}
+          className={`h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25 ${className}`}
         />
       </div>
     </div>
