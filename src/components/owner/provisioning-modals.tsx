@@ -58,12 +58,12 @@ function Shell({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#1f1a23]/50 p-4 backdrop-blur-sm sm:p-8">
+    <div className="animate-backdrop-enter fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#1f1a23]/50 p-4 backdrop-blur-sm sm:p-8">
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`my-auto w-full ${wide ? "max-w-3xl" : "max-w-xl"} rounded-[28px] border border-[#cfc2d6]/20 bg-white shadow-2xl`}
+        className={`animate-modal-enter my-auto w-full ${wide ? "max-w-3xl" : "max-w-xl"} rounded-[28px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#cfc2d6]/15 p-6">
           <div className="flex items-start gap-3.5">

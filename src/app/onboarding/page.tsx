@@ -298,7 +298,7 @@ export default function OnboardingWizard() {
               {/* ═══ STEP 1: School Details ═══ */}
               {step === 1 && (
                 <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                  <div className="bg-white rounded-[40px] p-10 shadow-xl border border-[#cfc2d6]/10 relative overflow-hidden">
+                  <div className="sk-rise bg-white rounded-[40px] p-10 shadow-xl border border-[#cfc2d6]/10 relative overflow-hidden" style={{ animationDelay: "0ms" }}>
 
                     <div className="flex items-center gap-6 mb-10">
                       <div className="w-16 h-16 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shadow-inner">
@@ -362,7 +362,7 @@ export default function OnboardingWizard() {
               {step === 2 && !isStandalone && (
                 <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid lg:grid-cols-5 gap-8">
                   <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white rounded-[40px] p-10 shadow-xl border border-[#cfc2d6]/10">
+                    <div className="sk-rise bg-white rounded-[40px] p-10 shadow-xl border border-[#cfc2d6]/10" style={{ animationDelay: "0ms" }}>
                       <div className="flex items-center gap-4 mb-8">
                         <div className="w-12 h-12 bg-[#fbf0fe] rounded-xl flex items-center justify-center text-[#8127cf]">
                           <Building className="w-6 h-6" />
@@ -424,7 +424,7 @@ export default function OnboardingWizard() {
                   </div>
 
                   <div className="lg:col-span-2">
-                    <div className="bg-white rounded-[40px] p-8 h-full min-h-[450px] flex flex-col border border-[#cfc2d6]/10 shadow-2xl relative">
+                    <div className="sk-rise bg-white rounded-[40px] p-8 h-full min-h-[450px] flex flex-col border border-[#cfc2d6]/10 shadow-2xl relative" style={{ animationDelay: "160ms" }}>
                       <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-50 text-[#1f1a23]">
                         <h3 className="text-[10px] font-black uppercase tracking-normal flex items-center gap-2">
                           <Users className="w-4 h-4 text-[#8127cf]" /> Your Campuses
@@ -472,7 +472,7 @@ export default function OnboardingWizard() {
                     <p className="text-base font-semibold text-[#4d4354]/60 max-w-sm mx-auto">Review your details below and launch your dashboard.</p>
                   </div>
 
-                  <div className="bg-white p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden">
+                  <div className="sk-rise bg-white p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden" style={{ animationDelay: "0ms" }}>
                     <div className="absolute top-0 right-0 p-8 opacity-5"><Building className="w-32 h-32" /></div>
                     <div className="grid grid-cols-2 gap-6 relative z-10">
                       <SummaryItem icon={Building} label={isStandalone ? "School" : "School Group"} value={schoolData.name} />

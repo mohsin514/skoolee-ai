@@ -54,7 +54,7 @@ function SafePayForm() {
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-        <div className="bg-white rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl">
+        <div className="sk-rise bg-white rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl" style={{ animationDelay: "0ms" }}>
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-[#1f1a23]">Payment Successful!</h2>
           <p className="text-sm text-[#4d4354]/60 mt-2">Redirecting to billing...</p>
@@ -65,9 +65,10 @@ function SafePayForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-      <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-[#8127cf] flex items-center justify-center">
+      <div className="sk-rise bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl" style={{ animationDelay: "0ms" }}>
+        <div className="group relative flex items-center gap-3 mb-6">
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+          <div className="relative w-10 h-10 rounded-xl bg-[#8127cf] flex items-center justify-center">
             <Shield className="w-5 h-5 text-white" />
           </div>
           <div>

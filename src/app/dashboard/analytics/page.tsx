@@ -26,7 +26,7 @@ export default async function AnalyticsPage() {
           description="School performance insights and AI usage metrics"
         />
         <div className="p-6">
-          <Card className="border-amber-200 bg-amber-50/60 shadow-none">
+          <Card className="sk-rise border-amber-200 bg-amber-50/60 shadow-none" style={{ animationDelay: "0ms" }}>
             <CardContent className="p-6">
               <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                 <div className="flex gap-4">
@@ -65,7 +65,7 @@ export default async function AnalyticsPage() {
       />
       <div className="p-6 space-y-6">
         {!billing.limits.analyticsEnabled && (
-          <Card className="border-[#8127cf]/20 bg-[#fbf0fe]/50 shadow-none">
+          <Card className="sk-rise border-[#8127cf]/20 bg-[#fbf0fe]/50 shadow-none" style={{ animationDelay: "0ms" }}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[#4d4354]/70">

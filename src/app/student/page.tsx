@@ -50,8 +50,8 @@ export default function StudentDashboard() {
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className={`sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0`}>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative p-7 px-9">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="flex gap-6 items-start group">
@@ -98,13 +98,13 @@ export default function StudentDashboard() {
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-            <DashboardStat icon={Award} label="Average" value={`${average}%`} />
-            <DashboardStat icon={Calendar} label="Attendance" value={user.attendanceRate === null ? "N/A" : `${user.attendanceRate}%`} tone="green" />
-            <DashboardStat icon={BookOpen} label="Subjects" value={user.subjects.length} tone="purple" />
-            <DashboardStat icon={CreditCard} label="Balance Due" value={`Rs ${user.balanceDue.toLocaleString()}`} tone="rose" />
+            <DashboardStat icon={Award} label="Average" value={`${average}%`} entranceDelay={80} />
+            <DashboardStat icon={Calendar} label="Attendance" value={user.attendanceRate === null ? "N/A" : `${user.attendanceRate}%`} tone="green" entranceDelay={160} />
+            <DashboardStat icon={BookOpen} label="Subjects" value={user.subjects.length} tone="purple" entranceDelay={240} />
+            <DashboardStat icon={CreditCard} label="Balance Due" value={`Rs ${user.balanceDue.toLocaleString()}`} tone="rose" entranceDelay={320} />
           </div>
 
-          <div className="bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row gap-8">
+          <div className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-8" style={{ animationDelay: "400ms" }}>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
             <div className="relative flex-1 text-white space-y-6">
               <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export default function StudentDashboard() {
   );
 }
 
-function DashboardStat({ icon: Icon, label, value, tone = "purple" }: { icon: any; label: string; value: string | number; tone?: "purple" | "green" | "rose" | "dark" }) {
+function DashboardStat({ icon: Icon, label, value, tone = "purple", entranceDelay = 0 }: { icon: any; label: string; value: string | number; tone?: "purple" | "green" | "rose" | "dark"; entranceDelay?: number }) {
   const tones: Record<string, string> = {
     purple: "from-[#fbf0fe] to-white text-[#8127cf] group-hover:shadow-[#8127cf]/20",
     green: "from-emerald-50 to-white text-emerald-600 group-hover:shadow-emerald-500/20",
@@ -161,12 +161,19 @@ function DashboardStat({ icon: Icon, label, value, tone = "purple" }: { icon: an
     rose: "bg-rose-50 text-[#b10e6b] group-hover:bg-[#b10e6b] group-hover:text-white",
     dark: "bg-[#1f1a23] text-white",
   };
+  const toneGlow: Record<string, string> = {
+    purple: "bg-[#8127cf]/10",
+    green: "bg-emerald-500/10",
+    rose: "bg-rose-500/10",
+    dark: "bg-[#1f1a23]/10",
+  };
 
   return (
     <div
-      className="group relative bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/20 hover:shadow-2xl"
+      className={`sk-rise group relative bg-white rounded-[28px] border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]`}
+      style={entranceDelay > 0 ? { animationDelay: `${entranceDelay}ms` } : undefined}
     >
-      <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none {tones[tone]}" />
+      <div className={`absolute inset-0 rounded-[28px] bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none ${tones[tone]}`} />
       <div className="relative flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-2 transition-colors group-hover:text-[#4d4354]/60">
@@ -174,8 +181,11 @@ function DashboardStat({ icon: Icon, label, value, tone = "purple" }: { icon: an
           </p>
           <p className="text-3xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
         </div>
-        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${iconTone[tone]} shadow-md group-hover:shadow-xl group-hover:scale-110`}>
-          <Icon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+        <div className="relative shrink-0">
+          <div className={`absolute -inset-2 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${toneGlow[tone]}`} />
+          <div className={`relative h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${iconTone[tone]} shadow-md group-hover:shadow-xl group-hover:scale-110`}>
+            <Icon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+          </div>
         </div>
       </div>
     </div>

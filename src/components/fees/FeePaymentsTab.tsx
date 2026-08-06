@@ -192,7 +192,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         />
       ) : (
         <>
-          <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
+          <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
               <span>Student</span>
               <span>Receipt</span>

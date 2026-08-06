@@ -57,7 +57,7 @@ export default function SchedulePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <SummaryStat icon={CalendarCheck} label="Total Days" value={stats.total} sub="School days recorded" />
           <SummaryStat icon={CalendarCheck} label="Present" value={stats.present} sub={`${stats.total ? Math.round(stats.present / stats.total * 100) : 0}% rate`} tone="green" />
           <SummaryStat icon={X} label="Absent" value={stats.absent} sub={stats.late ? `${stats.late} late` : "No lates"} tone="rose" />
@@ -65,10 +65,13 @@ export default function SchedulePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="relative group rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-[#8127cf]/20 md:col-span-2">
+          <div className="sk-rise relative group rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 md:col-span-2" style={{ animationDelay: "80ms" }}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
-                <MapPin className="w-5 h-5" />
+              <div className="relative">
+                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+                <div className="relative h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
+                  <MapPin className="w-5 h-5" />
+                </div>
               </div>
               <div>
                 <p className="text-xs font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">Current Class</p>
@@ -93,10 +96,13 @@ export default function SchedulePage() {
             </div>
           </div>
 
-          <div className="relative group rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-emerald-400/30">
+          <div className="sk-rise relative group rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-emerald-400/30" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 transition-all duration-300 group-hover:bg-emerald-600 group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
-                <UserRound className="w-5 h-5" />
+              <div className="relative">
+                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-emerald-500/18" />
+                <div className="relative h-10 w-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 transition-all duration-300 group-hover:bg-emerald-600 group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
+                  <UserRound className="w-5 h-5" />
+                </div>
               </div>
               <div>
                 <p className="text-xs font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-emerald-600/60">Profile</p>
@@ -158,18 +164,27 @@ export default function SchedulePage() {
 }
 
 function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
+  const iconGlows: Record<string, string> = {
+    green: "bg-emerald-500/18",
+    rose: "bg-rose-500/18",
+    purple: "bg-[#8127cf]/18",
+    dark: "bg-[#8127cf]/18",
+  };
   return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-      <div className="flex items-center justify-between mb-3">
+    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
+      <div className="relative flex items-center justify-between mb-3">
         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
-        <div className={cn(
-          "h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg",
-          tone === "green" ? "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white" :
-          tone === "rose" ? "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white" :
-          tone === "purple" ? "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white" :
-          "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white"
-        )}>
-          <Icon className="w-[18px] h-[18px]" />
+        <div className="relative">
+          <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
+          <div className={cn(
+            "relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg",
+            tone === "green" ? "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white" :
+            tone === "rose" ? "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white" :
+            tone === "purple" ? "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white" :
+            "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white"
+          )}>
+            <Icon className="w-[18px] h-[18px]" />
+          </div>
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>

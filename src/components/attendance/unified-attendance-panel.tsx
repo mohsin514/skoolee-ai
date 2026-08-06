@@ -185,9 +185,9 @@ export function UnifiedAttendancePanel() {
                 { label: "Absent", value: teacherSummary.absent, icon: X, tone: "bg-rose-50 text-rose-500" },
                 { label: "On Leave", value: teacherSummary.leave, icon: Clock, tone: "bg-amber-50 text-amber-600" },
                 { label: "Attendance Rate", value: `${tRate}%`, icon: Award, tone: "bg-[#1f1a23] text-white" },
-              ].map((stat) => (
-                <div key={stat.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
-                  <div className="flex items-start justify-between gap-3">
+              ].map((stat, i) => (
+                <div key={stat.label} className="sk-rise group bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${i * 60}ms` }}>
+                  <div className="relative flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">{stat.label}</p>
                       <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">{stat.value}</p>
@@ -197,8 +197,11 @@ export function UnifiedAttendancePanel() {
                         </p>
                       ) : null}
                     </div>
-                    <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", stat.tone)}>
-                      <stat.icon className="w-4 h-4" />
+                    <div className="relative shrink-0">
+                      <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+                      <div className={cn("relative h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", stat.tone)}>
+                        <stat.icon className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -207,7 +210,7 @@ export function UnifiedAttendancePanel() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="sk-rise lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
               <div className="flex items-center justify-between gap-4 mb-5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Daily Roster &mdash; {dateLabel}</p>
                 <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? "s" : ""}</span>
@@ -280,7 +283,7 @@ export function UnifiedAttendancePanel() {
               )}
             </div>
 
-            <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="sk-rise bg-white rounded-[30px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "240ms" }}>
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center"><Award className="h-4 w-4 text-[#8127cf]" /></div>
                 <div>

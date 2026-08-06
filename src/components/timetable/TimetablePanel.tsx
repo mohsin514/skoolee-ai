@@ -451,7 +451,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           )}
 
           {selectedTeacherId && (
-            <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl">
+            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
               <div className="min-w-[800px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
@@ -544,7 +544,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       )}
 
       {selectedClassId && !activeTimetable && (
-        <div className="flex flex-col items-center justify-center py-16">
+        <div className="sk-rise flex flex-col items-center justify-center py-16" style={{ animationDelay: "120ms" }}>
           <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-[#8127cf]/10 to-[#fbf0fe] flex items-center justify-center mb-6">
             <Calendar className="w-10 h-10 text-[#8127cf]/40" />
           </div>
@@ -658,7 +658,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           </div>
 
           {/* Timetable Grid */}
-          <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl">
+          <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
             <div className="min-w-[800px]">
               {/* Header row */}
               <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}>
@@ -1095,7 +1095,7 @@ function SlotEditorModal({
 // ─── Empty State ──────────────────────────────────────────
 function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
+    <div className="sk-rise flex flex-col items-center justify-center py-20 text-center">
       <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
         <Icon className="w-8 h-8 text-[#8127cf]/30" />
       </div>

@@ -7,7 +7,7 @@ export default function SubscriptionSuspendedPage() {
   return (
     <main className="min-h-screen bg-[#fbf0fe] px-6 py-12 text-[#1f1a23]">
       <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center">
-        <Card className="w-full border-amber-200 bg-white shadow-2xl shadow-amber-100/40">
+        <Card className="sk-rise w-full border-amber-200 bg-white shadow-2xl shadow-amber-100/40" style={{ animationDelay: "0ms" }}>
           <CardContent className="p-8 md:p-10">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-amber-100 text-amber-700 shadow-inner">

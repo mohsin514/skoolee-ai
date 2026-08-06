@@ -38,7 +38,7 @@ export default function CourseworkPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <SummaryCard icon={BookOpen} label="Subjects" value={user.subjects.length} sub="Enrolled" />
           <SummaryCard icon={Award} label="Average" value={`${averages.overall}%`} sub={user.marks.length ? `From ${user.marks.length} scores` : "No data"} tone="green" />
           <SummaryCard icon={TrendingUp} label="Best Score" value={`${averages.best}%`} sub={averages.best >= 80 ? "Excellent" : averages.best >= 60 ? "Good" : "Needs work"} tone="purple" />
@@ -46,7 +46,7 @@ export default function CourseworkPage() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-          <div className="xl:col-span-2 space-y-6">
+          <div className="sk-rise xl:col-span-2 space-y-6" style={{ animationDelay: "80ms" }}>
             <div>
               <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight mb-4">Subjects & Teachers</h3>
               {user.subjects.length ? (
@@ -90,7 +90,7 @@ export default function CourseworkPage() {
           </div>
 
           <div className="xl:col-span-3">
-            <div className="bg-white border border-[#cfc2d6]/10 rounded-[32px] overflow-hidden shadow-sm transition-all hover:shadow-xl">
+            <div className="sk-rise bg-white border border-[#cfc2d6]/25 rounded-[32px] overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "200ms" }}>
               <div className="sticky top-0 bg-white z-10 border-b border-[#cfc2d6]/10">
                 <div className="px-6 py-4 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">All Marks</h3>
@@ -169,11 +169,14 @@ function SummaryCard({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
   };
 
   return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-      <div className="flex items-center justify-between mb-3">
+    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
+      <div className="relative flex items-center justify-between mb-3">
         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
-        <div className="h-9 w-9 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
-          <Icon className="w-[18px] h-[18px]" />
+        <div className="relative">
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+          <div className="relative h-9 w-9 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
+            <Icon className="w-[18px] h-[18px]" />
+          </div>
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>

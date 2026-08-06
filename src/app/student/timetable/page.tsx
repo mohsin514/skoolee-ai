@@ -47,7 +47,7 @@ export default function StudentTimetablePage() {
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative p-7 px-9">
           <div className="flex items-center gap-2 text-[#8127cf] mb-2">
@@ -67,7 +67,7 @@ export default function StudentTimetablePage() {
         {data ? (
           <TimetableReadOnly slots={data.slots} />
         ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center rounded-[40px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10">
+          <div className="sk-rise flex flex-col items-center justify-center py-24 text-center rounded-[40px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10" style={{ animationDelay: "80ms" }}>
             <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
               <Calendar className="w-8 h-8 text-[#8127cf]/40" />
             </div>

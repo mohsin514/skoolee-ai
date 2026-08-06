@@ -50,7 +50,7 @@ export default function ParentResultsPage() {
           <ParentEmptyState icon={FileText} title="No results yet" description="Results will appear here after exams are published." />
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
               <MiniStat icon={FileText} label="Report Cards" value={reportCards.length} />
               <MiniStat icon={Award} label="Best Score" value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "N/A"} tone="green" />
               <MiniStat icon={FileText} label="Exams" value={marksByExam.length} />
@@ -58,11 +58,11 @@ export default function ParentResultsPage() {
             </div>
 
             <div className="space-y-4">
-              {reportCards.map((rc: any) => {
+              {reportCards.map((rc: any, index: number) => {
                 const pct = Math.round(rc.percentage);
                 const scoreColor = pct >= 80 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
                 return (
-                  <div key={rc.id} className="group relative rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-[#8127cf]/20">
+                  <div key={rc.id} className="sk-rise group relative rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: `${index * 80}ms` }}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase">{rc.term} {rc.academicYear}</p>
@@ -104,10 +104,10 @@ export default function ParentResultsPage() {
               <div>
                 <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight mb-4">Subject-wise Marks</h3>
                 <div className="space-y-3">
-                  {marksByExam.map((exam: any) => {
+                  {marksByExam.map((exam: any, index: number) => {
                     const isExpanded = expandedExam === exam.examId;
                     return (
-                      <div key={exam.examId} className="rounded-[24px] bg-white border border-[#cfc2d6]/10 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-lg">
+                      <div key={exam.examId} className="sk-rise rounded-[24px] bg-white border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] overflow-hidden transition-all duration-200 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(index + 1) * 80}ms` }}>
                         <button
                           type="button"
                           onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
@@ -156,12 +156,21 @@ function MiniStat({ icon: Icon, label, value, tone = "dark" }: { icon: any; labe
     purple: "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white",
     rose: "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white",
   };
+  const iconGlows: Record<string, string> = {
+    dark: "bg-[#8127cf]/18",
+    green: "bg-emerald-500/18",
+    purple: "bg-[#8127cf]/18",
+    rose: "bg-rose-500/18",
+  };
   return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-      <div className="flex items-center justify-between mb-3">
+    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
+      <div className="relative flex items-center justify-between mb-3">
         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
-        <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>
-          <Icon className="w-[18px] h-[18px]" />
+        <div className="relative">
+          <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
+          <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>
+            <Icon className="w-[18px] h-[18px]" />
+          </div>
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>

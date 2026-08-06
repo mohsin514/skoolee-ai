@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, Loader2, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "./BrandButton";
@@ -79,10 +80,13 @@ export function AiActionPanel({
   if (options.length === 0) return null;
 
   return (
-    <div className={className}>
+    <div className={cn("group", className)}>
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-9 w-9 rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center">
-          <Sparkles className="w-5 h-5" />
+        <div className="relative">
+          <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="relative h-9 w-9 rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center sk-float">
+            <Sparkles className="w-5 h-5" />
+          </div>
         </div>
         <h3 className="text-sm font-black text-[#1f1a23] tracking-wider">{title}</h3>
       </div>
@@ -111,7 +115,7 @@ export function AiActionPanel({
         {output ? (
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
             <div className="flex items-center gap-2 text-emerald-700 mb-2">
-              <Check className="w-4 h-4" />
+              <Check className="sk-check-pop w-4 h-4" />
               <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
             </div>
             <p className="text-xs font-semibold leading-relaxed text-[#1f1a23] whitespace-pre-line max-h-40 overflow-y-auto custom-scrollbar">
@@ -163,8 +167,8 @@ export function AIReviewQueue({
 
   return (
     <div className="space-y-3">
-      {visibleItems.slice(0, 5).map((item) => (
-        <div key={item.id} className="rounded-2xl border border-[#cfc2d6]/10 bg-white p-4">
+      {visibleItems.slice(0, 5).map((item, index) => (
+        <div key={item.id} className="sk-rise rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.08),0_10px_28px_-12px_rgba(129,39,207,0.16)]" style={{ animationDelay: `${index * 60}ms` }}>
           <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-wider mb-1">
             {item.feature.replaceAll("_", " ")}
           </p>

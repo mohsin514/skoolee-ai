@@ -95,7 +95,7 @@ export default function TeacherStudentsPage() {
         {/* Student Cards */}
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((student: any) => {
+            {filtered.map((student: any, index: number) => {
               const report = student.reportCards?.[0];
               const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
               return (
@@ -103,7 +103,8 @@ export default function TeacherStudentsPage() {
                   key={student.id}
                   type="button"
                   onClick={() => setSelectedStudent(student)}
-                  className="group text-left rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                  className="sk-rise group text-left rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                  style={{ animationDelay: `${index * 60}ms` }}
                 >
                   <div className="flex items-start gap-4 mb-4">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">

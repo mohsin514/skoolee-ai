@@ -312,7 +312,7 @@ export function BulkImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="sk-rise space-y-4" style={{ animationDelay: "60ms" }}>
           {/* Import Result */}
           {importResult && (
             <div

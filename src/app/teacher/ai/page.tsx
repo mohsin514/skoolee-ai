@@ -207,7 +207,7 @@ export default function AIPage() {
 
 function AIStatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
   return (
-    <div className="group relative bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border border-[#8127cf]/8 p-5 shadow-lg transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:border-[#8127cf]/20 overflow-hidden rounded-[28px]">
+    <div className="group relative bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border border-[#8127cf]/8 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/20 overflow-hidden rounded-[28px]">
       <div className="absolute -inset-3 bg-gradient-to-br from-[#8127cf]/6 via-[#b876f0]/4 to-transparent rounded-[32px] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       <div className="absolute -top-16 -right-16 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-[70px]" />
       <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-gradient-to-tr from-[#b876f0]/6 to-transparent rounded-full blur-[60px]" />

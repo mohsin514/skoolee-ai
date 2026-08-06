@@ -272,8 +272,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
         <EmptyState icon={Calendar} title="No Academic Years" description="Create classes with an academic year to get started." />
       ) : (
         <div className="space-y-4">
-          {yearGroups.map((yg) => (
-            <div key={yg.year} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-lg overflow-hidden">
+          {yearGroups.map((yg, i) => (
+            <div key={yg.year} className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] overflow-hidden" style={{ animationDelay: `${i * 100}ms` }}>
               <div
                 role="button" tabIndex={0}
                 onClick={() => setExpandedYear(expandedYear === yg.year ? null : yg.year)}

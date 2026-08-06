@@ -70,24 +70,28 @@ export default async function DashboardPage() {
       value: totalStudents,
       icon: Users,
       color: "text-blue-600 bg-blue-500/10",
+      glow: "bg-blue-500/18",
     },
     {
       title: "Active Classes",
       value: totalClasses,
       icon: GraduationCap,
       color: "text-emerald-600 bg-emerald-500/10",
+      glow: "bg-emerald-500/18",
     },
     {
       title: "Subjects",
       value: totalSubjects,
       icon: BookOpen,
       color: "text-violet-600 bg-violet-500/10",
+      glow: "bg-violet-500/18",
     },
     {
       title: "AI Credits Used",
       value: `${school?.aiCreditsUsed || 0} / ${school?.aiCreditsLimit || 100}`,
       icon: Brain,
       color: "text-amber-600 bg-amber-500/10",
+      glow: "bg-amber-500/18",
     },
   ];
 
@@ -100,7 +104,7 @@ export default async function DashboardPage() {
       <Header title="Dashboard" description="Overview of your school's live operational records" />
 
       <div className="p-6 space-y-8">
-        <Card className="border-primary/20 bg-primary/5 shadow-none">
+        <Card className="sk-rise border-primary/20 bg-primary/5 shadow-none" style={{ animationDelay: "0ms" }}>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -129,16 +133,23 @@ export default async function DashboardPage() {
         </Card>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.title} className="relative overflow-hidden">
+          {stats.map((stat, index) => (
+            <Card
+              key={stat.title}
+              className="sk-rise group relative overflow-hidden border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              style={{ animationDelay: `${index * 60}ms` }}
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
                     <p className="mt-2 text-2xl font-bold">{stat.value}</p>
                   </div>
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.color}`}>
-                    <stat.icon className="h-5 w-5" />
+                  <div className="relative">
+                    <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${stat.glow}`} />
+                    <div className={`relative flex h-10 w-10 items-center justify-center rounded-lg ${stat.color}`}>
+                      <stat.icon className="h-5 w-5" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -147,7 +158,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -179,7 +190,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "240ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
@@ -213,7 +224,7 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "320ms" }}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-primary" />

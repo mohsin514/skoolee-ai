@@ -79,8 +79,8 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
           { label: "Avg Score", value: avgAll ? `${avgAll}%` : "—", icon: BarChart3, color: rateColor(avgAll) + " " + rateBg(avgAll) },
           { label: "Total Students", value: teachers.reduce((s, t) => s + t.totalStudents, 0), icon: GraduationCap, color: "text-[#8127cf] bg-[#fbf0fe]" },
           { label: "Report Cards", value: teachers.reduce((s, t) => s + t.reportCardsGenerated, 0), icon: BookOpen, color: "text-[#8127cf] bg-[#fbf0fe]" },
-        ].map((card) => (
-          <div key={card.label} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 shadow-sm">
+        ].map((card, i) => (
+          <div key={card.label} className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 p-4 shadow-sm" style={{ animationDelay: `${i * 60}ms` }}>
             <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-2 ${card.color}`}>
               <card.icon className="h-5 w-5" />
             </div>
@@ -143,7 +143,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {sorted.map((teacher, rank) => (
-            <div key={teacher.teacherId} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5 hover:shadow-md hover:border-[#8127cf]/15 transition-all duration-200">
+            <div key={teacher.teacherId} className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 p-5 hover:shadow-md hover:border-[#8127cf]/25 transition-all duration-200" style={{ animationDelay: `${rank * 60}ms` }}>
               <div className="flex items-start gap-4">
                 {/* Rank */}
                 <div className={`h-8 w-8 shrink-0 rounded-xl flex items-center justify-center text-xs font-bold ${

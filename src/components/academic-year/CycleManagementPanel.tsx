@@ -122,7 +122,7 @@ export function CycleManagementPanel() {
     <div className="space-y-6">
       {/* Active cycle highlight */}
       {activeCycle && (
-        <div className="rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-sm">
+        <div className="sk-rise rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm">
@@ -160,7 +160,7 @@ export function CycleManagementPanel() {
       )}
 
       {!activeCycle && (
-        <div className="rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-sm">
+        <div className="sk-rise rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-500 shadow-sm">
               <AlertTriangle className="h-7 w-7" />
@@ -185,7 +185,7 @@ export function CycleManagementPanel() {
       </div>
 
       {showCreate && (
-        <div className="rounded-[24px] border border-[#cfc2d6]/20 bg-white p-5 shadow-sm space-y-4">
+        <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Cycle Label</label>
@@ -231,7 +231,7 @@ export function CycleManagementPanel() {
         />
       ) : (
         <div className="space-y-3">
-          {cycles.map((cycle) => {
+          {cycles.map((cycle, i) => {
             const config = statusConfig[cycle.status] || statusConfig.DRAFT;
             const Icon = config.icon;
             const isActive = cycle.status === "ACTIVE";
@@ -240,9 +240,10 @@ export function CycleManagementPanel() {
               <div
                 key={cycle.id}
                 className={cn(
-                  "flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
+                  "sk-rise flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
                   isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-[#cfc2d6]/15 hover:border-[#8127cf]/15 hover:shadow-md"
                 )}
+                style={{ animationDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center gap-4">
                   <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", config.bg)}>

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  ArrowRight,
+  ArrowRightLeft,
   Award,
   BookOpen,
   Briefcase,
@@ -161,8 +163,8 @@ export function LeadershipPanel({
 
   return (
     <div className="space-y-7">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/10 p-7">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -197,14 +199,17 @@ export function LeadershipPanel({
         {/* Donut + Campus Identity */}
         <div className="space-y-6">
           {/* Donut Chart */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Leadership</p>
                 <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Team Overview</h3>
               </div>
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
-                <Users className="h-5 w-5" />
+              <div className="relative shrink-0">
+                <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                  <Users className="h-5 w-5" />
+                </div>
               </div>
             </div>
             {donutData.length > 0 ? (
@@ -244,14 +249,17 @@ export function LeadershipPanel({
           </div>
 
           {/* Campus Identity */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Identity</p>
                 <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Campus Details</h3>
               </div>
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
-                <Building className="h-5 w-5" />
+              <div className="relative shrink-0">
+                <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                  <Building className="h-5 w-5" />
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -280,7 +288,7 @@ export function LeadershipPanel({
         {/* Admin Team & Principal Panel */}
         <div className="space-y-6">
           {/* Admin Team + Pending In One Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Team</p>
@@ -317,7 +325,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Principal Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Authority</p>
@@ -385,7 +393,7 @@ export function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActi
     { icon: Users, label: "Students", value: `${data.studentCount || 0}` },
   ];
   return (
-    <div className="relative group rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg transition-all duration-500 hover:shadow-2xl hover:border-[#8127cf]/20 overflow-hidden">
+    <div className="relative group rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-500 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 overflow-hidden">
       <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-[70px] pointer-events-none" />
       <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-gradient-to-tr from-[#b876f0]/4 to-transparent rounded-full blur-[60px] pointer-events-none" />
       <div className="relative">
@@ -450,7 +458,7 @@ export function AdminTeamPanel({
   const total = data.campusAdmins?.length || 0;
   const pending = data.pendingAdminInvitations?.length || 0;
   return (
-    <div className="relative group rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg transition-all duration-500 hover:shadow-2xl hover:border-[#8127cf]/20 overflow-hidden">
+    <div className="relative group rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-500 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 overflow-hidden">
       <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-[70px] pointer-events-none" />
       <div className="relative">
         <CornerSparkles />
@@ -855,7 +863,7 @@ export function ExamDetailModal({
                         { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
                         { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-[#4d4354]" },
                       ].map((s) => (
-                        <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
+                        <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">{s.label}</p>
@@ -870,7 +878,7 @@ export function ExamDetailModal({
                     </div>
 
                     {analytics.subjectAverages?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                         <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Subject Performance</p>
                         <div className="space-y-3">
                           {analytics.subjectAverages.map((sa: any) => {
@@ -894,7 +902,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.topStudents?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                         <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Top Performers</p>
                         <div className="space-y-2">
                           {analytics.topStudents.map((ts: any, idx: number) => (
@@ -914,7 +922,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.needsAttention?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                         <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
                         <div className="space-y-2">
                           {analytics.needsAttention.map((ns: any) => (
@@ -984,10 +992,10 @@ export function ExamCyclesPanel({
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {displayExams.map((exam: any) => (
+        {displayExams.map((exam: any, i: number) => (
           <div key={exam.id} role="button" tabIndex={0} onClick={() => onSelect?.(exam)}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(exam); } }}
-            className="group/exam rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 hover:border-[#8127cf]/15 cursor-pointer">
+            className="sk-rise group/exam rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 hover:border-[#8127cf]/25 cursor-pointer" style={{ animationDelay: `${i * 60}ms` }}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] tracking-tight truncate">{exam.title}</p>
@@ -1009,7 +1017,7 @@ export function ExamCyclesPanel({
         ))}
       </div>
       {exams.length === 0 ? (
-        <div className="flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/10">
+        <div className="sk-rise flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/25">
           <p className="text-xs font-bold text-[#4d4354]/40">No exam cycles available yet.</p>
         </div>
       ) : null}
@@ -1042,10 +1050,10 @@ export function ReportCardsPanel({
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {displayReports.map((report: any) => (
+        {displayReports.map((report: any, i: number) => (
           <div key={report.id} role="button" tabIndex={0} onClick={() => onSelect?.(report)}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(report); } }}
-            className="group/report rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 hover:border-[#8127cf]/15 cursor-pointer">
+            className="sk-rise group/report rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 hover:border-[#8127cf]/25 cursor-pointer" style={{ animationDelay: `${i * 60}ms` }}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] tracking-tight truncate">{report.student?.fullName || "Student"}</p>
@@ -1058,7 +1066,7 @@ export function ReportCardsPanel({
         ))}
       </div>
       {reports.length === 0 ? (
-        <div className="flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/10">
+        <div className="sk-rise flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/25">
           <p className="text-xs font-bold text-[#4d4354]/40">Report cards will appear after exams are processed.</p>
         </div>
       ) : null}
@@ -1138,7 +1146,6 @@ export function StudentsPanel({
   students,
   classes,
   onAddStudent,
-  onMoveStudent,
   onViewStudent,
   onBulkImport,
   onExport,
@@ -1146,7 +1153,6 @@ export function StudentsPanel({
   students: any[];
   classes: any[];
   onAddStudent: (classId?: string) => void;
-  onMoveStudent: (student: any) => void;
   onViewStudent: (student: any) => void;
   onBulkImport?: () => void;
   onExport?: () => void;
@@ -1190,7 +1196,7 @@ export function StudentsPanel({
   }
 
   return (
-    <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       <div className="mb-5">
         <div className="flex items-center justify-between gap-3 mb-4">
           <PanelTitle icon={GraduationCap} title="Student Directory" />
@@ -1253,46 +1259,56 @@ export function StudentsPanel({
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {pagedStudents.map((student: any) => {
+        {pagedStudents.map((student: any, i: number) => {
           const report = student.reportCards?.[0];
           const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
           return (
-            <div key={student.id} className="group/student rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 shadow-sm transition-all duration-300 hover:border-[#8127cf]/20 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden relative">
-              <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-[50px] opacity-0 group-hover/student:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div
+              key={student.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onViewStudent(student)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onViewStudent(student);
+                }
+              }}
+              className="sk-rise group/student relative cursor-pointer overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-0 transition-opacity duration-300 group-hover/student:opacity-70" />
+              <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/8 to-transparent rounded-full blur-[50px] opacity-0 group-hover/student:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="relative">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3.5">
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-[#fbf0fe] shadow-sm transition-all duration-300 group-hover/student:border-[#8127cf]/15 group-hover/student:shadow-md">
-                      <img src={avatar} alt="" className="h-full w-full object-cover" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-[#8127cf]/35 to-[#9c48ea]/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-[#8127cf] group-hover/student:to-[#9c48ea] group-hover/student:shadow-md">
+                      <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-[#fbf0fe]">
+                        <img src={avatar} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110" />
+                      </div>
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#1f1a23] tracking-tight">{student.fullName}</p>
-                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">
-                        {student.rollNo} · {classLabel(student.class)}
-                      </p>
+                      <p className="truncate text-base font-black text-[#1f1a23] tracking-tight transition-colors duration-300 group-hover/student:text-[#8127cf]">{student.fullName}</p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                          Roll {student.rollNo || "—"}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/60">
+                          {classLabel(student.class)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <StatusPill status={report ? report.status : "NO_REPORT"} />
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <MiniMetric label="Guardian" value={student.guardianName || "N/A"} />
-                  <MiniMetric label="Latest" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} active />
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onViewStudent(student)}
-                    className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95"
-                  >
-                    View Profile
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onMoveStudent(student)}
-                    className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95"
-                  >
-                    Move Class
-                  </button>
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#f3f4f9] pt-3.5">
+                  <div className="min-w-0">
+                    <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">Guardian</p>
+                    <p className="truncate text-xs font-bold text-[#4d4354]/70">{student.guardianName || "Not linked"}</p>
+                  </div>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white group-hover/student:shadow-sm">
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1345,7 +1361,7 @@ export function AIPanel({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg relative overflow-hidden">
+      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden" style={{ animationDelay: "80ms" }}>
         <CornerSparkles />
         <AiActionPanel title={title} options={features} compact onComplete={onComplete} />
       </div>
@@ -2103,10 +2119,13 @@ export function StudentDetailModal({
 
   return (
     <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer">
             <Trash2 className="h-3.5 w-3.5" />Delete Student
+          </button>
+          <button type="button" onClick={onMove} className="flex h-9 items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95 cursor-pointer">
+            <ArrowRightLeft className="h-3.5 w-3.5" />Move Class
           </button>
           <button type="button" onClick={generateParentLink} disabled={generatingLink} className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-wider text-emerald-600 transition-all duration-200 hover:bg-emerald-100 active:scale-95 cursor-pointer disabled:opacity-50">
             {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
@@ -2735,23 +2754,35 @@ export function ClassGroupCard({
 
   return (
     <div className={cn(
-      "rounded-[32px] border bg-white shadow-lg transition-all self-start",
+      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
       open
-        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
+        ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
     )}>
-      <button
-        type="button"
+      {/* div, not <button>: the Delete control below is itself a button, and
+          nested interactive elements are invalid HTML (triggers a hydration
+          mismatch). This reproduces button semantics/keyboard behavior without
+          that constraint. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
         className={cn(
-          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="relative flex items-center gap-3 min-w-0">
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
           <div className={cn(
-            "flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            "relative flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
             open ? "h-10 w-10" : "h-8 w-8"
           )}>
             <BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
@@ -2788,7 +2819,7 @@ export function ClassGroupCard({
             )}
           />
         </div>
-      </button>
+      </div>
 
       {open ? (
         <div className="border-t border-[#cfc2d6]/10 p-5 space-y-3">
@@ -3188,7 +3219,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
   const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
 
   return (
-    <div className="group/faculty relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+    <div className="sk-rise group/faculty relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
       <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
@@ -3249,9 +3280,9 @@ export function SnapshotColumn({ icon: Icon, title, after, children }: { icon: L
 
   return (
     <div className={cn(
-      "rounded-[32px] border bg-white shadow-lg transition-all self-start",
+      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
       open
-        ? "border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-2xl"
+        ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
     )}>
       <button
@@ -3263,9 +3294,10 @@ export function SnapshotColumn({ icon: Icon, title, after, children }: { icon: L
         )}
         aria-expanded={open}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="relative flex items-center gap-3 min-w-0">
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
           <div className={cn(
-            "flex shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            "relative flex shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
             open ? "h-10 w-10" : "h-8 w-8"
           )}>
             <Icon className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />

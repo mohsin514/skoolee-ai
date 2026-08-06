@@ -365,7 +365,14 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
 
       <div className="p-6 space-y-6">
         {billing && (
-          <Card className={billing.isOperational ? "" : "border-amber-200 bg-amber-50/70 shadow-none"}>
+          <Card
+          className={`sk-rise ${
+            billing.isOperational
+              ? "border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              : "border-amber-200 bg-amber-50/70 shadow-none"
+          }`}
+          style={{ animationDelay: "0ms" }}
+        >
             <CardHeader className="flex-row items-start justify-between space-y-0">
               <div>
                 <CardTitle className="flex items-center gap-2">
@@ -467,8 +474,12 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
             { label: "Pending", value: stats.pending, icon: AlertCircle, color: "text-red-500" },
             { label: "Due", value: stats.due, icon: Clock, color: "text-amber-600" },
             { label: "Collected", value: `Rs ${stats.collected.toLocaleString()}`, icon: CreditCard, color: "text-purple-600" },
-          ].map((stat) => (
-            <Card key={stat.label}>
+          ].map((stat, index) => (
+            <Card
+              key={stat.label}
+              className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              style={{ animationDelay: `${index * 60}ms` }}
+            >
               <CardContent className="pt-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -482,7 +493,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
           ))}
         </div>
 
-        <Card>
+        <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "80ms" }}>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2">
               <WalletCards className="h-4 w-4 text-primary" />
@@ -546,7 +557,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
           ))}
         </div>
 
-        <Card>
+        <Card className="sk-rise overflow-hidden border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
           <CardContent className="p-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -770,8 +781,8 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
       </Dialog>
 
       {paymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setPaymentModalOpen(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={() => setPaymentModalOpen(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <Building2 className="w-5 h-5 text-[#1f1a23]" />
               <h3 className="text-lg font-bold text-[#1f1a23]">Bank Transfer</h3>

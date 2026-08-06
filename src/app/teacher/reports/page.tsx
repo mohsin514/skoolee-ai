@@ -163,10 +163,10 @@ export default function ReportsPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-3">Locked Exams</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {(data.lockedExams || []).slice(0, 6).map((exam: any) => {
+            {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
               const rcCount = exam.reportCards || 0;
               return (
-                <div key={exam.id} className="group relative rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden" title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
+                <div key={exam.id} className="sk-rise group relative rounded-2xl bg-white border border-[#cfc2d6]/25 p-4 transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${index * 80}ms` }} title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-600 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -195,13 +195,14 @@ export default function ReportsPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-3">Recent Report Cards</p>
           <div className="space-y-2">
-            {(data.recentReportCards || []).slice(0, 12).map((report: any) => (
+            {(data.recentReportCards || []).slice(0, 12).map((report: any, index: number) => (
               <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className={cn(
-                  "group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/10 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99]",
-                  "hover:border-[#8127cf]/25 hover:shadow-xl hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  "sk-rise group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
+                  "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                )}>
+                )}
+                style={{ animationDelay: `${index * 60}ms` }}>
                 <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                 <div className="min-w-0 relative">
                   <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{report.student?.fullName || "Student"}</p>

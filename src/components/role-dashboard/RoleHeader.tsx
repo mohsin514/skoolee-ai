@@ -83,11 +83,13 @@ export function RoleHeader({
 }: RoleHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [bellShake, setBellShake] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const prevUnreadRef = useRef(0);
   const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const toastedNotifIds = useRef<Set<string>>(new Set());
   const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
@@ -147,6 +149,16 @@ export function RoleHeader({
   }, []);
 
   useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      setBellShake(true);
+      const timer = setTimeout(() => setBellShake(false), 340);
+      prevUnreadRef.current = unreadCount;
+      return () => clearTimeout(timer);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
+
+  useEffect(() => {
     if (!menuOpen && !notifOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -179,7 +191,7 @@ export function RoleHeader({
 
   return (
     <>
-      <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/12 rounded-[28px] px-5 py-3 shadow-sm z-40", compact ? "mb-5" : "mb-8")}>
+      <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[28px] px-5 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] z-40", compact ? "mb-5" : "mb-8")}>
         <div className="flex items-center gap-4">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
@@ -199,18 +211,19 @@ export function RoleHeader({
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
               "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-[#4d4354]/45 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
-              notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20"
+              notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
+              bellShake && "sk-shake"
             )}
             title="View notifications"
           >
             <Bell className="w-[18px] h-[18px]" />
             {unreadCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
+              <span className="sk-glow absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+            <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
                 <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
                 {unreadCount > 0 && (
@@ -291,7 +304,7 @@ export function RoleHeader({
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            <div className="h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden ring-1 ring-[#8127cf]/10">
+            <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
               <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
             </div>
             <div className="hidden sm:block text-left">
@@ -303,11 +316,11 @@ export function RoleHeader({
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
             >
               <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-[#8127cf]/10">
+                  <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
                     <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">

@@ -44,14 +44,14 @@ export function ManagementCard({
     : null;
 
   return (
-    <div className="group relative bg-white rounded-[32px] shadow-lg border border-[#cfc2d6]/10 overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5 hover:border-[#8127cf]/20">
+    <div className="sk-rise group relative bg-white rounded-[32px] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] border border-[#cfc2d6]/25 overflow-hidden transition-all duration-500 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 hover:border-[#8127cf]/25">
       <CornerSparkles />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-60" />
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
       <div className="relative p-8">
         <div className="flex items-center gap-4 mb-5">
           <div className="relative">
-            <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:from-[#8127cf] group-hover:to-[#b876f0] group-hover:text-white group-hover:shadow-lg group-hover:shadow-[#8127cf]/20">
               <Icon className="w-5 h-5" />
             </div>

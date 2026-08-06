@@ -70,7 +70,7 @@ export function FeeOverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6">
+      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <CornerSparkles />
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
@@ -98,30 +98,35 @@ export function FeeOverviewTab({
             label="Total Receivable"
             value={formatPKR(summary?.totalReceivable ?? 0)}
             tone="purple"
+            entranceDelay={80}
           />
           <StatCard
             icon={Banknote}
             label="Collected"
             value={formatPKR(summary?.totalCollected ?? 0)}
             tone="green"
+            entranceDelay={160}
           />
           <StatCard
             icon={CreditCard}
             label="Outstanding"
             value={formatPKR(summary?.totalOutstanding ?? 0)}
             tone="rose"
+            entranceDelay={240}
           />
           <StatCard
             icon={ArrowUpRight}
             label="Collection Rate"
             value={`${summary?.collectionRate ?? 0}%`}
             tone={summary && summary.collectionRate < 60 ? "rose" : "green"}
+            entranceDelay={320}
           />
           <StatCard
             icon={Shield}
             label="Overdue"
             value={formatPKR(summary?.totalOverdue ?? 0)}
             tone="dark"
+            entranceDelay={400}
           />
         </div>
 
@@ -219,7 +224,7 @@ export function FeeOverviewTab({
       </div>
 
       {summary?.recentPayments && summary.recentPayments.length > 0 && (
-        <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6">
+        <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">

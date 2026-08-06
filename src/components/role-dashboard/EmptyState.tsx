@@ -13,16 +13,18 @@ interface EmptyStateProps {
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="py-16 px-6 text-center flex flex-col items-center justify-center">
-      <div className="h-16 w-16 rounded-[24px] bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center mb-5 shadow-inner">
-        <Icon className="w-8 h-8" />
+      <div className="sk-rise" style={{ animationDelay: "0ms" }}>
+        <div className="h-16 w-16 rounded-[24px] bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center mb-5 shadow-[inset_0_2px_6px_rgba(31,26,35,0.06),0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] sk-float">
+          <Icon className="w-8 h-8" />
+        </div>
       </div>
-      <h3 className="text-lg font-black text-[#1f1a23] tracking-wider">{title}</h3>
+      <h3 className="sk-rise text-lg font-black text-[#1f1a23] tracking-wider" style={{ animationDelay: "80ms" }}>{title}</h3>
       {description && (
-        <p className="mt-2 text-sm font-semibold text-[#4d4354]/50 max-w-sm leading-relaxed">
+        <p className="sk-rise mt-2 text-sm font-semibold text-[#4d4354]/50 max-w-sm leading-relaxed" style={{ animationDelay: "140ms" }}>
           {description}
         </p>
       )}
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="sk-rise mt-6" style={{ animationDelay: "200ms" }}>{action}</div>}
     </div>
   );
 }

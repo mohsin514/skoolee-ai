@@ -30,8 +30,8 @@ export default function ParentOverviewPage() {
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative p-7 px-9">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="flex gap-6 items-start group">
@@ -62,7 +62,7 @@ export default function ParentOverviewPage() {
               "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white",
             ];
             return (
-              <div key={s.label} className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/20 hover:shadow-2xl">
+              <div key={s.label} className="sk-rise group relative rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-2 transition-colors group-hover:text-[#4d4354]/60">{s.label}</p>
@@ -78,7 +78,7 @@ export default function ParentOverviewPage() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+          <div className="rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
                 <FileText className="w-5 h-5" />
@@ -112,7 +112,7 @@ export default function ParentOverviewPage() {
             </Link>
           </div>
 
-          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+          <div className="rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-10 w-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
                 <GraduationCap className="w-5 h-5" />

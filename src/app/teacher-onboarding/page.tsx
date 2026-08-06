@@ -175,7 +175,7 @@ export default function TeacherOnboardingPage() {
             ))}
           </div>
 
-          <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)]">
+          <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-8 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }}>
             <div className="mb-6">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-normal text-[#8127cf]">
                 <Sparkles className="h-3.5 w-3.5" />

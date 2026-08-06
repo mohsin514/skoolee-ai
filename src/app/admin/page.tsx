@@ -693,7 +693,6 @@ export default function CampusAdminDashboard() {
               students={data.students}
               classes={data.classes}
               onAddStudent={openAdmissionForm}
-              onMoveStudent={openMoveStudent}
               onViewStudent={setSelectedStudent}
               onBulkImport={() => setShowBulkImportModal(true)}
               onExport={exportStudentsCSV}

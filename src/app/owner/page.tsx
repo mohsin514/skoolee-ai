@@ -345,25 +345,41 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
         </div>
       </div>
 
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/10 p-7 mb-8 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+        <div className="relative flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
+            <LayoutGrid className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              {stats ? `${stats.schoolCount} school${stats.schoolCount !== 1 ? "s" : ""} registered` : "Network overview"}
+            </p>
+            <p className="text-lg font-black text-[#1f1a23] tracking-normal">Platform Health</p>
+            <p className="text-[10px] font-semibold text-[#4d4354]/50">Live metrics across schools, campuses, and users</p>
+          </div>
+        </div>
+      </div>
+
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-          <StatCard icon={School} label="Schools" value={stats.schoolCount} />
-          <StatCard icon={Building2} label="Campuses" value={stats.campusCount} tone="purple" />
-          <StatCard icon={GraduationCap} label="Students" value={stats.studentCount} tone="green" />
-          <StatCard icon={Users} label="Teachers" value={stats.teacherCount} />
-          <StatCard icon={User} label="Total Users" value={stats.totalUsers} tone="rose" />
-          <StatCard icon={Activity} label="Logins (7d)" value={stats.recentLogins} tone="dark" />
+          <StatCard icon={School} label="Schools" value={stats.schoolCount} entranceDelay={80} />
+          <StatCard icon={Building2} label="Campuses" value={stats.campusCount} tone="purple" entranceDelay={160} />
+          <StatCard icon={GraduationCap} label="Students" value={stats.studentCount} tone="green" entranceDelay={240} />
+          <StatCard icon={Users} label="Teachers" value={stats.teacherCount} entranceDelay={320} />
+          <StatCard icon={User} label="Total Users" value={stats.totalUsers} tone="rose" entranceDelay={400} />
+          <StatCard icon={Activity} label="Logins (7d)" value={stats.recentLogins} tone="dark" entranceDelay={480} />
         </div>
       )}
 
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-5 text-white">
+          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-5 text-white shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset]" style={{ animationDelay: "560ms" }}>
             <p className="text-[9px] font-black uppercase tracking-normal text-white/40">Revenue</p>
             <p className="text-2xl font-black mt-2">PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}</p>
             <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} payments</p>
           </div>
-          <div className="rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border border-[#cfc2d6]/10 p-5">
+          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "640ms" }}>
             <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60">Schools by Status</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {Object.entries(stats.schoolsByStatus).map(([s, count]) => (
@@ -374,7 +390,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
               )}
             </div>
           </div>
-          <div className="rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-5">
+          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-5" style={{ animationDelay: "720ms" }}>
             <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60">Schools by Plan</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {Object.entries(stats.schoolsByPlan).map(([p, count]) => (
@@ -388,7 +404,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
         </div>
       )}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="flex-1 min-w-[200px] max-w-sm relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4d4354]/40" />
@@ -441,7 +457,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                 return (
                   <div
                     key={school.id}
-                    className="rounded-2xl border border-[#cfc2d6]/10 hover:border-[#8127cf]/15 transition-all overflow-hidden"
+                    className="rounded-2xl border-[#cfc2d6]/25 hover:border-[#8127cf]/25 transition-all overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
                   >
                     <button
                       type="button"
@@ -520,7 +536,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                         {school.campuses.length > 0 ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {school.campuses.map((campus) => (
-                              <div key={campus.id} className="rounded-xl bg-white border border-[#cfc2d6]/10 p-4">
+                              <div key={campus.id} className="rounded-xl bg-white border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                                 <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
                                 <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"}</p>
                                 <div className="flex gap-3 mt-3">
@@ -652,7 +668,7 @@ function UsersView() {
         />
       )}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="flex-1 min-w-[200px] max-w-sm relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4d4354]/40" />
@@ -827,7 +843,7 @@ function AuditLogView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <select
             value={actionFilter}
@@ -1031,7 +1047,7 @@ function SessionsView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] flex items-center justify-center">
@@ -1192,7 +1208,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+            <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4">Schools by Plan</p>
               {Object.keys(stats.schoolsByPlan).length > 0 ? (
                 <div className="space-y-3">
@@ -1228,7 +1244,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
               )}
             </div>
 
-            <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+            <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4">Schools by Status</p>
               {Object.keys(stats.schoolsByStatus).length > 0 ? (
                 <div className="space-y-3">
@@ -1410,7 +1426,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
           <Globe className="w-3 h-3" /> Default Plan Prices
         </p>
@@ -1448,7 +1464,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </button>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
           <DollarSign className="w-3 h-3" /> Plan Pricing Override
         </p>
@@ -1601,7 +1617,7 @@ function PaymentSettingsView() {
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
           <WalletCards className="w-3 h-3" /> Stripe Connect
         </p>
@@ -1654,7 +1670,7 @@ function PaymentSettingsView() {
         )}
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-8">
+      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-4 flex items-center gap-2">
           <Building2 className="w-3 h-3" /> Bank Account (Fallback)
         </p>
@@ -1727,8 +1743,8 @@ function SchoolDetailModal({
   const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5">
-      <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5">
+      <div className="animate-modal-enter bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
         <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
@@ -1942,8 +1958,8 @@ function ChangePasswordModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-      <div className="bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
+      <div className="animate-modal-enter bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
         <div className="flex justify-between items-start gap-5 mb-6">
           <div>
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Security action</p>
@@ -1954,7 +1970,7 @@ function ChangePasswordModal({
           </button>
         </div>
 
-        <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 mb-6">
+        <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 mb-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-[#8127cf]">
               <User className="w-4 h-4" />

@@ -204,7 +204,7 @@ function StructureCard({
   const hasExtras = Object.keys(oneTimeFees).length > 0 || Object.keys(discountRules).length > 0;
 
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 hover:border-[#8127cf]/15 transition-colors">
+    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-sm font-black text-[#1f1a23]">

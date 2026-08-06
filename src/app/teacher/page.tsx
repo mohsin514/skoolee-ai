@@ -283,8 +283,8 @@ export default function TeacherDashboardHub() {
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
       {/* ── Header ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative p-7 px-9 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
@@ -340,7 +340,7 @@ export default function TeacherDashboardHub() {
 
         {/* ── Self Attendance Card ── */}
         {selfAttendanceStatus === "loading" ? (
-          <div className="rounded-[28px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-lg p-5 flex items-center gap-4 animate-skeleton-in">
+          <div className="rounded-[28px] overflow-hidden border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] p-5 flex items-center gap-4 animate-skeleton-in">
             <div className="skeleton-shimmer h-12 w-12 shrink-0 rounded-2xl bg-[#e8e0ec]/60" />
             <div className="flex-1 space-y-2">
               <div className="skeleton-shimmer h-4 w-52 rounded-full bg-[#e8e0ec]/50" />
@@ -349,7 +349,7 @@ export default function TeacherDashboardHub() {
             <div className="skeleton-shimmer h-10 w-28 shrink-0 rounded-2xl bg-[#e8e0ec]/50" />
           </div>
         ) : (
-          <div className="rounded-[28px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-lg">
+          <div className="rounded-[28px] overflow-hidden border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
                 <div className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center shadow-sm ${selfAttendanceStatus === "marked" ? "bg-emerald-100 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
@@ -498,14 +498,18 @@ export default function TeacherDashboardHub() {
             { icon: ClipboardList, label: "Active Tests", value: activeExamCount, color: "from-violet-500 to-violet-600", onClick: () => router.push("/teacher/marks") },
             { icon: AlertCircle, label: "Missing Marks", value: missingMarksTotal, color: missingMarksTotal > 0 ? "from-rose-500 to-rose-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/marks") },
             { icon: CalendarCheck, label: "Unmarked Today", value: attendanceStats.unmarked, color: attendanceStats.unmarked > 0 ? "from-amber-500 to-amber-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/attendance") },
-          ].map((card) => (
+          ].map((card, index) => (
             <button key={card.label} type="button" onClick={card.onClick}
               title={`${card.value} ${card.label} — click to view`}
-              className="group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+              style={{ animationDelay: `${index * 70}ms` }}
+              className="sk-rise group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-300`} />
-              <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md`}>
-                <card.icon className="h-5 w-5 text-white" />
+              <div className="relative mb-3">
+                <div className={`absolute -inset-2 rounded-xl bg-gradient-to-br ${card.color} opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-20`} />
+                <div className={`relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md`}>
+                  <card.icon className="h-5 w-5 text-white" />
+                </div>
               </div>
               <p className="text-2xl font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.value}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{card.label}</p>
@@ -516,7 +520,7 @@ export default function TeacherDashboardHub() {
         {/* ── Charts & Insights ── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Attendance Donut */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Daily Overview</p>
@@ -564,7 +568,7 @@ export default function TeacherDashboardHub() {
           </div>
 
           {/* Marks Progress Bar Chart */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "190ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Entry Status</p>
@@ -592,7 +596,7 @@ export default function TeacherDashboardHub() {
           </div>
 
           {/* Performance Summary */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
+          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "260ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Snapshot</p>
@@ -646,7 +650,7 @@ export default function TeacherDashboardHub() {
                 const clsExams = (data.activeExams || []).filter((e: any) => e.classId === cls.id);
                 const clsMissingMarks = clsExams.reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
                 return (
-                  <div key={cls.id} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
+                  <div key={cls.id} className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5">
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">{cls.role || "Teacher"}</p>

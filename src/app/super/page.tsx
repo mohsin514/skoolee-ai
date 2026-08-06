@@ -289,7 +289,7 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : !selectedCampus ? (
           <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
+            <div className="sk-rise flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
               <div>
                 <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal">School Network</h2>
                 <p className="text-[#4d4354]/40 font-bold mt-1 uppercase text-[10px] tracking-normal italic">
@@ -306,7 +306,9 @@ const bottomItems: RoleNavItem[] = [];
               </div>
             </div>
 
-            <BillingBanner billing={data.billing} onOpen={openBilling} />
+            <div className="sk-rise" style={{ animationDelay: "80ms" }}>
+              <BillingBanner billing={data.billing} onOpen={openBilling} />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
               <StatCard
@@ -315,35 +317,41 @@ const bottomItems: RoleNavItem[] = [];
                 value={data.billing?.plan || "FREE"}
                 sub={data.billing?.status || "TRIAL"}
                 tone={data.billing?.status === "SUSPENDED" ? "rose" : "purple"}
+                entranceDelay={160}
               />
-              <StatCard icon={School} label="Campuses" value={data.campuses.length} />
+              <StatCard icon={School} label="Campuses" value={data.campuses.length} entranceDelay={240} />
               <StatCard
                 icon={GraduationCap}
                 label="Students"
                 value={data.networkSummary.totalStudents}
                 tone="green"
+                entranceDelay={320}
               />
               <StatCard
                 icon={Shield}
                 label="Class Hubs"
                 value={data.networkSummary.totalClasses}
                 tone="rose"
+                entranceDelay={400}
               />
               <StatCard
                 icon={Sparkles}
                 label="AI Runs"
                 value={data.networkSummary.totalAiRuns}
                 tone="dark"
+                entranceDelay={480}
               />
             </div>
 
-            <NetworkCommandPanel
-              data={data}
-              onSelectCampus={openCampus}
-              onOpenBilling={openBilling}
-            />
+            <div className="sk-rise" style={{ animationDelay: "560ms" }}>
+              <NetworkCommandPanel
+                data={data}
+                onSelectCampus={openCampus}
+                onOpenBilling={openBilling}
+              />
+            </div>
 
-            <div id="network-ai-panel" className="mb-8 bg-[#fbf0fe]/30 border border-[#cfc2d6]/10 rounded-[32px] p-6 scroll-mt-6">
+            <div id="network-ai-panel" className="mb-8 bg-[#fbf0fe]/30 border-[#cfc2d6]/25 rounded-[32px] p-6 scroll-mt-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
                   <Sparkles className="w-5 h-5" />
@@ -351,8 +359,8 @@ const bottomItems: RoleNavItem[] = [];
                 <h3 className="text-lg font-black text-[#1f1a23] tracking-normal">AI Network Insights</h3>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5 mb-5">
-                <div className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
-                <div className="rounded-[24px] bg-white border border-[#cfc2d6]/10 p-5">
+                <div className="rounded-[24px] bg-white border-[#cfc2d6]/25 p-5 relative overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
+                <div className="rounded-[24px] bg-white border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                   <div className="flex items-center gap-3 mb-4">
                     <Shield className="w-5 h-5 text-[#8127cf]" />
                     <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">AI Review</p>
@@ -363,7 +371,7 @@ const bottomItems: RoleNavItem[] = [];
               {data.aiInsights?.length ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {data.aiInsights.slice(0, 4).map((insight: any) => (
-                    <div key={insight.id} className="bg-gradient-to-br from-white to-[#fbf0fe]/20 rounded-[20px] p-4 border border-[#cfc2d6]/10 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                    <div key={insight.id} className="bg-gradient-to-br from-white to-[#fbf0fe]/20 rounded-[20px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
                       <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal mb-1">
                         {insight.feature.replaceAll("_", " ")}
                       </p>
@@ -379,7 +387,9 @@ const bottomItems: RoleNavItem[] = [];
             </div>
 
             {data.campuses.length > 0 ? (
-              <CampusComparison campuses={data.campuses} onManage={openCampus} />
+              <div className="sk-rise" style={{ animationDelay: "640ms" }}>
+                <CampusComparison campuses={data.campuses} onManage={openCampus} />
+              </div>
             ) : null}
 
             {data.campuses.length === 0 ? (
@@ -486,14 +496,14 @@ const bottomItems: RoleNavItem[] = [];
                 <InfoPill label="Staff" value={selectedCampus.staffCount} active />
               </div>
 
-              <div className="mt-8 rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+              <div className="mt-8 rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <PanelTitle icon={Mail} title="Pending Access Invitations" />
                   <SuperStatusPill status={`${selectedCampus.pendingInvitations.length} Pending`} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {selectedCampus.pendingInvitations.map((invite: any) => (
-                    <div key={invite.inviteId} className="rounded-[22px] bg-gradient-to-br from-[#fbf0fe]/60 to-white px-4 py-3 border border-[#cfc2d6]/10 transition-all hover:shadow-md hover:-translate-y-0.5">
+                    <div key={invite.inviteId} className="rounded-[22px] bg-gradient-to-br from-[#fbf0fe]/60 to-white px-4 py-3 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
                       <p className="truncate text-sm font-black text-[#1f1a23]">{invite.email}</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
@@ -507,7 +517,7 @@ const bottomItems: RoleNavItem[] = [];
                     </div>
                   ))}
                   {selectedCampus.pendingInvitations.length === 0 ? (
-                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/10 p-4 text-sm font-semibold text-[#4d4354]/55">
+                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/25 p-4 text-sm font-semibold text-[#4d4354]/55">
                       No pending invitations for this campus.
                     </p>
                   ) : null}
@@ -664,7 +674,7 @@ function NetworkCommandPanel({
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-      <div className="relative rounded-[32px] border border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6">
+      <div className="sk-rise relative rounded-[32px] border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-[#8127cf]" />
@@ -700,7 +710,7 @@ function NetworkCommandPanel({
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+      <div className="sk-rise relative overflow-hidden rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
         <div className="mb-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Shield className="h-5 w-5 text-[#8127cf]" />
@@ -709,12 +719,13 @@ function NetworkCommandPanel({
           <SuperStatusPill status={leadershipGaps.length ? "MISSING" : "ACTIVE"} />
         </div>
         <div className="space-y-3">
-          {leadershipGaps.slice(0, 4).map((campus: any) => (
+          {leadershipGaps.slice(0, 4).map((campus: any, index: number) => (
             <button
               key={campus.id}
               type="button"
               onClick={() => onSelectCampus(campus)}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#fbf0fe]/60 to-white px-4 py-3 text-left transition-all hover:from-[#fbf0fe] hover:shadow-sm border border-transparent hover:border-[#8127cf]/10"
+              className="sk-rise flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#fbf0fe]/60 to-white px-4 py-3 text-left transition-all hover:from-[#fbf0fe] hover:shadow-sm border border-transparent hover:border-[#8127cf]/10"
+              style={{ animationDelay: `${160 + index * 60}ms` }}
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-[#1f1a23]">{campus.name}</p>
@@ -756,7 +767,7 @@ function NetworkCommandPanel({
 
 function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (campus: any) => void }) {
   return (
-    <div className="mb-8 rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+    <div className="mb-8 rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       <div className="mb-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <TrendingUp className="h-5 w-5 text-[#8127cf]" />
@@ -911,7 +922,7 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
   const hasLeadership = hasActiveSlot(campus.admin) && hasActiveSlot(campus.principal);
 
   return (
-    <div className="bg-white p-7 rounded-[32px] shadow-lg border border-[#cfc2d6]/10 flex flex-col min-h-[330px] relative overflow-hidden group hover:shadow-2xl hover:border-[#8127cf]/20 transition-all duration-500">
+    <div className="bg-white p-7 rounded-[32px] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] border-[#cfc2d6]/25 flex flex-col min-h-[330px] relative overflow-hidden group hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 transition-all duration-500">
       <div className="absolute top-6 right-6 z-10">
         <SuperStatusPill status={hasLeadership ? "ACTIVE" : "MISSING"} />
       </div>
@@ -964,7 +975,7 @@ function CampusMiniMetric({ label, value, active }: { label: string; value: any;
 
 function InfoPill({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className="p-5 bg-white rounded-[24px] border border-[#cfc2d6]/10 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 hover:border-[#8127cf]/15">
+    <div className="p-5 bg-white rounded-[24px] border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
       <p className="text-[8px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-1">{label}</p>
       <p className={`text-xl font-black italic tracking-normal ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
@@ -983,8 +994,8 @@ function ModalFrame({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-      <div className={`bg-white w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar`}>
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
+      <div className={`animate-modal-enter bg-white w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar`}>
         <div className="flex justify-between items-start gap-5 mb-8">
           <div>
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Network action</p>

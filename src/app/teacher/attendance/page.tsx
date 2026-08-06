@@ -248,23 +248,23 @@ export default function AttendancePage() {
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3.5" title="Total students in this class">
+          <div className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 px-4 py-3.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }} title="Total students in this class">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Total</p>
             <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{stats.total}</p>
           </div>
-          <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5 transition-all hover:bg-emerald-100/80" title="Students marked present">
+          <div className="sk-rise rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5 transition-all hover:bg-emerald-100/80" style={{ animationDelay: "60ms" }} title="Students marked present">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Present</p>
             <p className="mt-0.5 text-xl font-bold text-emerald-700">{stats.present}</p>
           </div>
-          <div className="rounded-2xl bg-rose-50/80 border border-rose-200/60 px-4 py-3.5 transition-all hover:bg-rose-100/80" title="Students marked absent">
+          <div className="sk-rise rounded-2xl bg-rose-50/80 border border-rose-200/60 px-4 py-3.5 transition-all hover:bg-rose-100/80" style={{ animationDelay: "120ms" }} title="Students marked absent">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-700">Absent</p>
             <p className="mt-0.5 text-xl font-bold text-rose-700">{stats.absent}</p>
           </div>
-          <div className="rounded-2xl bg-amber-50/80 border border-amber-200/60 px-4 py-3.5 transition-all hover:bg-amber-100/80" title="Students on leave">
+          <div className="sk-rise rounded-2xl bg-amber-50/80 border border-amber-200/60 px-4 py-3.5 transition-all hover:bg-amber-100/80" style={{ animationDelay: "180ms" }} title="Students on leave">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Leave</p>
             <p className="mt-0.5 text-xl font-bold text-amber-700">{stats.leave}</p>
           </div>
-          <div className="rounded-2xl bg-[#fbf0fe]/80 border border-[#8127cf]/10 px-4 py-3.5 transition-all hover:bg-[#fbf0fe]" title="Students not yet marked">
+          <div className="sk-rise rounded-2xl bg-[#fbf0fe]/80 border border-[#8127cf]/10 px-4 py-3.5 transition-all hover:bg-[#fbf0fe]" style={{ animationDelay: "240ms" }} title="Students not yet marked">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8127cf]">Unmarked</p>
             <p className="mt-0.5 text-xl font-bold text-[#8127cf]">{stats.unmarked}</p>
           </div>
@@ -306,7 +306,7 @@ export default function AttendancePage() {
         )}
 
         {/* Student roster */}
-        <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
+        <div className="sk-rise rounded-2xl border border-[#cfc2d6]/25 overflow-hidden bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "60ms" }}>
           {attendanceLoading ? (
             <div className="divide-y divide-[#f3f4f9]">
               {[...Array(5)].map((_, i) => (
@@ -372,15 +372,16 @@ export default function AttendancePage() {
 
         {/* History section */}
         {historyOpen && attendanceHistory.length > 0 && (
-          <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
+          <div className="sk-rise rounded-2xl border border-[#cfc2d6]/25 overflow-hidden bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
             <div className="divide-y divide-[#f3f4f9] max-h-[320px] overflow-y-auto custom-scrollbar">
               {attendanceHistory.slice(0, 15).map((entry) => {
                 const isSelected = entry.date === attendanceDate;
                 return (
                   <button key={entry.date} type="button" onClick={() => setAttendanceDate(entry.date)} title={`View attendance for ${entry.date}`}
-                    className={cn("w-full cursor-pointer px-5 py-3.5 text-left transition-all hover:bg-[#fbf0fe]/50 flex items-center justify-between gap-4 active:bg-[#fbf0fe]", isSelected && "bg-[#fbf0fe]/70")}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors", isSelected ? "bg-[#8127cf] text-white" : "bg-[#fbf0fe] text-[#8127cf]")}>
+                    className={cn("group w-full cursor-pointer px-5 py-3.5 text-left transition-all hover:bg-[#fbf0fe]/50 flex items-center justify-between gap-4 active:bg-[#fbf0fe]", isSelected && "bg-[#fbf0fe]/70")}>
+                    <div className="relative flex items-center gap-3 min-w-0">
+                      <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+                      <div className={cn("relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors", isSelected ? "bg-[#8127cf] text-white" : "bg-[#fbf0fe] text-[#8127cf]")}>
                         <CalendarCheck className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">

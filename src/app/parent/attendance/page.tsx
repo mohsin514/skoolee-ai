@@ -42,14 +42,14 @@ export default function ParentAttendancePage() {
           <ParentEmptyState icon={CalendarCheck} title="No attendance data" description="Attendance records will appear here once marked." />
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
               <MiniStat icon={Clock} label="Attendance Rate" value={attendance.rate !== null ? `${attendance.rate}%` : "N/A"} />
               <MiniStat icon={CheckCircle2} label="Present" value={attendance.present} tone="green" />
               <MiniStat icon={X} label="Absent / Leave" value={attendance.total - attendance.present} tone="rose" />
               <MiniStat icon={CalendarCheck} label="Total Days" value={attendance.total} tone="purple" />
             </div>
 
-            <div className="rounded-[28px] bg-white border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="sk-rise rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Recent Attendance</h3>
                 <span className="text-[10px] font-semibold text-[#4d4354]/40">Last {attendance.recent.length} school days</span>
@@ -85,12 +85,21 @@ function MiniStat({ icon: Icon, label, value, tone = "dark" }: { icon: any; labe
     rose: "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white",
     purple: "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white",
   };
+  const iconGlows: Record<string, string> = {
+    dark: "bg-[#8127cf]/18",
+    green: "bg-emerald-500/18",
+    rose: "bg-rose-500/18",
+    purple: "bg-[#8127cf]/18",
+  };
   return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/10 p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-      <div className="flex items-center justify-between mb-3">
+    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
+      <div className="relative flex items-center justify-between mb-3">
         <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
-        <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>
-          <Icon className="w-[18px] h-[18px]" />
+        <div className="relative">
+          <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
+          <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>
+            <Icon className="w-[18px] h-[18px]" />
+          </div>
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>

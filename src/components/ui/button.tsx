@@ -7,16 +7,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf0fe] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "relative overflow-hidden sk-sweep-trigger inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf0fe] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
   {
     variants: {
       variant: {
         default:
-          "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20 hover:bg-[#9c48ea] active:scale-[0.98]",
+          "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98]",
         destructive:
           "bg-rose-500 text-white shadow-lg shadow-rose-500/15 hover:bg-rose-600 active:scale-[0.98]",
         outline:
-          "border border-[#cfc2d6]/30 bg-white/80 text-[#4d4354] shadow-sm hover:border-[#8127cf]/30 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-[0.98]",
+          "border border-[#cfc2d6]/30 bg-white/60 text-[#4d4354] shadow-sm hover:border-[#8127cf]/30 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-[0.98]",
         secondary:
           "bg-[#fbf0fe] text-[#8127cf] shadow-sm hover:bg-[#eadfed] active:scale-[0.98]",
         ghost: "text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf]",
@@ -47,7 +47,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
-      />
+      >
+        {variant === "default" && !props.disabled && (
+          <span aria-hidden className="sk-sweep bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+        )}
+        {props.children}
+      </button>
     );
   }
 );

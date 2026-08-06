@@ -216,7 +216,7 @@ function UrduInput({
       </div>
 
       {showKeyboard && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-2.5 shadow-xl shadow-black/10">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-2.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-bold text-[#4d4354]/50">اردو کی بورڈ</span>
             <button
@@ -452,13 +452,16 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose }: Admi
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0" />
 
-      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2">
+      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 group">
         {/* Header */}
         <div className="shrink-0 border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 px-6 pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
-                <GraduationCap className="h-5 w-5 text-white" />
+              <div className="relative">
+                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
+                  <GraduationCap className="h-5 w-5 text-white" />
+                </div>
               </div>
               <div>
                 <h2 className="text-xl font-black text-[#1f1a23]">Student Admission</h2>
@@ -514,7 +517,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose }: Admi
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div className="sk-rise flex-1 overflow-y-auto p-6 custom-scrollbar" style={{ animationDelay: "60ms" }}>
           {step === 0 && (
             <StepPersonalInfo
               form={form}

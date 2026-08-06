@@ -27,10 +27,23 @@ export function CollapsiblePanel({
 
   return (
     <div className={cn("rounded-[32px] border border-[#cfc2d6]/10 bg-white shadow-lg", className)} {...props}>
-      <button
-        type="button"
+      {/* A native <button> can't legally contain `headerRight`, which is
+          sometimes itself a button (e.g. BrandButton) — nested interactive
+          controls are invalid HTML and trigger a hydration mismatch. This
+          div reproduces button semantics/keyboard behavior without that
+          constraint, matching the accessible-div pattern used elsewhere
+          (e.g. StatCard's onClick variant). */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full flex-col gap-4 p-6 text-left sm:flex-row sm:items-center sm:justify-between"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((current) => !current);
+          }
+        }}
+        className="flex w-full cursor-pointer flex-col gap-4 p-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1 sm:flex-row sm:items-center sm:justify-between"
         aria-expanded={open}
       >
         <div className="flex items-start gap-3 sm:items-center sm:justify-start">
@@ -52,7 +65,7 @@ export function CollapsiblePanel({
             )}
           />
         </div>
-      </button>
+      </div>
       {open ? <div className="border-t border-[#cfc2d6]/10 p-6">{children}</div> : null}
     </div>
   );

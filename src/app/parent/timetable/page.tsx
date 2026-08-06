@@ -54,7 +54,7 @@ export default function ParentTimetablePage() {
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative p-7 px-9">
           <div className="flex items-center gap-2 text-[#8127cf] mb-2">
@@ -85,7 +85,7 @@ export default function ParentTimetablePage() {
                 );
               })}
             </div>
-            <div className="overflow-x-auto rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
+            <div className="sk-rise overflow-x-auto rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
               <div className="min-w-[700px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">

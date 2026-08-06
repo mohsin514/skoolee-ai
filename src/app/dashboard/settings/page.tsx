@@ -14,9 +14,12 @@ export default function SettingsPage() {
           <EditableProfileCard />
 
           <aside className="space-y-4">
-            <div className="rounded-[32px] border border-[#cfc2d6]/15 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#8127cf] shadow-md">
-                <ShieldCheck className="h-6 w-6" />
+            <div className="sk-rise group relative rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+              <div className="relative mb-4">
+                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#8127cf] shadow-md">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
               </div>
               <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Protected Fields</h2>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">

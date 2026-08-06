@@ -244,15 +244,16 @@ export default function MarksPage() {
 
         {/* Exam cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {(data.exams || []).slice(0, 6).map((exam: any) => {
+          {(data.exams || []).slice(0, 6).map((exam: any, index: number) => {
             const isSelected = selectedExamId === exam.id;
             const isLockedExam = exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
             return (
               <button key={exam.id} type="button" onClick={() => setSelectedExamId(exam.id)} title={`Select ${exam.title}`}
                 className={cn(
-                  "rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                  isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20" : "border-[#cfc2d6]/10 bg-white"
-                )}>
+                  "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" : "border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"
+                )}
+                style={{ animationDelay: `${index * 80}ms` }}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-[#1d1b20] truncate">{exam.title}</p>
@@ -286,7 +287,7 @@ export default function MarksPage() {
         )}
 
         {/* Marks table */}
-        <div className="overflow-hidden rounded-2xl border border-[#f3f4f9] bg-white">
+        <div className="sk-rise overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
           {marksLoading ? (
             <div>
               <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">

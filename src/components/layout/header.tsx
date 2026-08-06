@@ -113,7 +113,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   const avatarSrc = user?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.fullName || "Account")}`;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/20 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl md:px-6">
+    <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/25 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="shrink-0 -rotate-2 md:hidden">
@@ -151,7 +151,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             title="Notifications"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
+            <span className="sk-glow absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
           </Button>
 
           {actions}
@@ -161,8 +161,8 @@ export function Header({ title, description, actions }: HeaderProps) {
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
               className={cn(
-                "flex h-10 items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/85 px-2 pr-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:bg-white hover:shadow-lg cursor-pointer",
-                menuOpen && "border-[#8127cf]/35 bg-white shadow-lg"
+                "flex h-10 items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/85 px-2 pr-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:bg-white hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer",
+                menuOpen && "border-[#8127cf]/35 bg-white shadow-lg ring-2 ring-[#8127cf]/15"
               )}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
@@ -186,7 +186,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_24px_70px_rgba(31,26,35,0.16)]"
+                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_24px_70px_rgba(31,26,35,0.16)]"
               >
                 <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-4">
                   <div className="flex items-center gap-3">
