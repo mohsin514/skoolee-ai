@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
+import { NetworkProvider } from "@/components/providers/network-provider";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -74,7 +75,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <Suspense fallback={null}>
           <AppLoaderProvider>
-            {children}
+            <NetworkProvider>{children}</NetworkProvider>
             <Toaster
               position="top-right"
               richColors

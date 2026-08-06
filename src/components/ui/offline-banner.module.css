@@ -1,0 +1,136 @@
+.wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  pointer-events: none;
+}
+
+.pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(40rem, 100%);
+  padding: 0.7rem 0.7rem 0.7rem 1.1rem;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(100deg, #1f1a23, #2e2436);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px -12px rgba(31, 26, 35, 0.55);
+  animation: sk-net-drop 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.pillRestored {
+  background: linear-gradient(100deg, #047857, #059669);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 18px 40px -12px rgba(5, 150, 105, 0.5);
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.title {
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.3;
+}
+
+.retry {
+  flex: none;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #1f1a23;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.retry:hover {
+  transform: translateY(-1px);
+}
+
+.retry:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.retry:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+.spin {
+  animation: sk-net-spin 0.9s linear infinite;
+}
+
+@keyframes sk-net-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sk-net-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    animation: none;
+  }
+  .spin {
+    animation-duration: 2.4s;
+  }
+  .retry:hover,
+  .retry:active {
+    transform: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    white-space: normal;
+  }
+  .pill {
+    width: 100%;
+    border-radius: 1.25rem;
+  }
+}

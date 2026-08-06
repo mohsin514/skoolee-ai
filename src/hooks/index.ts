@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { ApiResponse } from "@/types";
+import { ONLINE_RESTORED_EVENT } from "@/lib/network/connection";
 
 interface UseFetchOptions {
   immediate?: boolean;
@@ -50,7 +51,39 @@ export function useFetch<T>(url: string, options?: UseFetchOptions) {
     return () => abortRef.current?.abort();
   }, [fetchData, options?.immediate]);
 
+  // Anything that failed while the connection was down gets one free
+  // retry the moment it returns, so the screen heals itself instead of
+  // stranding the user on a stale error.
+  useEffect(() => {
+    const onRestored = () => fetchData();
+    window.addEventListener(ONLINE_RESTORED_EVENT, onRestored);
+    return () => window.removeEventListener(ONLINE_RESTORED_EVENT, onRestored);
+  }, [fetchData]);
+
   return { data, error, isLoading, refetch: fetchData };
+}
+
+/**
+ * Run a callback whenever connectivity is restored.
+ *
+ * For components that load data outside `useFetch` and want to refresh
+ * themselves after an outage.
+ */
+export function useOnlineRestored(callback: () => void) {
+  // Held in a ref so the listener is attached once, yet always calls the
+  // latest callback — an inline arrow at the call site would otherwise
+  // re-subscribe on every render.
+  const savedRef = useRef(callback);
+
+  useEffect(() => {
+    savedRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    const handler = () => savedRef.current();
+    window.addEventListener(ONLINE_RESTORED_EVENT, handler);
+    return () => window.removeEventListener(ONLINE_RESTORED_EVENT, handler);
+  }, []);
 }
 
 /**

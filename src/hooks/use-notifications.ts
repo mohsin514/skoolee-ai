@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ONLINE_RESTORED_EVENT } from "@/lib/network/connection";
 
 export interface AppNotification {
   id: string;
@@ -21,6 +22,11 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  // Bumped to force a fresh EventSource after an outage. The browser
+  // retries a dropped stream on its own, but once it gives up and lands
+  // in CLOSED it never reopens — so live notifications would stay dead
+  // for the rest of the session without this.
+  const [connectionEpoch, setConnectionEpoch] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
@@ -122,6 +128,19 @@ export function useNotifications() {
       bc?.close();
       channelRef.current = null;
     };
+  }, [fetchNotifications, connectionEpoch]);
+
+  // On reconnect, reopen the stream if the browser abandoned it, and
+  // backfill anything that arrived while we were dark.
+  useEffect(() => {
+    const onRestored = () => {
+      fetchNotifications();
+      if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+        setConnectionEpoch((n) => n + 1);
+      }
+    };
+    window.addEventListener(ONLINE_RESTORED_EVENT, onRestored);
+    return () => window.removeEventListener(ONLINE_RESTORED_EVENT, onRestored);
   }, [fetchNotifications]);
 
   return {
