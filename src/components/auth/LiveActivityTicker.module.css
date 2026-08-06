@@ -1,0 +1,12 @@
+.item {
+  animation: sk-ticker-rise 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes sk-ticker-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item { animation: none; }
+}

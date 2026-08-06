@@ -8,6 +8,19 @@ import styles from './SplashScreen.module.css';
 export default function SplashScreen() {
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(true);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const startTime = Date.now();
+    const duration = 5500;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+      setProgress(pct);
+      if (pct >= 100) clearInterval(interval);
+    }, 80);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // Keep splash visible for 8 seconds, then redirect
@@ -42,13 +55,13 @@ export default function SplashScreen() {
             <span className={styles.letter}>e</span>
             <span className={styles.ai}>AI</span>
           </h1>
-          <p className={styles.tagline}>Igniting Potential...</p>
         </div>
 
         <div className={styles.loaderWrapper}>
           <div className={styles.progressBar}>
             <div className={styles.progressFill} />
           </div>
+          <span className={styles.progressText}>{progress}%</span>
         </div>
       </div>
     </div>

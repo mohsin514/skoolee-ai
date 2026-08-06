@@ -1,20 +1,56 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="paint0_linear" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8127CF"/>
-      <stop offset="1" stop-color="#9C48EA"/>
-    </linearGradient>
-  </defs>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fully transparent canvas — just the cap and the two "eyes" from the
+       Skoolee wordmark, in the brand's white + purple only. No backing
+       shape, so it reads as a floating mark rather than a boxed logo.
 
-  <rect width="512" height="512" rx="112" fill="url(#paint0_linear)"/>
+       The pupils carry a SMIL loop matching the live SkooleeLogo
+       component's look-around cycle, so this master asset genuinely
+       animates wherever something renders raw SVG (this file is also the
+       source for every generated app icon — those are necessarily a single
+       static frame, since no OS animates home-screen/dock/taskbar icons). -->
 
-  <!-- Graduation cap (cropped from the Skoolee wordmark) -->
-  <path d="M256 84 400 156 256 228 112 156 256 84Z" fill="#FFFFFF"/>
-  <path d="M168 196V252C168 252 216 284 256 284C296 284 344 252 344 252V196" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Graduation cap -->
+  <path
+    d="M512 150 866 328 512 506 158 328Z"
+    fill="#FFFFFF"
+    stroke="#8127CF"
+    stroke-width="16"
+    stroke-linejoin="round"
+  />
+  <path d="M866 328V434" stroke="#8127CF" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="866" cy="456" r="26" fill="#8127CF"/>
 
-  <!-- Eyes (the two "o"s from the wordmark, centred pupils) -->
-  <circle cx="182" cy="360" r="72" fill="#FFF7FE" stroke="#FFFFFF" stroke-width="14"/>
-  <circle cx="330" cy="360" r="72" fill="#FFF7FE" stroke="#FFFFFF" stroke-width="14"/>
-  <circle cx="182" cy="360" r="30" fill="#1F1A23"/>
-  <circle cx="330" cy="360" r="30" fill="#1F1A23"/>
+  <!-- Eyes — white with a purple rim; pupils drift in a slow look-around
+       loop, same easing shape as the wordmark's look-duration variable -->
+  <circle cx="350" cy="690" r="138" fill="#FFFFFF" stroke="#8127CF" stroke-width="22"/>
+  <circle cx="674" cy="690" r="138" fill="#FFFFFF" stroke="#8127CF" stroke-width="22"/>
+
+  <g>
+    <circle cx="350" cy="690" r="58" fill="#8127CF"/>
+    <circle cx="330" cy="668" r="18" fill="#FFFFFF"/>
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 23,-12; -23,12; 12,6; 0,0"
+      keyTimes="0; 0.25; 0.5; 0.75; 1"
+      calcMode="spline"
+      keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"
+      dur="4s"
+      repeatCount="indefinite"
+    />
+  </g>
+  <g>
+    <circle cx="674" cy="690" r="58" fill="#8127CF"/>
+    <circle cx="654" cy="668" r="18" fill="#FFFFFF"/>
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 23,-12; -23,12; 12,6; 0,0"
+      keyTimes="0; 0.25; 0.5; 0.75; 1"
+      calcMode="spline"
+      keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"
+      dur="4s"
+      repeatCount="indefinite"
+    />
+  </g>
 </svg>

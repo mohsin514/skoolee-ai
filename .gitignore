@@ -43,3 +43,22 @@ next-env.d.ts
 
 /src/generated/prisma
 .env*.local
+
+# ── native app build artifacts (sources android/ ios/ src-tauri are committed) ──
+# android
+/android/.gradle/
+/android/.idea/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/capacitor-cordova-android-plugins/src
+
+# ios
+/ios/App/Pods/
+/ios/App/build/
+/ios/DerivedData/
+
+# tauri / rust
+/src-tauri/target/
+/src-tauri/gen/
+/src-tauri/Cargo.lock

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Mail, Lock,
@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import AvatarOrbit from "@/components/auth/AvatarOrbit";
+import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
 
 interface InputFieldProps {
   label: string;
@@ -39,6 +41,22 @@ export default function RegisterPage() {
   const [type, setType] = useState<'school_group' | 'single_campus'>('school_group');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const brandRef = useRef<HTMLElement>(null);
+
+  // Subtle cursor-parallax on the brand panel's blobs and avatar orbit —
+  // written straight to the DOM so it doesn't trigger React re-renders.
+  const handleBrandMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const el = brandRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", String((e.clientX - rect.left) / rect.width - 0.5));
+    el.style.setProperty("--my", String((e.clientY - rect.top) / rect.height - 0.5));
+  }, []);
+  const resetBrandParallax = useCallback(() => {
+    const el = brandRef.current;
+    el?.style.setProperty("--mx", "0");
+    el?.style.setProperty("--my", "0");
+  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -145,21 +163,48 @@ export default function RegisterPage() {
           from { opacity: 0; transform: translateY(14px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes skShimmer {
+          from { transform: translateX(-130%) skewX(-12deg); }
+          to   { transform: translateX(130%) skewX(-12deg); }
+        }
         .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
         .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
         .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
+        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
+        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
+        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise { animation: none !important; }
+          .sk-blob, .sk-rise, .sk-shimmer { animation: none !important; }
+          .sk-parallax { transition: none !important; }
         }
       `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
-      <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14">
+      <section
+        ref={brandRef}
+        onMouseMove={handleBrandMouseMove}
+        onMouseLeave={resetBrandParallax}
+        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
+      >
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
-          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div
+            className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
+          >
+            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+          </div>
+          <div
+            className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
+          >
+            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          </div>
+          <div
+            className="sk-parallax absolute -bottom-1/3 left-1/5 h-[62%] w-[62%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * 16px), calc(var(--my, 0) * 16px), 0)" }}
+          >
+            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          </div>
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -171,6 +216,15 @@ export default function RegisterPage() {
           <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
         </div>
 
+        {/* Orbiting user avatars — echoes the "one login, every role" story
+            with motion instead of another static line. */}
+        <div
+          className="sk-parallax absolute -top-14 -right-14 z-0"
+          style={{ transform: "translate3d(calc(var(--mx, 0) * -12px), calc(var(--my, 0) * -12px), 0)" }}
+        >
+          <AvatarOrbit size={300} duration={44} className="opacity-90" />
+        </div>
+
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
@@ -179,14 +233,17 @@ export default function RegisterPage() {
         </div>
 
         <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+          <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
               Start in minutes
             </span>
           </div>
 
-          <h1 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+          <h1
+            className="sk-rise mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
+            style={{ animationDelay: "80ms" }}
+          >
             Set up your school
             <br />
             in
@@ -195,7 +252,7 @@ export default function RegisterPage() {
             </span>
           </h1>
 
-          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl" style={{ animationDelay: "160ms" }}>
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
                 <Network className="h-5 w-5 text-white" />
@@ -211,6 +268,10 @@ export default function RegisterPage() {
               </div>
             </div>
           </div>
+
+          <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
+            <LiveActivityTicker />
+          </div>
         </div>
 
         <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
@@ -222,7 +283,7 @@ export default function RegisterPage() {
       {/* ─── FORM PANEL ──────────────────────────────── */}
       <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
         <div className="w-full max-w-lg">
-          <div className="mb-9 flex flex-col items-center">
+          <div className="sk-rise mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
             <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
@@ -253,9 +314,12 @@ export default function RegisterPage() {
 
                 <button
                   onClick={handleStep1}
-                  className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985]"
+                  className="group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985]"
                 >
-                  Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </span>
                 </button>
 
                 <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
@@ -340,8 +404,11 @@ export default function RegisterPage() {
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => setStep(1)} className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-[#4d4354]/60 transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"><ChevronLeft className="h-4 w-4" /></button>
-                    <button type="submit" disabled={loading} className="group mt-0 flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60">
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
+                    <button type="submit" disabled={loading} className="group relative mt-0 flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60">
+                      {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
+                      <span className="relative z-10 flex items-center gap-2">
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
+                      </span>
                     </button>
                   </div>
                 </form>
@@ -376,7 +443,7 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
       onClick={onClick}
       className={`relative group flex cursor-pointer items-center gap-5 overflow-hidden rounded-2xl border-2 p-5 transition-all ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-[#cfc2d6]/20 bg-[#f3f4f9] hover:border-[#8127cf]/20 hover:bg-white'}`}
     >
-      <div className={`rounded-2xl p-3 transition-all ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
+      <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
         <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1">
@@ -397,7 +464,7 @@ function InputField({ label, placeholder, value, onChange, icon: Icon, type = "t
     <div className="space-y-1.5">
       <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">{label}</Label>
       <div className="group relative flex items-center">
-        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
         <Input
           type={type}
           placeholder={placeholder}

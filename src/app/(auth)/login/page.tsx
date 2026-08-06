@@ -15,6 +15,8 @@ import {
 import Link from "next/link";
 import { dashboardPathForRole } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import AvatarOrbit from "@/components/auth/AvatarOrbit";
+import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
 
 // Rotating proof points on the brand panel. Each pairs a claim with a
 // concrete number so the panel says something instead of decorating.
@@ -47,11 +49,30 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [capsOn, setCapsOn] = useState(false);
   const [slide, setSlide] = useState(0);
   const [paused, setPaused] = useState(false);
   const liveRef = useRef<HTMLParagraphElement>(null);
+  const brandRef = useRef<HTMLElement>(null);
+
+  // Subtle parallax: blobs and the avatar orbit drift opposite the cursor
+  // for a sense of depth. Written straight to the DOM (no re-render) and
+  // skipped entirely on touch devices / reduced-motion.
+  const handleBrandMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const el = brandRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", String((e.clientX - rect.left) / rect.width - 0.5));
+    el.style.setProperty("--my", String((e.clientY - rect.top) / rect.height - 0.5));
+  }, []);
+  const resetBrandParallax = useCallback(() => {
+    setPaused(false);
+    const el = brandRef.current;
+    el?.style.setProperty("--mx", "0");
+    el?.style.setProperty("--my", "0");
+  }, []);
 
   useEffect(() => {
     const verified = searchParams.get("verified") === "true";
@@ -97,6 +118,11 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(json.error || "Login failed");
 
       toast.success(`Welcome back, ${json.user.fullName}!`);
+      setSuccess(true);
+
+      // Let the button's checkmark morph play before navigating away —
+      // a beat of confirmation feels more deliberate than an instant jump.
+      await new Promise((resolve) => setTimeout(resolve, 550));
 
       if (json.user.mustChangePassword) {
         router.push("/first-login");
@@ -133,28 +159,60 @@ export default function LoginPage() {
           25%     { transform: translateX(-5px); }
           75%     { transform: translateX(5px); }
         }
+        @keyframes skShimmer {
+          from { transform: translateX(-130%) skewX(-12deg); }
+          to   { transform: translateX(130%) skewX(-12deg); }
+        }
+        @keyframes skCheckPop {
+          0%   { transform: scale(0.4); opacity: 0; }
+          60%  { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
         .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
         .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
         .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
+        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
+        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
         .sk-shake { animation: skShake .34s ease-in-out; }
+        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
+        .sk-check-pop { animation: skCheckPop .4s cubic-bezier(.2,.7,.3,1) both; }
         @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise, .sk-shake { animation: none !important; }
+          .sk-blob, .sk-rise, .sk-shake, .sk-shimmer, .sk-check-pop { animation: none !important; }
+          .sk-parallax { transition: none !important; }
         }
       `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
+        ref={brandRef}
         onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
+        onMouseLeave={resetBrandParallax}
+        onMouseMove={handleBrandMouseMove}
         className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
       >
         {/* Animated mesh — kept strictly inside the brand purple family
-            so the panel reads as Skoolee rather than generic dark SaaS. */}
+            so the panel reads as Skoolee rather than generic dark SaaS.
+            Each blob sits in its own parallax wrapper (cursor offset) while
+            an inner element carries the independent drift animation. */}
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
-          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div
+            className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
+          >
+            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+          </div>
+          <div
+            className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
+          >
+            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          </div>
+          <div
+            className="sk-parallax absolute -bottom-1/3 left-1/5 h-[62%] w-[62%]"
+            style={{ transform: "translate3d(calc(var(--mx, 0) * 16px), calc(var(--my, 0) * 16px), 0)" }}
+          >
+            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          </div>
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -167,6 +225,16 @@ export default function LoginPage() {
           <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
         </div>
 
+        {/* Orbiting user avatars — "every role, always connected". Anchored
+            off the bottom-right corner so it reads as ambient motion behind
+            the copy rather than competing with it. */}
+        <div
+          className="sk-parallax absolute -bottom-16 -right-16 z-0"
+          style={{ transform: "translate3d(calc(var(--mx, 0) * -12px), calc(var(--my, 0) * -12px), 0)" }}
+        >
+          <AvatarOrbit size={340} duration={50} className="opacity-90" />
+        </div>
+
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
@@ -175,14 +243,17 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+          <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
               AI-assisted school management
             </span>
           </div>
 
-          <h1 className="mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+          <h1
+            className="sk-rise mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
+            style={{ animationDelay: "80ms" }}
+          >
             Run the whole
             <br />
             institution from
@@ -191,7 +262,11 @@ export default function LoginPage() {
 
           {/* Sits on a mid-purple ground, so the card needs a darker scrim
               and near-opaque text to stay legible. */}
-          <div key={slide} className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+          <div
+            key={slide}
+            className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl"
+            style={{ animationDelay: slide === 0 ? "160ms" : "0ms" }}
+          >
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
                 <ActiveIcon className="h-5 w-5 text-white" />
@@ -223,6 +298,10 @@ export default function LoginPage() {
               />
             ))}
           </div>
+
+          <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
+            <LiveActivityTicker />
+          </div>
         </div>
 
         <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
@@ -235,12 +314,12 @@ export default function LoginPage() {
       <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
         <div className="w-full max-w-[30rem]">
           {/* Brand mark sits above the form on every breakpoint. */}
-          <div className="mb-9 flex flex-col items-center">
+          <div className="sk-rise mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
             <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
 
-          <div className="mb-7 text-center">
+          <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
             <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
               Welcome back
             </h2>
@@ -249,7 +328,10 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+          <div
+            className="sk-rise rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+            style={{ animationDelay: "140ms" }}
+          >
             {formError && (
               <div
                 role="alert"
@@ -266,7 +348,7 @@ export default function LoginPage() {
                   Work Email
                 </Label>
                 <div className="group relative flex items-center">
-                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="email"
                     type="email"
@@ -296,7 +378,7 @@ export default function LoginPage() {
                   </Link>
                 </div>
                 <div className="group relative flex items-center">
-                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
@@ -330,20 +412,34 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
+                disabled={isLoading || success}
+                className={`group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl font-black text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.985] disabled:cursor-wait disabled:active:scale-100 ${
+                  success
+                    ? "bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-emerald-500/30"
+                    : "bg-gradient-to-r from-[#8127cf] to-[#9c48ea] shadow-[#8127cf]/25 hover:shadow-[#8127cf]/35 disabled:opacity-60"
+                }`}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Signing in…</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign in</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </>
+                {!isLoading && !success && (
+                  <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
                 )}
+                <span className="relative z-10 flex items-center gap-2">
+                  {success ? (
+                    <>
+                      <CheckCircle2 className="sk-check-pop h-4 w-4" />
+                      <span>Welcome back!</span>
+                    </>
+                  ) : isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Signing in…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Sign in</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </>
+                  )}
+                </span>
               </button>
             </form>
 

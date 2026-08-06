@@ -9,7 +9,13 @@
     "lint": "eslint",
     "db:reset": "prisma db push --force-reset --accept-data-loss",
     "db:seed": "prisma db seed",
-    "db:sync": "prisma db push"
+    "db:sync": "prisma db push",
+    "app:sync": "cap sync",
+    "app:android": "cap sync android && cap open android",
+    "app:ios": "cap sync ios && cap open ios",
+    "app:desktop:dev": "tauri dev",
+    "app:desktop:build": "tauri build",
+    "app:icons": "tauri icon public/icon-1024.png"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -17,6 +23,9 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1027.0",
     "@aws-sdk/s3-request-presigner": "^3.1027.0",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.0.0",
     "@prisma/extension-accelerate": "^1.0.0",
@@ -46,7 +55,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.39",
     "@types/react": "^19",

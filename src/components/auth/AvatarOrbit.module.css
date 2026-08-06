@@ -1,0 +1,49 @@
+/* Decorative "living users" motif for the auth brand panels — a ring of
+   avatars slowly orbiting a centre medallion. Pure CSS so it costs nothing
+   at runtime, and prefers-reduced-motion freezes it into a static badge. */
+
+.wrap {
+  position: relative;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  animation: sk-orbit-spin var(--sk-orbit-duration, 46s) linear infinite;
+}
+
+.counter {
+  animation: sk-orbit-spin-reverse var(--sk-orbit-duration, 46s) linear infinite;
+}
+
+.bob {
+  animation: sk-orbit-bob var(--sk-orbit-bob-duration, 4s) ease-in-out infinite;
+}
+
+.medallion {
+  animation: sk-orbit-pulse 3.6s ease-in-out infinite;
+}
+
+@keyframes sk-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sk-orbit-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes sk-orbit-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes sk-orbit-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.28); }
+  50% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring, .counter, .bob, .medallion {
+    animation: none !important;
+  }
+}
