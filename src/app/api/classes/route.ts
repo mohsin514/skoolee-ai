@@ -132,16 +132,16 @@ export async function POST(req: NextRequest) {
       classId: classes[0]?.id,
     });
 
-    for (const cls of classes) {
-      await prisma.auditLog.create({
-        data: {
-          tableName: 'class',
-          recordId: cls.id,
-          newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear },
-          userId: user.userId,
-        }
-      });
-    }
+    // One insert for all sections — this used to be a sequential round-trip per
+    // section, which is most of the wall-clock time when the database is remote.
+    await prisma.auditLog.createMany({
+      data: classes.map((cls) => ({
+        tableName: 'class',
+        recordId: cls.id,
+        newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear },
+        userId: user.userId,
+      })),
+    });
 
     return Response.json(
       { success: true, data: classes.length === 1 ? classes[0] : classes, count: classes.length },
