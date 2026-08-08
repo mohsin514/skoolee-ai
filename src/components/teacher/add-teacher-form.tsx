@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { inviteStaff } from "@/app/actions/invite";
+import { SpecialtyEditor } from "@/components/shared-admin";
 
 interface AddTeacherFormProps {
   onSuccess: () => void;
@@ -78,6 +79,9 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [teachesAll, setTeachesAll] = useState(false);
+  const [specialtyDraft, setSpecialtyDraft] = useState("");
 
   const update = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -129,7 +133,9 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
           dateOfBirth: form.dateOfBirth || undefined,
           gender: form.gender || undefined,
           qualification: form.qualification || undefined,
-          specialization: form.specialization.trim() || undefined,
+          specialization: teachesAll ? "All subjects" : specialties.join(", ") || undefined,
+          subjectSpecialties: specialties,
+          teachesAllSubjects: teachesAll,
           experience: form.experience.trim() || undefined,
           address: form.address.trim() || undefined,
           city: form.city.trim() || undefined,
@@ -312,13 +318,20 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                   </Select>
                 </div>
 
-                <div>
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Specialization</Label>
-                  <Input
-                    value={form.specialization}
-                    onChange={(e) => update("specialization", e.target.value)}
-                    placeholder="e.g. Mathematics, Physics"
-                    className="mt-1 h-12 rounded-xl border-[#cfc2d6]/20 bg-[#fbf0fe] font-medium shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
+                <div className="sm:col-span-2">
+                  <SpecialtyEditor
+                    specialties={specialties}
+                    teachesAll={teachesAll}
+                    draft={specialtyDraft}
+                    onDraftChange={setSpecialtyDraft}
+                    onAdd={(name) => {
+                      const clean = name.trim();
+                      if (!clean) return;
+                      setSpecialties((cur) => (cur.some((x) => x.toLowerCase() === clean.toLowerCase()) ? cur : [...cur, clean]));
+                      setSpecialtyDraft("");
+                    }}
+                    onRemove={(name) => setSpecialties((cur) => cur.filter((x) => x !== name))}
+                    onToggleAll={() => setTeachesAll((v) => !v)}
                   />
                 </div>
 

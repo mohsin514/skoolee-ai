@@ -99,6 +99,11 @@ model User {
   gender             String?
   qualification      String?
   specialization     String?
+  // Structured teaching specialities, used to badge teachers and to warn when
+  // they're assigned outside their subject. `teachesAllSubjects` marks a
+  // generalist (e.g. primary-school class teachers) for whom no warning applies.
+  subjectSpecialties String[]  @default([]) @map("subject_specialties")
+  teachesAllSubjects Boolean   @default(false) @map("teaches_all_subjects")
   experience         String?
   address            String?   @db.Text
   city               String?
@@ -148,6 +153,10 @@ model Class {
   classTeacher   User?     @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   academicYear   Int       @map("academic_year")
   status         String    @default("ACTIVE") // ACTIVE, COMPLETED
+  // How teaching is organised for this section:
+  // SINGLE  = the class teacher takes every subject
+  // SUBJECT = each subject has its own teacher
+  teachingMode   String    @default("SINGLE") @map("teaching_mode")
 
   // Relations
   students       Student[]
@@ -232,8 +241,25 @@ model Subject {
   marks         Mark[]
   exams         Exam[]
   timetableSlots TimetableSlot[]
+  syllabusTopics SyllabusTopic[]
 
   @@map("subjects")
+}
+
+model SyllabusTopic {
+  id          String    @id @default(cuid()) @map("id")
+  subjectId   String    @map("subject_id")
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int       @default(0)
+  status      String    @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([subjectId, order])
+  @@map("syllabus_topics")
 }
 
 // ─── 7. EXAMS ─────────────────────────────────────────────

@@ -10,6 +10,11 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import {
+  detectTeacherClashes,
+  syncTimetableSlotsForSubjects,
+  type TimetableClash,
+} from "@/lib/api/timetable-sync";
 
 async function getScopedClass(classId: string, userCampusId: string | null, schoolId: string) {
   const cls = await prisma.class.findFirst({
@@ -18,7 +23,7 @@ async function getScopedClass(classId: string, userCampusId: string | null, scho
       campus: { schoolId },
       ...(userCampusId ? { campusId: userCampusId } : {}),
     },
-    select: { id: true, campusId: true },
+    select: { id: true, campusId: true, name: true, academicYear: true },
   });
 
   if (!cls) throw new ApiError("Class not found", 404);
@@ -83,29 +88,62 @@ export async function POST(req: NextRequest) {
     );
     const teacherId = await assertTeacher(parsed.data.teacherId, cls.campusId, user.schoolId);
     const totalMarks = parsed.data.totalMarks || parsed.data.maxMarks || 100;
-    const existing = await prisma.subject.findFirst({
+    const subjectName = parsed.data.name.trim();
+
+    // `applyToAllSections` adds the subject to every sibling section of the same
+    // class (same name + academic year in this campus), so an admin doesn't have
+    // to repeat the same subject list section by section. Sections that already
+    // have the subject are skipped rather than failing the whole request.
+    const targetClasses = body.applyToAllSections
+      ? await prisma.class.findMany({
+          where: { campusId: cls.campusId, name: cls.name, academicYear: cls.academicYear },
+          select: { id: true },
+        })
+      : [{ id: parsed.data.classId }];
+
+    const alreadyHave = await prisma.subject.findMany({
       where: {
         campusId: cls.campusId,
-        classId: parsed.data.classId,
-        name: { equals: parsed.data.name.trim(), mode: "insensitive" },
+        classId: { in: targetClasses.map((c) => c.id) },
+        name: { equals: subjectName, mode: "insensitive" },
       },
-      select: { id: true },
+      select: { classId: true },
     });
-    if (existing) throw new ApiError("This subject already exists in the selected section", 409);
+    const skip = new Set(alreadyHave.map((s) => s.classId));
+    const toCreate = targetClasses.filter((c) => !skip.has(c.id));
 
-    const subject = await prisma.subject.create({
-      data: {
+    if (toCreate.length === 0) {
+      throw new ApiError(
+        body.applyToAllSections
+          ? "Every section already has this subject"
+          : "This subject already exists in the selected section",
+        409
+      );
+    }
+
+    await prisma.subject.createMany({
+      data: toCreate.map((target) => ({
         campusId: cls.campusId,
-        classId: parsed.data.classId,
-        name: parsed.data.name.trim(),
+        classId: target.id,
+        name: subjectName,
         teacherId,
         totalMarks,
+      })),
+    });
+
+    // Return the row for the section the request was made from when possible,
+    // so existing single-section callers keep getting the shape they expect.
+    const subject = (await prisma.subject.findFirst({
+      where: {
+        campusId: cls.campusId,
+        classId: skip.has(parsed.data.classId) ? toCreate[0].id : parsed.data.classId,
+        name: { equals: subjectName, mode: "insensitive" },
       },
       include: {
         class: { select: { id: true, name: true, section: true } },
         teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
       },
-    });
+    }))!;
 
     await prisma.auditLog.create({
       data: {
@@ -127,7 +165,10 @@ export async function POST(req: NextRequest) {
       teacherId: subject.teacherId ?? undefined,
     });
 
-    return Response.json({ success: true, data: subject }, { status: 201 });
+    return Response.json(
+      { success: true, data: subject, createdCount: toCreate.length },
+      { status: 201 }
+    );
   } catch (error) {
     return errorResponse(error, "[subjects] POST failed");
   }
@@ -165,6 +206,14 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
+    // Keep the published timetable pointing at whoever now teaches this
+    // subject, then report any double-booking the change introduced.
+    let clashes: TimetableClash[] = [];
+    if (body.teacherId !== undefined) {
+      await syncTimetableSlotsForSubjects([subject.id], subject.teacherId);
+      clashes = await detectTeacherClashes(subject.teacherId);
+    }
+
     await prisma.auditLog.create({
       data: {
         tableName: 'subject',
@@ -188,7 +237,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    return Response.json({ success: true, data: subject });
+    return Response.json({ success: true, data: subject, clashes });
   } catch (error) {
     return errorResponse(error, "[subjects] PATCH failed");
   }

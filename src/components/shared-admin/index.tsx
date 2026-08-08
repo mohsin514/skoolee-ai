@@ -27,6 +27,7 @@ import {
   Plus,
   School,
   Send,
+  Settings,
   Shield,
   Sparkles,
   Trash2,
@@ -41,6 +42,9 @@ import { toast } from "sonner";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
+export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
+import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 
 export type ClassFormState = {
   name: string;
@@ -91,6 +95,16 @@ export function classLabel(item: any) {
 
 export function sectionLabel(item: any) {
   return item?.section || "Main";
+}
+
+/**
+ * Some schools don't stream a grade into sections at all — "Grade 5" is one
+ * single class. That's stored as a single Class row with `section = null`, and
+ * the UI must not invent a fake "Section Main" heading for it.
+ */
+export function isSectionless(group: { sections?: any[] } | null | undefined) {
+  const sections = group?.sections || [];
+  return sections.length === 1 && !sections[0]?.section;
 }
 
 export function classGroupKey(item: any) {
@@ -516,6 +530,7 @@ export function AcademicPanel({
   campusName,
   onAddClass,
   onAddStudent,
+  onBulkImport,
   onViewClass,
   onChangeTeacher,
   onDeleteClass,
@@ -532,13 +547,14 @@ export function AcademicPanel({
   campusName?: string;
   onAddClass: () => void;
   onAddStudent: (classId?: string) => void;
+  onBulkImport?: (classId?: string) => void;
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
-  onAddSection?: (name: string, section: string, academicYear: number) => Promise<void>;
+  onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
   const classGroups = groupClasses(classes);
   const [showAllExams, setShowAllExams] = useState(false);
@@ -583,6 +599,7 @@ export function AcademicPanel({
               teachers={teachers}
               students={students || []}
               onAddStudent={onAddStudent}
+              onBulkImport={onBulkImport}
               onViewClass={onViewClass}
               onChangeTeacher={onChangeTeacher}
               onDeleteClass={onDeleteClass}
@@ -1399,141 +1416,6 @@ export function AIPanel({
   );
 }
 
-export function ClassModal({
-  form,
-  teachers,
-  busy,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  form: ClassFormState;
-  teachers: any[];
-  busy: boolean;
-  onChange: (form: ClassFormState) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalFrame title="Add Class" eyebrow="Academic setup" onClose={onClose}>
-      <div className="space-y-4">
-        <FormInput
-          label="Class Name"
-          value={form.name}
-          placeholder="e.g. Grade 8"
-          onChange={(value) => onChange({ ...form, name: value })}
-        />
-        <FormInput
-          label="Academic Year"
-          type="number"
-          value={String(form.academicYear)}
-          placeholder="2026"
-          onChange={(value) => onChange({ ...form, academicYear: Number(value) || new Date().getFullYear() })}
-        />
-      </div>
-      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Class" onClose={onClose} onSave={onSave} />
-    </ModalFrame>
-  );
-}
-
-export function StudentModal({
-  form,
-  classes,
-  busy,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  form: StudentFormState;
-  classes: any[];
-  busy: boolean;
-  onChange: (form: StudentFormState) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const classGroups = groupClasses(classes);
-  const selectedClass = classes.find((cls) => cls.id === form.classId);
-  const selectedGroupKey = selectedClass ? classGroupKey(selectedClass) : classGroups[0]?.key || "";
-  const selectedGroup = classGroups.find((group) => group.key === selectedGroupKey);
-
-  const selectClassGroup = (key: string) => {
-    const group = classGroups.find((item) => item.key === key);
-    onChange({ ...form, classId: group?.sections?.[0]?.id || "" });
-  };
-
-  return (
-    <ModalFrame title="Add Student" eyebrow="Enrollment" onClose={onClose}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormSelect label="Class" value={selectedGroupKey} onChange={selectClassGroup}>
-            <option value="">Select class</option>
-            {classGroups.map((group) => (
-              <option key={group.key} value={group.key}>
-                {group.name} - {group.academicYear}
-              </option>
-            ))}
-          </FormSelect>
-          <FormSelect label="Section" value={form.classId} onChange={(value) => onChange({ ...form, classId: value })}>
-            <option value="">Select section</option>
-            {(selectedGroup?.sections || []).map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                Section {sectionLabel(cls)}
-              </option>
-            ))}
-          </FormSelect>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput
-            label="Student Name"
-            value={form.fullName}
-            placeholder="Full name"
-            onChange={(value) => onChange({ ...form, fullName: value })}
-          />
-          <FormInput
-            label="Roll No"
-            value={form.rollNo}
-            placeholder="e.g. 08-A-12"
-            onChange={(value) => onChange({ ...form, rollNo: value })}
-          />
-        </div>
-        <FormSelect label="Gender" value={form.gender} onChange={(value) => onChange({ ...form, gender: value as StudentFormState["gender"] })}>
-          <option value="OTHER">Other</option>
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-        </FormSelect>
-        <FormInput
-          label="Student Login Email"
-          type="email"
-          value={form.studentEmail}
-          placeholder="student@example.com"
-          onChange={(value) => onChange({ ...form, studentEmail: value })}
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput
-            label="Guardian Name"
-            value={form.guardianName}
-            placeholder="Parent / guardian"
-            onChange={(value) => onChange({ ...form, guardianName: value })}
-          />
-          <FormInput
-            label="Guardian Phone"
-            value={form.guardianPhone}
-            placeholder="+92..."
-            onChange={(value) => onChange({ ...form, guardianPhone: value })}
-          />
-        </div>
-        <FormInput
-          label="Guardian Email"
-          type="email"
-          value={form.guardianEmail}
-          placeholder="parent@example.com"
-          onChange={(value) => onChange({ ...form, guardianEmail: value })}
-        />
-      </div>
-      <ModalActions busy={busy} busyLabel="Adding" actionLabel="Add Student" onClose={onClose} onSave={onSave} />
-    </ModalFrame>
-  );
-}
 
 export function MoveStudentModal({
   student,
@@ -1586,7 +1468,7 @@ export function MoveStudentModal({
           <option value="">Select section</option>
           {(selectedGroup?.sections || []).map((cls) => (
             <option key={cls.id} value={cls.id} disabled={cls.id === currentClassId}>
-              Section {sectionLabel(cls)}{cls.id === currentClassId ? " (current)" : ""}
+              {cls.section ? `Section ${cls.section}` : "Whole class"}{cls.id === currentClassId ? " (current)" : ""}
             </option>
           ))}
         </FormSelect>
@@ -1619,17 +1501,18 @@ export function ClassDetailModal({
   cls,
   students,
   teachers,
+  classes,
   teacherBusy,
   subjectBusyId,
   creatingSubject,
-  applyingSubjects,
+  teachingModeBusy,
   classUpdateBusy,
   subjectUpdateBusyId,
   onClose,
   onChangeTeacher,
+  onChangeTeachingMode,
   onCreateSubject,
   onChangeSubjectTeacher,
-  onApplyClassTeacherToSubjects,
   onAddStudent,
   onViewStudent,
   onDeleteClass,
@@ -1640,17 +1523,21 @@ export function ClassDetailModal({
   cls: any;
   students: any[];
   teachers: any[];
+  classes?: any[];
   teacherBusy: boolean;
   subjectBusyId: string | null;
   creatingSubject: boolean;
-  applyingSubjects: boolean;
+  teachingModeBusy?: boolean;
   classUpdateBusy: boolean;
   subjectUpdateBusyId: string | null;
   onClose: () => void;
   onChangeTeacher: (classId: string, classTeacherId: string) => void;
-  onCreateSubject: (classId: string, subject: { name: string; totalMarks: number; teacherId: string }) => Promise<boolean>;
+  onChangeTeachingMode: (classId: string, mode: "SINGLE" | "SUBJECT") => void;
+  onCreateSubject: (
+    classId: string,
+    subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }
+  ) => Promise<boolean>;
   onChangeSubjectTeacher: (classId: string, subjectId: string, teacherId: string) => void;
-  onApplyClassTeacherToSubjects: (classId: string, classTeacherId: string, subjects: any[]) => void;
   onAddStudent: () => void;
   onViewStudent: (student: any) => void;
   onDeleteClass: (cls: any) => void;
@@ -1658,28 +1545,47 @@ export function ClassDetailModal({
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  const [classTeacherId, setClassTeacherId] = useState(cls.classTeacher?.id || "");
-  const [teachingMode, setTeachingMode] = useState<"single" | "subject">(inferTeachingMode(cls));
-  const [subjectTeacherIds, setSubjectTeacherIds] = useState<Record<string, string>>(subjectTeacherDefaults(cls));
+  type ManageTab = "overview" | "subjects" | "students";
+  const [tab, setTab] = useState<ManageTab>("overview");
+  // Campus-wide teacher load/clash data, refreshed after each assignment so
+  // warnings reflect the change the admin just made.
+  const { availability, refresh: refreshAvailability } = useTeacherAvailability();
+
+  // Teaching mode is a saved property of the section, not a view toggle:
+  // SINGLE  = the class teacher takes every subject
+  // SUBJECT = each subject has its own teacher
+  const teachingMode: "SINGLE" | "SUBJECT" = cls.teachingMode === "SUBJECT" ? "SUBJECT" : "SINGLE";
+
   const [subjectName, setSubjectName] = useState("");
   const [subjectMarks, setSubjectMarks] = useState("100");
-  const [newSubjectTeacherId, setNewSubjectTeacherId] = useState(cls.classTeacher?.id || "");
+  const [newSubjectTeacherId, setNewSubjectTeacherId] = useState("");
+  const [applyToAllSections, setApplyToAllSections] = useState(false);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [editSubjectName, setEditSubjectName] = useState("");
   const [editSubjectMarks, setEditSubjectMarks] = useState("100");
 
+  // Only reset the add-subject teacher default when a *different* class is
+  // opened. Keying on cls.id alone (not the subjects array, whose identity
+  // changes on every parent refetch) is what stops in-progress edits from
+  // being wiped mid-interaction.
   useEffect(() => {
-    setClassTeacherId(cls.classTeacher?.id || "");
-    setTeachingMode(inferTeachingMode(cls));
-    setSubjectTeacherIds(subjectTeacherDefaults(cls));
     setNewSubjectTeacherId(cls.classTeacher?.id || "");
-  }, [cls.id, cls.classTeacher?.id, cls.subjects]);
+    setTab("overview");
+    setEditingSubjectId(null);
+    setApplyToAllSections(false);
+  }, [cls.id]);
+
+  const siblingSections = useMemo(
+    () => (classes || []).filter((c: any) => classGroupKey(c) === classGroupKey(cls)),
+    [classes, cls]
+  );
 
   const createSubject = async () => {
     const created = await onCreateSubject(cls.id, {
       name: subjectName,
       totalMarks: Number(subjectMarks) || 100,
-      teacherId: newSubjectTeacherId,
+      teacherId: teachingMode === "SINGLE" ? cls.classTeacher?.id || "" : newSubjectTeacherId,
+      applyToAllSections,
     });
     if (created) {
       setSubjectName("");
@@ -1723,132 +1629,205 @@ export function ClassDetailModal({
     setEditingSubjectId(null);
   };
 
+  const subjectCount = cls.subjects?.length || 0;
+  const unassignedCount = (cls.subjects || []).filter((s: any) => !s.teacher?.id).length;
+
+  const TABS: { key: ManageTab; label: string; icon: LucideIcon; badge?: number }[] = [
+    { key: "overview", label: "Overview", icon: LayoutGrid },
+    { key: "subjects", label: "Subjects", icon: BookOpen, badge: subjectCount },
+    { key: "students", label: "Students", icon: GraduationCap, badge: students.length },
+  ];
+
   return (
-    <ModalFrame title={classLabel(cls)} eyebrow="Class profile" onClose={onClose} wide>
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onDeleteClass(cls)}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete Class
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditingClass(!editingClass)}
-            className={cn(
-              "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
-              editingClass ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
-            )}
-          >
-            {editingClass ? "Cancel" : "Edit Class"}
-          </button>
-        </div>
+    <ModalFrame title={classLabel(cls)} eyebrow="Manage class" onClose={onClose} wide>
+      {/* Tabs — the modal used to be one long scroll mixing class settings,
+          subjects and students together, which made it hard to tell what a
+          given control actually affected. */}
+      <div className="mb-5 flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-wider transition-all",
+                active ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+              {t.badge !== undefined ? (
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[8px]", active ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-white/70 text-[#4d4354]/45")}>
+                  {t.badge}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
-      {editingClass ? (
-        <div className="mb-4 rounded-3xl bg-[#fbf0fe]/65 p-5 space-y-4">
+      {tab === "overview" ? (
+        <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <FormInput label="Class Name" value={editClassName} placeholder="e.g. Class 10" onChange={setEditClassName} />
-            <FormInput label="Section" value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
-            <FormInput label="Academic Year" type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+            <MiniMetric label="Students" value={students.length} active />
+            <MiniMetric label="Subjects" value={subjectCount} />
+            <MiniMetric label="Academic Year" value={cls.academicYear || "N/A"} />
           </div>
-          <div className="flex justify-end">
-            <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
-              {classUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Class Details"}
-            </BrandButton>
+
+          {/* Teaching mode — the single most important setting on this screen,
+              so it leads and explains itself rather than sitting as an
+              unexplained toggle next to the teacher field. */}
+          <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
+            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">How is this section taught?</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {([
+                { mode: "SINGLE" as const, title: "One teacher", copy: "The class teacher takes every subject in this section." },
+                { mode: "SUBJECT" as const, title: "Teacher per subject", copy: "Each subject is assigned its own teacher." },
+              ]).map((option) => {
+                const active = teachingMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    disabled={teachingModeBusy}
+                    onClick={() => { if (!active) onChangeTeachingMode(cls.id, option.mode); }}
+                    className={cn(
+                      "rounded-2xl border-2 p-4 text-left transition-all cursor-pointer disabled:cursor-wait disabled:opacity-60",
+                      active
+                        ? "border-[#8127cf] bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
+                        : "border-transparent bg-white/60 hover:border-[#8127cf]/25 hover:bg-white"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn("text-sm font-black", active ? "text-[#8127cf]" : "text-[#1f1a23]")}>{option.title}</p>
+                      {active ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
+                    </div>
+                    <p className="mt-1 text-[10px] font-bold leading-relaxed text-[#4d4354]/55">{option.copy}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {teachingMode === "SINGLE" ? (
+              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-[10px] font-bold leading-relaxed text-[#4d4354]/55">
+                Every subject below follows the class teacher automatically — changing the class teacher updates them all.
+              </p>
+            ) : null}
+          </div>
+
+          {/* Class teacher — saves on selection, no separate Save click. */}
+          <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Class Teacher</p>
+                <p className="mt-1 truncate text-base font-black tracking-tight text-[#1f1a23]">
+                  {cls.classTeacher?.fullName || "Unassigned"}
+                </p>
+                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                  {cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard."}
+                </p>
+              </div>
+              {cls.classTeacher?.profileImageUrl ? (
+                <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm sm:block">
+                  <img src={cls.classTeacher.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                </div>
+              ) : null}
+            </div>
+            <div className="relative">
+              <TeacherPicker
+                label={teacherBusy ? "Saving…" : "Change Class Teacher"}
+                teachers={teachers}
+                availability={availability}
+                assignmentMode={teachingMode === "SINGLE" ? "homeroom" : "subject"}
+                currentClassId={cls.id}
+                value={cls.classTeacher?.id || ""}
+                onChange={(value) => {
+                  if (value !== (cls.classTeacher?.id || "")) {
+                    onChangeTeacher(cls.id, value);
+                    setTimeout(refreshAvailability, 600);
+                  }
+                }}
+                allowUnassigned
+                showUnassignedHint={!cls.classTeacher?.id}
+              />
+              {teacherBusy ? (
+                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+              ) : null}
+            </div>
+          </div>
+
+          {/* Class identity + destructive actions, kept together at the bottom. */}
+          <div className="rounded-3xl border border-[#cfc2d6]/25 bg-white p-5">
+            <div className="flex items-center justify-between gap-3">
+              <PanelTitle icon={School} title="Class details" />
+              <button
+                type="button"
+                onClick={() => setEditingClass(!editingClass)}
+                className={cn(
+                  "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+                  editingClass ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+                )}
+              >
+                {editingClass ? "Cancel" : "Edit"}
+              </button>
+            </div>
+            {editingClass ? (
+              <div className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <FormInput label="Class Name" value={editClassName} placeholder="e.g. Class 10" onChange={setEditClassName} />
+                  <FormInput label="Section" value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
+                  <FormInput label="Academic Year" type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+                </div>
+                <div className="flex justify-end">
+                  <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
+                    {classUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Class Details"}
+                  </BrandButton>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-bold text-[#4d4354]/55">
+                  {cls.name}{cls.section ? ` · Section ${cls.section}` : ""} · {cls.academicYear}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onDeleteClass(cls)}
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Class
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <MiniMetric label="Students" value={students.length} active />
-        <MiniMetric label="Subjects" value={cls._count?.subjects || cls.subjects?.length || 0} />
-        <MiniMetric label="Academic Year" value={cls.academicYear || "N/A"} />
-      </div>
-
-      <div className="mt-5 rounded-3xl bg-[#fbf0fe]/65 p-5">
-        <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Class Teacher</p>
-            <p className="mt-1 text-base font-black text-[#1f1a23] tracking-tight">{cls.classTeacher?.fullName || "Unassigned"}</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-              {cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard."}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex rounded-2xl bg-white p-1 shadow-sm">
-              {(["single", "subject"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setTeachingMode(mode)}
-                  className={cn(
-                    "h-10 cursor-pointer rounded-xl px-4 text-[10px] font-black uppercase tracking-wider transition-all duration-200",
-                    teachingMode === mode ? "bg-[#8127cf] text-white shadow-md" : "text-[#4d4354]/50 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  )}
-                >
-                  {mode === "single" ? "One Teacher" : "Subject Teachers"}
-                </button>
-              ))}
-            </div>
-            {cls.classTeacher?.profileImageUrl ? (
-              <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm sm:block">
-                <img src={cls.classTeacher.profileImageUrl} alt="" className="h-full w-full object-cover" />
-              </div>
-            ) : null}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <FormSelect label="Change Class Teacher" value={classTeacherId} onChange={setClassTeacherId}>
-            <option value="">Unassigned</option>
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.id}>
-                {teacher.fullName}
-              </option>
-            ))}
-          </FormSelect>
-          <BrandButton
-            variant="dark"
-            className="h-14"
-            onClick={() => onChangeTeacher(cls.id, classTeacherId)}
-            disabled={teacherBusy || classTeacherId === (cls.classTeacher?.id || "")}
-          >
-            {teacherBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Teacher"}
-          </BrandButton>
-        </div>
-        {teachingMode === "single" ? (
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs font-bold leading-relaxed text-[#4d4354]/55">
-              This keeps the same teacher responsible for the class and every subject in the class.
-            </p>
-            <BrandButton
-              variant="soft"
-              className="h-12 shrink-0"
-              onClick={() => onApplyClassTeacherToSubjects(cls.id, classTeacherId, cls.subjects || [])}
-              disabled={applyingSubjects || !classTeacherId || !cls.subjects?.length}
-            >
-              {applyingSubjects ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply To Subjects"}
-            </BrandButton>
-          </div>
-        ) : (
-          <p className="mt-4 rounded-2xl bg-white/70 p-4 text-xs font-bold leading-relaxed text-[#4d4354]/55">
-            Each subject can be assigned to a different teacher. Those teachers will see their subjects, marks, and attendance tools in their own dashboard.
-          </p>
-        )}
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
+      {tab === "subjects" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <PanelTitle icon={BookOpen} title="Subjects" />
-            <StatusPill status={`${cls.subjects?.length || 0} Listed`} />
+            <div className="flex items-center gap-2">
+              {unassignedCount > 0 && teachingMode === "SUBJECT" ? (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
+                  {unassignedCount} unassigned
+                </span>
+              ) : null}
+              <StatusPill status={teachingMode === "SINGLE" ? "One Teacher" : "Per Subject"} />
+            </div>
           </div>
+
+          {teachingMode === "SINGLE" ? (
+            <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-[11px] font-bold leading-relaxed text-[#4d4354]/60">
+              All subjects are taught by <span className="text-[#8127cf]">{cls.classTeacher?.fullName || "the class teacher (unassigned)"}</span>.
+              Switch to “Teacher per subject” on the Overview tab to assign them individually.
+            </p>
+          ) : null}
+
           <div className="space-y-3">
             {cls.subjects?.map((subject: any) => {
-              const selectedTeacherId = subjectTeacherIds[subject.id] ?? "";
               const isEditing = editingSubjectId === subject.id;
               return (
                 <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/55 p-4">
@@ -1886,16 +1865,13 @@ export function ClassDetailModal({
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <StatusPill status={subject.teacher?.id ? "Assigned" : "Unassigned"} />
                           <button
                             type="button"
                             onClick={() => startEditingSubject(subject)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
                             title="Edit subject"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                            </svg>
+                            <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
@@ -1907,68 +1883,91 @@ export function ClassDetailModal({
                           </button>
                         </div>
                       </div>
-                      {teachingMode === "subject" ? (
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                          <FormSelect
-                            label="Subject Teacher"
-                            value={selectedTeacherId}
-                            onChange={(value) => setSubjectTeacherIds((current) => ({ ...current, [subject.id]: value }))}
-                          >
-                            <option value="">Unassigned</option>
-                            {teachers.map((teacher) => (
-                              <option key={teacher.id} value={teacher.id}>
-                                {teacher.fullName}
-                              </option>
-                            ))}
-                          </FormSelect>
-                          <BrandButton
-                            variant="dark"
-                            className="h-14"
-                            onClick={() => onChangeSubjectTeacher(cls.id, subject.id, selectedTeacherId)}
-                            disabled={subjectBusyId === subject.id || selectedTeacherId === (subject.teacher?.id || "")}
-                          >
-                            {subjectBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                          </BrandButton>
+                      {teachingMode === "SUBJECT" ? (
+                        <div className="relative mt-4">
+                          <TeacherPicker
+                            label={subjectBusyId === subject.id ? "Saving…" : "Subject Teacher"}
+                            teachers={teachers}
+                            availability={availability}
+                            assignmentMode="subject"
+                            subjectName={subject.name}
+                            value={subject.teacher?.id || ""}
+                            onChange={(value) => {
+                              if (value !== (subject.teacher?.id || "")) {
+                                onChangeSubjectTeacher(cls.id, subject.id, value);
+                                setTimeout(refreshAvailability, 600);
+                              }
+                            }}
+                            allowUnassigned
+                            showUnassignedHint={!subject.teacher?.id}
+                          />
+                          {subjectBusyId === subject.id ? (
+                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+                          ) : null}
                         </div>
                       ) : null}
+                      <SubjectSyllabus subjectId={subject.id} />
                     </>
                   )}
                 </div>
               );
             })}
-            {!cls.subjects?.length ? <EmptyInline text="No subjects are attached to this class yet." /> : null}
+            {!subjectCount ? <EmptyInline text="No subjects are attached to this class yet." /> : null}
           </div>
 
-          <div className="mt-4 rounded-3xl border border-[#cfc2d6]/10 bg-white p-4">
+          <div className="rounded-3xl border border-[#cfc2d6]/25 bg-white p-4">
             <PanelTitle icon={Plus} title="Add Subject" />
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <FormInput label="Subject Name" value={subjectName} placeholder="e.g. Mathematics" onChange={setSubjectName} />
               <FormInput label="Total Marks" type="number" value={subjectMarks} placeholder="100" onChange={setSubjectMarks} />
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-              <FormSelect label="Initial Teacher" value={newSubjectTeacherId} onChange={setNewSubjectTeacherId}>
-                <option value="">Unassigned</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.fullName}
-                  </option>
-                ))}
-              </FormSelect>
-              <BrandButton variant="dark" className="h-14" onClick={createSubject} disabled={creatingSubject}>
+            {teachingMode === "SUBJECT" ? (
+              <div className="mt-3">
+                <TeacherPicker label="Subject Teacher (optional)" teachers={teachers} availability={availability} assignmentMode="subject" subjectName={subjectName} value={newSubjectTeacherId} onChange={setNewSubjectTeacherId} allowUnassigned />
+              </div>
+            ) : null}
+            {siblingSections.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setApplyToAllSections((v) => !v)}
+                className="mt-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 p-3 text-left transition-all hover:bg-[#fbf0fe]"
+              >
+                <span
+                  className={cn(
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
+                    applyToAllSections ? "border-[#8127cf] bg-[#8127cf]" : "border-[#cfc2d6]/50 bg-white"
+                  )}
+                >
+                  {applyToAllSections ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-black text-[#1f1a23]">
+                    Add to all {siblingSections.length} sections of {cls.name}
+                  </span>
+                  <span className="block text-[9px] font-bold text-[#4d4354]/50">
+                    Sections that already have this subject are skipped.
+                  </span>
+                </span>
+              </button>
+            ) : null}
+            <div className="mt-3 flex justify-end">
+              <BrandButton variant="dark" className="h-12" onClick={createSubject} disabled={creatingSubject}>
                 {creatingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Subject"}
               </BrandButton>
             </div>
           </div>
         </div>
+      ) : null}
 
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
+      {tab === "students" ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
             <PanelTitle icon={GraduationCap} title="Students" />
             <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onAddStudent}>
-              Add
+              Add Student
             </BrandButton>
           </div>
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
             {students.map((student) => (
               <button
                 key={student.id}
@@ -1976,7 +1975,7 @@ export function ClassDetailModal({
                 onClick={() => onViewStudent(student)}
                 className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/55 px-4 py-3 text-left transition-all hover:bg-white hover:shadow-md"
               >
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-white shadow-sm">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <img
                     src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`}
                     alt=""
@@ -1994,7 +1993,7 @@ export function ClassDetailModal({
             {students.length === 0 ? <EmptyInline text="No students are enrolled in this class yet." /> : null}
           </div>
         </div>
-      </div>
+      ) : null}
     </ModalFrame>
   );
 }
@@ -2328,6 +2327,19 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [teachesAll, setTeachesAll] = useState(false);
+  const [specialtyDraft, setSpecialtyDraft] = useState("");
+
+  useEffect(() => {
+    setSpecialties(
+      teacher.subjectSpecialties?.length
+        ? teacher.subjectSpecialties
+        : (teacher.specialization || "").split(",").map((x: string) => x.trim()).filter(Boolean)
+    );
+    setTeachesAll(Boolean(teacher.teachesAllSubjects));
+    setSpecialtyDraft("");
+  }, [teacher.id]);
 
   useEffect(() => {
     setEdits({
@@ -2363,6 +2375,10 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
         "emergencyContact", "emergencyPhone",
       ];
       for (const f of strFields) updates[f] = edits[f] || null;
+      updates.subjectSpecialties = specialties;
+      updates.teachesAllSubjects = teachesAll;
+      // Keep the legacy free-text field readable for anything still showing it.
+      updates.specialization = teachesAll ? "All subjects" : specialties.join(", ") || null;
       if (edits.fullName) updates.fullName = edits.fullName;
       if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
       if (edits.joiningDate) updates.joiningDate = edits.joiningDate;
@@ -2476,14 +2492,32 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                 <option value="B.Ed">B.Ed</option>
                 <option value="M.Ed">M.Ed</option>
               </FormSelect>
-              <FormInput label="Specialization" value={ed("specialization")} placeholder="e.g. Mathematics" onChange={(v) => setEd("specialization", v)} />
               <FormInput label="Experience" value={ed("experience")} placeholder="e.g. 5 years" onChange={(v) => setEd("experience", v)} />
               <FormInput label="Joining Date" value={ed("joiningDate")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("joiningDate", v)} />
+              <div className="sm:col-span-2">
+                <SpecialtyEditor
+                  specialties={specialties}
+                  teachesAll={teachesAll}
+                  draft={specialtyDraft}
+                  onDraftChange={setSpecialtyDraft}
+                  onAdd={(name) => {
+                    const clean = name.trim();
+                    if (!clean) return;
+                    setSpecialties((cur) => (cur.some((s) => s.toLowerCase() === clean.toLowerCase()) ? cur : [...cur, clean]));
+                    setSpecialtyDraft("");
+                  }}
+                  onRemove={(name) => setSpecialties((cur) => cur.filter((s) => s !== name))}
+                  onToggleAll={() => setTeachesAll((v) => !v)}
+                />
+              </div>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
               <DetailRow label="Qualification" value={teacher.qualification || "N/A"} />
-              <DetailRow label="Specialization" value={teacher.specialization || "N/A"} />
+              <DetailRow
+                label="Teaches"
+                value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
+              />
               <DetailRow label="Experience" value={teacher.experience || "N/A"} />
               <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
             </div>
@@ -2711,6 +2745,7 @@ export function ClassGroupCard({
   teachers,
   students,
   onAddStudent,
+  onBulkImport,
   onViewClass,
   onChangeTeacher,
   onDeleteClass,
@@ -2723,27 +2758,37 @@ export function ClassGroupCard({
   teachers: any[];
   students: any[];
   onAddStudent: (classId?: string) => void;
+  onBulkImport?: (classId?: string) => void;
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
-  onAddSection?: (name: string, section: string, academicYear: number) => Promise<void>;
+  onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const [addingSectionBusy, setAddingSectionBusy] = useState(false);
   const studentCount = group.sections.reduce((sum, cls) => sum + (cls._count?.students || 0), 0);
   const subjectCount = group.sections.reduce((sum, cls) => sum + (cls._count?.subjects || cls.subjects?.length || 0), 0);
+  const sectionless = isSectionless(group);
 
   const handleAddSection = async () => {
     if (!newSectionName.trim()) return;
     setAddingSectionBusy(true);
     try {
       if (onAddSection) {
-        await onAddSection(group.name, newSectionName.trim(), Number(group.academicYear));
+        // A sectionless class already occupies the "no section" slot. Adding
+        // its first real section must rename that row, otherwise the students
+        // stay stranded on an unnamed sibling class.
+        await onAddSection(
+          group.name,
+          newSectionName.trim(),
+          Number(group.academicYear),
+          sectionless ? group.sections[0]?.id : undefined
+        );
       }
       setNewSectionName("");
       setAddingSection(false);
@@ -2780,7 +2825,6 @@ export function ClassGroupCard({
         aria-expanded={open}
       >
         <div className="relative flex items-center gap-3 min-w-0">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
           <div className={cn(
             "relative flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
             open ? "h-10 w-10" : "h-8 w-8"
@@ -2793,7 +2837,9 @@ export function ClassGroupCard({
             </p>
             {open ? (
               <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-                {group.academicYear} - {group.sections.length} section{group.sections.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}
+                {group.academicYear} - {sectionless
+                  ? "No sections"
+                  : `${group.sections.length} section${group.sections.length === 1 ? "" : "s"}`} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}
               </p>
             ) : null}
           </div>
@@ -2836,6 +2882,7 @@ export function ClassGroupCard({
               students={(students || []).filter((s: any) => s.class?.id === cls.id || s.classId === cls.id)}
               onViewClass={onViewClass}
               onAddStudent={onAddStudent}
+              onBulkImport={onBulkImport}
               onChangeTeacher={onChangeTeacher}
               onDeleteClass={onDeleteClass}
               onUpdateClass={onUpdateClass}
@@ -2850,7 +2897,7 @@ export function ClassGroupCard({
                   type="text"
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
-                  placeholder="Section name (e.g. C)"
+                  placeholder={sectionless ? "First section name (e.g. A)" : "Section name (e.g. C)"}
                   className="h-10 flex-1 rounded-xl bg-white border border-[#8127cf]/20 px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-[#4d4354]/30"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
@@ -2878,9 +2925,15 @@ export function ClassGroupCard({
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 transition-all duration-200 hover:border-[#8127cf]/30 hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                Add Section
+                {sectionless ? "Split into sections" : "Add Section"}
               </button>
             )}
+            {sectionless && addingSection ? (
+              <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-[#4d4354]/50">
+                This class currently has no sections. Naming one moves the existing
+                students and subjects into it — nothing is lost.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2895,6 +2948,7 @@ export function SectionCard({
   students,
   onViewClass,
   onAddStudent,
+  onBulkImport,
   onChangeTeacher,
   onDeleteClass,
   onUpdateClass,
@@ -2907,14 +2961,14 @@ export function SectionCard({
   students: any[];
   onViewClass: (cls: any) => void;
   onAddStudent: (classId?: string) => void;
+  onBulkImport?: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(true);
-  const [changingTeacher, setChangingTeacher] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAllStudents, setShowAllStudents] = useState(false);
   const subjectCount = cls.subjects?.length || cls._count?.subjects || 0;
   const studentCount = students.length || cls._count?.students || 0;
@@ -2924,7 +2978,7 @@ export function SectionCard({
     <div className="rounded-2xl bg-[#fbf0fe]/55 overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-[#1f1a23]">Section {sectionLabel(cls)}</p>
+          <p className="text-sm font-black text-[#1f1a23]">{cls.section ? `Section ${cls.section}` : "Whole class"}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
               <UserCheck className="h-3 w-3" />
@@ -2934,6 +2988,12 @@ export function SectionCard({
             <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
             <span className="text-[#4d4354]/20">|</span>
             <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
+            <span
+              className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]"
+              title={cls.teachingMode === "SUBJECT" ? "Each subject has its own teacher" : "The class teacher takes every subject"}
+            >
+              {cls.teachingMode === "SUBJECT" ? "Per subject" : "One teacher"}
+            </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -2941,10 +3001,10 @@ export function SectionCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onViewClass(cls); }}
             className="flex h-8 items-center gap-1 rounded-lg bg-[#8127cf]/10 px-2.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95 cursor-pointer"
-            title="Edit section details"
+            title="Manage section: teachers, subjects, syllabus"
           >
-            <Pencil className="h-3 w-3" />
-            Edit
+            <Settings className="h-3 w-3" />
+            Manage
           </button>
           {onDeleteClass ? (
             <button
@@ -2956,47 +3016,17 @@ export function SectionCard({
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           ) : null}
-          {changingTeacher ? (
-            <select
-              value={classTeacherId || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val !== classTeacherId) onChangeTeacher(cls.id, val);
-                setChangingTeacher(false);
-              }}
-              className="h-9 rounded-xl bg-white px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/20 outline-none cursor-pointer"
-              autoFocus
-              onBlur={() => setChangingTeacher(false)}
-            >
-              <option value="">No teacher</option>
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>{t.fullName}</option>
-              ))}
-            </select>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setChangingTeacher(true); }}
-              className={cn(
-                "flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider transition-all duration-200",
-                cls.classTeacher
-                  ? "bg-emerald-50 text-emerald-700 hover:bg-amber-50 hover:text-amber-700"
-                  : "bg-amber-50 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700"
-              )}
-            >
-              <Users className="h-3 w-3" />
-              {cls.classTeacher ? "Chg" : "Asgn"}
-            </button>
-          )}
           {onAddStudent ? (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }}
               className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95"
+              title="Add a single student"
             >
               + Student
             </button>
           ) : null}
+
           <button
             type="button"
             onClick={() => setDetailsOpen((v) => !v)}
@@ -3019,7 +3049,7 @@ export function SectionCard({
             {cls.subjects?.length ? (
               <div className="space-y-1.5">
                 {cls.subjects.map((subject: any) => (
-                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 group/subj">
+                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
                       <p className="text-[8px] font-bold uppercase tracking-wider text-[#4d4354]/40 mt-0.5">
@@ -3034,22 +3064,13 @@ export function SectionCard({
                         <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
                         {subject.teacher?.id ? "Assigned" : "Unassigned"}
                       </span>
-                      {onDeleteSubject ? (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); onDeleteSubject(subject); }}
-                          className="flex h-6 w-6 items-center justify-center rounded-md text-[#4d4354]/20 transition-all opacity-0 group-hover/subj:opacity-100 hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
-                No subjects yet. Click Edit to add subjects and assign teachers.
+                No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.
               </p>
             )}
           </div>
@@ -3389,195 +3410,6 @@ export function EmptyInline({ text }: { text: string }) {
   );
 }
 
-export function BulkStudentImport({
-  campusName,
-  classes,
-  onClose,
-  onComplete,
-}: {
-  campusName: string;
-  classes: any[];
-  onClose: () => void;
-  onComplete: () => Promise<any>;
-}) {
-  const [csvText, setCsvText] = useState("");
-  const [preview, setPreview] = useState<any[]>([]);
-  const [parsedError, setParsedError] = useState("");
-  const [importing, setImporting] = useState(false);
-
-  const parseCSVRow = (line: string): string[] => {
-    const cols: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        inQuotes = !inQuotes;
-      } else if (ch === "," && !inQuotes) {
-        cols.push(current.trim());
-        current = "";
-      } else {
-        current += ch;
-      }
-    }
-    cols.push(current.trim());
-    return cols;
-  };
-
-  const downloadTemplate = () => {
-    const csv = "Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email\nJohn Doe,101,MALE,Grade 8 A,Jane Doe,+923001234567,jane@example.com\nJane Smith,102,FEMALE,Grade 8 A,,+923001234568,\nAlex Lee,103,OTHER,Grade 8 B,,,";
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "student_import_template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const parseCSV = (text: string) => {
-    setParsedError("");
-    const lines = text.trim().split("\n").filter(Boolean);
-    if (lines.length < 2) {
-      setPreview([]);
-      return;
-    }
-    const headers = parseCSVRow(lines[0]).map((h) => h.trim().toLowerCase());
-    const nameIdx = headers.findIndex((h) => h.includes("name") || h === "fullname" || h === "full_name");
-    const rollIdx = headers.findIndex((h) => h.includes("roll") || h === "rollno" || h === "roll_no");
-    const genderIdx = headers.findIndex((h) => h.includes("gender"));
-    const classIdx = headers.findIndex((h) => h.includes("class"));
-    const guardianIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("name"));
-    const guardianPhoneIdx = headers.findIndex((h) => h.includes("guardian") && (h.includes("phone") || h.includes("whatsapp")));
-    const guardianEmailIdx = headers.findIndex((h) => h.includes("guardian") && h.includes("email"));
-
-    if (nameIdx === -1 || rollIdx === -1) {
-      setParsedError("CSV must have at least \"Full Name\" and \"Roll No\" columns");
-      setPreview([]);
-      return;
-    }
-
-    const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVRow(lines[i]).map((c) => c.trim());
-      const name = cols[nameIdx] || "";
-      const rollNo = cols[rollIdx] || "";
-      if (!name || !rollNo) continue;
-
-      const className = classIdx >= 0 ? cols[classIdx] || "" : "";
-      const matchedClass = className
-        ? classes.find((c) => `${c.name} ${c.section || ""}`.trim().toLowerCase() === className.toLowerCase())
-        : null;
-
-      rows.push({
-        fullName: name,
-        rollNo,
-        gender: genderIdx >= 0 ? (cols[genderIdx]?.toUpperCase() === "F" || cols[genderIdx]?.toUpperCase() === "FEMALE" ? "FEMALE" : cols[genderIdx]?.toUpperCase() === "OTHER" ? "OTHER" : "MALE") : "MALE",
-        classId: matchedClass?.id || (classIdx >= 0 ? "__unknown__" : classes[0]?.id || ""),
-        className: matchedClass ? `${matchedClass.name} ${matchedClass.section || ""}`.trim() : className || (classes[0] ? `${classes[0].name} ${classes[0].section || ""}`.trim() : "Unknown"),
-        guardianName: guardianIdx >= 0 ? cols[guardianIdx] || "" : "",
-        guardianPhone: guardianPhoneIdx >= 0 ? cols[guardianPhoneIdx] || "" : "",
-        guardianEmail: guardianEmailIdx >= 0 ? cols[guardianEmailIdx] || "" : "",
-        _unknownClass: !matchedClass && className ? className : "",
-      });
-    }
-    setPreview(rows);
-  };
-
-  const handleImport = async () => {
-    if (preview.length === 0) return toast.error("No valid rows to import");
-    const unknownClasses = [...new Set(preview.filter((r) => r._unknownClass).map((r) => r._unknownClass))];
-    if (unknownClasses.length > 0) {
-      return toast.error(`Unknown classes: ${unknownClasses.join(", ")}. Check the class names or add them first.`);
-    }
-    setImporting(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          students: preview.map(({ _unknownClass, className, ...rest }) => rest),
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Import failed");
-      toast.success(result.message || `${preview.length} students imported`);
-      setCsvText("");
-      setPreview([]);
-      await onComplete();
-      onClose();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <ModalFrame title={`Bulk Import Students — ${campusName}`} eyebrow="Student enrollment" onClose={onClose} wide>
-      <div className="mb-4 rounded-2xl bg-[#fbf0fe]/60 p-4">
-        <p className="text-[10px] font-bold text-[#4d4354]/60">
-          Paste CSV data with columns: Full Name, Roll No, Gender (MALE/FEMALE/OTHER), Class (e.g. &quot;Grade 8 A&quot;), Guardian Name, Guardian Phone, Guardian Email
-        </p>
-        <button
-          type="button"
-          onClick={downloadTemplate}
-          className="mt-2 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer"
-        >
-          <Download className="h-3 w-3" />
-          Download CSV Template
-        </button>
-      </div>
-      <textarea
-        value={csvText}
-        onChange={(e) => { setCsvText(e.target.value); parseCSV(e.target.value); }}
-        placeholder={`Full Name, Roll No, Gender, Class, Guardian Name, Guardian Phone, Guardian Email\nJohn Doe, 101, MALE, Grade 8 A, Jane Doe, +923001234567, jane@example.com`}
-        className="h-40 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-4 text-sm font-bold outline-none resize-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
-      />
-      {parsedError ? (
-        <p className="mt-2 text-xs font-bold text-rose-600">{parsedError}</p>
-      ) : null}
-      {preview.length > 0 ? (
-        <div className="mt-4">
-          <p className="mb-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
-            Preview: {preview.length} students
-          </p>
-          <div className="max-h-48 overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
-            <table className="w-full text-left text-[11px]">
-              <thead>
-                <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">
-                  <th className="px-4 py-2">Name</th>
-                  <th className="px-4 py-2">Roll</th>
-                  <th className="px-4 py-2">Class</th>
-                  <th className="px-4 py-2">Guardian</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f3f4f9]">
-                {preview.slice(0, 20).map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-2 font-bold text-[#1f1a23]">{row.fullName}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.rollNo}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.className}</td>
-                    <td className="px-4 py-2 text-[#4d4354]/60">{row.guardianName || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {preview.length > 20 ? (
-              <p className="p-3 text-center text-[10px] font-bold text-[#4d4354]/40">+{preview.length - 20} more rows</p>
-            ) : null}
-          </div>
-          <div className="mt-5 flex justify-end gap-3">
-            <BrandButton variant="soft" onClick={() => { setCsvText(""); setPreview([]); }}>Clear</BrandButton>
-            <BrandButton variant="dark" onClick={handleImport} disabled={importing}>
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Import ${preview.length} Students`}
-            </BrandButton>
-          </div>
-        </div>
-      ) : null}
-    </ModalFrame>
-  );
-}
 
 export function ActivityLogModal({ onClose }: { onClose: () => void }) {
   const [logs, setLogs] = useState<any[]>([]);
@@ -3796,5 +3628,110 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </ModalFrame>
+  );
+}
+
+/**
+ * Chip-based editor for a teacher's subject specialities.
+ *
+ * Free text rather than a fixed list, because subject naming varies by school
+ * ("Maths" vs "Mathematics") and specialities aren't always real subject rows.
+ * The "teaches all subjects" toggle covers generalists (primary class teachers),
+ * for whom an out-of-speciality warning would just be noise.
+ */
+export function SpecialtyEditor({
+  specialties,
+  teachesAll,
+  draft,
+  onDraftChange,
+  onAdd,
+  onRemove,
+  onToggleAll,
+}: {
+  specialties: string[];
+  teachesAll: boolean;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onAdd: (name: string) => void;
+  onRemove: (name: string) => void;
+  onToggleAll: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/40 p-4">
+      <p className="mb-2 pl-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+        Teaching specialities
+      </p>
+
+      <button
+        type="button"
+        onClick={onToggleAll}
+        className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-xl bg-white p-3 text-left transition-all hover:shadow-sm"
+      >
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
+            teachesAll ? "border-emerald-500 bg-emerald-500" : "border-[#cfc2d6]/50 bg-white"
+          )}
+        >
+          {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[11px] font-black text-[#1f1a23]">Can teach all subjects</span>
+          <span className="block text-[9px] font-bold text-[#4d4354]/50">
+            Generalist — never warned about subject mismatch.
+          </span>
+        </span>
+      </button>
+
+      {!teachesAll ? (
+        <>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {specialties.map((s) => (
+              <span
+                key={s}
+                className="inline-flex items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-black text-[#8127cf]"
+              >
+                {s}
+                <button
+                  type="button"
+                  onClick={() => onRemove(s)}
+                  className="cursor-pointer text-[#8127cf]/60 transition-colors hover:text-rose-500"
+                  aria-label={`Remove ${s}`}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </span>
+            ))}
+            {specialties.length === 0 ? (
+              <span className="text-[9px] font-bold text-[#4d4354]/40">
+                No specialities yet — add the subjects this teacher is qualified for.
+              </span>
+            ) : null}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAdd(draft);
+                }
+              }}
+              placeholder="e.g. Mathematics"
+              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40"
+            />
+            <button
+              type="button"
+              onClick={() => onAdd(draft)}
+              className="h-10 shrink-0 cursor-pointer rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea] active:scale-95"
+            >
+              Add
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

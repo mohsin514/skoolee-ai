@@ -41,6 +41,8 @@ interface AdmissionFormProps {
   classGroups: ClassGroup[];
   onSuccess: () => void;
   onClose: () => void;
+  initialClassId?: string;
+  initialSection?: string;
 }
 
 const STEPS = [
@@ -277,11 +279,11 @@ function sectionLabel(cls: ClassRecord) {
   return cls.section || "Main";
 }
 
-export function AdmissionForm({ classes, classGroups, onSuccess, onClose }: AdmissionFormProps) {
+export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initialClassId }: AdmissionFormProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(() => ({
     ...emptyForm,
-    classId: classes[0]?.id || "",
+    classId: (initialClassId && classes.some((cls) => cls.id === initialClassId) ? initialClassId : classes[0]?.id) || "",
   }));
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);

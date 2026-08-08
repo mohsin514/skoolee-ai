@@ -58,6 +58,7 @@ import { CornerSparkles } from "@/components/CornerSparkles";
 import { usePrincipalData } from "./principal-data-context";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
+import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
@@ -77,6 +78,7 @@ import {
   MoveStudentModal,
   ReportCardsPanel,
   StudentsPanel,
+  TeacherConflictsBanner,
   TeacherDetailModal,
   classLabel,
   formatDate,
@@ -109,7 +111,6 @@ type PrincipalView =
   | "ai"
   | "engagement";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
-type ClassFormState = { name: string; section: string; sections: string; academicYear: number; classTeacherId: string; };
 
 const principalAIFeatures = [
   { feature: "at_risk_students", label: "At-risk Students", placeholder: "Optional exam, class, or attendance focus" },
@@ -129,8 +130,10 @@ export default function PrincipalDashboard() {
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
-  const [showClassModal, setShowClassModal] = useState(false);
+  const [showClassWizard, setShowClassWizard] = useState(false);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
+  const [admissionClassId, setAdmissionClassId] = useState("");
+  const [bulkImportClassId, setBulkImportClassId] = useState("");
   const [showMoveStudentModal, setShowMoveStudentModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
@@ -138,9 +141,7 @@ export default function PrincipalDashboard() {
   const [showAddPrincipalForm, setShowAddPrincipalForm] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [classForm, setClassForm] = useState<ClassFormState>({ name: "", section: "", sections: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
   const [moveClassId, setMoveClassId] = useState("");
-  const [savingClass, setSavingClass] = useState(false);
   const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
@@ -165,21 +166,6 @@ export default function PrincipalDashboard() {
     const a = document.createElement("a"); a.href = url; a.download = `${data.campusName.replace(/\s+/g, "_")}_students.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     toast.success("CSV exported");
-  };
-
-  const handleCreateClass = async () => {
-    if (!classForm.name) return toast.error("Class name is required");
-    setSavingClass(true);
-    try {
-      const sectionList = classForm.sections ? classForm.sections.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean) : classForm.section ? [classForm.section.trim()] : [""];
-      const res = await fetch("/api/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: classForm.name, sections: sectionList, academicYear: classForm.academicYear, classTeacherId: classForm.classTeacherId || undefined }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create class");
-      toast.success(`Created ${sectionList.length} section(s)`);
-      setShowClassModal(false);
-      setClassForm({ name: "", section: "", sections: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
-      await refetch();
-    } catch (error: any) { toast.error(error.message); } finally { setSavingClass(false); }
   };
 
   const handleAdmissionSuccess = () => {
@@ -232,10 +218,10 @@ export default function PrincipalDashboard() {
     catch (error: any) { toast.error(error.message); } finally { setSavingStudentUpdate(false); }
   };
 
-  const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string }) => {
+  const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }) => {
     if (!subject.name.trim()) { toast.error("Subject name is required"); return false; }
     setCreatingSubjectClassId(classId);
-    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to create subject"); toast.success("Subject added"); await refetch(); return true; }
+    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined, applyToAllSections: subject.applyToAllSections || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to create subject"); toast.success(result.createdCount > 1 ? `Subject added to ${result.createdCount} sections` : "Subject added"); await refetch(); return true; }
     catch (error: any) { toast.error(error.message); return false; } finally { setCreatingSubjectClassId(null); }
   };
 
@@ -247,26 +233,36 @@ export default function PrincipalDashboard() {
 
   const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
     setSavingSubjectId(subjectId);
-    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, teacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated"); toast.success("Subject teacher updated"); await refetch(); }
+    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, teacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated"); toast.success("Subject teacher updated"); (result.clashes || []).forEach((c: any) => toast.warning(c.message)); await refetch(); }
     catch (error: any) { toast.error(error.message); } finally { setSavingSubjectId(null); }
   };
 
-  const handleApplyClassTeacherToSubjects = async (classId: string, classTeacherId: string, subjects: any[]) => {
-    if (!classTeacherId) return toast.error("Select a class teacher first");
-    if (!subjects.length) return toast.info("Add subjects first, then apply the class teacher.");
+  // Switching to SINGLE makes the API propagate the class teacher across every
+  // subject in one call, so the two can never drift out of sync.
+  const handleChangeTeachingMode = async (classId: string, mode: "SINGLE" | "SUBJECT") => {
     setApplyingSubjectClassId(classId);
     try {
-      const classRes = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, classTeacherId }) });
-      const classResult = await classRes.json();
-      if (!classRes.ok) throw new Error(classResult.error || "Class teacher could not be updated");
-      await Promise.all(subjects.map(async (subject) => {
-        const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subject.id, teacherId: classTeacherId }) });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "One subject could not be updated");
-      }));
-      toast.success("Class teacher applied to all subjects");
+      const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, teachingMode: mode }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Teaching mode could not be updated");
+      toast.success(mode === "SINGLE" ? "All subjects now follow the class teacher" : "Each subject can now have its own teacher");
+      (result.clashes || []).forEach((c: any) => toast.warning(c.message));
       await refetch();
     } catch (error: any) { toast.error(error.message); } finally { setApplyingSubjectClassId(null); }
+  };
+
+  const handleAddSection = async (name: string, section: string, academicYear: number, convertClassId?: string) => {
+    try {
+      // Converting: the class had no sections, so rename that row rather than
+      // spawning a sibling and stranding its students on an unnamed class.
+      const res = convertClassId
+        ? await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: convertClassId, section }) })
+        : await fetch("/api/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, section, sections: [section], academicYear }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Section could not be created");
+      toast.success(convertClassId ? `"${name}" now has section "${section}" — existing students moved into it` : `Section "${section}" created`);
+      await refetch();
+    } catch (error: any) { toast.error(error.message); }
   };
 
   const handleDeleteClass = (cls: any) => {
@@ -311,7 +307,7 @@ export default function PrincipalDashboard() {
     catch (error) { toast.error(error instanceof Error ? error.message : "Automation failed"); } finally { setBusyAction(null); }
   };
 
-  const openAdmissionForm = () => { setShowAdmissionForm(true); };
+  const openAdmissionForm = (classId?: string) => { setAdmissionClassId(classId || ""); setShowAdmissionForm(true); };
   const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL") => {
     if (role === "CAMPUS_ADMIN") setShowAddAdminForm(true);
     else setShowAddPrincipalForm(true);
@@ -346,7 +342,7 @@ export default function PrincipalDashboard() {
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 p-8 overflow-y-auto custom-scrollbar">
         {activeView === "overview" ? (
           <div className="sk-rise flex flex-wrap justify-end gap-2 mb-8">
-            <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassModal(true)}>Add Class</BrandButton>
+            <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassWizard(true)}>Add Class</BrandButton>
             <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAdmissionForm()} disabled={data.classes.length === 0}>Add Student</BrandButton>
           </div>
         ) : null}
@@ -372,6 +368,8 @@ export default function PrincipalDashboard() {
           />
         ) : null}
         {activeView === "classes" ? (
+          <>
+          <TeacherConflictsBanner />
           <AcademicPanel
             classes={data.classes}
             exams={data.recentExams}
@@ -379,15 +377,21 @@ export default function PrincipalDashboard() {
             teachers={data.teachers}
             students={data.students}
             campusName={data.campusName}
-            onAddClass={() => setShowClassModal(true)}
+            onAddClass={() => setShowClassWizard(true)}
             onAddStudent={openAdmissionForm}
+            onBulkImport={(classId) => {
+              setBulkImportClassId(classId || "");
+              setShowBulkImportModal(true);
+            }}
             onViewClass={setSelectedClass}
             onChangeTeacher={handleChangeClassTeacher}
             onDeleteClass={handleDeleteClass}
             onUpdateClass={handleUpdateClass}
+            onAddSection={handleAddSection}
             onDeleteSubject={handleDeleteSubject}
             onUpdateSubject={handleUpdateSubject}
           />
+        </>
         ) : null}
         {activeView === "teachers" ? (
           <FacultyPanel
@@ -436,20 +440,22 @@ export default function PrincipalDashboard() {
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
       </section>
 
-      {showClassModal ? (
-        <ClassModal
-          form={classForm}
-          teachers={data.teachers}
-          saving={savingClass}
-          onChange={setClassForm}
-          onClose={() => setShowClassModal(false)}
-          onSave={handleCreateClass}
+      {showClassWizard ? (
+        <CreateClassWizard
+          teachers={data.teachers || []}
+          classes={data.classes || []}
+          onClose={() => setShowClassWizard(false)}
+          onCreated={async () => {
+            setShowClassWizard(false);
+            await refetch();
+          }}
         />
       ) : null}
       {showAdmissionForm && (
         <AdmissionForm
           classes={data.classes || []}
           classGroups={groupClasses(data.classes || [])}
+          initialClassId={admissionClassId || undefined}
           onSuccess={handleAdmissionSuccess}
           onClose={() => setShowAdmissionForm(false)}
         />
@@ -460,18 +466,19 @@ export default function PrincipalDashboard() {
           cls={selectedClass}
           students={data.students.filter((student: any) => student.class?.id === selectedClass.id)}
           teachers={data.teachers}
+          classes={data.classes}
           teacherBusy={savingClassTeacherId === selectedClass.id}
           subjectBusyId={savingSubjectId}
           creatingSubject={creatingSubjectClassId === selectedClass.id}
-          applyingSubjects={applyingSubjectClassId === selectedClass.id}
+          teachingModeBusy={applyingSubjectClassId === selectedClass.id}
           classUpdateBusy={savingClassUpdate}
           subjectUpdateBusyId={savingSubjectUpdateId}
           onClose={() => setSelectedClass(null)}
           onChangeTeacher={handleChangeClassTeacher}
+          onChangeTeachingMode={handleChangeTeachingMode}
           onCreateSubject={handleCreateSubject}
           onChangeSubjectTeacher={handleChangeSubjectTeacher}
-          onApplyClassTeacherToSubjects={handleApplyClassTeacherToSubjects}
-          onAddStudent={() => { setSelectedClass(null); openAdmissionForm(); }}
+          onAddStudent={() => { setSelectedClass(null); openAdmissionForm(selectedClass.id); }}
           onViewStudent={(student) => { setSelectedClass(null); setSelectedStudent(student); }}
           onDeleteClass={handleDeleteClass}
           onUpdateClass={handleUpdateClass}
@@ -497,7 +504,7 @@ export default function PrincipalDashboard() {
         open={showBulkImportModal}
         onOpenChange={setShowBulkImportModal}
         classes={data.classes || []}
-        defaultClassId={data.classes?.[0]?.id || ""}
+        defaultClassId={bulkImportClassId || data.classes?.[0]?.id || ""}
         onSuccess={refetch}
       />
       {showActivityLogModal ? <ActivityLogModal onClose={() => setShowActivityLogModal(false)} /> : null}
@@ -576,9 +583,6 @@ function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; t
   return (<div className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-4 gap-4"><EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" /><EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" /><EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" /><EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" /></div><div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/30 p-6" style={{ animationDelay: "160ms" }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6"><PanelTitle icon={MessageSquare} title="Recent Parent Communication" /><BrandButton variant="soft" onClick={onRunAutomation} disabled={busy} icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}>Run Automation</BrandButton></div><div className="space-y-3">{data.recentCommunications.map((item: any, i: number) => (<div key={item.id} className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5" style={{ animationDelay: `${i * 60}ms` }}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm font-black text-[#1f1a23]">{formatStatus(item.templateKey)}</p><p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">{item.student?.fullName || item.recipientName || "Parent"} - {item.channel}</p><p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-[#4d4354]/60">{item.body}</p></div><div className="flex shrink-0 flex-col items-start gap-2 sm:items-end"><StatusPill status={item.status} /><span className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">{formatDate(item.sentAt || item.createdAt)}</span></div></div></div>))}{data.recentCommunications.length === 0 ? (<p className="rounded-[24px] bg-white p-6 text-sm font-semibold text-[#4d4354]/55">No parent communication has been generated yet.</p>) : null}</div></div></div>);
 }
 
-function ClassModal({ form, teachers, saving, onChange, onClose, onSave }: { form: ClassFormState; teachers: any[]; saving: boolean; onChange: (f: ClassFormState) => void; onClose: () => void; onSave: () => void; }) {
-  return (<ModalFrame title="Create Class" eyebrow="Academic setup" onClose={onClose}><div className="space-y-4"><FormInput label="Class Name" value={form.name} placeholder="e.g. Class 10" onChange={(v) => onChange({ ...form, name: v })} /><FormInput label="Sections (comma separated)" value={form.sections} placeholder="A, B, C" onChange={(v) => onChange({ ...form, sections: v })} /><FormInput label="Academic Year" value={String(form.academicYear)} placeholder="2026" onChange={(v) => onChange({ ...form, academicYear: Number(v) || new Date().getFullYear() })} /><FormSelect label="Class Teacher (optional)" value={form.classTeacherId} onChange={(v) => onChange({ ...form, classTeacherId: v })}><option value="">No teacher</option>{teachers.map((t) => (<option key={t.id} value={t.id}>{t.fullName}</option>))}</FormSelect></div><ModalActions busy={saving} busyLabel="Creating" actionLabel="Create Class" onClose={onClose} onSave={onSave} /></ModalFrame>);
-}
 
 function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onResend: () => void; onCancel: () => void }) {
   const expired = invite.expiresAt ? new Date() > new Date(invite.expiresAt) : false;

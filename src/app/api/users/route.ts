@@ -40,6 +40,15 @@ export async function PATCH(req: NextRequest) {
         data[field] = updates[field] ? String(updates[field]).trim() : null;
       }
     }
+    // Structured teaching specialities drive the assignment badges/warnings.
+    if (updates.subjectSpecialties !== undefined) {
+      data.subjectSpecialties = Array.isArray(updates.subjectSpecialties)
+        ? updates.subjectSpecialties.map((s: unknown) => String(s).trim()).filter(Boolean)
+        : [];
+    }
+    if (updates.teachesAllSubjects !== undefined) {
+      data.teachesAllSubjects = Boolean(updates.teachesAllSubjects);
+    }
     if (updates.dateOfBirth !== undefined) {
       data.dateOfBirth = updates.dateOfBirth ? new Date(updates.dateOfBirth) : null;
     }
@@ -65,6 +74,8 @@ export async function PATCH(req: NextRequest) {
         gender: true,
         qualification: true,
         specialization: true,
+        subjectSpecialties: true,
+        teachesAllSubjects: true,
         experience: true,
         address: true,
         city: true,

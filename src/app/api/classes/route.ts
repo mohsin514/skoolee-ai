@@ -10,6 +10,11 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import {
+  detectTeacherClashes,
+  syncTimetableSlotsForSubjects,
+  type TimetableClash,
+} from "@/lib/api/timetable-sync";
 
 async function assertTeacherInCampus(teacherId: string | null | undefined, campusId: string, schoolId: string) {
   if (!teacherId) return null;
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
       campusId,
       user.schoolId
     );
+    const teachingMode = String(body.teachingMode || "SINGLE").toUpperCase() === "SUBJECT" ? "SUBJECT" : "SINGLE";
 
     const className = parsed.data.name.trim();
     const duplicates = await prisma.class.findMany({
@@ -102,6 +108,7 @@ export async function POST(req: NextRequest) {
             section,
             academicYear: parsed.data.academicYear,
             classTeacherId,
+            teachingMode,
           },
           include: {
             classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
@@ -156,7 +163,7 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.class.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-      select: { id: true, campusId: true, classTeacherId: true },
+      select: { id: true, campusId: true, classTeacherId: true, teachingMode: true },
     });
     if (!existing) throw new ApiError("Class not found", 404);
 
@@ -167,6 +174,13 @@ export async function PATCH(req: NextRequest) {
     if (body.classTeacherId !== undefined || body.teacherId !== undefined) {
       data.classTeacherId = await assertTeacherInCampus(body.classTeacherId || body.teacherId, existing.campusId, user.schoolId);
     }
+    if (body.teachingMode !== undefined) {
+      const mode = String(body.teachingMode).toUpperCase();
+      if (mode !== "SINGLE" && mode !== "SUBJECT") {
+        throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
+      }
+      data.teachingMode = mode;
+    }
 
     const cls = await prisma.class.update({
       where: { id },
@@ -176,6 +190,26 @@ export async function PATCH(req: NextRequest) {
         _count: { select: { students: true, subjects: true } },
       },
     });
+
+    // In SINGLE mode the class teacher owns every subject, so keep subjects in
+    // lockstep automatically. Doing it here (rather than via a separate
+    // "apply to subjects" click) is what stops the class teacher and its
+    // subjects from silently drifting apart.
+    const effectiveMode = data.teachingMode ?? existing.teachingMode;
+    const teacherChanged = data.classTeacherId !== undefined && data.classTeacherId !== existing.classTeacherId;
+    const switchedToSingle = data.teachingMode === "SINGLE" && existing.teachingMode !== "SINGLE";
+    let clashes: TimetableClash[] = [];
+    if (effectiveMode === "SINGLE" && (teacherChanged || switchedToSingle)) {
+      await prisma.subject.updateMany({
+        where: { classId: id },
+        data: { teacherId: cls.classTeacherId },
+      });
+      // Move the timetable with the assignment, then surface any resulting
+      // double-booking so the admin finds out here rather than on the day.
+      const affected = await prisma.subject.findMany({ where: { classId: id }, select: { id: true } });
+      await syncTimetableSlotsForSubjects(affected.map((s) => s.id), cls.classTeacherId);
+      clashes = await detectTeacherClashes(cls.classTeacherId);
+    }
 
     if (body.classTeacherId !== undefined || body.teacherId !== undefined) {
       await prisma.auditLog.create({
@@ -199,7 +233,7 @@ export async function PATCH(req: NextRequest) {
       classId: id,
     });
 
-    return Response.json({ success: true, data: cls });
+    return Response.json({ success: true, data: cls, clashes });
   } catch (error) {
     return errorResponse(error, "[classes] PATCH failed");
   }

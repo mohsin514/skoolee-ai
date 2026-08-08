@@ -15,6 +15,8 @@ export async function addTeacher(data: {
   gender?: string;
   qualification?: string;
   specialization?: string;
+  subjectSpecialties?: string[];
+  teachesAllSubjects?: boolean;
   experience?: string;
   address?: string;
   city?: string;
@@ -56,6 +58,8 @@ export async function addTeacher(data: {
       gender: data.gender || null,
       qualification: data.qualification?.trim() || null,
       specialization: data.specialization?.trim() || null,
+      subjectSpecialties: (data.subjectSpecialties || []).map((x) => x.trim()).filter(Boolean),
+      teachesAllSubjects: Boolean(data.teachesAllSubjects),
       experience: data.experience?.trim() || null,
       address: data.address?.trim() || null,
       city: data.city?.trim() || null,
