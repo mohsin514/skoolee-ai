@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
+import { assertPermission } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export async function PATCH(
   if (!canReviewAI(user)) {
     return Response.json({ error: "Insufficient permissions" }, { status: 403 });
   }
+  await assertPermission(user, "ai", "edit");
 
   const body = await req.json();
   const action = body?.action;

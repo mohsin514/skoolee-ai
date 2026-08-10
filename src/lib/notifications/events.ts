@@ -371,6 +371,22 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
       return [...new Set([...managers, ...classTeacher, ...teacherIds])];
     },
   },
+  // ── Leave Management ───────────────────────────────────
+  LEAVE_APPLIED: {
+    title: () => "Leave request submitted",
+    message: (c) => `${s(c.actorName)} applied for ${s(c.leaveTypeName)} leave (${s(c.fromDate)} → ${s(c.toDate)})`,
+    icon: "Plane",
+    link: "/admin",
+    recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
+  },
+  LEAVE_REVIEWED: {
+    title: (c) => `Leave ${s(c.status).toLowerCase()}`,
+    message: (c) => `Your ${s(c.leaveTypeName)} leave request (${s(c.fromDate)} → ${s(c.toDate)}) has been ${s(c.status).toLowerCase()} by ${s(c.actorName)}`,
+    icon: "Plane",
+    link: "/teacher/leave",
+    recipients: async (c) => c.recipientId ? [c.recipientId as string] : [],
+  },
+
   SUBJECT_TEACHER_ASSIGNED: {
     title: (c) => "Teacher assigned to subject",
     message: (c) => `${s(c.teacherName)} assigned to "${s(c.subjectName)}" in ${s(c.className)}`,

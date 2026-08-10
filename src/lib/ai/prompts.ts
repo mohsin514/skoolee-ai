@@ -100,6 +100,9 @@ const ROLE_FEATURES: Record<UserRole, AIFeature[]> = {
   ],
   STUDENT: ["explain_report_card", "study_plan", "school_faq"],
   PARENT: ["explain_report_card", "study_plan", "school_faq"],
+  ACCOUNTANT: ["fee_recovery_insights", "explain_report_card"],
+  LIBRARIAN: ["explain_report_card", "study_plan"],
+  RECEPTIONIST: ["class_performance_summary", "explain_report_card"],
   APP_OWNER: [
     "campus_comparison",
     "weak_campuses",

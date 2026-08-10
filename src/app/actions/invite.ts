@@ -30,12 +30,15 @@ const InviteProfileSchema = z.object({
   joiningDate: z.string().optional(),
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
+  designation: z.string().optional(),
+  contractType: z.enum(["PERMANENT", "CONTRACT", "PART_TIME"]).optional(),
+  basicSalary: z.number().int().min(0).optional(),
 });
 
 const InviteSchema = z.object({
   email: z.string().email(),
   fullName: z.string().optional(),
-  role: z.enum(['CAMPUS_ADMIN', 'PRINCIPAL', 'TEACHER']),
+  role: z.enum(['CAMPUS_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'LIBRARIAN', 'RECEPTIONIST']),
   campusId: z.string().uuid().optional(),
   profile: InviteProfileSchema.optional(),
 });
@@ -446,6 +449,19 @@ export async function acceptInvite(token: string, password: string) {
       where: { id: invite.id },
       data: { status: 'accepted' }
     });
+
+    if (storedProfile.designation || storedProfile.contractType || Number(storedProfile.basicSalary || 0) > 0) {
+      await tx.staffProfile.upsert({
+        where: { userId: acceptedUser.id },
+        create: {
+          userId: acceptedUser.id,
+          designation: storedProfile.designation || null,
+          contractType: storedProfile.contractType || null,
+          basicSalary: Math.round(Number(storedProfile.basicSalary || 0)),
+        },
+        update: {},
+      });
+    }
 
     return acceptedUser;
   });

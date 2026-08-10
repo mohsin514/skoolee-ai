@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen,
   Edit3,
+  History,
+  Layers,
   Loader2,
   Percent,
   Plus,
@@ -13,10 +15,63 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure } from "./fee-types";
 import { API, classLabel, formatPKR } from "./fee-utils";
 
+type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
+
+const SUB_TABS: { key: StructureSubTab; label: string; icon: typeof Layers }[] = [
+  { key: "types", label: "Types", icon: Layers },
+  { key: "groups", label: "Groups", icon: BookOpen },
+  { key: "master", label: "Master", icon: BookOpen },
+  { key: "assign", label: "Assign", icon: BookOpen },
+  { key: "discounts", label: "Discounts", icon: Percent },
+  { key: "carry", label: "Carry Forward", icon: History },
+  { key: "fines", label: "Fine Rules", icon: Percent },
+  { key: "legacy", label: "Legacy", icon: History },
+];
+
 export function FeeStructuresTab({ campusId }: { campusId?: string }) {
+  const [subTab, setSubTab] = useState<StructureSubTab>("types");
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
+        {SUB_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = subTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSubTab(tab.key)}
+              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                active
+                  ? "bg-white text-[#8127cf] shadow-sm"
+                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {subTab === "types" && <TypesPanel campusId={campusId} />}
+      {subTab === "groups" && <GroupsPanel campusId={campusId} />}
+      {subTab === "master" && <MasterPanel campusId={campusId} />}
+      {subTab === "assign" && <AssignPanel campusId={campusId} />}
+      {subTab === "discounts" && <DiscountsPanel campusId={campusId} />}
+      {subTab === "carry" && <CarryPanel campusId={campusId} />}
+      {subTab === "fines" && <FineRulesPanel campusId={campusId} />}
+      {subTab === "legacy" && <LegacyStructuresTab campusId={campusId} />}
+    </div>
+  );
+}
+
+function LegacyStructuresTab({ campusId }: { campusId?: string }) {
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +162,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee Structures</h3>
           <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-            {activeStructures.length} active &middot; {unassignedClasses.length} classes without fees
+            {activeStructures.length} active · {unassignedClasses.length} classes without fees
           </p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}>
@@ -163,7 +218,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
                   <p className="text-[9px] font-bold text-[#4d4354]/45">
-                    {formatPKR(fs.monthlyFee)}/mo &middot; Ended {new Date(fs.activeTo!).toLocaleDateString()}
+                    {formatPKR(fs.monthlyFee)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
                 <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100">
@@ -211,7 +266,7 @@ function StructureCard({
             {classLabel(fs.class.name, fs.class.section)}
           </p>
           <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45 mt-0.5">
-            Since {new Date(fs.activeFrom).toLocaleDateString()} &middot; {fs.installmentType ?? "standard"}
+            Since {new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

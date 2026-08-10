@@ -5,6 +5,7 @@ import { studentSchema, bulkStudentSchema } from "@/lib/validators/schemas";
 import { sendInviteEmail } from "@/lib/email";
 import {
   ApiError,
+  assertPermission,
   canManageOperations,
   errorResponse,
   requireAuthUser,
@@ -41,6 +42,11 @@ type StudentInput = {
   medications: string | null;
   previousSchool: string | null;
   classId: string;
+  categoryId?: string | null;
+  groupId?: string | null;
+  siblingGroupId?: string | null;   // link into an existing sibling group
+  siblingStudentId?: string | null; // adopt the sibling group of this student
+  parentUserId?: string | null;     // reuse an existing guardian (auto-links siblings)
 };
 
 type GuardianInvite = {
@@ -120,9 +126,16 @@ export async function GET(req: NextRequest) {
       ? null
       : await resolveCampusId(user, requestedCampusId);
 
+    // "archived" lists inactive/graduated/transferred students; anything else
+    // keeps the roster (active students only).
+    const archivedOnly = searchParams.get("status") === "archived";
+
     const where = {
       ...scopedCampusWhere(user, campusId),
       ...(classId ? { classId } : {}),
+      ...(archivedOnly
+        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
+        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
       ...(search
         ? {
             OR: [
@@ -142,7 +155,10 @@ export async function GET(req: NextRequest) {
           class: { select: { id: true, name: true, section: true, academicYear: true } },
           studentUser: { select: { id: true, email: true, isActive: true } },
           campus: { select: { id: true, name: true } },
-          _count: { select: { attendance: true, invoices: true } },
+          category: { select: { id: true, name: true } },
+          group: { select: { id: true, name: true } },
+          documents: { select: { id: true, kind: true, fileName: true } },
+          _count: { select: { attendance: true, invoices: true, timelineEvents: true } },
         },
         orderBy: [{ class: { name: "asc" } }, { rollNo: "asc" }, { fullName: "asc" }],
         skip: (page - 1) * limit,
@@ -161,6 +177,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "students", "add");
 
     const body = await req.json();
     let students: StudentInput[];
@@ -186,7 +203,7 @@ export async function POST(req: NextRequest) {
         campus: { schoolId: user.schoolId },
         ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
       },
-      select: { id: true, campusId: true, campus: { select: { name: true } } },
+      select: { id: true, campusId: true, name: true, section: true, campus: { select: { name: true } } },
     });
     const classesById = new Map(classes.map((cls) => [cls.id, cls]));
 
@@ -196,12 +213,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Category/group tags must belong to the student's class campus.
+    const tagIds = [...new Set(
+      students.flatMap((s) => [s.categoryId, s.groupId]).filter(Boolean) as string[]
+    )];
+    const [validCategories, validGroups] = await Promise.all([
+      tagIds.length
+        ? prisma.studentCategory.findMany({
+            where: { id: { in: tagIds }, campus: { schoolId: user.schoolId } },
+            select: { id: true, campusId: true },
+          })
+        : [],
+      tagIds.length
+        ? prisma.studentGroup.findMany({
+            where: { id: { in: tagIds }, campus: { schoolId: user.schoolId } },
+            select: { id: true, campusId: true },
+          })
+        : [],
+    ]);
+    const categoriesById = new Map(validCategories.map((c) => [c.id, c]));
+    const groupsById = new Map(validGroups.map((g) => [g.id, g]));
+
+    for (const student of students) {
+      const targetClass = classesById.get(student.classId)!;
+      if (student.categoryId) {
+        const category = categoriesById.get(student.categoryId);
+        if (!category || category.campusId !== targetClass.campusId) {
+          throw new ApiError(`Category not found for ${student.fullName} in the selected class campus`, 404);
+        }
+      }
+      if (student.groupId) {
+        const group = groupsById.get(student.groupId);
+        if (!group || group.campusId !== targetClass.campusId) {
+          throw new ApiError(`Group not found for ${student.fullName} in the selected class campus`, 404);
+        }
+      }
+    }
+
     const guardianInvites: GuardianInvite[] = [];
     const studentInvites: StudentInvite[] = [];
     const queuedGuardianEmails = new Set<string>();
     const queuedStudentEmails = new Set<string>();
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(
+      async (tx) => {
       const createdStudents = [];
 
       for (const student of students) {
@@ -211,11 +266,21 @@ export async function POST(req: NextRequest) {
         let parentUserId: string | null = null;
         let studentUserId: string | null = null;
 
+        // Explicit parent pick wins; otherwise derive from guardian email.
+        if (student.parentUserId) {
+          const picked = await tx.user.findFirst({
+            where: { id: student.parentUserId, schoolId: user.schoolId, role: "PARENT" },
+            select: { id: true },
+          });
+          if (!picked) throw new ApiError("Selected guardian not found in this account", 404);
+          parentUserId = picked.id;
+        }
+
         if (studentEmail && studentEmail === guardianEmail) {
           throw new ApiError("Student login email must be different from guardian email", 400);
         }
 
-        if (guardianEmail) {
+        if (guardianEmail && !parentUserId) {
           const existingParent = await tx.user.findUnique({
             where: { email: guardianEmail },
             select: { id: true, role: true, schoolId: true, campusId: true, isActive: true },
@@ -363,6 +428,49 @@ export async function POST(req: NextRequest) {
         const admissionCount = await tx.student.count({ where: { campusId: targetClass.campusId } });
         const admissionNo = `ADM-${admissionYear}-${String(admissionCount + 1).padStart(4, "0")}`;
 
+        // Sibling-group resolution:
+        // 1. explicit siblingGroupId wins;
+        // 2. else if parentUserId was picked/reused and that parent already has
+        //    children here, join their group (or open one if none exists yet);
+        // 3. else adopt the group of siblingStudentId if given.
+        let siblingGroupId: string | null = student.siblingGroupId ?? null;
+        if (!siblingGroupId && parentUserId) {
+          const existingChildren = await tx.student.findMany({
+            where: { parentUserId, campusId: targetClass.campusId },
+            select: { id: true, siblingGroupId: true },
+            orderBy: { enrollmentDate: "asc" },
+          });
+          const linkedGroup = existingChildren.find((c) => c.siblingGroupId)?.siblingGroupId ?? null;
+          if (linkedGroup) {
+            siblingGroupId = linkedGroup;
+          } else if (existingChildren.length) {
+            siblingGroupId = randomUUID();
+            await tx.student.updateMany({
+              where: { id: { in: existingChildren.map((c) => c.id) } },
+              data: { siblingGroupId },
+            });
+          }
+        }
+        if (!siblingGroupId && student.siblingStudentId) {
+          const siblingRef = await tx.student.findFirst({
+            where: {
+              id: student.siblingStudentId,
+              campusId: targetClass.campusId,
+              campus: { schoolId: user.schoolId },
+            },
+            select: { siblingGroupId: true },
+          });
+          if (siblingRef?.siblingGroupId) {
+            siblingGroupId = siblingRef.siblingGroupId;
+          } else if (siblingRef) {
+            siblingGroupId = randomUUID();
+            await tx.student.update({
+              where: { id: student.siblingStudentId },
+              data: { siblingGroupId },
+            });
+          }
+        }
+
         const createdStudent = await tx.student.create({
           data: {
             campusId: targetClass.campusId,
@@ -394,6 +502,19 @@ export async function POST(req: NextRequest) {
             allergies: student.allergies,
             medications: student.medications,
             previousSchool: student.previousSchool,
+            categoryId: student.categoryId || null,
+            groupId: student.groupId || null,
+            siblingGroupId,
+          },
+        });
+
+        await tx.studentTimelineEvent.create({
+          data: {
+            studentId: createdStudent.id,
+            kind: "ADMITTED",
+            title: "Student admitted",
+            detail: `Class ${targetClass.name}${targetClass.section ? ` - ${targetClass.section}` : ""} · Roll ${student.rollNo}`,
+            actorId: user.userId,
           },
         });
 
@@ -401,7 +522,9 @@ export async function POST(req: NextRequest) {
       }
 
       return createdStudents;
-    });
+    },
+      { timeout: 20000 }
+    );
 
     for (const s of created) {
       await prisma.auditLog.create({
@@ -480,6 +603,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "students", "edit");
 
     const body = await req.json();
     const { id, ...updates } = body;
@@ -523,7 +647,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (["MALE", "FEMALE", "OTHER"].includes(updates.gender)) data.gender = updates.gender;
     if (["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
-    if (["active", "archived", "transferred"].includes(updates.status)) data.status = updates.status;
+    if (["active", "archived", "transferred", "graduated"].includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {
@@ -568,10 +692,61 @@ export async function PATCH(req: NextRequest) {
       data.classId = updates.classId;
     }
 
+    // Category/group tags: cleared when empty, otherwise must live in the
+    // student's campus.
+    if (updates.categoryId !== undefined) {
+      const categoryId = updates.categoryId || null;
+      if (categoryId) {
+        const category = await prisma.studentCategory.findFirst({
+          where: { id: categoryId, campusId: existing.campusId, campus: { schoolId: user.schoolId } },
+          select: { id: true },
+        });
+        if (!category) throw new ApiError("Category not found in this campus", 404);
+      }
+      data.categoryId = categoryId;
+    }
+    if (updates.groupId !== undefined) {
+      const groupId = updates.groupId || null;
+      if (groupId) {
+        const group = await prisma.studentGroup.findFirst({
+          where: { id: groupId, campusId: existing.campusId, campus: { schoolId: user.schoolId } },
+          select: { id: true },
+        });
+        if (!group) throw new ApiError("Group not found in this campus", 404);
+      }
+      data.groupId = groupId;
+    }
+
+    // Sibling link: adopt an existing student's group when siblingStudentId is
+    // given, otherwise set/clear siblingGroupId directly.
+    if (updates.siblingStudentId) {
+      const ref = await prisma.student.findFirst({
+        where: { id: updates.siblingStudentId, campusId: existing.campusId },
+        select: { id: true, siblingGroupId: true },
+      });
+      if (!ref) throw new ApiError("Sibling student not found", 404);
+      if (!ref.siblingGroupId) {
+        const opened = await prisma.student.update({
+          where: { id: ref.id },
+          data: { siblingGroupId: randomUUID() },
+          select: { siblingGroupId: true },
+        });
+        data.siblingGroupId = opened.siblingGroupId;
+      } else {
+        data.siblingGroupId = ref.siblingGroupId;
+      }
+    } else if (updates.siblingGroupId !== undefined) {
+      data.siblingGroupId = updates.siblingGroupId || null;
+    }
+
     const student = await prisma.student.update({
       where: { id },
       data,
-      include: { class: { select: { id: true, name: true, section: true } } },
+      include: {
+        class: { select: { id: true, name: true, section: true } },
+        category: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true } },
+      },
     });
 
     await prisma.auditLog.create({
@@ -585,6 +760,18 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (data.classId && data.classId !== existing.classId) {
+      await prisma.studentTimelineEvent.create({
+        data: {
+          studentId: id,
+          kind: "PROMOTED",
+          title: "Class transferred",
+          detail: previousClassName
+            ? `${previousClassName} → ${[student.class?.name, student.class?.section].filter(Boolean).join(" ")}`
+            : `Moved to ${[student.class?.name, student.class?.section].filter(Boolean).join(" ")}`,
+          actorId: user.userId,
+        },
+      });
+
       notify("STUDENT_TRANSFERRED", {
         schoolId: user.schoolId,
         campusId: existing.campusId,
@@ -594,6 +781,18 @@ export async function PATCH(req: NextRequest) {
         newClassName: [student.class?.name, student.class?.section].filter(Boolean).join(" "),
         oldClassId: existing.classId,
         newClassId: data.classId,
+      });
+    }
+
+    if (data.status && data.status !== (existing as any).status && data.status !== "active") {
+      await prisma.studentTimelineEvent.create({
+        data: {
+          studentId: id,
+          kind: "NOTE",
+          title: data.status === "graduated" ? "Graduated" : "Archived / deactivated",
+          detail: `Status changed to ${data.status}`,
+          actorId: user.userId,
+        },
       });
     }
 
@@ -610,6 +809,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "students", "delete");
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

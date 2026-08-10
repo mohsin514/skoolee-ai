@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, resolveCampusId, canManageOperations } from "@/lib/api/scope";
+import { assertPermission, requireAuthUser, errorResponse, resolveCampusId, canManageOperations } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 
 export const runtime = "nodejs";
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
           include: {
             subject: { select: { id: true, name: true } },
             teacher: { select: { id: true, fullName: true } },
+            room: { select: { id: true, roomNumber: true, capacity: true } },
           },
           orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
         },
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
+    await assertPermission(user, "timetable", "add");
 
     const campusId = await resolveCampusId(user);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
@@ -103,6 +105,7 @@ export async function POST(req: NextRequest) {
           include: {
             subject: { select: { id: true, name: true } },
             teacher: { select: { id: true, fullName: true } },
+            room: { select: { id: true, roomNumber: true, capacity: true } },
           },
           orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
         },

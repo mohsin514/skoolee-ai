@@ -9,32 +9,48 @@ import {
   BookOpen,
   Calendar,
   CalendarCheck,
+  CalendarClock,
+  CalendarDays,
   Check,
   CheckCircle2,
   ClipboardList,
   Clock,
   Copy,
   Download,
+  DoorOpen,
   ExternalLink,
   FileText,
+  Banknote,
+  PhoneCall,
+  Plane,
+  Shield,
   GraduationCap,
   Heart,
   History,
   LayoutGrid,
   Loader2,
   MapPin,
+  Mail,
   MessageSquare,
+  Package,
   Pencil,
+  Phone,
   Plus,
   Receipt,
   School,
   Send,
   ShieldCheck,
   Sparkles,
+  Tags,
   Trash2,
   TrendingUp,
   Upload,
   User,
+  Bus,
+  Building2,
+  Eye,
+  Wrench,
+  UserCog,
   Users,
   X,
   type LucideIcon,
@@ -52,6 +68,7 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
+import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -63,6 +80,17 @@ import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import {
+  TransportPanel,
+  DormitoryPanel,
+  LibraryPanel,
+  InventoryPanel,
+  VisitorsPanel,
+  ComplaintsPanel,
+  PostalPanel,
+  PhoneCallsPanel,
+  CertificatesPanel,
+} from "@/components/operations";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -70,14 +98,24 @@ import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerfo
 import {
   AcademicPanel,
   ActivityLogModal,
+  AdmissionQueriesPanel,
   AIPanel,
+  ArchivedStudentsPanel,
   ClassDetailModal,
   ExamCyclesPanel,
+  ExamRoutinePanel,
   HelpModal,
   LeadershipPanel,
+  LeaveManagementPanel,
   MoveStudentModal,
+  PayrollPanel,
+  PeriodsPanel,
+  RolePermissionsPanel,
   ReportCardsPanel,
+  RoomsPanel,
+  SchoolCalendarPanel,
   StudentsPanel,
+  StudentSetupPanel,
   TeacherConflictsBanner,
   TeacherDetailModal,
   classLabel,
@@ -101,15 +139,34 @@ type PrincipalView =
   | "classes"
   | "teachers"
   | "students"
+  | "admission-queries"
+  | "student-setup"
+  | "promote-archive"
+  | "leave"
+  | "payroll"
+  | "permissions"
   | "attendance"
   | "year-cycle"
   | "exam-cycles"
   | "fees"
   | "timetable"
+  | "class-rooms"
+  | "period-setup"
+  | "exam-routine"
+  | "school-calendar"
   | "teacher-performance"
   | "report-cards"
   | "ai"
-  | "engagement";
+  | "engagement"
+  | "transport"
+  | "dormitory"
+  | "library"
+  | "inventory"
+  | "visitors"
+  | "complaints"
+  | "postal"
+  | "phone-calls"
+  | "certificates";
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 
 const principalAIFeatures = [
@@ -133,12 +190,18 @@ export default function PrincipalDashboard() {
   const [showClassWizard, setShowClassWizard] = useState(false);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [admissionClassId, setAdmissionClassId] = useState("");
+  const [convertingQuery, setConvertingQuery] = useState<any>(null);
+  const [admissionQueriesVersion, setAdmissionQueriesVersion] = useState(0);
+  const [studentsVersion, setStudentsVersion] = useState(0);
   const [bulkImportClassId, setBulkImportClassId] = useState("");
   const [showMoveStudentModal, setShowMoveStudentModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
   const [showAddPrincipalForm, setShowAddPrincipalForm] = useState(false);
+  const [showAddAccountantForm, setShowAddAccountantForm] = useState(false);
+  const [showAddLibrarianForm, setShowAddLibrarianForm] = useState(false);
+  const [showAddReceptionistForm, setShowAddReceptionistForm] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [moveClassId, setMoveClassId] = useState("");
@@ -168,7 +231,26 @@ export default function PrincipalDashboard() {
     toast.success("CSV exported");
   };
 
-  const handleAdmissionSuccess = () => {
+  const handleAdmissionSuccess = async (createdStudent?: any) => {
+    const studentId = createdStudent?.id;
+    if (convertingQuery && studentId) {
+      try {
+        const res = await fetch("/api/admission-queries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: convertingQuery.id, convertedStudentId: studentId }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success(`Query converted to ${createdStudent.fullName}`);
+        } else {
+          toast.error(data.error || "Could not mark query as converted");
+        }
+      } catch {
+        toast.error("Student created, but could not mark the query as converted");
+      }
+      setConvertingQuery(null);
+    }
     setShowAdmissionForm(false);
     refetch();
   };
@@ -307,27 +389,75 @@ export default function PrincipalDashboard() {
     catch (error) { toast.error(error instanceof Error ? error.message : "Automation failed"); } finally { setBusyAction(null); }
   };
 
-  const openAdmissionForm = (classId?: string) => { setAdmissionClassId(classId || ""); setShowAdmissionForm(true); };
-  const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL") => {
+  const openAdmissionForm = (classId?: string) => { setAdmissionClassId(classId || ""); setConvertingQuery(null); setShowAdmissionForm(true); };
+
+  const openConvertQuery = (query: any) => {
+    setConvertingQuery(query);
+    setAdmissionClassId(query.classInterested?.id || "");
+    setShowAdmissionForm(true);
+  };
+  const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST") => {
     if (role === "CAMPUS_ADMIN") setShowAddAdminForm(true);
-    else setShowAddPrincipalForm(true);
+    else if (role === "PRINCIPAL") setShowAddPrincipalForm(true);
+    else if (role === "ACCOUNTANT") setShowAddAccountantForm(true);
+    else if (role === "LIBRARIAN") setShowAddLibrarianForm(true);
+    else if (role === "RECEPTIONIST") setShowAddReceptionistForm(true);
   };
 
-  const navItems: RoleNavItem[] = [
+  const navItems: SidebarEntry[] = [
     { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
     { icon: School, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
-    { icon: Users, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
-    { icon: GraduationCap, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-    { icon: CalendarCheck, label: "Students", active: activeView === "students", onClick: () => setActiveView("students") },
-    { icon: History, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
-    { icon: FileText, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-    { icon: Receipt, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-    { icon: Calendar, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
-    { icon: Award, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-    { icon: ClipboardList, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-    { icon: Sparkles, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
-    { icon: BookOpen, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    {
+      icon: BookOpen, label: "Academics", children: [
+        { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
+        { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
+        { icon: DoorOpen, label: "Class Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
+        { icon: Clock, label: "Period Setup", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
+        { icon: CalendarClock, label: "Exam Routine", active: activeView === "exam-routine", onClick: () => setActiveView("exam-routine") },
+        { icon: CalendarDays, label: "School Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
+        { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
+        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
+        { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+      ],
+    },
+    {
+      icon: GraduationCap, label: "Students", children: [
+        { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
+        { icon: PhoneCall, label: "Admission Queries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
+        { icon: Tags, label: "Student Setup", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
+        { icon: ArrowRightLeft, label: "Promote & Archive", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
+      ],
+    },
+    {
+      icon: UserCog, label: "Staff", children: [
+        { icon: Users, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
+        { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
+        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
+        { icon: Plane, label: "Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
+        { icon: Banknote, label: "Payroll", active: activeView === "payroll", onClick: () => setActiveView("payroll") },
+        { icon: Shield, label: "Role Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
+      ],
+    },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    {
+      icon: Wrench, label: "Operations", children: [
+        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
+        { icon: Building2, label: "Dormitory", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
+      ],
+    },
+    {
+      icon: Phone, label: "Front Desk", children: [
+        { icon: Eye, label: "Visitors", active: activeView === "visitors", onClick: () => setActiveView("visitors") },
+        { icon: MessageSquare, label: "Complaints", active: activeView === "complaints", onClick: () => setActiveView("complaints") },
+        { icon: Mail, label: "Postal", active: activeView === "postal", onClick: () => setActiveView("postal") },
+        { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", onClick: () => setActiveView("phone-calls") },
+        { icon: FileText, label: "Certificates", active: activeView === "certificates", onClick: () => setActiveView("certificates") },
+      ],
+    },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
+    { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
   const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
@@ -361,6 +491,9 @@ export default function PrincipalDashboard() {
             data={data}
             onInviteAdmin={() => openAddStaff("CAMPUS_ADMIN")}
             onInvitePrincipal={() => openAddStaff("PRINCIPAL")}
+            onInviteAccountant={() => openAddStaff("ACCOUNTANT")}
+            onInviteLibrarian={() => openAddStaff("LIBRARIAN")}
+            onInviteReceptionist={() => openAddStaff("RECEPTIONIST")}
             onRemove={handleRemove}
             onResend={handleResendInvite}
             onCancel={handleCancelInvite}
@@ -406,6 +539,14 @@ export default function PrincipalDashboard() {
             onCancel={handleCancelInvite}
           />
         ) : null}
+        {activeView === "admission-queries" ? (
+          <AdmissionQueriesPanel
+            classes={data.classes}
+            version={admissionQueriesVersion}
+            onVersionBump={() => setAdmissionQueriesVersion((v) => v + 1)}
+            onConvert={openConvertQuery}
+          />
+        ) : null}
         {activeView === "students" ? (
           <StudentsPanel
             students={data.students}
@@ -416,7 +557,32 @@ export default function PrincipalDashboard() {
             onExport={exportStudentsCSV}
           />
         ) : null}
+        {activeView === "student-setup" ? <StudentSetupPanel /> : null}
+        {activeView === "promote-archive" ? (
+          <div className="space-y-6">
+            <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
+            <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
+                    <GraduationCap className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">Year-End Promotion</h3>
+                    <p className="text-xs font-bold text-[#4d4354]/55">Batch promote students with final grades, pass/fail outcomes and fee carry-forward</p>
+                  </div>
+                </div>
+                <BrandButton variant="dark" icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => setActiveView("year-cycle")}>
+                  Open Promotion Wizard
+                </BrandButton>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {activeView === "attendance" ? <UnifiedAttendancePanel /> : null}
+        {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
+        {activeView === "payroll" ? <PayrollPanel campusId={data.campusId} /> : null}
+        {activeView === "permissions" ? <RolePermissionsPanel /> : null}
         {activeView === "year-cycle" ? (
           <div className="space-y-8">
             <CycleManagementPanel />
@@ -429,6 +595,14 @@ export default function PrincipalDashboard() {
         {activeView === "exam-cycles" ? <ExamCyclesPanel exams={data.recentExams} /> : null}
         {activeView === "fees" ? <FeesPanel /> : null}
         {activeView === "timetable" ? <TimetablePanel /> : null}
+
+        {activeView === "class-rooms" ? <RoomsPanel /> : null}
+
+        {activeView === "period-setup" ? <PeriodsPanel /> : null}
+
+        {activeView === "exam-routine" ? <ExamRoutinePanel /> : null}
+
+        {activeView === "school-calendar" ? <SchoolCalendarPanel /> : null}
         {activeView === "teacher-performance" ? <TeacherPerformancePanel /> : null}
         {activeView === "report-cards" ? (
           <div className="space-y-8">
@@ -438,6 +612,16 @@ export default function PrincipalDashboard() {
         ) : null}
         {activeView === "ai" ? <AIPanel features={principalAIFeatures} insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} title="Principal AI" /> : null}
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
+
+        {activeView === "transport" ? <TransportPanel /> : null}
+        {activeView === "dormitory" ? <DormitoryPanel /> : null}
+        {activeView === "library" ? <LibraryPanel /> : null}
+        {activeView === "inventory" ? <InventoryPanel /> : null}
+        {activeView === "visitors" ? <VisitorsPanel /> : null}
+        {activeView === "complaints" ? <ComplaintsPanel /> : null}
+        {activeView === "postal" ? <PostalPanel /> : null}
+        {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
+        {activeView === "certificates" ? <CertificatesPanel /> : null}
       </section>
 
       {showClassWizard ? (
@@ -456,6 +640,11 @@ export default function PrincipalDashboard() {
           classes={data.classes || []}
           classGroups={groupClasses(data.classes || [])}
           initialClassId={admissionClassId || undefined}
+          initialPrefill={convertingQuery ? {
+            fullName: convertingQuery.name,
+            guardianPhone: convertingQuery.phone,
+            guardianEmail: convertingQuery.email || "",
+          } : undefined}
           onSuccess={handleAdmissionSuccess}
           onClose={() => setShowAdmissionForm(false)}
         />
@@ -499,6 +688,15 @@ export default function PrincipalDashboard() {
       )}
       {showAddPrincipalForm && (
         <AddStaffForm role="PRINCIPAL" onSuccess={handleStaffAdded} onClose={() => setShowAddPrincipalForm(false)} />
+      )}
+      {showAddAccountantForm && (
+        <AddStaffForm role="ACCOUNTANT" onSuccess={handleStaffAdded} onClose={() => setShowAddAccountantForm(false)} />
+      )}
+      {showAddLibrarianForm && (
+        <AddStaffForm role="LIBRARIAN" onSuccess={handleStaffAdded} onClose={() => setShowAddLibrarianForm(false)} />
+      )}
+      {showAddReceptionistForm && (
+        <AddStaffForm role="RECEPTIONIST" onSuccess={handleStaffAdded} onClose={() => setShowAddReceptionistForm(false)} />
       )}
       <BulkImportDialog
         open={showBulkImportModal}

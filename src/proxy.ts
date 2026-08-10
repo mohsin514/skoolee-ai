@@ -27,6 +27,7 @@ const PUBLIC_PATHS = [
   "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
   "/api/parent/data",
   "/api/parent/timetable",
+  "/api/parent/exam-datesheet",
 ];
 
 // ─────────────────────────────────────────────────────────────────

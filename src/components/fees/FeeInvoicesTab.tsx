@@ -450,7 +450,7 @@ function InvoiceDetailModal({
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{inv.invoiceNumber}</p>
                 <p className="text-[9px] font-bold text-[#4d4354]/45">
-                  {inv.student?.fullName} &middot; {inv.student?.class?.name}
+                  {inv.student?.fullName} · {inv.student?.class?.name}
                 </p>
               </div>
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>
@@ -502,8 +502,8 @@ function InvoiceDetailModal({
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-[9px] font-bold text-[#4d4354]/45">
-                          {formatDate(p.paymentDate)} &middot; {paymentMethodLabel(p.paymentMethod)}
-                          {p.referenceNumber ? ` &middot; Ref: ${p.referenceNumber}` : ""}
+                          {formatDate(p.paymentDate)} · {paymentMethodLabel(p.paymentMethod)}
+                          {p.referenceNumber ? ` · Ref: ${p.referenceNumber}` : ""}
                         </p>
                         {p.recorder?.fullName && (
                           <p className="text-[9px] font-bold text-[#4d4354]/35">by {p.recorder.fullName}</p>

@@ -39,10 +39,11 @@ interface ClassGroup {
 interface AdmissionFormProps {
   classes: ClassRecord[];
   classGroups: ClassGroup[];
-  onSuccess: () => void;
+  onSuccess?: (student?: any) => void;
   onClose: () => void;
   initialClassId?: string;
   initialSection?: string;
+  initialPrefill?: Partial<Record<keyof FormData, string>>;
 }
 
 const STEPS = [
@@ -100,6 +101,9 @@ const emptyForm = {
   specialNeeds: "",
   allergies: "",
   medications: "",
+  categoryId: "",
+  groupId: "",
+  siblingStudentId: "",
 };
 
 type FormData = typeof emptyForm;
@@ -279,14 +283,43 @@ function sectionLabel(cls: ClassRecord) {
   return cls.section || "Main";
 }
 
-export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initialClassId }: AdmissionFormProps) {
+export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initialClassId, initialPrefill }: AdmissionFormProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(() => ({
     ...emptyForm,
+    ...(initialPrefill || {}),
     classId: (initialClassId && classes.some((cls) => cls.id === initialClassId) ? initialClassId : classes[0]?.id) || "",
   }));
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
+  const [siblings, setSiblings] = useState<any[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch("/api/student-categories").then((r) => r.json()),
+      fetch("/api/student-groups").then((r) => r.json()),
+    ])
+      .then(([cats, grps]) => {
+        if (!active) return;
+        setTags({
+          categories: cats.success ? cats.data : [],
+          groups: grps.success ? grps.data : [],
+        });
+      })
+      .catch(() => {});
+
+    fetch("/api/students/siblings")
+      .then((r) => r.json())
+      .then((j) => {
+        if (active && j.success) setSiblings(j.data || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const nameUrManuallyEdited = useRef(false);
   const guardianNameUrManuallyEdited = useRef(false);
@@ -440,7 +473,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
         toast.warning("Student created, but student login invite email could not be sent.");
       }
 
-      onSuccess();
+      onSuccess?.(data.data);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add student");
     } finally {
@@ -528,6 +561,8 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
               classGroups={classGroups}
               selectedGroupKey={selectedGroupKey}
               selectedGroup={selectedGroup}
+              tags={tags}
+              siblings={siblings}
               rollNoLoading={rollNoLoading}
               onUpdate={update}
               onSelectClassGroup={selectClassGroup}
@@ -541,7 +576,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
             <StepAddressMedical form={form} errors={errors} onUpdate={update} />
           )}
           {step === 3 && (
-            <StepReview form={form} selectedClass={selectedClass} age={age} onEditStep={setStep} />
+            <StepReview form={form} selectedClass={selectedClass} age={age} tags={tags} siblings={siblings} onEditStep={setStep} />
           )}
         </div>
 
@@ -600,6 +635,8 @@ function StepPersonalInfo({
   classGroups,
   selectedGroupKey,
   selectedGroup,
+  tags,
+  siblings,
   rollNoLoading,
   onUpdate,
   onSelectClassGroup,
@@ -611,6 +648,8 @@ function StepPersonalInfo({
   classGroups: ClassGroup[];
   selectedGroupKey: string;
   selectedGroup: ClassGroup | undefined;
+  tags: { categories: any[]; groups: any[] };
+  siblings: any[];
   rollNoLoading: boolean;
   onUpdate: (field: keyof FormData, value: string) => void;
   onSelectClassGroup: (key: string) => void;
@@ -765,6 +804,54 @@ function StepPersonalInfo({
           onChange={(e) => onUpdate("previousSchool", e.target.value)}
           placeholder="Name of previous school (if any)"
         />
+      </FieldGroup>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FieldGroup label="Category" hint="Fee / scholarship eligibility tag">
+          <Select
+            value={form.categoryId}
+            onChange={(e) => onUpdate("categoryId", e.target.value)}
+          >
+            <option value="">No category</option>
+            {tags.categories
+              .filter((c) => c.isActive !== false || c.id === form.categoryId)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </Select>
+        </FieldGroup>
+        <FieldGroup label="Group" hint="Transport, hostel, house…">
+          <Select
+            value={form.groupId}
+            onChange={(e) => onUpdate("groupId", e.target.value)}
+          >
+            <option value="">No group</option>
+            {tags.groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </Select>
+        </FieldGroup>
+      </div>
+
+      <FieldGroup
+        label="Link as sibling of"
+        hint="Choose an existing student — they'll share a sibling group automatically. Leave blank for a new family."
+      >
+        <Select
+          value={form.siblingStudentId}
+          onChange={(e) => onUpdate("siblingStudentId", e.target.value)}
+        >
+          <option value="">No sibling link</option>
+          {siblings.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.fullName} · {s.rollNo || "No roll"} · {[s.class?.name, s.class?.section].filter(Boolean).join(" ") || "Class?"}
+            </option>
+          ))}
+        </Select>
       </FieldGroup>
     </div>
   );
@@ -962,11 +1049,15 @@ function StepReview({
   form,
   selectedClass,
   age,
+  tags,
+  siblings,
   onEditStep,
 }: {
   form: FormData;
   selectedClass: ClassRecord | undefined;
   age: number | null;
+  tags: { categories: any[]; groups: any[] };
+  siblings: any[];
   onEditStep: (step: number) => void;
 }) {
   const classDisplay = selectedClass
@@ -1005,6 +1096,21 @@ function StepReview({
         {form.phone && <ReviewRow label="Phone" value={form.phone} />}
         {form.studentEmail && <ReviewRow label="Student Email" value={form.studentEmail} />}
         {form.previousSchool && <ReviewRow label="Previous School" value={form.previousSchool} />}
+        {form.categoryId || form.groupId ? (
+          <>
+            <ReviewRow
+              label="Category"
+              value={tags.categories.find((c) => c.id === form.categoryId)?.name || "None"}
+            />
+            <ReviewRow
+              label="Group"
+              value={tags.groups.find((g) => g.id === form.groupId)?.name || "None"}
+            />
+          </>
+        ) : null}
+        {form.siblingStudentId ? (
+          <ReviewRow label="Sibling link" value={siblings.find((s) => s.id === form.siblingStudentId)?.fullName || "Selected sibling"} />
+        ) : null}
       </ReviewSection>
 
       <ReviewSection

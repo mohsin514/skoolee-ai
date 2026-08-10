@@ -19,6 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           include: {
             subject: { select: { id: true, name: true } },
             teacher: { select: { id: true, fullName: true } },
+            room: { select: { id: true, roomNumber: true, capacity: true } },
           },
           orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
         },
@@ -59,6 +60,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             include: {
               subject: { select: { id: true, name: true } },
               teacher: { select: { id: true, fullName: true } },
+              room: { select: { id: true, roomNumber: true, capacity: true } },
             },
             orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
           },
@@ -84,6 +86,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             include: {
               subject: { select: { id: true, name: true } },
               teacher: { select: { id: true, fullName: true } },
+              room: { select: { id: true, roomNumber: true, capacity: true } },
             },
             orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
           },
@@ -116,6 +119,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             `${conflict.teacher?.fullName} is already assigned to ${cls.name}${cls.section ? ` - ${cls.section}` : ""} on this slot`
           );
         }
+
+        // Room double-booking check — same shape as the teacher check (Module 13)
+        if (slot.roomId) {
+          const roomConflict = await prisma.timetableSlot.findFirst({
+            where: {
+              timetable: { campusId, id: { not: id } },
+              roomId: slot.roomId,
+              dayOfWeek: slot.dayOfWeek,
+              periodNumber: slot.periodNumber,
+            },
+            include: {
+              timetable: { include: { class: { select: { name: true, section: true } } } },
+              room: { select: { roomNumber: true } },
+            },
+          });
+          if (roomConflict) {
+            const cls = roomConflict.timetable.class;
+            conflicts.push(
+              `Room ${roomConflict.room?.roomNumber} is already booked for ${cls.name}${cls.section ? ` - ${cls.section}` : ""} on this slot`
+            );
+          }
+        }
       }
 
       if (conflicts.length > 0) {
@@ -129,6 +154,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             data: {
               subjectId: slot.subjectId || null,
               teacherId: slot.teacherId || null,
+              roomId: slot.roomId || null,
               roomNumber: slot.roomNumber || null,
               slotType: slot.slotType || "CLASS",
               startTime: slot.startTime,
@@ -146,6 +172,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             include: {
               subject: { select: { id: true, name: true } },
               teacher: { select: { id: true, fullName: true } },
+              room: { select: { id: true, roomNumber: true, capacity: true } },
             },
             orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
           },

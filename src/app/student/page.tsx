@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Award, BookOpen, Calendar, CreditCard, GraduationCap, Loader2, Printer, Share2, Sparkles, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Award, BookOpen, Calendar, CalendarClock, CreditCard, GraduationCap, Loader2, MapPin, Printer, Share2, Sparkles, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { DashboardSkeleton, StudentErrorState } from "@/components/student/student-components";
@@ -9,9 +9,42 @@ import { useStudentData } from "./student-data-context";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { downloadPdfFile } from "@/lib/download";
 
+const WEEKDAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 export default function StudentDashboard() {
   const { data, loading, refetch, error } = useStudentData();
   const [downloading, setDownloading] = useState(false);
+  const [upcomingPapers, setUpcomingPapers] = useState<any[]>([]);
+  const [papersLoaded, setPapersLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!data?.user?.classId || papersLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const exRes = await fetch(`/api/exams?classId=${data.user.classId}`);
+        const exJson = await exRes.json();
+        if (!exJson.success) return;
+        const exams = exJson.exams || [];
+        const schJson = await Promise.all(
+          exams.map((exam: any) => fetch(`/api/academic/exam-schedule?examId=${exam.id}`).then((r) => r.json()).catch(() => null))
+        );
+        const today = new Date();
+        const papers: any[] = [];
+        exams.forEach((exam: any, i: number) => {
+          const rows = schJson[i]?.success ? (schJson[i].data || []) : [];
+          for (const row of rows) {
+            const d = new Date(row.date + "T00:00:00");
+            if (d >= today) papers.push({ ...row, exam });
+          }
+        });
+        papers.sort((a, b) => a.date.localeCompare(b.date));
+        if (!cancelled) setUpcomingPapers(papers.slice(0, 6));
+      } catch {}
+      finally { if (!cancelled) setPapersLoaded(true); }
+    })();
+    return () => { cancelled = true; };
+  }, [data?.user?.classId, papersLoaded]);
 
   const handleDownloadPdf = async () => {
     if (!data?.user?.id) return;
@@ -103,6 +136,49 @@ export default function StudentDashboard() {
             <DashboardStat icon={BookOpen} label="Subjects" value={user.subjects.length} tone="purple" entranceDelay={240} />
             <DashboardStat icon={CreditCard} label="Balance Due" value={`Rs ${user.balanceDue.toLocaleString()}`} tone="rose" entranceDelay={320} />
           </div>
+
+          {upcomingPapers.length > 0 && (
+            <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "360ms" }}>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fbf0fe]">
+                    <CalendarClock className="h-5 w-5 text-[#8127cf]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Upcoming Exam Papers</h3>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+                      Next {upcomingPapers.length} paper{upcomingPapers.length !== 1 ? "s" : ""} · view full date sheet in Schedule
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {upcomingPapers.map((paper) => {
+                  const day = new Date(paper.date + "T00:00:00").getDay();
+                  return (
+                    <div key={paper.id} className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/30 p-3">
+                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-white border border-[#cfc2d6]/20">
+                        <span className="text-[8px] font-black uppercase text-[#8127cf]/60">{WEEKDAYS[day === 0 ? 7 : day]}</span>
+                        <span className="text-sm font-black text-[#1f1a23] leading-none mt-0.5">{paper.date.slice(8, 10)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black text-[#1f1a23]">{paper.subject?.name || "Class-wide paper"}</p>
+                        <p className="text-[9px] font-semibold text-[#4d4354]/45">
+                          {paper.date}
+                          {paper.periodDefinition ? ` · ${paper.periodDefinition.startTime}–${paper.periodDefinition.endTime}` : ""}
+                        </p>
+                        {paper.room && (
+                          <p className="flex items-center gap-1 text-[9px] font-bold text-[#8127cf]/70">
+                            <MapPin className="h-2.5 w-2.5" /> Room {paper.room.roomNumber}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-8" style={{ animationDelay: "400ms" }}>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />

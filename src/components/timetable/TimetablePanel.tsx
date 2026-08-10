@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, BookOpen, Calendar, Check, ChevronDown,
-  Clock, GraduationCap, Loader2, Plus, Send, Trash2, User, X,
+  Clock, DoorOpen, GraduationCap, Loader2, Plus, Printer, Send, Trash2, User, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,8 +18,10 @@ interface SlotData {
   subjectId: string | null;
   teacherId: string | null;
   roomNumber: string | null;
+  roomId: string | null;
   subject: { id: string; name: string } | null;
   teacher: { id: string; fullName: string } | null;
+  room: { id: string; roomNumber: string; capacity: number } | null;
 }
 
 interface TimetableData {
@@ -50,6 +52,12 @@ interface SubjectOption {
 interface TeacherOption {
   id: string;
   fullName: string;
+}
+
+interface RoomOption {
+  id: string;
+  roomNumber: string;
+  capacity: number;
 }
 
 const DAYS = [
@@ -97,22 +105,31 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [showPeriodConfig, setShowPeriodConfig] = useState(false);
   const [customPeriods, setCustomPeriods] = useState<{ period: number; start: string; end: string; type: string }[]>([]);
+  const [periodDefs, setPeriodDefs] = useState<{ id: string; periodNumber: number; startTime: string; endTime: string }[]>([]);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
+  const [weekendDays, setWeekendDays] = useState<number[]>([]);
 
   const qp = campusId ? `?campusId=${campusId}` : "";
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ttRes, classRes, teacherRes] = await Promise.all([
+      const [ttRes, classRes, teacherRes, periodRes, roomRes, calRes] = await Promise.all([
         fetch(`/api/timetable${qp}`),
         fetch(`/api/classes${qp}`),
         fetch(`/api/staff${qp}`),
+        fetch(`/api/academic/periods?timeType=CLASS${qp}`),
+        fetch(`/api/academic/rooms${qp}`),
+        fetch(`/api/academic/calendar${qp}`),
       ]);
-      const [ttJson, classJson, teacherJson] = await Promise.all([
-        ttRes.json(), classRes.json(), teacherRes.json(),
+      const [ttJson, classJson, teacherJson, periodJson, roomJson, calJson] = await Promise.all([
+        ttRes.json(), classRes.json(), teacherRes.json(), periodRes.json(), roomRes.json(), calRes.json(),
       ]);
 
       if (ttJson.success) setTimetables(ttJson.data);
+      if (periodJson.success) setPeriodDefs(periodJson.data || []);
+      if (roomJson.success) setRooms(roomJson.data || []);
+      if (calJson.success) setWeekendDays(calJson.data.weekends || []);
       if (classJson.success || Array.isArray(classJson.data)) {
         const cls = classJson.data || classJson;
         setClasses(Array.isArray(cls) ? cls : []);
@@ -165,6 +182,16 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   const periods = useMemo(() => {
     if (!activeTimetable) return [];
+    // Prefer campus-wide period definitions (Module 12) as the row headers;
+    // fall back to deriving them from the timetable's own slots.
+    if (periodDefs.length > 0) {
+      return [...periodDefs]
+        .sort((a, b) => a.periodNumber - b.periodNumber)
+        .map((p) => {
+          const slot = activeTimetable.slots.find((s) => s.periodNumber === p.periodNumber);
+          return { num: p.periodNumber, start: p.startTime, end: p.endTime, type: slot?.slotType || "CLASS" };
+        });
+    }
     const seen = new Map<number, { start: string; end: string; type: string }>();
     for (const s of activeTimetable.slots) {
       if (!seen.has(s.periodNumber)) {
@@ -174,7 +201,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     return [...seen.entries()]
       .sort(([a], [b]) => a - b)
       .map(([num, v]) => ({ num, ...v }));
-  }, [activeTimetable]);
+  }, [activeTimetable, periodDefs]);
 
   const defaultPeriods = [
     { period: 1, start: "08:00", end: "08:40", type: "CLASS" },
@@ -192,13 +219,19 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     setCreating(true);
     try {
       const cls = classes.find((c) => c.id === selectedClassId);
+      const fromDefs =
+        periodDefs.length > 0
+          ? periodDefs
+              .sort((a, b) => a.periodNumber - b.periodNumber)
+              .map((p) => ({ period: p.periodNumber, start: p.startTime, end: p.endTime, type: "CLASS" }))
+          : null;
       const res = await fetch("/api/timetable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClassId,
           academicYear: cls?.academicYear || new Date().getFullYear(),
-          periods: periods || defaultPeriods,
+          periods: periods || fromDefs || defaultPeriods,
         }),
       });
       const json = await res.json();
@@ -237,6 +270,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           periodNumber: original.periodNumber,
           subjectId: changes.subjectId !== undefined ? changes.subjectId : original.subjectId,
           teacherId: changes.teacherId !== undefined ? changes.teacherId : original.teacherId,
+          roomId: changes.roomId !== undefined ? changes.roomId : original.roomId,
           roomNumber: changes.roomNumber !== undefined ? changes.roomNumber : original.roomNumber,
           slotType: changes.slotType !== undefined ? changes.slotType : original.slotType,
           startTime: changes.startTime || original.startTime,
@@ -305,6 +339,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           slotType: cfg?.type || s.slotType,
           subjectId: s.subjectId,
           teacherId: s.teacherId,
+          roomId: s.roomId,
           roomNumber: s.roomNumber,
         };
       });
@@ -440,6 +475,15 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} assigned
               </span>
             )}
+            {selectedTeacherId && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+              >
+                <Printer className="h-3.5 w-3.5" />Print Routine
+              </button>
+            )}
           </div>
 
           {!selectedTeacherId && (
@@ -458,9 +502,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     <Clock className="w-4 h-4 text-[#4d4354]/30" />
                   </div>
                   {DAYS.map((day) => (
-                    <div key={day.num} className="flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9]">
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
                       <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
                       <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                      {weekendDays.includes(day.num) && (
+                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -472,10 +519,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{period.start}</span>
                     </div>
                     {DAYS.map((day) => {
+                      const isOff = weekendDays.includes(day.num);
                       const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
                       const isConflict = selectedTeacherSlots.filter((s) => s.day === day.num && s.period === period.num).length > 1;
                       return (
-                        <div key={day.num} className="border-l border-[#f3f4f9] p-1">
+                        <div key={day.num} className={`border-l border-[#f3f4f9] p-1 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}>
                           {slotInfo ? (
                             <div className={`h-full rounded-xl p-2 flex flex-col justify-center ${isConflict ? "bg-rose-100 border border-rose-300" : "bg-emerald-50 border border-emerald-200"}`}>
                               <p className={`text-[10px] font-black leading-tight ${isConflict ? "text-rose-700" : "text-emerald-700"}`}>
@@ -609,6 +657,13 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               </button>
               <button
                 type="button"
+                onClick={() => window.print()}
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+              >
+                <Printer className="h-3.5 w-3.5" />Print
+              </button>
+              <button
+                type="button"
                 onClick={handleDeleteTimetable}
                 className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
               >
@@ -665,12 +720,18 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 <div className="flex items-center justify-center p-3">
                   <Clock className="w-4 h-4 text-[#4d4354]/30" />
                 </div>
-                {DAYS.map((day) => (
-                  <div key={day.num} className="flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9]">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-                    <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
-                  </div>
-                ))}
+                {DAYS.map((day) => {
+                  const isOff = weekendDays.includes(day.num);
+                  return (
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
+                      <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                      {isOff && (
+                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Period rows */}
@@ -699,8 +760,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
                     {/* Day cells */}
                     {DAYS.map((day) => {
+                      const isOff = weekendDays.includes(day.num);
+                      const offCls = isOff ? "opacity-40 bg-[#f3f4f9]/70" : "";
                       const slot = getSlot(day.num, period.num);
-                      if (!slot) return <div key={day.num} className="border-l border-[#f3f4f9] p-1" />;
+                      if (!slot) return <div key={day.num} className={`border-l border-[#f3f4f9] p-1 ${offCls}`} />;
 
                       const effectiveType = pendingChanges.get(slot.id)?.slotType || slot.slotType;
 
@@ -709,7 +772,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                         return (
                           <div
                             key={day.num}
-                            className="border-l border-[#f3f4f9] flex items-center justify-center p-1 cursor-pointer"
+                            className={`border-l border-[#f3f4f9] flex items-center justify-center p-1 cursor-pointer ${offCls}`}
                             onClick={() => setEditingSlot(slot)}
                           >
                             <span className={`text-[9px] font-bold ${style?.text || "text-[#4d4354]/40"}`}>
@@ -725,6 +788,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       const effectiveTeacherId = pendingChanges.get(slot.id)?.teacherId !== undefined
                         ? pendingChanges.get(slot.id)?.teacherId
                         : slot.teacherId;
+                      const effectiveRoomId = pendingChanges.get(slot.id)?.roomId !== undefined
+                        ? pendingChanges.get(slot.id)?.roomId
+                        : slot.roomId;
 
                       const subjectName = effectiveSubjectId
                         ? subjects.find((s) => s.id === effectiveSubjectId)?.name
@@ -732,13 +798,16 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       const teacherName = effectiveTeacherId
                         ? teachers.find((t) => t.id === effectiveTeacherId)?.fullName
                         : null;
+                      const roomName = effectiveRoomId
+                        ? rooms.find((r) => r.id === effectiveRoomId)?.roomNumber
+                        : null;
                       const color = effectiveSubjectId ? subjectColorMap.get(effectiveSubjectId) : null;
                       const hasChange = pendingChanges.has(slot.id);
 
                       return (
                         <div
                           key={day.num}
-                          className={`border-l border-[#f3f4f9] p-1 cursor-pointer group transition-all`}
+                          className={`border-l border-[#f3f4f9] p-1 cursor-pointer group transition-all ${offCls}`}
                           onClick={() => setEditingSlot(slot)}
                         >
                           {subjectName ? (
@@ -750,6 +819,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                                 {teacherName && (
                                   <p className="text-[8px] font-semibold text-[#4d4354]/40 mt-1 flex items-center gap-0.5">
                                     <User className="w-2.5 h-2.5" />{teacherName}
+                                  </p>
+                                )}
+                                {roomName && (
+                                  <p className="text-[8px] font-semibold text-[#4d4354]/35 mt-0.5 flex items-center gap-0.5">
+                                    <DoorOpen className="w-2.5 h-2.5" />{roomName}
                                   </p>
                                 )}
                               </div>
@@ -771,6 +845,46 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       )}
       </>
       )}
+
+      {/* Print-only routine (class-wise or teacher-wise) */}
+      <div id="routine-print-root">
+        {activeTimetable && viewMode === "class" ? (
+          <RoutinePrintGrid
+            title={`${activeTimetable.class.name}${activeTimetable.class.section ? ` - ${activeTimetable.class.section}` : ""} — Weekly Timetable ${activeTimetable.academicYear} (${activeTimetable.term})`}
+            periods={periods}
+            days={DAYS}
+            cells={DAYS.map((day) => periods.map((period) => {
+              const s = getSlot(day.num, period.num);
+              if (!s) return null;
+              return {
+                label: s.subject?.name || "",
+                sub: [s.teacher?.fullName, (s.room?.roomNumber || s.roomNumber) || ""].filter(Boolean).join(" · "),
+                type: s.slotType,
+              };
+            }))}
+          />
+        ) : null}
+        {selectedTeacherId && viewMode === "teacher" ? (
+          <RoutinePrintGrid
+            title={`${teachers.find((t) => t.id === selectedTeacherId)?.fullName || "Teacher"} — Weekly Routine`}
+            periods={periods}
+            days={DAYS}
+            cells={DAYS.map((day) => periods.map((period) => {
+              const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
+              if (!slotInfo) return null;
+              return { label: slotInfo.subject, sub: slotInfo.classLabel, type: "CLASS" };
+            }))}
+          />
+        ) : null}
+      </div>
+      <style>{`
+        @media screen { #routine-print-root { display: none; } }
+        @media print {
+          body * { visibility: hidden; }
+          #routine-print-root, #routine-print-root * { visibility: visible; }
+          #routine-print-root { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+        }
+      `}</style>
 
       {/* Period Config Modal */}
       {showPeriodConfig && (
@@ -796,6 +910,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           pendingChange={pendingChanges.get(editingSlot.id)}
           subjects={subjects}
           teachers={teachers}
+          rooms={rooms}
           onSave={(updates) => {
             handleSlotUpdate(editingSlot.id, updates);
             setEditingSlot(null);
@@ -940,6 +1055,7 @@ function SlotEditorModal({
   pendingChange,
   subjects,
   teachers,
+  rooms,
   onSave,
   onClose,
 }: {
@@ -947,19 +1063,20 @@ function SlotEditorModal({
   pendingChange?: Partial<SlotData>;
   subjects: SubjectOption[];
   teachers: TeacherOption[];
+  rooms: RoomOption[];
   onSave: (updates: Partial<SlotData>) => void;
   onClose: () => void;
 }) {
   const current = {
     subjectId: pendingChange?.subjectId !== undefined ? pendingChange.subjectId : slot.subjectId,
     teacherId: pendingChange?.teacherId !== undefined ? pendingChange.teacherId : slot.teacherId,
-    roomNumber: pendingChange?.roomNumber !== undefined ? pendingChange.roomNumber : slot.roomNumber,
+    roomId: pendingChange?.roomId !== undefined ? pendingChange.roomId : slot.roomId,
     slotType: pendingChange?.slotType !== undefined ? pendingChange.slotType : slot.slotType,
   };
 
   const [subjectId, setSubjectId] = useState(current.subjectId || "");
   const [teacherId, setTeacherId] = useState(current.teacherId || "");
-  const [roomNumber, setRoomNumber] = useState(current.roomNumber || "");
+  const [roomId, setRoomId] = useState(current.roomId || "");
   const [slotType, setSlotType] = useState(current.slotType);
 
   const dayName = DAYS.find((d) => d.num === slot.dayOfWeek)?.full || "";
@@ -973,21 +1090,25 @@ function SlotEditorModal({
     }
   }, [subjectId, subjects, teacherId]);
 
+  const selectedRoom = rooms.find((r) => r.id === roomId);
+
   const handleSave = () => {
     if (slotType !== "CLASS") {
-      onSave({ slotType, subjectId: null, teacherId: null, roomNumber: null });
+      onSave({ slotType, subjectId: null, teacherId: null, roomId: null, roomNumber: null });
     } else {
+      const room = rooms.find((r) => r.id === roomId);
       onSave({
         slotType: "CLASS",
         subjectId: subjectId || null,
         teacherId: teacherId || null,
-        roomNumber: roomNumber || null,
+        roomId: roomId || null,
+        roomNumber: room?.roomNumber || null,
       });
     }
   };
 
   const handleClear = () => {
-    onSave({ subjectId: null, teacherId: null, roomNumber: null, slotType: "CLASS" });
+    onSave({ subjectId: null, teacherId: null, roomId: null, roomNumber: null, slotType: "CLASS" });
   };
 
   return (
@@ -1059,13 +1180,23 @@ function SlotEditorModal({
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Room (Optional)</label>
-                <input
-                  type="text"
-                  value={roomNumber}
-                  onChange={(e) => setRoomNumber(e.target.value)}
-                  placeholder="e.g. Room 5A"
+                <select
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
-                />
+                >
+                  <option value="">— No room —</option>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedRoom && selectedRoom.capacity > 0 && (
+                  <p className="mt-1.5 text-[10px] font-semibold text-[#4d4354]/45">
+                    Room capacity is {selectedRoom.capacity} — assigned classes should not exceed this (warning only).
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -1088,6 +1219,64 @@ function SlotEditorModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Print Grid (class-wise / teacher-wise routine) ───────
+function RoutinePrintGrid({
+  title,
+  periods,
+  days,
+  cells,
+}: {
+  title: string;
+  periods: { num: number; start: string; end: string; type: string }[];
+  days: { num: number; short: string; full: string }[];
+  cells: ({ label: string; sub: string; type: string } | null)[][];
+}) {
+  return (
+    <div className="routine-print">
+      <style>{`
+        .routine-print { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #111; }
+        .routine-print h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; }
+        .routine-print table { width: 100%; border-collapse: collapse; }
+        .routine-print th, .routine-print td { border: 1px solid #ccc; padding: 6px 8px; font-size: 11px; text-align: center; vertical-align: top; }
+        .routine-print th { background: #f2eef5; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .routine-print td.time { font-weight: 800; font-size: 10px; white-space: nowrap; }
+        .routine-print .cell { font-weight: 700; }
+        .routine-print .sub { font-weight: 400; color: #555; font-size: 9px; }
+        .routine-print .special { background: #f7f7f9; color: #666; font-style: italic; }
+      `}</style>
+      <h2>{title}</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "90px" }}>Time</th>
+            {days.map((d) => (
+              <th key={d.num}>{d.short}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {periods.map((period, pi) => (
+            <tr key={period.num}>
+              <td className="time">P{period.num}<br />{period.start}–{period.end}</td>
+              {cells.map((col, di) => {
+                const cell = col[pi];
+                if (!cell) return <td key={di} />;
+                const isSpecial = cell.type !== "CLASS";
+                return (
+                  <td key={di} className={isSpecial ? "special" : undefined}>
+                    <div className="cell">{cell.label || (isSpecial ? cell.type : "")}</div>
+                    {cell.sub ? <div className="sub">{cell.sub}</div> : null}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -78,3 +78,54 @@ export function reportCardKey(
 ): string {
   return `reports/${tenantId}/${examId}/${studentId}.pdf`;
 }
+
+/**
+ * Generate a pre-signed URL the browser can PUT to directly (documents,
+ * images, uploads). Returns the key + presigned PUT URL.
+ */
+export async function getUploadUrl(
+  key: string,
+  contentType: string,
+  expiresIn = 900
+): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+  return getSignedUrl(s3, command, { expiresIn });
+}
+
+/**
+ * Standard key for an admission document, e.g.
+ * student-docs/{campusId}/{studentId}/{uuid}.{ext}
+ */
+export function documentKey(
+  campusId: string,
+  studentId: string,
+  fileName: string
+): string {
+  const safe = fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `student-docs/${campusId}/${studentId}/${safe}`;
+}
+
+/**
+ * Standard key for a staff document, e.g.
+ * staff-docs/{campusId}/{userId}/{uuid}.{ext}
+ */
+export function staffDocumentKey(
+  campusId: string,
+  userId: string,
+  fileName: string
+): string {
+  const safe = fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `staff-docs/${campusId}/${userId}/${safe}`;
+}

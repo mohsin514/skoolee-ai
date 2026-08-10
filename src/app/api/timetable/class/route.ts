@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
           include: {
             subject: { select: { id: true, name: true } },
             teacher: { select: { id: true, fullName: true } },
+            room: { select: { id: true, roomNumber: true, capacity: true } },
           },
           orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
         },
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data: {
+        classId: timetable.classId,
         className: timetable.class.name,
         classSection: timetable.class.section,
         slots: timetable.slots.map((s) => ({

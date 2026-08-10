@@ -3,11 +3,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { RoleHeader } from "./RoleHeader";
-import { RoleSidebar, type RoleNavItem } from "./RoleSidebar";
+import { RoleSidebar, type RoleNavItem, type SidebarEntry } from "./RoleSidebar";
 
 interface RoleShellProps {
   tagline?: string;
-  navItems: RoleNavItem[];
+  navItems: SidebarEntry[];
   bottomItems?: RoleNavItem[];
   searchPlaceholder?: string;
   eyebrow?: string;

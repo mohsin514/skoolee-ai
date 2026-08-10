@@ -18,7 +18,7 @@ export async function addStaff(data: {
   postalCode?: string;
   emergencyContact?: string;
   emergencyPhone?: string;
-  role: "CAMPUS_ADMIN" | "PRINCIPAL";
+  role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST";
 }) {
   const session = await getAuthUser();
   if (!session || (!isCampusAdminRole(session.role) && session.role !== "SUPER_ADMIN")) {

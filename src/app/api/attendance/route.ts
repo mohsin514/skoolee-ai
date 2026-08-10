@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { attendanceSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
+  assertPermission,
   canMarkAttendance,
   errorResponse,
   requireAuthUser,
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "attendance", "add");
 
     const body = await req.json();
     const parsed = attendanceSchema.safeParse(body);

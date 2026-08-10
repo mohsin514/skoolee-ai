@@ -125,6 +125,11 @@ export const studentSchema = z.object({
   allergies: optionalText,
   medications: optionalText,
   previousSchool: optionalText,
+  categoryId: optionalText,
+  groupId: optionalText,
+  siblingGroupId: optionalText,
+  siblingStudentId: optionalText,
+  parentUserId: optionalText,
   classId: z.string().min(1, "Class is required"),
 }).superRefine((data, ctx) => {
   const fullName = data.fullName || [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
@@ -171,6 +176,11 @@ export const studentSchema = z.object({
   allergies: data.allergies || null,
   medications: data.medications || null,
   previousSchool: data.previousSchool || null,
+  categoryId: data.categoryId || null,
+  groupId: data.groupId || null,
+  siblingGroupId: data.siblingGroupId || null,
+  siblingStudentId: data.siblingStudentId || null,
+  parentUserId: data.parentUserId || null,
   classId: data.classId,
 }));
 

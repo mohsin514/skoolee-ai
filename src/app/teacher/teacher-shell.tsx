@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BookOpen, Calendar, CalendarCheck, FileText, HelpCircle, LogOut, Star, Users, Zap } from "lucide-react";
+import { BookOpen, Calendar, CalendarCheck, FileText, HelpCircle, LogOut, Plane, Star, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
@@ -24,6 +24,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
     { icon: Users, label: "My Students", href: "/teacher/students" },
     { icon: FileText, label: "Reports", href: "/teacher/reports" },
     { icon: Calendar, label: "Timetable", href: "/teacher/timetable" },
+    { icon: Plane, label: "Leave", href: "/teacher/leave" },
     { icon: Zap, label: "AI Insights", href: "/teacher/ai" },
   ];
   const bottomItems: RoleNavItem[] = [];

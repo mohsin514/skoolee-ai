@@ -74,9 +74,11 @@ export async function GET(
           dueDate: inv.dueDate.toISOString().split("T")[0],
           amountDue: inv.totalAmount,
           amountPaid: inv.totalAmountPaid,
+          balance: inv.balanceDue,
           status: inv.status,
           payments: inv.payments.map((p) => ({
             amount: p.amount,
+            fineAmount: p.fineAmount ?? 0,
             method: p.paymentMethod,
             date: p.paymentDate.toISOString().split("T")[0],
             receiptNo: p.receiptNo,

@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { addStaff } from "@/app/actions/addStaff";
 
 interface AddStaffFormProps {
-  role: "CAMPUS_ADMIN" | "PRINCIPAL";
+  role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST";
   onSuccess: () => void;
   onClose: () => void;
 }
@@ -61,6 +61,9 @@ type FormData = typeof emptyForm;
 const ROLE_LABELS: Record<string, { title: string; eyebrow: string; submitLabel: string }> = {
   CAMPUS_ADMIN: { title: "Add New Admin", eyebrow: "Campus Administration", submitLabel: "Add Admin" },
   PRINCIPAL: { title: "Appoint Principal", eyebrow: "Academic Leadership", submitLabel: "Appoint Principal" },
+  ACCOUNTANT: { title: "Add Accountant", eyebrow: "Finance Team", submitLabel: "Add Accountant" },
+  LIBRARIAN: { title: "Add Librarian", eyebrow: "Library Staff", submitLabel: "Add Librarian" },
+  RECEPTIONIST: { title: "Add Receptionist", eyebrow: "Front Desk", submitLabel: "Add Receptionist" },
 };
 
 export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
@@ -114,7 +117,8 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
         dateOfBirth: form.dateOfBirth || undefined,
         role,
       });
-      toast.success(role === "PRINCIPAL" ? "Principal appointed successfully" : "Admin added successfully");
+      const label = ROLE_LABELS[role]?.submitLabel || "Add Staff";
+      toast.success(`${label} added successfully`);
       onSuccess();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add staff member");
@@ -195,7 +199,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                   <Input
                     value={form.fullName}
                     onChange={(e) => update("fullName", e.target.value)}
-                    placeholder={role === "PRINCIPAL" ? "Principal's full name" : "Admin's full name"}
+                    placeholder={role === "PRINCIPAL" ? "Principal's full name" : role === "CAMPUS_ADMIN" ? "Admin's full name" : "Staff member's full name"}
                     className="mt-1 h-12 rounded-xl border-[#cfc2d6]/20 bg-[#fbf0fe] font-medium shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                   />
                   {errors.fullName && <p className="mt-1 text-xs font-medium text-rose-500">{errors.fullName}</p>}

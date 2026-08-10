@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Receipt } from "lucide-react";
+import { Download, FileText, Loader2, Receipt, Wallet } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { toast } from "sonner";
 
 interface FeeData {
   studentId: string;
@@ -20,14 +21,17 @@ interface FeeData {
     status: string;
   } | null;
   invoiceHistory: Array<{
+    id: string;
     invoiceNumber: string;
     invoiceDate: string;
     dueDate: string;
     amountDue: number;
     amountPaid: number;
+    balance: number;
     status: string;
     payments: Array<{
       amount: number;
+      fineAmount?: number;
       method: string;
       date: string;
       receiptNo: string;
@@ -40,6 +44,7 @@ interface FeeData {
 export function ParentFeeView({ studentId }: { studentId: string }) {
   const [data, setData] = useState<FeeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/fees/student/${studentId}`)
@@ -48,6 +53,27 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [studentId]);
+
+  const handlePayNow = async (invoiceId: string) => {
+    setPayingInvoiceId(invoiceId);
+    try {
+      const res = await fetch("/api/fees/pay-online", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId }),
+      });
+      const json = await res.json();
+      if (json.success && json.url) {
+        window.location.href = json.url;
+      } else {
+        toast.error(json.error || "Payment session failed");
+      }
+    } catch {
+      toast.error("Failed to start online payment");
+    } finally {
+      setPayingInvoiceId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -83,7 +109,7 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
         </span>
       </div>
 
-      {data.nextDue && data.balance > 0 && (
+      {data.nextDue && data.balance > 0 && data.nextDue.invoiceId && (
         <div className="mb-6 rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] border border-[#8127cf]/10 p-5">
           <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Outstanding Balance</p>
           <p className="mt-1 text-3xl font-black text-[#1f1a23]">Rs {(data.balance / 100).toLocaleString()}</p>
@@ -91,6 +117,10 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
             Due: {data.nextDue.dueDate}
             {data.nextDue.status === "OVERDUE" ? <span className="text-rose-600 ml-2">OVERDUE</span> : null}
           </p>
+          <BrandButton className="mt-4 h-11 w-full" onClick={() => handlePayNow(data.nextDue!.invoiceId)} disabled={payingInvoiceId !== null}>
+            {payingInvoiceId === data.nextDue.invoiceId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+            {payingInvoiceId === data.nextDue.invoiceId ? "Starting SafePay..." : "Pay Now (SafePay)"}
+          </BrandButton>
         </div>
       )}
 
@@ -102,14 +132,28 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23] truncate">{inv.invoiceNumber || "Invoice"}</p>
                 <p className="text-[9px] font-bold text-[#4d4354]/45">
-                  {inv.invoiceDate} &middot; Due: {inv.dueDate}
+                  {inv.invoiceDate} · Due: {inv.dueDate}
+                  {inv.balance > 0 ? ` · Balance: Rs ${(inv.balance / 100).toLocaleString()}` : ""}
                 </p>
+                {inv.payments?.some((p) => p.fineAmount) ? (
+                  <p className="text-[9px] font-bold text-rose-500">Includes late fine</p>
+                ) : null}
               </div>
               <div className="text-right">
                 <p className="text-sm font-black text-[#1f1a23]">Rs {(inv.amountDue / 100).toLocaleString()}</p>
                 <span className={`text-[9px] font-black uppercase ${inv.status === "PAID" ? "text-emerald-600" : inv.status === "OVERDUE" ? "text-rose-600" : "text-amber-600"}`}>
                   {inv.status}
                 </span>
+                {inv.balance > 0 && inv.id ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePayNow(inv.id)}
+                    disabled={payingInvoiceId !== null}
+                    className="mt-1.5 block w-full rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {payingInvoiceId === inv.id ? "Starting..." : "Pay"}
+                  </button>
+                ) : null}
               </div>
             </div>
           ))}

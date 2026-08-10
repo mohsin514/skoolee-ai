@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
+import { resolveStudentFees } from "@/lib/fees/compute";
 import {
   ApiError,
   canManageOperations,
@@ -95,41 +96,102 @@ export async function POST(req: NextRequest) {
     const results: Array<{ studentId: string; status: string; error?: string }> = [];
 
     for (const student of students) {
-      const feeStructure = feeMap.get(student.classId);
-      if (!feeStructure) {
-        results.push({ studentId: student.id, status: "error", error: "No fee structure for class" });
-        continue;
-      }
+      // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)
+      const assignment = await prisma.feeGroupAssignment.findFirst({
+        where: { campusId, classId: student.classId, academicYear: year },
+        include: {
+          feeGroup: {
+            include: {
+              lines: { include: { feeType: { select: { id: true, name: true, code: true } } } },
+            },
+          },
+        },
+      });
 
-      const monthlyFee = feeStructure.monthlyFee;
-      const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
-      const oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
-
-      const grossDues: Record<string, number> = (feeStructure.discountRulesJson as Record<string, number>) ?? {};
-      const discountPct = Object.values(grossDues).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
-      const discountAmount = Math.round((monthlyFee + oneTimeTotal) * Math.min(discountPct, 100) / 100);
-
-      const subtotal = monthlyFee + oneTimeTotal;
-      const taxPct = feeStructure.taxPercentage ?? 0;
-      const taxAmount = taxPct > 0
-        ? Math.round((subtotal - discountAmount) * taxPct / 100)
-        : 0;
-
+      let monthlyFee = 0;
+      let oneTimeTotal = 0;
+      let subtotal = 0;
+      let discountAmount = 0;
+      let taxAmount = 0;
       let lateFeeAmount = 0;
-      if (parsed.data.includeLateFees) {
-        const prevInvoice = await prisma.invoice.findFirst({
-          where: { studentId: student.id, status: { in: ["PENDING", "OVERDUE"] } },
-          orderBy: { dueDate: "desc" },
+
+      if (assignment) {
+        const lines = assignment.feeGroup.lines.map((line) => ({
+          id: line.id,
+          typeName: line.feeType.name,
+          typeCode: line.feeType.code,
+          amount: line.amount,
+          dueDate: line.dueDate,
+        }));
+
+        const categoryDiscounts = student.categoryId
+          ? await prisma.feeDiscount.findMany({
+              where: { campusId, categoryId: student.categoryId },
+              select: { id: true, name: true, code: true, type: true, value: true },
+            })
+          : [];
+        const explicitAssignments = await prisma.feeDiscountAssignment.findMany({
+          where: { studentId: student.id },
+          include: { discount: { select: { id: true, name: true, code: true, type: true, value: true } } },
         });
-        if (prevInvoice) {
-          const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysOverdue > 0) {
-            const monthsOverdue = Math.ceil(daysOverdue / 30);
-            let lateBase = prevInvoice.balanceDue;
-            for (let i = 0; i < monthsOverdue; i++) {
-              const fee = Math.round(lateBase * (feeStructure.lateFeePercentage ?? 2.0) / 100);
-              lateFeeAmount += fee;
-              if (feeStructure.compoundLateFee) lateBase += fee;
+        const seen = new Set(categoryDiscounts.map((d) => d.id));
+        const discounts = [
+          ...categoryDiscounts.map((d) => ({ ...d, type: d.type as "PERCENT" | "FLAT", source: "CATEGORY" as const })),
+          ...explicitAssignments
+            .filter((a) => !seen.has(a.discount.id))
+            .map((a) => ({ ...a.discount, type: a.discount.type as "PERCENT" | "FLAT", source: "EXPLICIT" as const })),
+        ];
+
+        const carryForward = await prisma.feeCarryForward.findUnique({
+          where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: year } },
+        });
+
+        const resolved = resolveStudentFees(lines, discounts, carryForward?.balance ?? 0);
+
+        const monthlyLine = assignment.feeGroup.lines.find((l) => l.feeType.code === "MONTHLY_TUITION");
+        monthlyFee = monthlyLine?.amount ?? 0;
+        oneTimeTotal = Math.max(0, resolved.subtotal - monthlyFee);
+        subtotal = resolved.subtotal;
+        discountAmount = resolved.totalDiscount;
+        taxAmount = 0;
+      } else {
+        // 2. Legacy fallback: feeStructure per class
+        const feeStructure = feeMap.get(student.classId);
+        if (!feeStructure) {
+          results.push({ studentId: student.id, status: "error", error: "No fee structure for class" });
+          continue;
+        }
+
+        const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
+        oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
+
+        const grossDues: Record<string, number> = (feeStructure.discountRulesJson as Record<string, number>) ?? {};
+        const discountPct = Object.values(grossDues).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
+
+        monthlyFee = feeStructure.monthlyFee;
+        subtotal = monthlyFee + oneTimeTotal;
+        discountAmount = Math.round(subtotal * Math.min(discountPct, 100) / 100);
+
+        const taxPct = feeStructure.taxPercentage ?? 0;
+        taxAmount = taxPct > 0
+          ? Math.round((subtotal - discountAmount) * taxPct / 100)
+          : 0;
+
+        if (parsed.data.includeLateFees) {
+          const prevInvoice = await prisma.invoice.findFirst({
+            where: { studentId: student.id, status: { in: ["PENDING", "OVERDUE"] } },
+            orderBy: { dueDate: "desc" },
+          });
+          if (prevInvoice) {
+            const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysOverdue > 0) {
+              const monthsOverdue = Math.ceil(daysOverdue / 30);
+              let lateBase = prevInvoice.balanceDue;
+              for (let i = 0; i < monthsOverdue; i++) {
+                const fee = Math.round(lateBase * (feeStructure.lateFeePercentage ?? 2.0) / 100);
+                lateFeeAmount += fee;
+                if (feeStructure.compoundLateFee) lateBase += fee;
+              }
             }
           }
         }

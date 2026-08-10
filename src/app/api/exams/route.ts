@@ -5,6 +5,7 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
+import { assertPermission } from "@/lib/permissions";
 
 function canManageExams(role: string) {
   return role === "SUPER_ADMIN" || role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
   if (!canManageExams(user.role)) {
     return Response.json({ error: "Insufficient permissions" }, { status: 403 });
   }
+  await assertPermission(user, "exams", "add");
 
   const body = await req.json();
   const parsed = examSchema.safeParse(body);
@@ -142,6 +144,7 @@ export async function PATCH(req: NextRequest) {
   if (!canManageExams(user.role)) {
     return Response.json({ error: "Insufficient permissions" }, { status: 403 });
   }
+  await assertPermission(user, "exams", "edit");
 
   const body = await req.json();
   const parsed = examStatusSchema.safeParse(body);

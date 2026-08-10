@@ -7,6 +7,9 @@ export const USER_ROLES = [
   "TEACHER",
   "PARENT",
   "STUDENT",
+  "ACCOUNTANT",
+  "LIBRARIAN",
+  "RECEPTIONIST",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -20,6 +23,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   TEACHER: "Teacher",
   PARENT: "Parent",
   STUDENT: "Student",
+  ACCOUNTANT: "Accountant",
+  LIBRARIAN: "Librarian",
+  RECEPTIONIST: "Receptionist",
 };
 
 export const ROLE_DASHBOARD_PATHS: Record<UserRole, string> = {
@@ -31,6 +37,9 @@ export const ROLE_DASHBOARD_PATHS: Record<UserRole, string> = {
   TEACHER: "/teacher",
   PARENT: "/parent",
   STUDENT: "/student",
+  ACCOUNTANT: "/accountant",
+  LIBRARIAN: "/librarian",
+  RECEPTIONIST: "/receptionist",
 };
 
 const ROLE_SET = new Set<string>(USER_ROLES);
@@ -57,6 +66,10 @@ export function isCampusAdminRole(role: unknown): role is "CAMPUS_ADMIN" | "ADMI
   return role === "CAMPUS_ADMIN" || role === "ADMIN";
 }
 
+export function isStaffRole(role: unknown): boolean {
+  return isUserRole(role) && !["APP_OWNER", "SUPER_ADMIN", "PARENT", "STUDENT"].includes(role);
+}
+
 export function isCampusScopedRole(role: unknown): boolean {
   return role !== "SUPER_ADMIN" && role !== "APP_OWNER" && isUserRole(role);
 }
@@ -67,7 +80,10 @@ export function canAccessRoleDashboard(role: unknown, pathname: string): boolean
 
   if (pathname.startsWith("/owner")) return normalized === "APP_OWNER";
   if (pathname.startsWith("/super")) return normalized === "SUPER_ADMIN";
-  if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized);
+  if (pathname.startsWith("/accountant")) return normalized === "ACCOUNTANT";
+  if (pathname.startsWith("/librarian")) return normalized === "LIBRARIAN";
+  if (pathname.startsWith("/receptionist")) return normalized === "RECEPTIONIST";
+  if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized) || isStaffRole(normalized);
   if (pathname.startsWith("/principal")) return normalized === "PRINCIPAL";
   if (pathname.startsWith("/teacher")) return normalized === "TEACHER";
   if (pathname.startsWith("/parent")) return normalized === "PARENT";

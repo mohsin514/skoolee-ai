@@ -8,6 +8,7 @@ import {
   Loader2,
   Receipt,
   Wallet,
+  Landmark,
 } from "lucide-react";
 import type { FeeTab } from "./fee-types";
 import { FeeOverviewTab } from "./FeeOverviewTab";
@@ -15,6 +16,7 @@ import { FeeStructuresTab } from "./FeeStructuresTab";
 import { FeeInvoicesTab } from "./FeeInvoicesTab";
 import { FeePaymentsTab } from "./FeePaymentsTab";
 import { FeeReportsTab } from "./FeeReportsTab";
+import { AccountsTab } from "./AccountsTab";
 
 const TABS: { key: FeeTab; label: string; icon: typeof Receipt }[] = [
   { key: "overview", label: "Overview", icon: Receipt },
@@ -22,6 +24,7 @@ const TABS: { key: FeeTab; label: string; icon: typeof Receipt }[] = [
   { key: "invoices", label: "Invoices", icon: FileText },
   { key: "payments", label: "Payments", icon: Wallet },
   { key: "reports", label: "Reports", icon: BarChart3 },
+  { key: "accounts", label: "Accounts", icon: Landmark },
 ];
 
 export function FeesPanel({ campusId }: { campusId?: string }) {
@@ -65,6 +68,9 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
       )}
       {activeTab === "reports" && (
         <FeeReportsTab campusId={campusId} />
+      )}
+      {activeTab === "accounts" && (
+        <AccountsTab campusId={campusId} />
       )}
     </div>
   );

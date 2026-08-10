@@ -193,28 +193,38 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     const toPromote = gradeResults.filter((g) => studentDecisions.get(g.studentId) === "promote");
     if (toPromote.length === 0) { toast.error("No students selected for promotion"); return; }
     if (!promoteTargetId) { toast.error("Select a target class"); return; }
+    const srcClass = yearGroups.flatMap((yg) => yg.classes).find((c) => c.id === promoteSourceId);
+    if (!srcClass) { toast.error("Source class missing"); return; }
 
     setPromoting(true);
     try {
-      const promotions = toPromote.map((g) => ({
+      const results = gradeResults.map((g) => ({
         studentId: g.studentId,
-        targetClassId: promoteTargetId,
+        outcome: studentDecisions.get(g.studentId) === "promote" ? "PASS" : "FAIL",
+        finalGrade: g.overallGrade || null,
+        finalPercentage: g.overallPercentage || null,
       }));
-      const res = await fetch("/api/academic-year", {
+      const res = await fetch("/api/students/promote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "promote", promotions, campusId }),
+        body: JSON.stringify({
+          fromClassId: promoteSourceId,
+          toClassId: promoteTargetId,
+          academicYear: srcClass.academicYear,
+          results,
+          campusId,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Promotion failed");
-      const retained = gradeResults.length - toPromote.length;
-      setPromotionResults({ promoted: json.promoted || toPromote.length, retained });
+      const retained = gradeResults.length - (json.promoted || toPromote.length);
+      setPromotionResults({ promoted: json.promoted || toPromote.length, retained: json.retained ?? retained });
       setPromoteStep("confirm");
       toast.success(json.message);
       await load();
     } catch (err: any) { toast.error(err.message); }
     finally { setPromoting(false); }
-  }, [gradeResults, studentDecisions, promoteTargetId, campusId, load]);
+  }, [gradeResults, studentDecisions, promoteTargetId, promoteSourceId, yearGroups, campusId, load]);
 
   const loadHistory = useCallback(async (year: number, classId: string) => {
     setHistoryLoading(true);
@@ -718,11 +728,35 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       <select value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer">
                         <option value="">Select target class</option>
-                        {activeClasses.filter((c) => c.id !== promoteSourceId).map((c) => (
-                          <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {c._count.students} existing</option>
-                        ))}
+                        {activeClasses
+                          .filter((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {c._count.students} existing</option>
+                          ))}
                       </select>
                     </label>
+
+                    {!activeClasses.some((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1) ? (
+                      <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4 mb-3">
+                        <p className="text-xs font-bold text-amber-700">
+                          <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                          No class exists for {sourceClass ? sourceClass.academicYear + 1 : "next year"} yet.
+                        </p>
+                        <p className="text-[11px] font-semibold text-amber-700/70 mt-1">
+                          Create the destination class in the Academic Plan first, then promote into it.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    <div className="rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 p-4 mb-3">
+                      <p className="text-[11px] font-bold text-[#8127cf]">
+                        <Lock className="h-3.5 w-3.5 inline mr-1" />
+                        Class changes are only allowed via promotion
+                      </p>
+                      <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">
+                        Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.
+                      </p>
+                    </div>
 
                     {/* Summary */}
                     <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 space-y-3">

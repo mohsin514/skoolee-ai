@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Calendar, Clock } from "lucide-react";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
+import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
 
 interface ClassTimetableData {
+  classId: string;
   className: string;
   classSection: string | null;
   slots: Array<{
@@ -63,7 +65,7 @@ export default function StudentTimetablePage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
         {data ? (
           <TimetableReadOnly slots={data.slots} />
         ) : (
@@ -77,6 +79,7 @@ export default function StudentTimetablePage() {
             </p>
           </div>
         )}
+        <ExamDateSheet classId={data?.classId} />
       </div>
     </section>
   );

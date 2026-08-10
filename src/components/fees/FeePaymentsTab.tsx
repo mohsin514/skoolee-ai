@@ -289,8 +289,11 @@ function PaymentModal({
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
+  const [fineAmount, setFineAmount] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [note, setNote] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [searching, setSearching] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -364,27 +367,35 @@ function PaymentModal({
     if (!selectedInvoiceId || !amount) { toast.error("Invoice and amount required"); return; }
     setSaving(true);
     try {
-      const res = await fetch(`${API}/payment`, {
+      const res = await fetch(`${API}/collect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          studentId: selectedStudent?.id,
           invoiceId: selectedInvoiceId,
           amount: Math.round(parseFloat(amount) * 100),
+          fineAmount: fineAmount ? Math.round(parseFloat(fineAmount) * 100) : undefined,
+          discountAmount: discountAmount ? Math.round(parseFloat(discountAmount) * 100) : undefined,
           paymentDate,
           paymentMethod,
           referenceNumber: referenceNumber || undefined,
+          note: note || undefined,
         }),
       });
       const json = await res.json();
       if (json.success) {
         setReceipt({
-          id: json.data?.id || "",
+          id: json.data?.paymentId || "",
           receiptNumber: json.data?.receiptNumber || "",
           studentName: json.data?.studentName || "",
           invoiceNumber: json.data?.invoiceNumber || "",
           amount: Math.round(parseFloat(amount) * 100),
+          fineAmount: fineAmount ? Math.round(parseFloat(fineAmount) * 100) : 0,
+          discountAmount: discountAmount ? Math.round(parseFloat(discountAmount) * 100) : 0,
+          creditAmount: json.data?.credit || 0,
           paymentDate,
           paymentMethod,
+          note: json.data?.note || "",
         });
         setStep("receipt");
       } else {
@@ -431,6 +442,30 @@ function PaymentModal({
                 <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Amount</span>
                 <span className="text-sm font-black text-[#1f1a23]">{formatPKR(receipt.amount)}</span>
               </div>
+              {receipt.discountAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Discount</span>
+                  <span className="text-sm font-black text-emerald-600">−{formatPKR(receipt.discountAmount)}</span>
+                </div>
+              )}
+              {receipt.fineAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Fine</span>
+                  <span className="text-sm font-black text-rose-600">{formatPKR(receipt.fineAmount)}</span>
+                </div>
+              )}
+              {receipt.creditAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Carried Credit</span>
+                  <span className="text-sm font-black text-[#8127cf]">{formatPKR(receipt.creditAmount)}</span>
+                </div>
+              )}
+              {receipt.note ? (
+                <div className="flex justify-between">
+                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Note</span>
+                  <span className="text-sm font-bold text-[#1f1a23] text-right max-w-[60%]">{receipt.note}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Date</span>
                 <span className="text-sm font-black text-[#1f1a23]">{receipt.paymentDate}</span>
@@ -477,7 +512,7 @@ function PaymentModal({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-black text-[#1f1a23] truncate">{s.fullName}</p>
-                      <p className="text-[9px] font-bold text-[#4d4354]/45">{s.rollNo} &middot; {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
+                      <p className="text-[9px] font-bold text-[#4d4354]/45">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
                     </div>
                     <Users className="w-4 h-4 text-[#8127cf]" />
                   </button>
@@ -516,7 +551,7 @@ function PaymentModal({
                       <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String((inv.amountDue - inv.amountPaid) / 100)); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-[#8127cf]" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-black text-[#1f1a23]">{inv.invoiceNumber || "Invoice"}</p>
-                        <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {inv.dueDate} &middot; {formatPKR(inv.amountDue)}</p>
+                        <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {inv.dueDate} · {formatPKR(inv.amountDue)}</p>
                       </div>
                       <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{inv.status}</span>
                     </label>
@@ -533,13 +568,23 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-3 border border-[#cfc2d6]/10">
                   <p className="text-xs font-black text-[#1f1a23]">{sel.invoiceNumber || "Invoice"}</p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {sel.dueDate} &middot; {formatPKR(sel.amountDue)}</p>
+                  <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {sel.dueDate} · {formatPKR(sel.amountDue)}</p>
                 </div>
               ) : null;
             })()}
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Amount (PKR)</label>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Fine (PKR)</label>
+                <input type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Discount (PKR)</label>
+                <input type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
+              </div>
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Payment Date</label>
@@ -548,16 +593,20 @@ function PaymentModal({
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Method</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="card">Card</option>
-                <option value="mobile_wallet">Mobile Wallet</option>
-                <option value="cheque">Cheque</option>
+                <option value="CASH">Cash</option>
+                <option value="BANK">Bank Transfer</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="MOBILE_WALLET">Mobile Wallet</option>
+                <option value="SAFEPAY">SafePay / Card</option>
               </select>
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Reference (optional)</label>
               <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction ID / Cheque #" className={inputClass} />
+            </div>
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Note (optional)</label>
+              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. late fee waived" className={inputClass} />
             </div>
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}>Back</BrandButton>

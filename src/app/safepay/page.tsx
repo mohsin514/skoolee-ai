@@ -10,6 +10,8 @@ function SafePayForm() {
   const orderRef = params.get("orderRef") || "";
   const schoolId = params.get("schoolId") || "";
   const plan = params.get("plan") || "";
+  const kind = params.get("kind") || "";
+  const invoiceId = params.get("invoiceId") || "";
   const amountLabel = params.get("amountLabel") || "PKR 0/mo";
 
   const [cardNumber, setCardNumber] = useState("");
@@ -38,12 +40,20 @@ function SafePayForm() {
       const res = await fetch("/api/safepay/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderRef, schoolId, plan }),
+        body: JSON.stringify(
+          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan }
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment failed");
       setDone(true);
-      setTimeout(() => router.push("/dashboard/billing?safepay_status=completed"), 1500);
+      setTimeout(
+        () =>
+          router.push(
+            kind === "FEE" ? "/dashboard/fees?safepay_status=completed" : "/dashboard/billing?safepay_status=completed"
+          ),
+        1500
+      );
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -81,7 +91,10 @@ function SafePayForm() {
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Order Reference</p>
           <p className="text-sm font-bold text-[#1f1a23]">{orderRef}</p>
           <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#cfc2d6]/20">
-            <p className="text-sm font-semibold text-[#4d4354]/60">Plan: <span className="text-[#1f1a23]">{plan}</span></p>
+            <p className="text-sm font-semibold text-[#4d4354]/60">
+              {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
+              <span className="text-[#1f1a23]">{kind === "FEE" ? "Fee Payment" : plan}</span>
+            </p>
             <p className="text-lg font-black text-[#8127cf]">{amountLabel}</p>
           </div>
         </div>

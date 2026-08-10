@@ -376,6 +376,24 @@ export async function generatePaymentPdf(paymentId: string) {
           <Text>Amount Paid</Text>
           <Text>{money(payment.amount)}</Text>
         </View>
+        {payment.fineAmount > 0 ? (
+          <View style={styles.line}>
+            <Text style={styles.muted}>Fine</Text>
+            <Text>{money(payment.fineAmount)}</Text>
+          </View>
+        ) : null}
+        {payment.discountAmount > 0 ? (
+          <View style={styles.line}>
+            <Text style={styles.muted}>Discount</Text>
+            <Text>- {money(payment.discountAmount)}</Text>
+          </View>
+        ) : null}
+        {payment.note ? (
+          <View style={styles.line}>
+            <Text style={styles.muted}>Note</Text>
+            <Text>{payment.note}</Text>
+          </View>
+        ) : null}
         <View style={styles.line}>
           <Text style={styles.muted}>Total Paid to Date</Text>
           <Text>{money(payment.invoice.totalAmountPaid)}</Text>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
-import { Banknote, Calendar, CheckCircle2, CreditCard, Receipt } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
 import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
+import { toast } from "sonner";
 
 const dummyInvoices = [
   { id: "dummy-1", term: "Term 1 Tuition Fee", totalAmount: 45000, status: "PARTIAL", dueDate: "2026-04-15", payments: [{ amountPaid: 25000 }] },
@@ -15,6 +16,28 @@ const dummyInvoices = [
 
 export default function FeesPage() {
   const { data, loading, error, refetch } = useStudentData();
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  const handlePayNow = async (invoiceId: string) => {
+    setPayingId(invoiceId);
+    try {
+      const res = await fetch("/api/fees/pay-online", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId }),
+      });
+      const json = await res.json();
+      if (json.success && json.url) {
+        window.location.href = json.url;
+      } else {
+        toast.error(json.error || "Payment not available");
+      }
+    } catch {
+      toast.error("Could not start online payment");
+    } finally {
+      setPayingId(null);
+    }
+  };
 
   const { invoices, balanceDue } = useMemo(() => {
     const hasRealInvoices = data?.user?.invoices?.length > 0;
@@ -116,7 +139,7 @@ export default function FeesPage() {
             </div>
             <div className="sk-rise grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ animationDelay: "160ms" }}>
               {invoices.map((invoice: any) => (
-                <InvoiceCard key={invoice.id} invoice={invoice} />
+                <InvoiceCard key={invoice.id} invoice={invoice} paying={payingId === invoice.id} onPay={() => handlePayNow(invoice.id)} />
               ))}
             </div>
           </div>
@@ -162,7 +185,7 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
   );
 }
 
-function InvoiceCard({ invoice }: { invoice: any }) {
+function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean; onPay: () => void }) {
   const paid = invoice.payments?.reduce((sum: number, payment: any) => sum + payment.amountPaid, 0) || 0;
   const balance = Math.max((invoice.totalAmount || 0) - paid, 0);
   const progress = invoice.totalAmount ? Math.round(paid / invoice.totalAmount * 100) : 0;
@@ -233,7 +256,18 @@ function InvoiceCard({ invoice }: { invoice: any }) {
               {invoice.status === "PAID" ? "Paid" : isOverdue ? "Overdue" : balance > 0 ? `Pending` : invoice.status || "Pending"}
             </span>
           </div>
-          {paid > 0 && (
+          {balance > 0 && (
+            <button
+              type="button"
+              onClick={onPay}
+              disabled={paying}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {paying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wallet className="w-3 h-3" />}
+              {paying ? "Starting..." : "Pay Now"}
+            </button>
+          )}
+          {paid > 0 && balance <= 0 && (
             <span className="text-[9px] font-semibold text-emerald-600">Rs {paid.toLocaleString()} paid</span>
           )}
         </div>

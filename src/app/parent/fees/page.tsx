@@ -1,13 +1,37 @@
 "use client";
 
-import { Banknote, Calendar, CheckCircle2, CreditCard, Receipt } from "lucide-react";
+import { useState } from "react";
+import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
 import { ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
+import { toast } from "sonner";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentFeesPage() {
   const { data, loading } = useParentData();
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  const handlePayNow = async (invoiceId: string) => {
+    setPayingId(invoiceId);
+    try {
+      const res = await fetch("/api/fees/pay-online", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId }),
+      });
+      const json = await res.json();
+      if (json.success && json.url) {
+        window.location.href = json.url;
+      } else {
+        toast.error(json.error || "Payment not available");
+      }
+    } catch {
+      toast.error("Could not start online payment");
+    } finally {
+      setPayingId(null);
+    }
+  };
 
   if (loading || !data) return <ParentListSkeleton />;
   const { fees, student } = data;
@@ -41,7 +65,7 @@ export default function ParentFeesPage() {
 
         <div className="sk-rise space-y-3" style={{ animationDelay: "120ms" }}>
           {fees.map((fee) => (
-            <FeeRow key={fee.id} fee={fee} />
+            <FeeRow key={fee.id} fee={fee} paying={payingId === fee.id} onPay={() => handlePayNow(fee.id)} />
           ))}
         </div>
       </div>
@@ -69,7 +93,7 @@ export default function ParentFeesPage() {
   }
 }
 
-function FeeRow({ fee }: { fee: any }) {
+function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () => void }) {
   const statusColors: Record<string, string> = {
     PAID: "bg-emerald-50 text-emerald-600",
     PENDING: "bg-amber-50 text-amber-600",
@@ -112,6 +136,17 @@ function FeeRow({ fee }: { fee: any }) {
             <p className="text-sm font-black text-rose-600">Rs {Math.round(fee.balance / 100).toLocaleString()}</p>
           </div>
         </div>
+        {fee.balance > 0 && (
+          <button
+            type="button"
+            onClick={onPay}
+            disabled={paying}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8127cf] text-white py-2.5 text-[10px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+            {paying ? "Starting SafePay..." : "Pay Now (SafePay)"}
+          </button>
+        )}
       </div>
     </div>
   );

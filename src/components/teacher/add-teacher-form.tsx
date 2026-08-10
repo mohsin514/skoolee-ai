@@ -70,6 +70,9 @@ const emptyForm = {
   joiningDate: new Date().toISOString().split("T")[0],
   emergencyContact: "",
   emergencyPhone: "",
+  designation: "",
+  contractType: "",
+  basicSalary: "",
 };
 
 type FormData = typeof emptyForm;
@@ -144,6 +147,9 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
           joiningDate: form.joiningDate || undefined,
           emergencyContact: form.emergencyContact.trim() || undefined,
           emergencyPhone: form.emergencyPhone.trim() || undefined,
+          designation: form.designation.trim() || undefined,
+          contractType: (form.contractType || undefined) as "PERMANENT" | "CONTRACT" | "PART_TIME" | undefined,
+          basicSalary: Math.round(Number(form.basicSalary || 0) * 100) || undefined,
         },
       });
       toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
@@ -355,6 +361,46 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                   />
                 </div>
               </div>
+
+              <div className="mt-6 rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/50 p-4">
+                <h5 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                  <Briefcase className="h-3.5 w-3.5" /> Payroll Setup
+                </h5>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Designation</Label>
+                    <Input
+                      value={form.designation}
+                      onChange={(e) => update("designation", e.target.value)}
+                      placeholder="e.g. Senior Maths Teacher"
+                      className="mt-1 h-12 rounded-xl border-[#cfc2d6]/20 bg-white font-medium shadow-none focus:ring-2 focus:ring-[#8127cf]/20"
+                    />
+                  </div>
+                  <div>
+                    <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Contract Type</Label>
+                    <Select
+                      value={form.contractType}
+                      onChange={(e) => update("contractType", e.target.value)}
+                      className="mt-1 h-12 rounded-xl border-[#cfc2d6]/20 bg-white font-medium shadow-none focus:ring-2 focus:ring-[#8127cf]/20"
+                    >
+                      <option value="">Select type</option>
+                      <option value="PERMANENT">Permanent</option>
+                      <option value="CONTRACT">Contract</option>
+                      <option value="PART_TIME">Part-time</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">Basic Salary (Rs / month)</Label>
+                    <Input
+                      type="number"
+                      value={form.basicSalary}
+                      onChange={(e) => update("basicSalary", e.target.value)}
+                      placeholder="e.g. 85000"
+                      className="mt-1 h-12 rounded-xl border-[#cfc2d6]/20 bg-white font-medium shadow-none focus:ring-2 focus:ring-[#8127cf]/20"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -460,6 +506,12 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 <ReviewRow label="Specialization" value={form.specialization} />
                 <ReviewRow label="Experience" value={form.experience} />
                 <ReviewRow label="Joining Date" value={form.joiningDate} />
+              </ReviewSection>
+
+              <ReviewSection title="Payroll">
+                <ReviewRow label="Designation" value={form.designation} />
+                <ReviewRow label="Contract Type" value={form.contractType} />
+                <ReviewRow label="Basic Salary" value={form.basicSalary ? `Rs. ${Number(form.basicSalary).toLocaleString("en-PK")} / month` : ""} />
               </ReviewSection>
 
               <ReviewSection title="Address & Emergency">

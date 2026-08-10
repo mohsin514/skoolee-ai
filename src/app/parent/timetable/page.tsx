@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { ParentEmptyState } from "@/components/parent/parent-components";
+import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { useParentData } from "../parent-data-context";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +69,7 @@ export default function ParentTimetablePage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] animate-pulse" />
@@ -138,6 +139,7 @@ export default function ParentTimetablePage() {
         ) : (
           <ParentEmptyState icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />
         )}
+        <ExamDateSheet token={token || undefined} />
       </div>
     </section>
   );

@@ -71,6 +71,7 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
 function DefaultersReport({ campusId }: { campusId?: string }) {
   const [defaulters, setDefaulters] = useState<DefaulterRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +91,27 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleRemind = async (studentId: string) => {
+    setRemindingId(studentId);
+    try {
+      const res = await fetch(`${API}/remind`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.data?.delivered ? `Reminder sent to ${json.data.sentTo}` : "Reminder logged (channel unavailable)");
+      } else {
+        toast.error(json.error || "Reminder failed");
+      }
+    } catch {
+      toast.error("Failed to send reminder");
+    } finally {
+      setRemindingId(null);
+    }
+  };
 
   const handleExport = () => {
     if (defaulters.length === 0) return;
@@ -148,19 +170,20 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
           <span>Student</span>
           <span>Guardian</span>
           <span>Overdue</span>
           <span>Total Due</span>
           <span>Days</span>
           <span>Invoices</span>
+          <span></span>
         </div>
         <div className="divide-y divide-[#f3f4f9]">
           {defaulters.map((d) => (
             <div
               key={d.studentId}
-              className="grid grid-cols-[1fr_120px_100px_100px_80px_80px] gap-3 px-5 py-3 items-center hover:bg-rose-50/30 transition-colors"
+              className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 items-center hover:bg-rose-50/30 transition-colors"
             >
               <div className="min-w-0">
                 <p className="text-xs font-black text-[#1f1a23] truncate">{d.studentName}</p>
@@ -185,6 +208,14 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
                 {d.daysOverdue}d
               </span>
               <p className="text-xs font-black text-[#4d4354]/60">{d.overdueInvoices}</p>
+              <button
+                type="button"
+                onClick={() => handleRemind(d.studentId)}
+                disabled={remindingId !== null}
+                className="rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {remindingId === d.studentId ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Send reminder"}
+              </button>
             </div>
           ))}
         </div>

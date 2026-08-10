@@ -196,7 +196,7 @@ export function FeeOverviewTab({
                       {s.studentName}
                     </p>
                     <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-                      {s.className} &middot; {s.daysOverdue}d overdue
+                      {s.className} · {s.daysOverdue}d overdue
                     </p>
                   </div>
                   <p
@@ -251,7 +251,7 @@ export function FeeOverviewTab({
                     {p.studentName}
                   </p>
                   <p className="text-[9px] font-bold text-[#4d4354]/45">
-                    {p.invoiceNumber} &middot; {paymentMethodLabel(p.paymentMethod)}
+                    {p.invoiceNumber} · {paymentMethodLabel(p.paymentMethod)}
                   </p>
                 </div>
                 <div className="text-right shrink-0">

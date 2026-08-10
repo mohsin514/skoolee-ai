@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 
 export class ApiError extends Error {
   status: number;
@@ -38,12 +39,28 @@ export function canManageOperations(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role) || user.role === "PRINCIPAL";
 }
 
+export function canManageLibrary(user: AuthUser) {
+  return canManageOperations(user) || user.role === "LIBRARIAN";
+}
+
+export function canManageFrontDesk(user: AuthUser) {
+  return canManageOperations(user) || user.role === "RECEPTIONIST";
+}
+
 export function canManageBilling(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role);
 }
 
 export function canMarkAttendance(user: AuthUser) {
   return canManageOperations(user) || user.role === "TEACHER";
+}
+
+// Server-side permission matrix check (Module 11). Call alongside
+// canManageOperations in every admin route. Fixed roles (APP_OWNER,
+// SUPER_ADMIN) always pass; everyone else is checked against the
+// school's RolePermission overrides merged over role defaults.
+export async function assertPermission(user: AuthUser, module: PermissionModule, action: PermissionAction) {
+  return assertPermissionImpl(user, module, action);
 }
 
 export async function resolveCampusId(user: AuthUser, requestedCampusId?: string | null) {

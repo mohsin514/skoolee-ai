@@ -64,7 +64,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       where: { schoolId: session.schoolId },
       include: {
         users: {
-          where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"] }, isActive: true },
+          where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
           select: {
             id: true,
             fullName: true,
@@ -79,7 +79,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
           orderBy: { fullName: "asc" },
         },
         staffInvitations: {
-          where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"] }, status: "pending" },
+          where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, status: "pending" },
           select: { id: true, email: true, role: true, status: true, expiresAt: true, profile: true },
           orderBy: { createdAt: "desc" },
         },
@@ -250,6 +250,8 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     const pendingAdmin = campus.staffInvitations.find((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN");
     const pendingPrincipal = campus.staffInvitations.find((invite) => invite.role === "PRINCIPAL");
     const pendingTeacherInvitations = campus.staffInvitations.filter((invite) => invite.role === "TEACHER");
+    const operationsStaff = campus.users.filter((user) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(user.role));
+    const pendingOperationsInvitations = campus.staffInvitations.filter((invite) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(invite.role));
 
     return {
       id: campus.id,
@@ -272,6 +274,8 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       recentReportCards: campus.reportCards,
       pendingInvitations: campus.staffInvitations.map(formatPendingInvite),
       pendingTeacherInvitations: pendingTeacherInvitations.map(formatPendingInvite),
+      operationsStaff,
+      pendingOperationsInvitations: pendingOperationsInvitations.map(formatPendingInvite),
       aiUsage: aiUsageMap[campus.id] || { runs: 0, tokens: 0 },
       communicationSummary: communicationMap[campus.id] || {},
       invoiceSummary: invoiceMap[campus.id] || {},
@@ -365,6 +369,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     campusAdmins,
     principal,
     pendingInvitations,
+    operationsStaff,
     school,
     campus,
     campusCount,
@@ -465,11 +470,16 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
       where: {
         campusId,
         status: "pending",
-        role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL"] },
+        role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
       select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { campusId, schoolId: session.schoolId, role: { in: ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
+      select: { id: true, fullName: true, email: true, role: true, profileImageUrl: true, isActive: true, onboardingComplete: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
     }),
     prisma.school.findUnique({ where: { id: session.schoolId } }),
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId } }),
@@ -507,6 +517,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         profileImageUrl: true,
         studentUser: { select: { email: true, isActive: true } },
         class: { select: { id: true, name: true, section: true, academicYear: true } },
+        category: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true } },
         attendance: {
           select: { id: true, status: true, date: true },
           orderBy: { date: "desc" },
@@ -615,6 +627,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     principal: principal || (pendingPrincipal ? formatPendingInvite(pendingPrincipal) : null),
     pendingAdminInvitations: pendingInvitations.filter((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN"),
     pendingTeacherInvitations: pendingInvitations.filter((invite) => invite.role === "TEACHER"),
+    operationsStaff,
+    pendingOperationsInvitations: pendingInvitations.filter((invite) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(invite.role)),
     pendingInvitations: pendingInvitations.map(formatPendingInvite),
     pendingInviteCount: pendingInvitations.length,
     students,
@@ -912,6 +926,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     invoiceTotals,
     invoiceGroups,
     pendingInvitations,
+    operationsStaff,
     campusCount,
   ] = await Promise.all([
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }),
@@ -1014,6 +1029,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         profileImageUrl: true,
         parent: { select: { fullName: true, email: true, phone: true, profileImageUrl: true } },
         class: { select: { id: true, name: true, section: true, academicYear: true } },
+        category: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true } },
         attendance: {
           select: { id: true, status: true, date: true },
           orderBy: { date: "desc" },
@@ -1183,11 +1200,16 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
       where: {
         campusId,
         status: "pending",
-        role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL"] },
+        role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
       select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { campusId, schoolId: session.schoolId, role: { in: ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
+      select: { id: true, fullName: true, email: true, role: true, profileImageUrl: true, isActive: true, onboardingComplete: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
     }),
     prisma.campus.count({ where: { schoolId: session.schoolId } }),
   ]);
@@ -1240,6 +1262,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     pendingInviteCount: pendingInvitations.length,
     pendingAdminInvitations: pendingInvitations.filter((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN"),
     pendingTeacherInvitations: pendingInvitations.filter((invite) => invite.role === "TEACHER"),
+    operationsStaff,
+    pendingOperationsInvitations: pendingInvitations.filter((invite) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(invite.role)),
     isStandaloneCampus: campusCount === 1,
     canInviteAdmins: campusCount === 1,
     adminName: session.fullName || "Principal",
@@ -1381,5 +1405,29 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       balanceDue,
       aiInsights,
     },
+  };
+});
+
+const OPS_ROLES = ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const;
+
+export const getOperationsStaffDashboardData = cache(async function getOperationsStaffDashboardData() {
+  const session = await getAuthUser();
+  if (!session || !OPS_ROLES.includes(session.role as any)) throw new Error("Permission Denied");
+  await assertSchoolOperational(session.schoolId);
+  const campusId = requireCampusId(session);
+
+  const [school, campus] = await Promise.all([
+    prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true } }),
+    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true } }),
+  ]);
+
+  return {
+    userName: session.fullName || roleLabel(session.role),
+    userEmail: session.email,
+    userRole: session.role,
+    campusName: campus?.name || "Campus",
+    campusCity: campus?.city || "",
+    schoolName: school?.name || "Institution",
+    campusId,
   };
 });

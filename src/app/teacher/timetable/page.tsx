@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Calendar, CalendarX2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
+import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 
 interface TeacherSlot {
@@ -103,6 +104,8 @@ export default function TeacherTimetablePage() {
             }))}
             title="Full Week Schedule"
           />
+
+          <ExamDateSheet />
         </>
       )}
       </div>

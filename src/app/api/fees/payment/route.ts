@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       });
 
       return pmt;
-    });
+    }, { timeout: 20000 });
 
     await prisma.auditLog.create({
       data: {
