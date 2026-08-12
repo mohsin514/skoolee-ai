@@ -14,6 +14,7 @@ import {
   CalendarDays,
   ClipboardList,
   Clock,
+  CreditCard,
   DoorOpen,
   Eye,
   FileText,
@@ -44,6 +45,7 @@ import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
+import BillingPage from "@/app/dashboard/billing/page";
 import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
@@ -117,6 +119,7 @@ type AdminView =
   | "year-cycle"
   | "teacher-performance"
   | "exam-cycles"
+  | "billing"
   | "report-cards"
   | "transport"
   | "dormitory"
@@ -745,6 +748,12 @@ export default function CampusAdminDashboard() {
     },
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
+
+  if (data?.role === "ADMIN") {
+    navItems.push(
+      { icon: CreditCard, label: "Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
+    );
+  }
   const VIEW_MODULE: Record<string, string> = {
     "Academic Plan": "timetable",
     Timetable: "timetable",
@@ -997,6 +1006,7 @@ export default function CampusAdminDashboard() {
           {activeView === "postal" ? <PostalPanel /> : null}
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
           {activeView === "certificates" ? <CertificatesPanel /> : null}
+          {activeView === "billing" ? <BillingPage embedded hideHeader /> : null}
         </div>
       </section>
 

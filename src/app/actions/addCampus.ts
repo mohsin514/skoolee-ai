@@ -14,7 +14,7 @@ export async function addCampus(name: string, location: string, board: string = 
   if (!token) throw new Error("Unauthorized");
 
   const { payload } = await jwtVerify(token, JWT_SECRET);
-  if (payload.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
+  if (payload.role !== "SUPER_ADMIN" && payload.role !== "ADMIN") throw new Error("Permission Denied");
 
   const schoolId = String(payload.schoolId);
   await assertPlanCapacity({ schoolId, metric: "campuses" });

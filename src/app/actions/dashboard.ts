@@ -650,6 +650,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     },
     adminName: session.fullName || "Administrator",
     adminEmail: session.email,
+    role: session.role,
     roleLabel: roleLabel(session.role),
   };
 });

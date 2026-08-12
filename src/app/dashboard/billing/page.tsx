@@ -108,9 +108,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 interface BillingPageProps {
   embedded?: boolean;
+  hideHeader?: boolean;
 }
 
-export default function BillingPage({ embedded = false }: BillingPageProps = {}) {
+export default function BillingPage({ embedded = false, hideHeader = false }: BillingPageProps = {}) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
@@ -352,6 +353,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
   return (
     <div className="flex-1 flex flex-col">
       {embedded ? (
+        hideHeader ? null : (
         <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
@@ -362,6 +364,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
           </div>
           {billingActions}
         </div>
+        )
       ) : (
         <Header
           title="Billing & Payments"
