@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -1957,16 +1958,22 @@ export function ClassDetailModal({
             ) : null}
           </div>
 
-          {/* Class teacher — saves on selection, no separate Save click. */}
+          {/* Class teacher — saves on selection, no separate Save click. In
+              SUBJECT mode this is an optional homeroom/coordinator, kept clearly
+              distinct from the per-subject teachers set on the Subjects tab. */}
           <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Class Teacher</p>
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                  {teachingMode === "SINGLE" ? "Class Teacher" : "Homeroom Teacher (optional)"}
+                </p>
                 <p className="mt-1 truncate text-base font-black tracking-tight text-[#1f1a23]">
                   {cls.classTeacher?.fullName || "Unassigned"}
                 </p>
                 <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-                  {cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard."}
+                  {teachingMode === "SINGLE"
+                    ? (cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard.")
+                    : "Optional coordinator for this section. Subject teachers are assigned on the Subjects tab."}
                 </p>
               </div>
               {cls.classTeacher?.profileImageUrl ? (
@@ -1977,7 +1984,7 @@ export function ClassDetailModal({
             </div>
             <div className="relative">
               <TeacherPicker
-                label={teacherBusy ? "Saving…" : "Change Class Teacher"}
+                label={teacherBusy ? "Saving…" : (teachingMode === "SINGLE" ? "Change Class Teacher" : "Change Homeroom Teacher")}
                 teachers={teachers}
                 availability={availability}
                 assignmentMode={teachingMode === "SINGLE" ? "homeroom" : "subject"}
@@ -1992,6 +1999,11 @@ export function ClassDetailModal({
                 allowUnassigned
                 showUnassignedHint={!cls.classTeacher?.id}
               />
+              {teachingMode === "SUBJECT" ? (
+                <p className="mt-2 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                  This is the section coordinator, separate from the subject teachers listed on the Subjects tab.
+                </p>
+              ) : null}
               {teacherBusy ? (
                 <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
               ) : null}
@@ -2261,6 +2273,7 @@ export function StudentDetailModal({
   const [linkCopied, setLinkCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
+  const [tagsLoading, setTagsLoading] = useState(true);
   const [profileTab, setProfileTab] = useState<"overview" | "siblings" | "documents" | "timeline">("overview");
   const [siblingsVersion, setSiblingsVersion] = useState(0);
 
@@ -2277,7 +2290,10 @@ export function StudentDetailModal({
           groups: grps.success ? grps.data : [],
         });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setTagsLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -2504,20 +2520,29 @@ export function StudentDetailModal({
               <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
               <FormInput label="Previous School" value={ed("previousSchool")} placeholder="Previous school" onChange={(v) => setEd("previousSchool", v)} />
               <div className="grid grid-cols-2 gap-3">
-                <FormSelect label="Category" value={ed("categoryId")} onChange={(v) => setEd("categoryId", v)}>
-                  <option value="">No category</option>
-                  {tags.categories
-                    .filter((c) => c.isActive !== false || c.id === student.category?.id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </FormSelect>
-                <FormSelect label="Group" value={ed("groupId")} onChange={(v) => setEd("groupId", v)}>
-                  <option value="">No group</option>
-                  {tags.groups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </FormSelect>
+                {tagsLoading ? (
+                  <>
+                    <div className="h-10 w-full rounded-xl bg-[#8127cf]/10 animate-pulse" />
+                    <div className="h-10 w-full rounded-xl bg-[#8127cf]/10 animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <FormSelect label="Category" value={ed("categoryId")} onChange={(v) => setEd("categoryId", v)}>
+                      <option value="">No category</option>
+                      {tags.categories
+                        .filter((c) => c.isActive !== false || c.id === student.category?.id)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </FormSelect>
+                    <FormSelect label="Group" value={ed("groupId")} onChange={(v) => setEd("groupId", v)}>
+                      <option value="">No group</option>
+                      {tags.groups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </FormSelect>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -2806,8 +2831,25 @@ export function StudentAdmissionsPanel({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-10 text-sm font-bold text-[#4d4354]/50">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      <div className="space-y-4">
+        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+          <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
+          <div className="mt-4 space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3.5 w-40 rounded bg-[#8127cf]/10 animate-pulse" />
+                  <div className="h-3 w-28 rounded bg-[#8127cf]/10 animate-pulse" />
+                </div>
+                <div className="h-6 w-16 shrink-0 rounded-full bg-[#8127cf]/10 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+          <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
+          <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-[#8127cf]/10 animate-pulse" />
+        </div>
       </div>
     );
   }
@@ -3712,7 +3754,16 @@ export function ModalFrame({
     return () => document.removeEventListener("keydown", h);
   }, [onClose]);
 
-  return (
+  // Render to <body> via a portal. ModalFrame uses `position: fixed`, which
+  // positions relative to the nearest ancestor that has a transform/filter/
+  // backdrop-filter/will-change — several layout wrappers (and the `sk-rise`
+  // entrance animation) do, which pushed the dialog to the top of the card
+  // instead of centering over the viewport. Portaling escapes all of that.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onClick={(e) => e.stopPropagation()} className={cn(
         "bg-white w-full max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter",
@@ -3729,7 +3780,8 @@ export function ModalFrame({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -4049,6 +4101,8 @@ export function SectionCard({
   const [showAllStudents, setShowAllStudents] = useState(false);
   const subjectCount = cls.subjects?.length || cls._count?.subjects || 0;
   const studentCount = students.length || cls._count?.students || 0;
+  const isSubjectMode = cls.teachingMode === "SUBJECT";
+  const assignedSubjectTeachers = (cls.subjects || []).filter((s: any) => s.teacher?.id).length;
   const displayStudents = showAllStudents ? students : students.slice(0, 6);
 
   return (
@@ -4057,10 +4111,17 @@ export function SectionCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-[#1f1a23]">{cls.section ? `Section ${cls.section}` : "Whole class"}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
-              <UserCheck className="h-3 w-3" />
-              {cls.classTeacher?.fullName || "No class teacher"}
-            </span>
+            {isSubjectMode ? (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                <UserCheck className="h-3 w-3" />
+                {subjectCount ? `${assignedSubjectTeachers}/${subjectCount} teachers` : "No subjects yet"}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                <UserCheck className="h-3 w-3" />
+                {cls.classTeacher?.fullName || "No class teacher"}
+              </span>
+            )}
             <span className="text-[#4d4354]/20">|</span>
             <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
             <span className="text-[#4d4354]/20">|</span>
@@ -5004,8 +5065,19 @@ function TagListCard({
 
       <div className="space-y-2.5">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-2xl bg-[#fbf0fe]/50 py-8 text-[#8127cf]">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          <div className="space-y-2.5">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3"
+              >
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-1/3 rounded-full bg-[#cfc2d6]/25 animate-pulse" />
+                  <div className="h-2.5 w-2/3 rounded-full bg-[#cfc2d6]/15 animate-pulse" />
+                </div>
+                <div className="h-5 w-14 shrink-0 rounded-full bg-[#cfc2d6]/20 animate-pulse" />
+              </div>
+            ))}
           </div>
         ) : items.length === 0 ? (
           <EmptyInline text={`No ${kind === "category" ? "categories" : "groups"} yet — add your first one.`} />
@@ -5301,8 +5373,20 @@ export function AdmissionQueriesPanel({
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4"
+            >
+              <div className="h-11 w-11 shrink-0 rounded-2xl bg-[#cfc2d6]/20 animate-pulse" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-3.5 w-1/3 rounded-full bg-[#cfc2d6]/25 animate-pulse" />
+                <div className="h-2.5 w-2/3 rounded-full bg-[#cfc2d6]/15 animate-pulse" />
+              </div>
+              <div className="h-5 w-16 shrink-0 rounded-full bg-[#cfc2d6]/20 animate-pulse" />
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <EmptyInline text="No admission queries match these filters" />
@@ -5396,7 +5480,7 @@ export function AdmissionQueriesPanel({
           query={selected}
           classes={classes}
           now={now}
-          onConvert={() => onConvert(selected)}
+          onConvert={() => { setSelected(null); onConvert(selected); }}
           onClose={() => setSelected(null)}
           onChanged={(updated) => {
             setSelected(updated);
@@ -5427,6 +5511,10 @@ function NewQueryModal({
     note: "",
   });
   const [busy, setBusy] = useState(false);
+
+  // Group the flat class rows into their class groups (name + academic year)
+  // so the dropdown lists each class once, not every section.
+  const classGroups = useMemo(() => groupClasses(classes), [classes]);
 
   const submit = async () => {
     if (!form.name.trim() || !form.phone.trim()) {
@@ -5462,9 +5550,14 @@ function NewQueryModal({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormSelect label="Class interested in" value={form.classInterestedId} onChange={(v) => setForm((f) => ({ ...f, classInterestedId: v }))}>
             <option value="">Not specified</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
-            ))}
+            {classGroups.map((group) => {
+              const rep = group.sections.find((s) => !s.section) || group.sections[0];
+              return (
+                <option key={group.key} value={rep?.id}>
+                  {group.name}{group.academicYear ? ` (${group.academicYear})` : ""}
+                </option>
+              );
+            })}
           </FormSelect>
           <FormSelect label="Source" value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))}>
             {Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => (
@@ -7707,7 +7800,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
   const [weekends, setWeekends] = useState<number[]>([]);
   const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingDays, setSavingDays] = useState(false);
+  const [busyDay, setBusyDay] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", fromDate: "", toDate: "" });
   const [busy, setBusy] = useState(false);
@@ -7737,7 +7830,10 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
       toast.error("At least one day off is required");
       return;
     }
-    setSavingDays(true);
+    const previous = weekends;
+    setBusyDay(day);
+    // Optimistic update so the click gives instant visual feedback.
+    setWeekends(next.sort());
     try {
       const res = await fetch("/api/academic/calendar", {
         method: "PATCH",
@@ -7746,12 +7842,13 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Save failed");
-      setWeekends(next.sort());
+      setWeekends((json.data?.weekends || next).slice().sort());
       toast.success("Weekend days updated");
     } catch (error) {
+      setWeekends(previous); // revert on failure
       toast.error(error instanceof Error ? error.message : "Save failed");
     } finally {
-      setSavingDays(false);
+      setBusyDay(null);
     }
   };
 
@@ -7837,7 +7934,30 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {loading ? (
-        <EmptyInline text="Loading calendar…" />
+        <div className="space-y-6">
+          <div>
+            <div className="mb-2 h-3 w-32 rounded-full bg-[#8127cf]/10 animate-pulse" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="h-10 w-14 rounded-xl bg-[#8127cf]/10 animate-pulse" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="mb-2 h-3 w-28 rounded-full bg-[#8127cf]/10 animate-pulse" />
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-[#8127cf]/10 animate-pulse" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-40 rounded-full bg-[#8127cf]/10 animate-pulse" />
+                    <div className="h-2.5 w-32 rounded-full bg-[#8127cf]/10 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         <>
           <div className="mb-6">
@@ -7845,19 +7965,24 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
             <div className="flex flex-wrap gap-2">
               {CALENDAR_DAYS.map((d) => {
                 const on = weekends.includes(d.num);
+                const busy = busyDay === d.num;
                 return (
                   <button
                     key={d.num}
                     type="button"
                     onClick={() => toggleDay(d.num)}
-                    disabled={savingDays}
-                    className={`flex h-10 w-14 flex-col items-center justify-center rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer ${
+                    disabled={busy}
+                    aria-busy={busy}
+                    className={`flex h-10 w-14 flex-col items-center justify-center rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-70 cursor-pointer ${
                       on
                         ? "border-[#8127cf]/30 bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-lg shadow-[#8127cf]/20"
                         : "border-[#cfc2d6]/20 bg-white text-[#4d4354]/50 hover:border-[#8127cf]/30"
                     }`}
                   >
-                    <Sun className="mb-0.5 h-3.5 w-3.5 opacity-70" />
+                    {busy ? (
+                      <Loader2 className="mb-0.5 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {!busy && <Sun className="mb-0.5 h-3.5 w-3.5 opacity-70" />}
                     {d.label}
                   </button>
                 );

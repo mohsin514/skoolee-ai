@@ -28,6 +28,7 @@ const COLORS = [
 export default function ParentTimetablePage() {
   const { token } = useParentData();
   const [timetableData, setTimetableData] = useState<any>(null);
+  const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadTimetable = useCallback(async () => {
@@ -37,10 +38,16 @@ export default function ParentTimetablePage() {
       if (token) params.set("token", token);
       const res = await fetch(`/api/parent/timetable?${params}`);
       const json = await res.json();
-      if (json.success) setTimetableData(json.data);
+      if (json.success) {
+        setTimetableData(json.data);
+        setWeekendDays(json.data?.weekends || []);
+      }
     } catch { toast.error("Failed to load timetable"); }
     setLoading(false);
   }, [token]);
+
+  // Only render the campus's working days so a 5-day calendar hides Saturday.
+  const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
 
   useEffect(() => { loadTimetable(); }, [loadTimetable]);
 
@@ -86,7 +93,7 @@ export default function ParentTimetablePage() {
           <div className="flex items-center gap-2 text-[#8127cf] mb-2">
             <Clock className="w-4 h-4" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {timetableData ? `${periods.length} periods · Mon-Sat` : "Weekly class schedule"}
+               {timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Timetable</h2>
@@ -113,11 +120,11 @@ export default function ParentTimetablePage() {
             </div>
             <div className="sk-rise overflow-x-auto rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
               <div className="min-w-[700px]">
-                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
+                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">
                     <Clock className="w-3 h-3 text-[#4d4354]/25" />
                   </div>
-                  {DAYS.map((d) => (
+                  {visibleDays.map((d) => (
                     <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
                       <span className="text-[8px] font-black uppercase text-[#4d4354]/30">{d.short}</span>
                     </div>
@@ -126,12 +133,12 @@ export default function ParentTimetablePage() {
                 {periods.map((p: any) => {
                   const isSpecial = p.type !== "CLASS";
                   return (
-                    <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)` }}>
+                    <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                       <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
                         <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
                         <span className="text-[6px] font-bold text-[#4d4354]/20">{p.start}</span>
                       </div>
-                      {DAYS.map((d) => {
+                      {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
                         if (!slot || slot.slotType !== "CLASS") {
                           const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";

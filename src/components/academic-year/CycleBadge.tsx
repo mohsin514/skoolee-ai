@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ACADEMIC_CYCLE_CHANGED } from "@/lib/cycleEvents";
 
 type CycleStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | null;
 
@@ -51,7 +52,7 @@ export function CycleBadge() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       try {
         const res = await fetch("/api/academic-cycle");
         const json = await res.json();
@@ -68,8 +69,14 @@ export function CycleBadge() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    load();
+    window.addEventListener(ACADEMIC_CYCLE_CHANGED, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(ACADEMIC_CYCLE_CHANGED, load);
+    };
   }, []);
 
   if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-[#cfc2d6]/20" />;

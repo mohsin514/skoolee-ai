@@ -25,6 +25,7 @@ interface ClassTimetableData {
 
 export default function StudentTimetablePage() {
   const [data, setData] = useState<ClassTimetableData | null>(null);
+  const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,10 +33,15 @@ export default function StudentTimetablePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/timetable/class");
-      const json = await res.json();
+      const [ttRes, calRes] = await Promise.all([
+        fetch("/api/timetable/class"),
+        fetch("/api/academic/calendar"),
+      ]);
+      const json = await ttRes.json();
       if (json.success) setData(json.data);
       else setError(json.error || "Failed to load timetable");
+      const calJson = await calRes.json();
+      if (calJson.success) setWeekendDays(calJson.data.weekends || []);
     } catch {
       setError("Failed to load timetable");
       toast.error("Failed to load timetable");
@@ -46,7 +52,7 @@ export default function StudentTimetablePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <TimetableSkeleton />;
+  if (loading) return <TimetableSkeleton weekendDays={weekendDays} />;
   if (error) return <StudentErrorState error={error} onRetry={load} />;
 
   return (
@@ -69,7 +75,7 @@ export default function StudentTimetablePage() {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
         {data ? (
-          <TimetableReadOnly slots={data.slots} />
+          <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
         ) : (
           <div className="sk-rise flex flex-col items-center justify-center py-24 text-center rounded-[40px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10" style={{ animationDelay: "80ms" }}>
             <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">

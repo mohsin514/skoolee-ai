@@ -28,6 +28,15 @@ export async function GET(
   const reportCard = await prisma.reportCard.findFirst({
     where: { id, campus: { schoolId: user.schoolId } },
     include: {
+      campus: {
+        select: {
+          name: true,
+          city: true,
+          address: true,
+          logoUrl: true,
+          school: { select: { name: true, logoUrl: true, tagline: true, phone: true, website: true, contactEmail: true } },
+        },
+      },
       student: {
         select: {
           id: true,

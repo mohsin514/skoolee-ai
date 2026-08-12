@@ -617,6 +617,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     campusName: campus?.name || "Campus",
     campusCity: campus?.city || "",
     campusRegId: campus?.regId || "",
+    logoUrl: campus?.logoUrl || school?.logoUrl || null,
     isStandaloneCampus: campusCount === 1,
     currentUserId: session.userId,
     canInviteAdmins: campusCount === 1,

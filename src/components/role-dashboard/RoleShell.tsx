@@ -15,6 +15,7 @@ interface RoleShellProps {
   userRole?: string;
   avatarSeed?: string;
   dashboardHref?: string;
+  logoUrl?: string | null;
   headerActions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -30,13 +31,14 @@ export function RoleShell({
   userRole,
   avatarSeed,
   dashboardHref,
+  logoUrl,
   headerActions,
   children,
   className,
 }: RoleShellProps) {
   return (
     <div className="min-h-screen bg-[#fbf0fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
-      <RoleSidebar tagline={tagline} items={navItems} bottomItems={bottomItems} />
+      <RoleSidebar tagline={tagline} items={navItems} bottomItems={bottomItems} logoUrl={logoUrl} />
       <main className={cn("flex-1 min-w-0 md:ml-64 p-4 md:p-8 pb-20 md:pb-8 flex flex-col h-screen overflow-hidden", className)}>
         <RoleHeader
           eyebrow={eyebrow}

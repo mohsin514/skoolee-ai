@@ -89,12 +89,47 @@ const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
 };
 
+type GridPeriod = { num: number; start: string; end: string; type: string };
+type GridDay = { num: number; short: string; full: string };
+
+function TimetableGridSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visibleDays: GridDay[] }) {
+  return (
+    <div className="min-w-[800px]">
+      <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+        <div className="flex items-center justify-center p-3">
+          <div className="h-4 w-4 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
+        </div>
+        {visibleDays.map((day) => (
+          <div key={day.num} className="flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9]">
+            <div className="h-3 w-10 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-2 w-12 mt-1 rounded bg-[#e8e0ec]/40 skeleton-shimmer" />
+          </div>
+        ))}
+      </div>
+      {periods.map((p) => (
+        <div key={p.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+          <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
+            <div className="h-3 w-6 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-2 w-10 mt-1 rounded bg-[#e8e0ec]/40 skeleton-shimmer" />
+          </div>
+          {visibleDays.map((day) => (
+            <div key={day.num} className="border-l border-[#f3f4f9] p-1">
+              <div className="h-full min-h-[48px] rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TimetablePanel({ campusId }: { campusId?: string }) {
   const [timetables, setTimetables] = useState<TimetableData[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [classLoading, setClassLoading] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -108,6 +143,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
   const [periodDefs, setPeriodDefs] = useState<{ id: string; periodNumber: number; startTime: string; endTime: string }[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
+
+  // Only render the campus's working days. The school calendar defines which
+  // day-of-week values are weekends; those columns are hidden entirely so a
+  // 5-day calendar shows Mon–Fri without Saturday.
+  const visibleDays = useMemo(
+    () => DAYS.filter((d) => !weekendDays.includes(d.num)),
+    [weekendDays],
+  );
 
   const qp = campusId ? `?campusId=${campusId}` : "";
 
@@ -165,6 +208,29 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       .catch(() => {});
   }, [selectedClassId, activeTimetable, campusId]);
 
+  // When a class is selected, make sure its slot data is present. The initial
+  // load may not have populated this class's slots yet, so show an inner
+  // skeleton in the grid until the data arrives (typically 3-4s on first open).
+  useEffect(() => {
+    if (!selectedClassId) return;
+    const existing = timetables.find((t) => t.classId === selectedClassId);
+    if (!existing || existing.slots.length > 0) return;
+    let cancelled = false;
+    setClassLoading(true);
+    fetch(`/api/timetable?classId=${selectedClassId}${qp}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || !j.success) return;
+        const fetched = Array.isArray(j.data) ? j.data[0] : null;
+        if (fetched) {
+          setTimetables((prev) => prev.map((t) => (t.classId === selectedClassId ? fetched : t)));
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setClassLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedClassId, timetables, qp]);
+
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, typeof SUBJECT_COLORS[0]>();
     subjects.forEach((s, i) => m.set(s.id, SUBJECT_COLORS[i % SUBJECT_COLORS.length]));
@@ -213,6 +279,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     { period: 7, start: "11:40", end: "12:10", type: "PRAYER" },
     { period: 8, start: "12:10", end: "12:50", type: "CLASS" },
   ];
+
+  const gridSkeletonPeriods = periods.length ? periods : defaultPeriods;
 
   const handleCreateTimetable = async (periods?: typeof defaultPeriods) => {
     if (!selectedClassId) return;
@@ -404,7 +472,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6 min-h-[70vh]">
         <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit animate-skeleton-in">
           <div className="h-9 w-24 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
           <div className="h-9 w-28 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
@@ -414,12 +482,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             <div key={i} className="h-9 w-20 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
           ))}
         </div>
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 flex-1 min-h-[400px] animate-skeleton-in" style={{ animationDelay: "160ms" }}>
           <div className="space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: periodDefs.length || 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="h-10 w-16 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-                {Array.from({ length: 6 }).map((_, j) => (
+                {Array.from({ length: visibleDays.length }).map((_, j) => (
                   <div key={j} className="h-10 flex-1 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
                 ))}
               </div>
@@ -497,11 +565,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           {selectedTeacherId && (
             <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
               <div className="min-w-[800px]">
-                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}>
+                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
                     <Clock className="w-4 h-4 text-[#4d4354]/30" />
                   </div>
-                  {DAYS.map((day) => (
+                  {visibleDays.map((day) => (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
                       <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
                       <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
@@ -513,12 +581,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 </div>
 
                 {periods.length > 0 ? periods.map((period) => (
-                  <div key={period.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}>
+                  <div key={period.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                     <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
                       <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
                       <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{period.start}</span>
                     </div>
-                    {DAYS.map((day) => {
+                    {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
                       const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
                       const isConflict = selectedTeacherSlots.filter((s) => s.day === day.num && s.period === period.num).length > 1;
@@ -598,7 +666,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           </div>
           <h3 className="text-lg font-black text-[#1f1a23] mb-2">No Timetable Yet</h3>
           <p className="text-sm text-[#4d4354]/50 mb-8 max-w-sm text-center">
-            Create a weekly schedule for this class with configurable period timings (Mon-Sat)
+            Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -713,14 +781,19 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           </div>
 
           {/* Timetable Grid */}
+          {classLoading ? (
+            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+              <TimetableGridSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />
+            </div>
+          ) : (
           <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
             <div className="min-w-[800px]">
               {/* Header row */}
-              <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}>
+              <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                 <div className="flex items-center justify-center p-3">
                   <Clock className="w-4 h-4 text-[#4d4354]/30" />
                 </div>
-                {DAYS.map((day) => {
+                {visibleDays.map((day) => {
                   const isOff = weekendDays.includes(day.num);
                   return (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
@@ -745,7 +818,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     className={`grid border-b border-[#f3f4f9] last:border-b-0 transition-colors ${
                       isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : "hover:bg-[#fbf0fe]/20"
                     }`}
-                    style={{ gridTemplateColumns: `80px repeat(${DAYS.length}, 1fr)` }}
+                    style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}
                   >
                     {/* Time column */}
                     <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
@@ -759,7 +832,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     </div>
 
                     {/* Day cells */}
-                    {DAYS.map((day) => {
+                    {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
                       const offCls = isOff ? "opacity-40 bg-[#f3f4f9]/70" : "";
                       const slot = getSlot(day.num, period.num);
@@ -841,6 +914,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               })}
             </div>
           </div>
+          )}
         </>
       )}
       </>
@@ -852,8 +926,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           <RoutinePrintGrid
             title={`${activeTimetable.class.name}${activeTimetable.class.section ? ` - ${activeTimetable.class.section}` : ""} — Weekly Timetable ${activeTimetable.academicYear} (${activeTimetable.term})`}
             periods={periods}
-            days={DAYS}
-            cells={DAYS.map((day) => periods.map((period) => {
+            days={visibleDays}
+            cells={visibleDays.map((day) => periods.map((period) => {
               const s = getSlot(day.num, period.num);
               if (!s) return null;
               return {
@@ -868,8 +942,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           <RoutinePrintGrid
             title={`${teachers.find((t) => t.id === selectedTeacherId)?.fullName || "Teacher"} — Weekly Routine`}
             periods={periods}
-            days={DAYS}
-            cells={DAYS.map((day) => periods.map((period) => {
+            days={visibleDays}
+            cells={visibleDays.map((day) => periods.map((period) => {
               const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
               if (!slotInfo) return null;
               return { label: slotInfo.subject, sub: slotInfo.classLabel, type: "CLASS" };
@@ -1308,7 +1382,7 @@ function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: 
 }
 
 // ─── Read-Only Timetable View (for teacher/student/parent) ─
-export function TimetableReadOnly({ slots, title }: {
+export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
   slots: Array<{
     dayOfWeek: number;
     periodNumber: number;
@@ -1322,7 +1396,14 @@ export function TimetableReadOnly({ slots, title }: {
     teacher?: { fullName: string } | null;
   }>;
   title?: string;
+  weekendDays?: number[];
 }) {
+  // Render only the campus's working days so a 5-day calendar hides Saturday.
+  const visibleDays = useMemo(
+    () => DAYS.filter((d) => !weekendDays.includes(d.num)),
+    [weekendDays],
+  );
+
   const periods = useMemo(() => {
     const seen = new Map<number, { start: string; end: string; type: string }>();
     for (const s of slots) {
@@ -1387,11 +1468,11 @@ export function TimetableReadOnly({ slots, title }: {
 
       <div className="overflow-x-auto rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
         <div className="min-w-[700px]">
-          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${DAYS.length}, 1fr)` }}>
+          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
             <div className="flex items-center justify-center p-2">
               <Clock className="w-3.5 h-3.5 text-[#4d4354]/25" />
             </div>
-            {DAYS.map((day) => (
+            {visibleDays.map((day) => (
               <div key={day.num} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
                 <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
               </div>
@@ -1406,13 +1487,13 @@ export function TimetableReadOnly({ slots, title }: {
               <div
                 key={period.num}
                 className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : ""}`}
-                style={{ gridTemplateColumns: `70px repeat(${DAYS.length}, 1fr)` }}
+                style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}
               >
                 <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
                   <span className="text-[9px] font-black text-[#8127cf]">P{period.num}</span>
                   <span className="text-[7px] font-bold text-[#4d4354]/25">{period.start}</span>
                 </div>
-                {DAYS.map((day) => {
+                {visibleDays.map((day) => {
                   const slot = getSlot(day.num, period.num);
                   if (!slot) return <div key={day.num} className="border-l border-[#f3f4f9] p-1" />;
 

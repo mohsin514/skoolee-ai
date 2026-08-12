@@ -192,14 +192,17 @@ export async function PATCH(req: NextRequest) {
     });
 
     // In SINGLE mode the class teacher owns every subject, so keep subjects in
-    // lockstep automatically. Doing it here (rather than via a separate
-    // "apply to subjects" click) is what stops the class teacher and its
-    // subjects from silently drifting apart.
+    // lockstep — but ONLY when the class teacher is actually (re)assigned.
+    // Merely toggling the teachingMode flag must stay lightweight and
+    // non-destructive: overwriting every subject on a mode switch used to wipe
+    // individually-assigned per-subject teachers (and, with no class teacher
+    // set, null them all out). The flag alone is enough — the UI presents
+    // SINGLE as "the class teacher teaches everything" regardless of what each
+    // subject row currently stores.
     const effectiveMode = data.teachingMode ?? existing.teachingMode;
     const teacherChanged = data.classTeacherId !== undefined && data.classTeacherId !== existing.classTeacherId;
-    const switchedToSingle = data.teachingMode === "SINGLE" && existing.teachingMode !== "SINGLE";
     let clashes: TimetableClash[] = [];
-    if (effectiveMode === "SINGLE" && (teacherChanged || switchedToSingle)) {
+    if (effectiveMode === "SINGLE" && teacherChanged) {
       await prisma.subject.updateMany({
         where: { classId: id },
         data: { teacherId: cls.classTeacherId },

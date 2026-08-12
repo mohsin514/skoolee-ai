@@ -133,9 +133,23 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   await assertSchoolOperational(session.schoolId);
 
   const valid = InviteSchema.parse(data);
-  const targetCampusId = isCampusAdminRole(session.role) ? session.campusId : valid.campusId;
-  
+  // Honour an explicitly supplied campusId (e.g. inviting the admin/principal for a
+  // newly created campus). Fall back to the caller's own campus only when omitted.
+  const targetCampusId = valid.campusId || session.campusId;
+
+  // Non-super callers may only invite staff into their own campus.
+  if (isCampusAdminRole(session.role) && targetCampusId !== session.campusId) {
+    throw new Error("You can only invite staff to your own campus");
+  }
+
   if (!targetCampusId) throw new Error('Campus ID is required');
+
+  const targetCampus = await prisma.campus.findUnique({
+    where: { id: targetCampusId },
+    select: { schoolId: true },
+  });
+  if (!targetCampus) throw new Error('Campus not found');
+  if (targetCampus.schoolId !== session.schoolId) throw new Error('Campus is outside your school');
 
   let canInviteStandaloneAdmin = false;
   if (valid.role === 'CAMPUS_ADMIN' && session.role !== 'SUPER_ADMIN') {

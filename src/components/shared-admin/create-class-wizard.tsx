@@ -6,6 +6,8 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
   GraduationCap,
   Layers,
@@ -17,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { TeacherPicker, type PickerTeacher } from "@/components/shared-admin/teacher-picker";
+import { TeacherPicker, useTeacherAvailability, type PickerTeacher } from "@/components/shared-admin/teacher-picker";
 
 interface WizardSection {
   key: string;
@@ -30,6 +32,9 @@ interface WizardSubject {
   name: string;
   totalMarks: string;
   teacherId: string;
+  /** Per-section teacher overrides. A section not present here falls back to
+   *  `teacherId` (the default that applies to every section). */
+  teacherBySection?: Record<string, string>;
   /** Raw textarea contents — parsed into topics only on submit, so typing
    *  (including pressing Enter) is never fought by the controlled value. */
   topicsText: string;
@@ -48,8 +53,13 @@ const emptySubject = (): WizardSubject => ({
   name: "",
   totalMarks: "100",
   teacherId: "",
+  teacherBySection: {},
   topicsText: "",
 });
+
+/** Resolved teacher for a subject in a given section (override wins, else default). */
+const resolveSubjectTeacher = (subject: WizardSubject, sectionName: string): string =>
+  subject.teacherBySection?.[sectionName] ?? subject.teacherId ?? "";
 
 const parseTopics = (text: string): string[] =>
   text.split("\n").map((t) => t.trim()).filter(Boolean);
@@ -94,9 +104,12 @@ export function CreateClassWizard({
   const [sectionsInput, setSectionsInput] = useState("");
   const [sections, setSections] = useState<WizardSection[]>([]);
   const [subjects, setSubjects] = useState<WizardSubject[]>([]);
+  const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
   const [copyFromClassId, setCopyFromClassId] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+
+  const { availability } = useTeacherAvailability();
 
   const copyableClasses = useMemo(
     () =>
@@ -289,7 +302,10 @@ export function CreateClassWizard({
                 totalMarks: Number(subject.totalMarks) || 100,
                 // In SINGLE mode every subject follows the section's homeroom
                 // teacher, so the per-subject picker isn't shown or used.
-                teacherId: (teachingMode === "SINGLE" ? p.teacherId : subject.teacherId) || undefined,
+                teacherId:
+                  teachingMode === "SINGLE"
+                    ? p.teacherId
+                    : resolveSubjectTeacher(subject, p.name) || undefined,
               }),
             });
             const j = await res.json();
@@ -508,18 +524,32 @@ export function CreateClassWizard({
                 <div className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                   <p className="mb-3 text-sm font-black text-[#1f1a23]">
                     {name.trim() || "This class"}
-                    <span className="ml-2 text-[9px] font-bold text-[#4d4354]/45">Homeroom teacher (optional)</span>
+                    {teachingMode === "SINGLE" ? (
+                      <span className="ml-2 text-[9px] font-bold text-[#4d4354]/45">Class Teacher</span>
+                    ) : null}
                   </p>
-                  <TeacherPicker
-                    label="Class Teacher"
-                    value={sections[0]?.teacherId || ""}
-                    teachers={teachers}
-                    assignmentMode="homeroom"
-                    onChange={(teacherId) =>
-                      setSections([{ key: sections[0]?.key || crypto.randomUUID(), name: "", teacherId }])
-                    }
-                  />
-                  <p className="mt-3 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                  {teachingMode === "SINGLE" ? (
+                    <>
+                      <TeacherPicker
+                        label="Class Teacher"
+                        value={sections[0]?.teacherId || ""}
+                        teachers={teachers}
+                        availability={availability}
+                        assignmentMode="homeroom"
+                        onChange={(teacherId) =>
+                          setSections([{ key: sections[0]?.key || crypto.randomUUID(), name: "", teacherId }])
+                        }
+                      />
+                      <p className="mt-3 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                        This teacher takes every subject for this class.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                      Subject teachers are assigned in the Subjects step. You can add a homeroom teacher for this class later from the class.
+                    </p>
+                  )}
+                  <p className="mt-2 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
                     You can split this into sections later — the students and subjects move across with it.
                   </p>
                 </div>
@@ -540,7 +570,9 @@ export function CreateClassWizard({
                   />
                 </label>
                 <p className="mt-2 pl-2 text-[10px] font-bold text-[#4d4354]/50">
-                  Each section becomes its own class row (e.g. Grade 8 - A, Grade 8 - B). You can assign homeroom teachers below.
+                  {teachingMode === "SINGLE"
+                    ? "Each section becomes its own class row (e.g. Grade 8 - A, Grade 8 - B). Assign the class teacher for each below."
+                    : "Each section becomes its own class row (e.g. Grade 8 - A, Grade 8 - B). Subject teachers are assigned in the next step."}
                 </p>
               </div>
 
@@ -548,24 +580,38 @@ export function CreateClassWizard({
                 <div className="space-y-3">
                   {sections.map((section) => (
                     <div key={section.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-sm font-black text-[#1f1a23]">
-                          Section {section.name}
-                          <span className="ml-2 text-[9px] font-bold text-[#4d4354]/45">Homeroom teacher (optional)</span>
+                      <p className="mb-3 text-sm font-black text-[#1f1a23]">
+                        Section {section.name}
+                        {teachingMode === "SINGLE" ? (
+                          <span className="ml-2 text-[9px] font-bold text-[#4d4354]/45">Class Teacher</span>
+                        ) : null}
+                      </p>
+                      {teachingMode === "SINGLE" ? (
+                        <>
+                          <TeacherPicker
+                            label="Class Teacher"
+                            value={section.teacherId}
+                            teachers={teachers}
+                            availability={availability}
+                            onChange={(teacherId) => updateSection(section.key, { teacherId })}
+                          />
+                          <p className="mt-2 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                            This teacher takes every subject for this section.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                          Subject teachers are assigned in the Subjects step. The homeroom teacher can be added later from the class.
                         </p>
-                      </div>
-                      <TeacherPicker
-                        label="Class Teacher"
-                        value={section.teacherId}
-                        teachers={teachers}
-                        onChange={(teacherId) => updateSection(section.key, { teacherId })}
-                      />
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="rounded-3xl bg-[#fbf0fe]/30 p-5 text-xs font-bold text-[#4d4354]/45">
-                  Type section names above — teacher assignment rows appear automatically.
+                  {teachingMode === "SINGLE"
+                    ? "Type section names above — teacher assignment rows appear automatically."
+                    : "Type section names above to continue to subject setup."}
                 </p>
               )}
               </>
@@ -614,8 +660,15 @@ export function CreateClassWizard({
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
                     <div key={subject.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-sm font-black text-[#1f1a23]">Subject {index + 1}</p>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-[#1f1a23]">Subject {index + 1}</p>
+                          {teachingMode === "SUBJECT" && hasSections && sectionNames.length > 0 ? (
+                            <p className="mt-0.5 text-[10px] font-bold leading-snug text-[#4d4354]/50">
+                              Created in every section ({sectionNames.length}): {sectionNames.join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           onClick={() => setSubjects((current) => current.filter((s) => s.key !== subject.key))}
@@ -646,13 +699,60 @@ export function CreateClassWizard({
                         </label>
                       </div>
                       {teachingMode === "SUBJECT" ? (
-                        <div className="mt-3">
+                        <div className="mt-3 space-y-3">
                           <TeacherPicker
-                            label="Subject Teacher (optional)"
+                            label={
+                              hasSections && sectionNames.length > 1
+                                ? "Default teacher (applies to all sections)"
+                                : "Subject Teacher (optional)"
+                            }
                             value={subject.teacherId}
                             teachers={teachers}
+                            availability={availability}
                             onChange={(teacherId) => updateSubject(subject.key, { teacherId })}
                           />
+                          {hasSections && sectionNames.length > 1 ? (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedSubjects((prev) => ({ ...prev, [subject.key]: !prev[subject.key] }))
+                                }
+                                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black text-[#8127cf] transition-colors hover:bg-[#fbf0fe] cursor-pointer"
+                              >
+                                {expandedSubjects[subject.key] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                {expandedSubjects[subject.key] ? "Hide per-section teachers" : "Assign a different teacher per section"}
+                              </button>
+                              {expandedSubjects[subject.key] ? (
+                                <div className="mt-3 space-y-3 border-l-2 border-[#cfc2d6]/25 pl-3">
+                                  {sectionNames.map((sec) => {
+                                    const hasOverride = !!subject.teacherBySection?.[sec];
+                                    return (
+                                      <div key={sec}>
+                                        <TeacherPicker
+                                          label={`Section ${sec} teacher`}
+                                          value={resolveSubjectTeacher(subject, sec)}
+                                          teachers={teachers}
+                                          availability={availability}
+                                          onChange={(teacherId) => {
+                                            const next = { ...(subject.teacherBySection || {}) };
+                                            if (teacherId) next[sec] = teacherId;
+                                            else delete next[sec];
+                                            updateSubject(subject.key, { teacherBySection: next });
+                                          }}
+                                        />
+                                        {hasOverride ? (
+                                          <p className="mt-1 pl-1 text-[9px] font-bold text-[#8127cf]/70">
+                                            Overrides the default for this section.
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -746,13 +846,29 @@ export function CreateClassWizard({
                             {subject.totalMarks || 100} marks · {parseTopics(subject.topicsText).length} topic{parseTopics(subject.topicsText).length !== 1 ? "s" : ""}
                           </p>
                         </div>
-                        {subject.teacherId ? (
-                          <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[8px] font-black text-[#8127cf]">
-                            {teachers.find((t) => t.id === subject.teacherId)?.fullName || "Teacher"}
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[8px] font-black text-[#4d4354]/50">Unassigned</span>
-                        )}
+                        {(() => {
+                          const resolved = hasSections && sectionNames.length
+                            ? sectionNames.map((s) => resolveSubjectTeacher(subject, s))
+                            : [subject.teacherId];
+                          const assigned = resolved.filter(Boolean);
+                          const unique = Array.from(new Set(assigned));
+                          const label =
+                            unique.length === 1
+                              ? (teachers.find((t) => t.id === unique[0])?.fullName || "Teacher")
+                              : assigned.length > 0
+                                ? "Varies by section"
+                                : "Unassigned";
+                          return (
+                            <span
+                              className={cn(
+                                "rounded-full px-2.5 py-1 text-[8px] font-black",
+                                unique.length === 1 ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-[#f3f4f9] text-[#4d4354]/50"
+                              )}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>

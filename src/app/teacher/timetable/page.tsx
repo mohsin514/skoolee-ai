@@ -23,15 +23,21 @@ interface TeacherSlot {
 
 export default function TeacherTimetablePage() {
   const [slots, setSlots] = useState<TeacherSlot[]>([]);
+  const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/timetable/teacher");
-      const json = await res.json();
+      const [ttRes, calRes] = await Promise.all([
+        fetch("/api/timetable/teacher"),
+        fetch("/api/academic/calendar"),
+      ]);
+      const json = await ttRes.json();
       if (json.success) setSlots(json.data);
       else toast.error("Failed to load timetable");
+      const calJson = await calRes.json();
+      if (calJson.success) setWeekendDays(calJson.data.weekends || []);
     } catch {
       toast.error("Failed to load timetable");
     } finally {
@@ -41,7 +47,7 @@ export default function TeacherTimetablePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <TimetableSkeleton />;
+  if (loading) return <TimetableSkeleton weekendDays={weekendDays} />;
 
   const today = new Date().getDay(); // 0=Sun, 1=Mon...
   const todaySlots = slots.filter((s) => s.dayOfWeek === (today === 0 ? 7 : today) && s.slotType === "CLASS" && s.subject);
@@ -103,6 +109,7 @@ export default function TeacherTimetablePage() {
               teacher: null,
             }))}
             title="Full Week Schedule"
+            weekendDays={weekendDays}
           />
 
           <ExamDateSheet />

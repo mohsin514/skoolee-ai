@@ -104,10 +104,21 @@ export function Header({ title, description, actions }: HeaderProps) {
       } catch { toast.error("Failed to load notifications"); }
     };
 
+    const refreshCycle = async () => {
+      try {
+        const res = await fetch("/api/academic-cycle");
+        const data = await res.json();
+        if (!cancelled && res.ok && data?.active) setCycle(data.active);
+      } catch { /* ignore */ }
+    };
+
     load();
+    // Refresh the active-cycle badge whenever a cycle is created/activated/etc.
+    window.addEventListener("academic-cycle-changed", refreshCycle);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("academic-cycle-changed", refreshCycle);
     };
   }, []);
 

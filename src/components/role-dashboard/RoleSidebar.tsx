@@ -35,12 +35,27 @@ interface RoleSidebarProps {
   tagline?: string;
   items: SidebarEntry[];
   bottomItems?: RoleNavItem[];
+  logoUrl?: string | null;
+}
+
+function InstitutionBadge({ logoUrl, className }: { logoUrl?: string | null; className?: string }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt="Institution logo"
+        className={className ?? "h-11 w-11 rounded-2xl object-cover border border-[#cfc2d6]/25"}
+      />
+    );
+  }
+  return <SkooleeLogo size="1.5rem" />;
 }
 
 export function RoleSidebar({
   tagline = "The Joyful Architect",
   items,
   bottomItems = [],
+  logoUrl,
 }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -55,13 +70,14 @@ export function RoleSidebar({
     <MotionConfig reducedMotion="user">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white/70 backdrop-blur-xl border-r border-[#cfc2d6]/25 flex-col p-6 fixed h-full z-50 shadow-[12px_0_40px_rgba(129,39,207,0.05)]">
-        <div className="mb-6 shrink-0">
-          <div className="mb-1.5">
-            <SkooleeLogo size="1.5rem" />
+        <div className="mb-6 shrink-0 flex items-center gap-3">
+          <InstitutionBadge logoUrl={logoUrl} />
+          <div className="min-w-0">
+            <SkooleeLogo size="1.2rem" />
+            <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider truncate">
+              {tagline}
+            </p>
           </div>
-          <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider">
-            {tagline}
-          </p>
         </div>
 
         <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
@@ -117,7 +133,7 @@ export function RoleSidebar({
               className="md:hidden fixed inset-y-0 left-0 z-[131] w-72 bg-white flex flex-col p-6 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-6">
-                <SkooleeLogo size="1.5rem" />
+                <InstitutionBadge logoUrl={logoUrl} className="h-10 w-10 rounded-2xl object-cover border border-[#cfc2d6]/25" />
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}

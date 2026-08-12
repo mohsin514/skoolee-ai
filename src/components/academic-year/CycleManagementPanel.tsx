@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
+import { emitCycleChanged } from "@/lib/cycleEvents";
 
 interface Cycle {
   id: string;
@@ -57,7 +58,15 @@ export function CycleManagementPanel() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Action failed");
       toast.success(json.message);
-      await fetchCycles();
+      // Update the affected cycle in place (no waiting on a second fetch) and
+      // notify the header/badge to refresh the active-cycle indicator.
+      if (json.data) {
+        setCycles((prev) =>
+          prev.map((c) => (c.id === json.data.id ? json.data : c)),
+        );
+      }
+      emitCycleChanged();
+      fetchCycles();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -79,7 +88,12 @@ export function CycleManagementPanel() {
       toast.success(json.message);
       setShowCreate(false);
       setNewLabel("");
-      await fetchCycles();
+      // Show the new cycle immediately instead of waiting on a refetch.
+      if (json.data) {
+        setCycles((prev) => [json.data, ...prev.filter((c) => c.id !== json.data.id)]);
+      }
+      emitCycleChanged();
+      fetchCycles();
     } catch (err: any) {
       toast.error(err.message);
     } finally {

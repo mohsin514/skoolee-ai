@@ -692,10 +692,31 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   };
 
   const viewReport = detailReport || report;
+  const campusLogo = viewReport.campus?.logoUrl || viewReport.campus?.school?.logoUrl || null;
+  const campusContactLine = [
+    viewReport.campus?.school?.name,
+    viewReport.campus?.name,
+    viewReport.campus?.city,
+    viewReport.campus?.address,
+    viewReport.campus?.school?.phone,
+    viewReport.campus?.school?.contactEmail,
+    viewReport.campus?.school?.website,
+  ].filter(Boolean).join(" · ");
 
   return (
     <ModalFrame title={`${viewReport.student?.fullName || "Student"} \u2014 Report Card`} eyebrow="Academic result" onClose={onClose} wide>
       <div ref={printRef} id="report-card-print" className="space-y-6">
+        {viewReport.campus ? (
+          <div className="flex items-center gap-3 rounded-[30px] border border-[#8127cf]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
+            {campusLogo ? (
+              <img src={campusLogo} alt="Campus logo" className="h-14 w-14 shrink-0 rounded-2xl object-cover border border-[#cfc2d6]/25" />
+            ) : null}
+            <div className="min-w-0">
+              <p className="text-sm font-black text-[#1d1b20]">{viewReport.campus.school?.name || viewReport.campus.name}</p>
+              <p className="truncate text-[11px] font-semibold text-[#4d4354]/55">{campusContactLine}</p>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-xl">
             <AvatarImage src={avatar} />
@@ -1422,9 +1443,11 @@ export function StudentsSkeleton() {
   );
 }
 
-export function TimetableSkeleton() {
+export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[] }) {
+  const dayCount = weekendDays.length ? 6 - weekendDays.filter((d) => d >= 1 && d <= 6).length : 6;
+  const dayCols = `w-16 ${[...Array(dayCount)].map(() => "minmax(0,1fr)").join(" ")}`;
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 min-h-[82vh] relative overflow-hidden flex flex-col">
       {/* Header card */}
       <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
@@ -1462,21 +1485,21 @@ export function TimetableSkeleton() {
             ))}
           </div>
           <div className="overflow-hidden border-t border-[#f3f4f9]">
-            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
               <div className="p-2" />
-              {[...Array(6)].map((_, i) => (
+              {[...Array(dayCount)].map((_, i) => (
                 <div key={i} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
                   <SkeletonBlock className="h-3 w-10 rounded-md" />
                 </div>
               ))}
             </div>
             {[...Array(6)].map((_, p) => (
-              <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: "70px repeat(6, 1fr)" }}>
+              <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
                 <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
                   <SkeletonBlock className="h-3 w-6 rounded-md" />
                   <SkeletonBlock className="h-2 w-8 rounded-md mt-1" />
                 </div>
-                {[...Array(6)].map((_, d) => (
+                {[...Array(dayCount)].map((_, d) => (
                   <div key={d} className="border-l border-[#f3f4f9] p-1.5">
                     <SkeletonBlock className="h-12 w-full rounded-lg" />
                   </div>

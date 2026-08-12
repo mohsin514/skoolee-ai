@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     const timetable = await prisma.timetable.findFirst({
       where: { classId, status: "PUBLISHED" },
       include: {
-        class: { select: { name: true, section: true } },
+        class: { select: { name: true, section: true, campusId: true } },
         slots: {
           include: {
             subject: { select: { id: true, name: true } },
@@ -56,11 +56,17 @@ export async function GET(req: NextRequest) {
       return Response.json({ success: true, data: null });
     }
 
+    const weekends = await prisma.weekend.findMany({
+      where: { campusId: timetable.class.campusId },
+      select: { dayOfWeek: true },
+    });
+
     return Response.json({
       success: true,
       data: {
         className: timetable.class.name,
         classSection: timetable.class.section,
+        weekends: weekends.map((w) => w.dayOfWeek).sort(),
         slots: timetable.slots.map((s) => ({
           dayOfWeek: s.dayOfWeek,
           periodNumber: s.periodNumber,

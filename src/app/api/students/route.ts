@@ -425,7 +425,10 @@ export async function POST(req: NextRequest) {
         }
 
         const admissionYear = new Date().getFullYear();
-        const admissionCount = await tx.student.count({ where: { campusId: targetClass.campusId } });
+        // admissionNo is globally unique, so the sequence must be derived from
+        // the whole school — not just this campus. Counting per-campus made
+        // every campus's first student collide on ADM-YYYY-0001.
+        const admissionCount = await tx.student.count({});
         const admissionNo = `ADM-${admissionYear}-${String(admissionCount + 1).padStart(4, "0")}`;
 
         // Sibling-group resolution:
@@ -592,10 +595,19 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     if (error?.code === "P2002") {
-      if (Array.isArray(error.meta?.target) && error.meta.target.includes("student_user_id")) {
+      const target = error.meta?.target;
+      const fields = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+      const joined = fields.join(" ");
+      if (fields.some((f: string) => f.includes("student_user_id"))) {
         return Response.json({ error: "Student login email is already linked to another student" }, { status: 409 });
       }
-      return Response.json({ error: "Roll number already exists in this campus" }, { status: 409 });
+      if (fields.some((f: string) => f.toLowerCase().includes("admission"))) {
+        return Response.json({ error: "Admission number already exists — please try again to generate a new one." }, { status: 409 });
+      }
+      if (fields.some((f: string) => f.toLowerCase().includes("roll"))) {
+        return Response.json({ error: "Roll number already exists in this campus" }, { status: 409 });
+      }
+      return Response.json({ error: "A value conflicts with an existing record. Please try again." }, { status: 409 });
     }
     return errorResponse(error, "[students] POST failed");
   }

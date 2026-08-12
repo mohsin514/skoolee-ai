@@ -280,28 +280,36 @@ export default function CampusAdminDashboard() {
     if (nextClass) setSelectedClass(nextClass);
   };
 
-  const handleAdmissionSuccess = async (createdStudent?: any) => {
+  const handleAdmissionSuccess = (createdStudent?: any) => {
+    // Close the modal immediately so the student-creation toast isn't stranded
+    // behind the (slow) "mark query converted" PATCH and the campus-wide
+    // refresh. Those run in the background after the modal is gone.
+    setShowAdmissionForm(false);
     const studentId = createdStudent?.id;
     if (convertingQuery && studentId) {
-      try {
-        const res = await fetch("/api/admission-queries", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: convertingQuery.id, convertedStudentId: studentId }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          toast.success(`Query converted to ${createdStudent.fullName}`);
-        } else {
-          toast.error(data.error || "Could not mark query as converted");
-        }
-      } catch {
-        toast.error("Student created, but could not mark the query as converted");
-      }
+      const queryId = convertingQuery.id;
       setConvertingQuery(null);
+      (async () => {
+        try {
+          const res = await fetch("/api/admission-queries", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: queryId, convertedStudentId: studentId }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            toast.success(`Query converted to ${createdStudent.fullName}`);
+          } else {
+            toast.error(data.error || "Could not mark query as converted");
+          }
+        } catch {
+          toast.error("Student created, but could not mark the query as converted");
+        }
+        loadData();
+      })();
+    } else {
+      loadData();
     }
-    setShowAdmissionForm(false);
-    loadData();
   };
 
   const handleAddSection = async (name: string, section: string, academicYear: number, convertClassId?: string) => {
@@ -820,6 +828,7 @@ export default function CampusAdminDashboard() {
       searchPlaceholder="Search campus records..."
       userName={data.adminName}
       userRole="School Group Campus"
+      logoUrl={data.logoUrl}
       avatarSeed={data.adminEmail || data.adminName}
       dashboardHref="/admin"
       headerActions={null}
