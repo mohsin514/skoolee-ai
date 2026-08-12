@@ -280,7 +280,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     { period: 8, start: "12:10", end: "12:50", type: "CLASS" },
   ];
 
-  const gridSkeletonPeriods = periods.length ? periods : defaultPeriods;
+  const gridSkeletonPeriods = periods.length
+    ? periods
+    : defaultPeriods.map((p) => ({ num: p.period, start: p.start, end: p.end, type: p.type }));
 
   const handleCreateTimetable = async (periods?: typeof defaultPeriods) => {
     if (!selectedClassId) return;
@@ -472,7 +474,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6 min-h-[70vh]">
+      <div className="flex flex-col gap-6 min-h-[100vh]">
         <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit animate-skeleton-in">
           <div className="h-9 w-24 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
           <div className="h-9 w-28 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />

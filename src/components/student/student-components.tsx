@@ -432,7 +432,7 @@ export function AttendanceSkeleton() {
 export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[] }) {
   const dayCount = weekendDays.length ? 6 - weekendDays.filter((d) => d >= 1 && d <= 6).length : 6;
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 min-h-[82vh] relative overflow-hidden flex flex-col">
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 min-h-[100vh] relative overflow-hidden flex flex-col">
       <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative p-7 px-9">
@@ -449,7 +449,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
           <SkeletonBlock className="h-8 w-40 rounded-xl" />
           <SkeletonBlock className="h-8 w-52 rounded-xl" />
         </div>
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4">
+        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 flex-1">
           <div className="space-y-3">
             <div className="flex flex-col items-center justify-center py-2.5">
               <SkeletonBlock className="h-3 w-24" />

@@ -1447,7 +1447,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
   const dayCount = weekendDays.length ? 6 - weekendDays.filter((d) => d >= 1 && d <= 6).length : 6;
   const dayCols = `w-16 ${[...Array(dayCount)].map(() => "minmax(0,1fr)").join(" ")}`;
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 min-h-[82vh] relative overflow-hidden flex flex-col">
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 min-h-[100vh] relative overflow-hidden flex flex-col">
       {/* Header card */}
       <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
@@ -1474,7 +1474,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
           </div>
         </div>
 
-        <div className="rounded-[26px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-sm">
+        <div className="rounded-[26px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-sm flex-1 flex flex-col">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-[#cfc2d6]/10">
             <SkeletonBlock className="h-6 w-6 rounded-lg" />
             <SkeletonBlock className="h-4 w-44" />
@@ -1484,7 +1484,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
               <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
             ))}
           </div>
-          <div className="overflow-hidden border-t border-[#f3f4f9]">
+          <div className="overflow-hidden border-t border-[#f3f4f9] flex-1">
             <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
               <div className="p-2" />
               {[...Array(dayCount)].map((_, i) => (
