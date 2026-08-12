@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       where: { id: studentId },
       include: {
         class: { select: { name: true, section: true, academicYear: true } },
-        campus: { select: { name: true, city: true, phone: true, logoUrl: true } },
+        campus: { select: { name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
         reportCards: {
           orderBy: { generatedAt: "desc" },
           include: {

@@ -281,7 +281,7 @@ export async function getReportCardPdfPayload(reportCardId: string) {
   const reportCard = await prisma.reportCard.findUnique({
     where: { id: reportCardId },
     include: {
-      campus: { select: { name: true, city: true, address: true, phone: true, board: true, logoUrl: true } },
+      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
       exam: { select: { id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true } },
       student: {
         include: {

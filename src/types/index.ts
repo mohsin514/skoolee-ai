@@ -53,6 +53,11 @@ export interface School {
   address?: string | null;
   regId: string;
   contactEmail: string;
+  phone?: string | null;
+  website?: string | null;
+  logoUrl?: string | null;
+  establishedYear?: number | null;
+  tagline?: string | null;
   createdAt: Date;
 }
 
@@ -63,6 +68,9 @@ export interface Campus {
   city: string;
   address?: string | null;
   phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  principalName?: string | null;
   regId: string;
   board?: string | null;
   logoUrl?: string | null;

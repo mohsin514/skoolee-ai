@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import {
   Building, GraduationCap, MapPin,
   Plus, CheckCircle2,
   ChevronRight, Loader2,
   Shield, Hash,
-  Trash2, LucideIcon, LogOut, Phone, School, Users
+  Trash2, LucideIcon, LogOut, Phone, School, Users,
+  Globe, Mail, Upload, ImageIcon, CalendarDays, Tag, UserRound
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { finishOnboarding, getOnboardingSession } from '@/app/actions/completeOnboarding';
@@ -37,6 +39,7 @@ interface InputFieldProps {
   icon: LucideIcon;
   isArea?: boolean;
   required?: boolean;
+  readonly?: boolean;
 }
 
 interface SummaryItemProps {
@@ -47,6 +50,18 @@ interface SummaryItemProps {
 
 const STEPS_STANDALONE = ["School Details", "Review & Finish"];
 const STEPS_MULTI = ["School Details", "Add Campuses", "Review & Finish"];
+
+const BOARDS = [
+  "Federal Board",
+  "Punjab Board",
+  "Sindh Board",
+  "KPK Board",
+  "Balochistan Board",
+  "Aga Khan Board",
+  "Cambridge (IGCSE)",
+  "IB / International",
+  "Other",
+];
 
 export default function OnboardingWizard() {
   const [step, setStep] = useState(1);
@@ -65,6 +80,12 @@ export default function OnboardingWizard() {
     name: '',
     city: '',
     address: '',
+    email: '',
+    phone: '',
+    website: '',
+    logoUrl: '',
+    establishedYear: '',
+    tagline: '',
     regId: '',
     autoId: true
   });
@@ -75,9 +96,12 @@ export default function OnboardingWizard() {
     city: '',
     address: '',
     phone: '',
+    email: '',
+    website: '',
+    principalName: '',
     regId: '',
     autoId: true,
-    board: 'Federal Board'
+    board: BOARDS[0]
   });
 
   useEffect(() => {
@@ -91,6 +115,7 @@ export default function OnboardingWizard() {
           ...prev,
           name: user?.school?.name || '',
           city: user?.school?.city || '',
+          email: user?.school?.contactEmail || user?.email || '',
           regId: user?.school?.regId || generateId('SKL'),
         }));
 
@@ -103,6 +128,26 @@ export default function OnboardingWizard() {
 
     loadSession();
   }, []);
+
+  const handleLogoFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    if (file.size > 1_500_000) {
+      toast.error("Use a logo image under 1.5 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setSchoolData((prev) => ({ ...prev, logoUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSchoolIdToggle = (auto: boolean) => {
     setSchoolData(prev => ({
@@ -142,9 +187,12 @@ export default function OnboardingWizard() {
       city: '',
       address: '',
       phone: '',
+      email: '',
+      website: '',
+      principalName: '',
       regId: generateId('BR'),
       autoId: true,
-      board: 'Federal Board'
+      board: BOARDS[0]
     });
   };
 
@@ -169,7 +217,10 @@ export default function OnboardingWizard() {
         name: schoolData.name,
         city: schoolData.city,
         address: schoolData.address,
-        phone: '',
+        phone: schoolData.phone,
+        email: schoolData.email,
+        website: schoolData.website,
+        principalName: '',
         regId: newCampus.regId,
         autoId: newCampus.autoId,
         board: 'Default Board'
@@ -316,12 +367,42 @@ export default function OnboardingWizard() {
 
                     <div className="grid md:grid-cols-2 gap-10">
                       <div className="space-y-6">
+                        <div className="bg-white rounded-[28px] border-2 border-dashed border-[#8127cf]/25 p-6 flex items-center gap-5 hover:border-[#8127cf]/40 transition-colors">
+                          <div className="w-20 h-20 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/10 shadow-sm overflow-hidden flex items-center justify-center flex-shrink-0">
+                            {schoolData.logoUrl ? (
+                              <Image src={schoolData.logoUrl} alt="Institution logo" width={80} height={80} className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon className="w-8 h-8 text-[#8127cf]/40" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black text-[#4d4354]/60 uppercase tracking-normal mb-1">Institution Logo</p>
+                            <p className="text-[9px] font-bold text-[#4d4354]/40 mb-3">PNG or JPG under 1.5 MB. Shown on report cards, emails and receipts.</p>
+                            <div className="flex items-center gap-2">
+                              <label className="h-10 px-4 bg-[#8127cf] text-white rounded-xl font-black text-[10px] uppercase tracking-normal flex items-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
+                                <Upload className="w-4 h-4" /> Choose Logo
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} />
+                              </label>
+                              {schoolData.logoUrl && (
+                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-[#4d4354]/60 rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer">Remove</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                         <InputField label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
+                        <InputField label="Tagline / Motto" value={schoolData.tagline} onChange={(v: string) => setSchoolData({ ...schoolData, tagline: v })} placeholder="e.g. Knowledge is Power (optional)" icon={Tag} />
                         <InputField label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
                         <InputField label="Address" value={schoolData.address} onChange={(v: string) => setSchoolData({ ...schoolData, address: v })} placeholder="Street address (optional)" icon={MapPin} isArea />
                       </div>
 
                       <div className="space-y-6">
+                        <InputField label="Contact Email" value={schoolData.email} onChange={(v: string) => setSchoolData({ ...schoolData, email: v })} placeholder="e.g. info@school.edu.pk" icon={Mail} readonly />
+                        <div className="grid grid-cols-2 gap-5">
+                          <InputField label="Phone Number" value={schoolData.phone} onChange={(v: string) => setSchoolData({ ...schoolData, phone: v })} placeholder="+92 300 0000000" icon={Phone} />
+                          <InputField label="Est. Year" value={schoolData.establishedYear} onChange={(v: string) => setSchoolData({ ...schoolData, establishedYear: v.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="e.g. 1998" icon={CalendarDays} />
+                        </div>
+                        <InputField label="Website" value={schoolData.website} onChange={(v: string) => setSchoolData({ ...schoolData, website: v })} placeholder="e.g. www.school.edu.pk (optional)" icon={Globe} />
                         <div className="bg-[#fbf0fe] p-8 rounded-[32px] border border-[#cfc2d6]/20">
                           <div className="flex items-center justify-between mb-5">
                             <Label className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal pl-1">{isStandalone ? 'Campus ID' : 'School ID'}</Label>
@@ -379,6 +460,26 @@ export default function OnboardingWizard() {
                           <InputField label="Phone" value={newCampus.phone} onChange={(v: string) => setNewCampus({ ...newCampus, phone: v })} placeholder="Phone number" icon={Phone} />
                         </div>
                         <InputField label="Address" value={newCampus.address} onChange={(v: string) => setNewCampus({ ...newCampus, address: v })} placeholder="Full street address" icon={MapPin} isArea />
+                        <div className="grid grid-cols-2 gap-5">
+                          <InputField label="Campus Email" value={newCampus.email} onChange={(v: string) => setNewCampus({ ...newCampus, email: v })} placeholder="campus@school.edu.pk" icon={Mail} />
+                          <InputField label="Website" value={newCampus.website} onChange={(v: string) => setNewCampus({ ...newCampus, website: v })} placeholder="Website (optional)" icon={Globe} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-5">
+                          <InputField label="Head of Campus" value={newCampus.principalName} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
+                          <div className="space-y-1.5">
+                            <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal ml-1">Board</Label>
+                            <div className="relative group flex items-center">
+                              <GraduationCap className="absolute left-4 w-4 h-4 text-[#4d4354]/20 group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                              <select
+                                value={newCampus.board || BOARDS[0]}
+                                onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
+                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
+                              >
+                                {BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-5 items-end pt-2">
                           <div className="space-y-1.5">
@@ -440,6 +541,9 @@ export default function OnboardingWizard() {
                               <div>
                                 <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">{c.name}</p>
                                 <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
+                                {(c.phone || c.email || c.principalName) && (
+                                  <p className="text-[9px] font-bold text-[#4d4354]/35 uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
+                                )}
                               </div>
                             </div>
                             <button onClick={() => setCampuses(campuses.filter(x => x.id !== c.id))} className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
@@ -474,11 +578,27 @@ export default function OnboardingWizard() {
 
                   <div className="sk-rise bg-white p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden" style={{ animationDelay: "0ms" }}>
                     <div className="absolute top-0 right-0 p-8 opacity-5"><Building className="w-32 h-32" /></div>
+                    {(schoolData.logoUrl || schoolData.tagline) && (
+                      <div className="flex items-center gap-4 mb-6 relative z-10">
+                        {schoolData.logoUrl && (
+                          <div className="w-14 h-14 rounded-xl overflow-hidden border border-[#cfc2d6]/10 shadow-sm flex-shrink-0 bg-[#fbf0fe]">
+                            <Image src={schoolData.logoUrl} alt="Institution logo" width={56} height={56} className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        {schoolData.tagline && (
+                          <p className="text-[11px] font-bold text-[#4d4354]/50 italic">"{schoolData.tagline}"</p>
+                        )}
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-6 relative z-10">
                       <SummaryItem icon={Building} label={isStandalone ? "School" : "School Group"} value={schoolData.name} />
                       <SummaryItem icon={Hash} label={isStandalone ? "Campus ID" : "School ID"} value={isStandalone ? campuses[0]?.regId : schoolData.regId} />
                       <SummaryItem icon={Users} label="Structure" value={isStandalone ? "Single Campus" : `${campuses.length} Campus${campuses.length === 1 ? '' : 'es'}`} />
                       <SummaryItem icon={MapPin} label="City" value={schoolData.city} />
+                      <SummaryItem icon={Mail} label="Contact Email" value={schoolData.email} />
+                      <SummaryItem icon={Phone} label="Phone" value={schoolData.phone} />
+                      <SummaryItem icon={Globe} label="Website" value={schoolData.website} />
+                      <SummaryItem icon={CalendarDays} label="Established" value={schoolData.establishedYear} />
                     </div>
 
                     {!isStandalone && campuses.length > 0 && (
@@ -488,9 +608,12 @@ export default function OnboardingWizard() {
                           {campuses.map((c, i) => (
                             <div key={c.id} className="flex items-center gap-3 p-3 bg-[#fbf0fe]/50 rounded-xl">
                               <div className="w-6 h-6 rounded-md bg-[#8127cf]/10 flex items-center justify-center text-[#8127cf] font-black text-[9px]">{i + 1}</div>
-                              <div>
+                              <div className="flex-1">
                                 <p className="text-xs font-black text-[#1f1a23] leading-none">{c.name}</p>
                                 <p className="text-[8px] font-bold text-[#4d4354]/40 mt-0.5">{c.city} &middot; {c.regId}</p>
+                                {(c.phone || c.email) && (
+                                  <p className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{c.phone}{c.phone && c.email ? " · " : ""}{c.email}</p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -539,7 +662,7 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: StepNavP
   );
 }
 
-function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required }: InputFieldProps) {
+function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal ml-1">
@@ -559,7 +682,8 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/20 text-[#1f1a23]"
+            readOnly={readonly}
+            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/20 text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
       </div>

@@ -37,13 +37,25 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
   const schoolId = String(payload.schoolId);
   await assertPlanCapacity({ schoolId, metric: "campuses", increment: campuses.length });
 
-  // 1. Update School Info (Branding & RegId)
+  // ── Basic validation ─────────────────────────────
+  // contactEmail is locked at registration and is read-only in the UI.
+  const establishedYear = schoolData.establishedYear ? Number(schoolData.establishedYear) : null;
+  if (establishedYear && (establishedYear < 1800 || establishedYear > new Date().getFullYear() + 1)) {
+    throw new Error("Please enter a valid established year.");
+  }
+
+  // 1. Update School Info (Branding, Identity & Contact)
   await prisma.school.update({
     where: { id: schoolId },
     data: {
-      address: schoolData.address,
+      address: schoolData.address || null,
       city: schoolData.city,
       regId: schoolData.regId,
+      phone: schoolData.phone || null,
+      website: schoolData.website || null,
+      logoUrl: schoolData.logoUrl || null,
+      establishedYear,
+      tagline: schoolData.tagline || null,
     }
   });
 
@@ -57,6 +69,9 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
         city: c.city,
         address: c.address,
         phone: c.phone,
+        email: c.email || null,
+        website: c.website || null,
+        principalName: c.principalName || null,
         regId: c.regId,
         board: c.board,
       }

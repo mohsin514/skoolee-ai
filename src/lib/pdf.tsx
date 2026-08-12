@@ -136,20 +136,40 @@ type CampusInfo = {
   city: string;
   address: string | null;
   phone: string | null;
+  email: string | null;
+  website: string | null;
   board: string | null;
   logoUrl: string | null;
+  school?: {
+    name: string;
+    logoUrl: string | null;
+    phone: string | null;
+    website: string | null;
+    tagline: string | null;
+    contactEmail: string | null;
+  } | null;
 };
 
 function Header({ campus }: { campus: CampusInfo }) {
+  const logo = campus.logoUrl || campus.school?.logoUrl || null;
+  const tagline = campus.school?.tagline || null;
+  const contactLine = [
+    campus.board,
+    campus.city,
+    campus.address,
+    campus.phone || campus.school?.phone,
+    campus.email || campus.school?.contactEmail,
+    campus.website || campus.school?.website,
+  ].filter(Boolean).join(" | ");
+
   return (
     <View style={styles.header}>
       <View style={styles.headerRow}>
-        {campus.logoUrl ? <Image src={campus.logoUrl} style={styles.logo} /> : null}
+        {logo ? <Image src={logo} style={styles.logo} /> : null}
         <View style={styles.headerText}>
           <Text style={styles.schoolName}>{campus.name}</Text>
-          <Text style={styles.muted}>
-            {[campus.board, campus.city, campus.address, campus.phone].filter(Boolean).join(" | ")}
-          </Text>
+          {tagline ? <Text style={styles.muted}>{tagline}</Text> : null}
+          <Text style={styles.muted}>{contactLine}</Text>
         </View>
       </View>
     </View>
@@ -170,7 +190,7 @@ export async function generateClassGradesPdf(classId: string) {
     where: { id: classId },
     include: {
       campus: {
-        select: { name: true, city: true, address: true, phone: true, board: true, logoUrl: true },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
       },
     },
   });
@@ -228,7 +248,7 @@ export async function generateInvoicePdf(invoiceId: string) {
     where: { id: invoiceId },
     include: {
       campus: {
-        select: { name: true, city: true, address: true, phone: true, board: true, logoUrl: true },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
       },
       student: {
         include: { class: { select: { name: true, section: true } } },
@@ -322,7 +342,7 @@ export async function generatePaymentPdf(paymentId: string) {
     where: { id: paymentId },
     include: {
       campus: {
-        select: { name: true, city: true, address: true, phone: true, board: true, logoUrl: true },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
       },
       student: {
         include: { class: { select: { name: true, section: true } } },

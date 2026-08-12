@@ -66,6 +66,11 @@ interface SchoolRow {
   slug: string;
   contactEmail: string | null;
   city: string | null;
+  phone: string | null;
+  website: string | null;
+  logoUrl: string | null;
+  tagline: string | null;
+  establishedYear: number | null;
   status: string;
   plan: string;
   aiCreditsUsed: number;
@@ -75,7 +80,7 @@ interface SchoolRow {
   totalStudents: number;
   totalStaff: number;
   totalClasses: number;
-  campuses: { id: string; name: string; city: string | null; students: number; staff: number; classes: number }[];
+  campuses: { id: string; name: string; city: string | null; phone: string | null; email: string | null; website: string | null; principalName: string | null; board: string | null; students: number; staff: number; classes: number }[];
 }
 
 interface UserRow {
@@ -465,8 +470,12 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                       className="w-full text-left p-5 cursor-pointer hover:bg-[#fbf0fe]/20 transition-all"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
-                          <School className="w-5 h-5" />
+                        <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
+                          {school.logoUrl ? (
+                            <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
+                          ) : (
+                            <School className="w-5 h-5" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 flex-wrap">
@@ -538,7 +547,10 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                             {school.campuses.map((campus) => (
                               <div key={campus.id} className="rounded-xl bg-white border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                                 <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                                <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"}</p>
+                                <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
+                                {campus.principalName ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">Principal: {campus.principalName}</p> : null}
+                                {campus.phone ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
+                                {campus.website ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">{campus.website}</p> : null}
                                 <div className="flex gap-3 mt-3">
                                   <span className="text-[9px] font-bold text-[#4d4354]/50">{campus.students} students</span>
                                   <span className="text-[9px] font-bold text-[#4d4354]/50">{campus.staff} staff</span>
@@ -1753,15 +1765,22 @@ function SchoolDetailModal({
       <div role="dialog" aria-modal="true" className="animate-modal-enter bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
-              <School className="w-5 h-5" />
+            <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
+              {school.logoUrl ? (
+                <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
+              ) : (
+                <School className="w-5 h-5" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black text-[#1f1a23] tracking-tight">{school.name}</h2>
                 <StatusPill status={school.status} />
               </div>
-              <p className="text-xs font-semibold text-[#4d4354]/60 mt-0.5">{school.contactEmail || "—"} · {school.city || "—"}</p>
+              {school.tagline ? <p className="text-[10px] font-bold text-[#8127cf]/50 italic mt-0.5">"{school.tagline}"</p> : null}
+              <p className="text-xs font-semibold text-[#4d4354]/60 mt-0.5">{school.contactEmail || "—"} · {school.city || "—"} {school.phone ? `· ${school.phone}` : ""}</p>
+              {school.website ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">{school.website}</p> : null}
+              {school.establishedYear ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">Est. {school.establishedYear}</p> : null}
             </div>
           </div>
           <button onClick={onClose} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90">
@@ -1835,7 +1854,10 @@ function SchoolDetailModal({
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                          <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"}</p>
+                          <p className="text-[10px] font-bold text-[#4d4354]/40 mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
+                          {campus.principalName ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">Principal: {campus.principalName}</p> : null}
+                          {campus.phone ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
+                          {campus.website ? <p className="text-[9px] font-bold text-[#4d4354]/35 mt-0.5">{campus.website}</p> : null}
                         </div>
                         <div className="flex gap-4">
                           <span className="text-[10px] font-bold text-[#4d4354]/50">{campus.students} students</span>

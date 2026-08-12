@@ -40,6 +40,14 @@ interface CombinedReportCardProps {
   logo?: string;
   schoolName?: string;
   campusName?: string;
+  campusCity?: string;
+  campusPhone?: string;
+  campusEmail?: string;
+  campusWebsite?: string;
+  campusPrincipal?: string;
+  schoolWebsite?: string;
+  schoolTagline?: string;
+  schoolContactEmail?: string;
 }
 
 function gradeColor(grade: string) {
@@ -76,6 +84,14 @@ export function CombinedReportCard({
   logo,
   schoolName,
   campusName,
+  campusCity,
+  campusPhone,
+  campusEmail,
+  campusWebsite,
+  campusPrincipal,
+  schoolWebsite,
+  schoolTagline,
+  schoolContactEmail,
 }: CombinedReportCardProps) {
   const attPct = attendanceTotal ? Math.round(((attendancePresent || 0) / attendanceTotal) * 100) : null;
   const totalObtained = subjectResults.reduce((s, r) => s + r.obtainedMarks, 0);
@@ -90,11 +106,17 @@ export function CombinedReportCard({
         <div className="flex items-start justify-between">
           <div>
             {schoolName ? <p className="text-[9px] font-bold uppercase tracking-normal text-white/60">{schoolName}</p> : null}
+            {schoolTagline ? <p className="text-[8px] font-bold italic text-white/40">{schoolTagline}</p> : null}
             {campusName ? <p className="text-[8px] font-bold text-white/40 uppercase tracking-normal">{campusName}</p> : null}
             <h2 className="mt-1 text-xl font-black tracking-normal">Combined Report Card</h2>
             <p className="mt-0.5 text-[10px] font-bold text-white/50 uppercase tracking-normal">
               Academic Year {academicYear}
             </p>
+            {(campusPhone || campusEmail || campusWebsite || schoolContactEmail) && (
+              <p className="mt-0.5 text-[8px] font-bold text-white/35">
+                {[campusPhone, campusEmail || schoolContactEmail, campusWebsite || schoolWebsite].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
           {logo ? (
             <Image src={logo} alt="School logo" width={48} height={48} className="rounded-xl bg-white/20 object-contain" unoptimized />

@@ -29,6 +29,11 @@ model School {
   address              String?
   regId                String   @unique @map("reg_id") // Unique Institutional Identity
   contactEmail         String   @unique @map("contact_email")
+  phone                String? // Primary contact phone
+  website              String? // Official institution website
+  logoUrl              String?  @map("logo_url") // Institution icon / logo
+  establishedYear      Int?     @map("established_year") // Year the institution was founded
+  tagline              String? // Motto / short descriptor
   createdAt            DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -73,6 +78,9 @@ model Campus {
   city      String
   address   String?
   phone     String?
+  email     String? // Campus contact email
+  website   String? // Campus website
+  principalName String? @map("principal_name") // Head of campus / principal
   regId     String   @unique @map("reg_id") // Unique Campus Identity
   board     String? // e.g., FBISE, Lahore Board
   logoUrl   String?  @map("logo_url")

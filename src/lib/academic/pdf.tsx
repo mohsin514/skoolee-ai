@@ -323,6 +323,9 @@ function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   const { reportCard, subjectDistribution, overall } = payload;
   const student = reportCard.student;
   const exam = reportCard.exam;
+  const campus = reportCard.campus as any;
+  const school = campus?.school;
+  const logo = campus?.logoUrl || school?.logoUrl || null;
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
   const displayPercentage = overall ? overall.overallPercentage : Math.round(reportCard.percentage || 0);
   const displayGrade = overall ? overall.overallGrade : reportCard.grade || "—";
@@ -334,6 +337,20 @@ function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* School/Campus branding header */}
+        {logo ? (
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10 }}>
+            <Image src={logo} style={{ width: 36, height: 36, borderRadius: 6 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: 700 }}>{campus?.name || ""}</Text>
+              {school?.tagline ? <Text style={{ fontSize: 7, color: "#667085" }}>{school.tagline}</Text> : null}
+              <Text style={{ fontSize: 7, color: "#667085" }}>
+                {[campus?.city, campus?.address, campus?.phone || school?.phone, campus?.email || school?.contactEmail, campus?.website || school?.website].filter(Boolean).join(" | ")}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.headerCard}>
           {avatarUrl ? <Image src={avatarUrl} style={styles.avatar} /> : null}
           <View style={styles.headerInfo}>

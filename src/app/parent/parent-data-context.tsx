@@ -64,7 +64,20 @@ export interface ParentData {
     name: string;
     city: string | null;
     phone: string | null;
+    email: string | null;
+    website: string | null;
+    principalName: string | null;
+    board: string | null;
     logoUrl: string | null;
+    school?: {
+      name: string;
+      logoUrl: string | null;
+      phone: string | null;
+      website: string | null;
+      tagline: string | null;
+      contactEmail: string | null;
+      establishedYear: number | null;
+    } | null;
   };
   reportCards: ReportCard[];
   marksByExam: ExamMarks[];
