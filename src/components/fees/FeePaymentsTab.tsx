@@ -410,9 +410,15 @@ function PaymentModal({
 
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Record Payment</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
@@ -637,6 +643,12 @@ function BankImportModal({
   const [statementTo, setStatementTo] = useState("");
   const [importing, setImporting] = useState(false);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handleImport = async () => {
     if (!file || !accountName || !statementFrom || !statementTo) {
       toast.error("All fields required");
@@ -668,7 +680,7 @@ function BankImportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-black text-[#1f1a23]">Import Bank Statement</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">

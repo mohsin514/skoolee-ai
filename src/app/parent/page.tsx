@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   Award, CalendarCheck, ChevronRight, Clock, CreditCard, FileText, GraduationCap,
 } from "lucide-react";
@@ -36,7 +37,7 @@ export default function ParentOverviewPage() {
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="flex gap-6 items-start group">
               <div className="h-24 w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
-                <img src={profileImage} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <AvatarImage src={profileImage} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
               </div>
               <div className="pt-2">
                 <h2 className="text-4xl font-bold tracking-tight text-[#1d1b20] leading-none mb-2 transition-colors group-hover:text-[#8127cf]">{student.fullName}</h2>

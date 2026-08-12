@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Calendar, Clock } from "lucide-react";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
@@ -37,6 +38,7 @@ export default function StudentTimetablePage() {
       else setError(json.error || "Failed to load timetable");
     } catch {
       setError("Failed to load timetable");
+      toast.error("Failed to load timetable");
     } finally {
       setLoading(false);
     }

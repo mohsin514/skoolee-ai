@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function getOnboardingSession() {
   const cookieStore = await cookies();

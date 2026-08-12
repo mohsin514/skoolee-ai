@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck, FileText, GraduationCap, Mail, Phone, Search, Star, Users, X,
@@ -108,7 +109,7 @@ export default function TeacherStudentsPage() {
                 >
                   <div className="flex items-start gap-4 mb-4">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
-                      <img src={avatar} alt="" className="h-full w-full object-cover" />
+                      <AvatarImage src={avatar} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h4 className="truncate text-base font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">

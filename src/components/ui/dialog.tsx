@@ -5,6 +5,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
@@ -68,18 +69,44 @@ function DialogContent({
   className?: string;
 }) {
   const { open, setOpen } = React.useContext(DialogContext);
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = React.useState(false);
 
-  if (!open) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+  React.useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, setOpen]);
+
+  React.useEffect(() => {
+    if (open && contentRef.current) {
+      contentRef.current.focus();
+    }
+  }, [open]);
+
+  if (!open || !mounted) return null;
+
+  const dialog = (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div
         className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0"
         onClick={() => setOpen(false)}
       />
       <div
+        ref={contentRef}
+        tabIndex={-1}
         className={cn(
-          "relative z-[121] max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 custom-scrollbar",
+          "relative z-[121] max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 custom-scrollbar focus:outline-none",
           className
         )}
       >
@@ -95,6 +122,8 @@ function DialogContent({
       </div>
     </div>
   );
+
+  return createPortal(dialog, document.body);
 }
 
 function DialogHeader({

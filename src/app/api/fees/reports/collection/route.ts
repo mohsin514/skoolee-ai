@@ -27,16 +27,19 @@ export async function GET(req: NextRequest) {
     });
     const campusIds = campuses.map((c) => c.id);
 
-    const invoices = await prisma.invoice.findMany({
-      where: { campusId: { in: campusIds } },
-      include: {
-        student: {
-          select: {
-            class: { select: { id: true, name: true, section: true } },
-          },
+    const [invoices, payments] = await Promise.all([
+      prisma.invoice.findMany({
+        where: { campusId: { in: campusIds } },
+        select: {
+          studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
+          student: { select: { class: { select: { id: true, name: true, section: true } } } },
         },
-      },
-    });
+      }),
+      prisma.payment.findMany({
+        where: { campusId: { in: campusIds } },
+        select: { paymentMethod: true, amount: true },
+      }),
+    ]);
 
     const classMap = new Map<string, {
       className: string;
@@ -74,11 +77,6 @@ export async function GET(req: NextRequest) {
         collectionRate: c.totalDue > 0 ? Math.round((c.totalPaid / c.totalDue) * 100) : 0,
       }))
       .sort((a, b) => a.collectionRate - b.collectionRate);
-
-    const payments = await prisma.payment.findMany({
-      where: { campusId: { in: campusIds } },
-      select: { paymentMethod: true, amount: true },
-    });
 
     const methodMap = new Map<string, { count: number; total: number }>();
     let grandTotal = 0;

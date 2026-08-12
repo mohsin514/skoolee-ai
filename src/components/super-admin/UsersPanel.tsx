@@ -297,9 +297,15 @@ function ChangePasswordModal({
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-      <div className="bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5" onClick={onClose}>
+      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
         <div className="flex justify-between items-start gap-5 mb-6">
           <div>
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Security action</p>

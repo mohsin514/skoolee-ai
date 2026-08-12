@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
     const [attendance, recentAbsences] = await Promise.all([
       prisma.attendance.findMany({
         where: { campusId, date, studentId: { in: studentIds } },
+        select: { id: true, studentId: true, status: true, date: true, notes: true },
       }),
       prisma.attendance.findMany({
         where: {

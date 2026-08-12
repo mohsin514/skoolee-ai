@@ -150,16 +150,17 @@ export async function GET(req: NextRequest) {
     // Campus-wide summary
     if (user.role === "TEACHER") throw new ApiError("Teachers must specify classId", 400);
 
-    const classes = await prisma.class.findMany({
-      where: { campusId, campus: { schoolId: user.schoolId } },
-      select: { id: true, name: true, section: true, _count: { select: { students: true } } },
-      orderBy: [{ name: "asc" }, { section: "asc" }],
-    });
-
-    const allRecords = await prisma.attendance.findMany({
-      where: { campusId, date: { gte: startDate, lte: endDate } },
-      select: { studentId: true, status: true, student: { select: { classId: true } } },
-    });
+    const [classes, allRecords] = await Promise.all([
+      prisma.class.findMany({
+        where: { campusId, campus: { schoolId: user.schoolId } },
+        select: { id: true, name: true, section: true, _count: { select: { students: true } } },
+        orderBy: [{ name: "asc" }, { section: "asc" }],
+      }),
+      prisma.attendance.findMany({
+        where: { campusId, date: { gte: startDate, lte: endDate } },
+        select: { studentId: true, status: true, student: { select: { classId: true } } },
+      }),
+    ]);
 
     const classSummaries = classes.map(cls => {
       const classRecords = allRecords.filter(r => r.student.classId === cls.id);

@@ -101,3 +101,81 @@ export async function getLeaveBalances(campusId: string, userId: string, role: s
     };
   });
 }
+
+export async function getBatchLeaveBalances(
+  campusId: string,
+  staff: Array<{ id: string; role: string }>,
+  academicYear: number
+): Promise<Map<string, LeaveBalance[]>> {
+  const userIds = staff.map((s) => s.id);
+  const roles = [...new Set(staff.map((s) => s.role))];
+  const yearStart = new Date(`${academicYear}-01-01T00:00:00Z`);
+  const yearEnd = new Date(`${academicYear + 1}-01-01T00:00:00Z`);
+
+  const [allocations, approvedRows, pendingRows] = await Promise.all([
+    prisma.leaveAllocation.findMany({
+      where: {
+        campusId,
+        academicYear,
+        OR: [{ userId: { in: userIds } }, { userId: null, role: { in: roles } }],
+      },
+      include: { leaveType: true },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        campusId,
+        userId: { in: userIds },
+        status: "APPROVED",
+        fromDate: { gte: yearStart, lt: yearEnd },
+      },
+      include: { leaveType: true },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        campusId,
+        userId: { in: userIds },
+        status: "PENDING",
+        fromDate: { gte: yearStart, lt: yearEnd },
+      },
+      include: { leaveType: true },
+    }),
+  ]);
+
+  const result = new Map<string, LeaveBalance[]>();
+
+  for (const s of staff) {
+    const userAllocations = allocations.filter((a) => a.userId === s.id || (a.userId === null && a.role === s.role));
+    const userApproved = approvedRows.filter((r) => r.userId === s.id);
+    const userPending = pendingRows.filter((r) => r.userId === s.id);
+
+    const byType = new Map<string, number>();
+    const userTypeIds = new Set(userAllocations.filter((a) => a.userId).map((a) => a.leaveTypeId));
+    for (const a of userAllocations) {
+      if (a.userId || !userTypeIds.has(a.leaveTypeId)) {
+        byType.set(a.leaveTypeId, Math.max(byType.get(a.leaveTypeId) || 0, a.days));
+      }
+    }
+
+    const approvedByType = new Map<string, number>();
+    for (const r of userApproved) approvedByType.set(r.leaveTypeId, (approvedByType.get(r.leaveTypeId) || 0) + r.days);
+    const pendingByType = new Map<string, number>();
+    for (const r of userPending) pendingByType.set(r.leaveTypeId, (pendingByType.get(r.leaveTypeId) || 0) + r.days);
+
+    const typeNames = new Map<string, string>();
+    for (const a of userAllocations) typeNames.set(a.leaveTypeId, a.leaveType.name);
+    for (const r of [...userApproved, ...userPending]) typeNames.set(r.leaveTypeId, r.leaveType.name);
+
+    const allTypeIds = new Set([...byType.keys(), ...approvedByType.keys(), ...pendingByType.keys()]);
+    result.set(
+      s.id,
+      [...allTypeIds].map((leaveTypeId) => {
+        const allocated = byType.get(leaveTypeId) || 0;
+        const approved = approvedByType.get(leaveTypeId) || 0;
+        const pending = pendingByType.get(leaveTypeId) || 0;
+        return { leaveTypeId, name: typeNames.get(leaveTypeId) || "Leave", allocated, approved, pending, remaining: Math.max(0, allocated - approved) };
+      })
+    );
+  }
+
+  return result;
+}

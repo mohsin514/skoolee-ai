@@ -283,7 +283,9 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
       });
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not provision school");
+      const msg = e instanceof Error ? e.message : "Could not provision school";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -513,7 +515,9 @@ export function AddUserModal({
       });
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create user");
+      const msg = e instanceof Error ? e.message : "Could not create user";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

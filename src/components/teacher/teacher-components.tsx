@@ -17,6 +17,7 @@ import { downloadPdfFile, downloadReportCardPdf } from "@/lib/download";
 import {
   AiActionPanel, BrandButton, EmptyState, RoleShell, StatCard, type RoleNavItem,
 } from "@/components/role-dashboard";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 /* ── Pure helpers ── */
 
@@ -125,7 +126,7 @@ export function StudentMini({ student }: { student: any }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-        <img src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`} alt="" className="h-full w-full object-cover" />
+        <AvatarImage src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`} alt={student.fullName} />
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
@@ -216,6 +217,12 @@ export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
 }
 
 export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" role="presentation" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title}
@@ -437,7 +444,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
         <ModalSkeleton fieldRows={3} />
       ) : weightedGradeResult?.length ? (
         <>
-          <div className="overflow-hidden rounded-2xl border border-[#f3f4f9]">
+          <div className="overflow-x-auto rounded-2xl border border-[#f3f4f9]">
             <table className="w-full min-w-[600px] text-left">
               <thead>
                 <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
@@ -510,7 +517,7 @@ export function StudentDetailModal({ student, exams, onClose }: { student: any; 
     <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <img src={avatar} alt="" className="h-full w-full object-cover" />
+          <AvatarImage src={avatar} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Record</p>
@@ -604,7 +611,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
         const res = await fetch(`/api/reports/${report.id}/detail`);
         const result = JSON.parse(await res.text());
         if (!cancelled && result.reportCard) setDetailReport(result.reportCard);
-      } catch {}
+      } catch { if (!cancelled) toast.error("Failed to load report details"); }
       finally { if (!cancelled) setDetailLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -636,7 +643,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       if (seq === translateSeq.current && !urduTouchedRef.current && result.translation) {
         setRemarks((r) => ({ ...r, ur: result.translation }));
       }
-    } catch {}
+    } catch { /* auto-translation failure is non-critical */ }
     finally {
       if (seq === translateSeq.current) setTranslatingUr(false);
     }
@@ -691,7 +698,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       <div ref={printRef} id="report-card-print" className="space-y-6">
         <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-xl">
-            <img src={avatar} alt="" className="h-full w-full object-cover" />
+            <AvatarImage src={avatar} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
@@ -774,8 +781,8 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                     <p className="text-sm font-bold text-[#1d1b20]">{subject.subjectName || "Subject"}</p>
                   </div>
                   {subject.exams?.length ? (
-                    <div className="overflow-hidden rounded-2xl border border-[#cfc2d6]/10 bg-white">
-                      <table className="w-full text-left">
+                    <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10 bg-white">
+                      <table className="w-full min-w-[520px] text-left">
                         <thead>
                           <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
                             <th className="px-4 py-2.5">Exam</th>

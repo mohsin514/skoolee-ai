@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Clock } from "lucide-react";
 import { ParentEmptyState } from "@/components/parent/parent-components";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
@@ -37,21 +38,45 @@ export default function ParentTimetablePage() {
       const res = await fetch(`/api/parent/timetable?${params}`);
       const json = await res.json();
       if (json.success) setTimetableData(json.data);
-    } catch { /* ignore */ }
+    } catch { toast.error("Failed to load timetable"); }
     setLoading(false);
   }, [token]);
 
   useEffect(() => { loadTimetable(); }, [loadTimetable]);
 
-  const subjectNames: string[] = timetableData ? [...new Set<string>(timetableData.slots.filter((s: any) => s.subject).map((s: any) => s.subject.name))] : [];
-  const colorMap = new Map<string, typeof COLORS[0]>();
-  subjectNames.forEach((n, i) => colorMap.set(n, COLORS[i % COLORS.length]));
+  const slots = timetableData?.slots || [];
 
-  const periods: any[] = timetableData
-    ? [...new Map(timetableData.slots.map((s: any) => [s.periodNumber, { num: s.periodNumber, start: s.startTime, end: s.endTime, type: s.slotType }])).values()].sort((a: any, b: any) => a.num - b.num)
-    : [];
+  const subjectNames = useMemo(
+    () => [...new Set<string>(slots.filter((s: any) => s.subject).map((s: any) => s.subject.name))],
+    [slots],
+  );
 
-  const getSlot = (day: number, period: number) => timetableData?.slots.find((s: any) => s.dayOfWeek === day && s.periodNumber === period);
+  const colorMap = useMemo(() => {
+    const m = new Map<string, typeof COLORS[0]>();
+    subjectNames.forEach((n, i) => m.set(n, COLORS[i % COLORS.length]));
+    return m;
+  }, [subjectNames]);
+
+  const periods = useMemo(
+    () =>
+      slots.length
+        ? [...new Map(slots.map((s: any) => [Number(s.periodNumber), { num: Number(s.periodNumber), start: s.startTime, end: s.endTime, type: s.slotType }])).values()].sort((a: any, b: any) => a.num - b.num)
+        : [],
+    [slots],
+  );
+
+  const slotIndex = useMemo(() => {
+    const idx = new Map<string, any>();
+    for (const s of slots) idx.set(`${Number(s.dayOfWeek)}-${Number(s.periodNumber)}`, s);
+    return idx;
+  }, [slots]);
+
+  const getSlot = useCallback(
+    (day: number, period: number) => slotIndex.get(`${day}-${period}`),
+    [slotIndex],
+  );
+
+  const hasTable = slots.length > 0;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -74,7 +99,7 @@ export default function ParentTimetablePage() {
           <div className="flex items-center justify-center py-24">
             <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] animate-pulse" />
           </div>
-        ) : hasTable() ? (
+        ) : hasTable ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-1.5">
               {subjectNames.map((name) => {
@@ -143,8 +168,4 @@ export default function ParentTimetablePage() {
       </div>
     </section>
   );
-
-  function hasTable() {
-    return timetableData && timetableData.slots && timetableData.slots.length > 0;
-  }
 }

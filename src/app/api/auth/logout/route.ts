@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { jwtVerify } from "jose";
 import { logSuperAdminAction, hashToken } from "@/lib/audit";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function POST() {
   const cookieStore = await cookies();

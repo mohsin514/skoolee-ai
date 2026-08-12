@@ -29,7 +29,7 @@ export function AppLoaderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 500); // 500ms delay to ensure smooth transition on reload
+    }, 100);
 
     // Prevent loader getting stuck on back-forward cache (BFCache restorations)
     const handlePageShow = (e: PageTransitionEvent) => {
@@ -60,7 +60,7 @@ export function AppLoaderProvider({ children }: { children: React.ReactNode }) {
     if (loading) {
       setIsLoading(true);
     } else {
-      setTimeout(() => setIsLoading(false), 300);
+      setTimeout(() => setIsLoading(false), 50);
     }
   };
 

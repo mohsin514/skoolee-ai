@@ -97,6 +97,27 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const closePromotionWizard = useCallback(() => {
+    setShowPromoteModal(false);
+    setPromoteStep("source");
+    setPromoteSourceId("");
+    setPromoteTargetId("");
+    setGradeResults([]);
+    setGradeError("");
+    setStudentDecisions(new Map());
+    setPromotionResults(null);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (showPromoteModal) { closePromotionWizard(); return; }
+      if (historyYear && historyClassId) { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showPromoteModal, historyYear, historyClassId, closePromotionWizard]);
+
   const handleCloseYear = useCallback(async (year: number) => {
     if (!confirm(`Close academic year ${year}? This will:\n• Save final grades to student history\n• Mark all classes as COMPLETED\n• Generate admission numbers for students without one\n\nYou can still view past year data after closing.`)) return;
     setClosing(true);
@@ -119,17 +140,6 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     setShowPromoteModal(true);
     setPromoteStep("source");
     setPromoteSourceId(sourceClassId || "");
-    setPromoteTargetId("");
-    setGradeResults([]);
-    setGradeError("");
-    setStudentDecisions(new Map());
-    setPromotionResults(null);
-  };
-
-  const closePromotionWizard = () => {
-    setShowPromoteModal(false);
-    setPromoteStep("source");
-    setPromoteSourceId("");
     setPromoteTargetId("");
     setGradeResults([]);
     setGradeError("");
@@ -382,8 +392,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
       {/* ── History Modal ── */}
       {historyYear && historyClassId && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
-          <div className="bg-white w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" onClick={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}>
+          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
             <div className="flex justify-between items-start gap-5 mb-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Academic Year {historyYear}</p>
@@ -459,8 +469,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
       {/* ── Promotion Wizard ── */}
       {showPromoteModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4 animate-backdrop-enter">
-          <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4 animate-backdrop-enter" onClick={closePromotionWizard}>
+          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
             <div className="flex justify-between items-start gap-5 mb-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Promotion</p>

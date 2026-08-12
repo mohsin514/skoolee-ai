@@ -934,6 +934,12 @@ function PeriodConfigModal({
   onSave: (periods: { period: number; start: string; end: string; type: string }[]) => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
   const [localPeriods, setLocalPeriods] = useState(periods.length > 0 ? periods : [
     { period: 1, start: "08:00", end: "08:40", type: "CLASS" },
     { period: 2, start: "08:40", end: "09:20", type: "CLASS" },
@@ -971,9 +977,9 @@ function PeriodConfigModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Configure Periods" className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
 
         <div className="mb-6">
@@ -1067,6 +1073,12 @@ function SlotEditorModal({
   onSave: (updates: Partial<SlotData>) => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
   const current = {
     subjectId: pendingChange?.subjectId !== undefined ? pendingChange.subjectId : slot.subjectId,
     teacherId: pendingChange?.teacherId !== undefined ? pendingChange.teacherId : slot.teacherId,
@@ -1114,11 +1126,12 @@ function SlotEditorModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
       <div
+        role="dialog" aria-modal="true" aria-label="Edit Slot"
         className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
 
         <div className="mb-6">

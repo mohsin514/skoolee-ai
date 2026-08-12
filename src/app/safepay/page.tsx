@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, Suspense } from "react";
+import { toast } from "sonner";
 import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
 
 function SafePayForm() {
@@ -55,6 +56,7 @@ function SafePayForm() {
         1500
       );
     } catch (err: any) {
+      toast.error("Payment failed. Please try again.");
       alert(err.message);
     } finally {
       setSubmitting(false);

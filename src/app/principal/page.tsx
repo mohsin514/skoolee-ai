@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import type { ReactNode } from "react";
 import {
   AlertCircle,
@@ -790,7 +791,7 @@ function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onRese
 
 function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
   const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
-  return (<div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-5 rounded-[28px] border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] transition-all duration-300 flex items-center justify-between group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><img src={avatar} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{teacher.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p></div></div><div className="flex items-center gap-6 shrink-0"><span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2.5 py-1">{teacher._count?.taughtSubjects || 0} subjects</span><button type="button" onClick={onView} className="h-9 rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md transition-all cursor-pointer">View</button><button type="button" onClick={onRemove} className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 border border-rose-100 shadow-sm hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md transition-all cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Revoke</button></div></div>);
+  return (<div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-5 rounded-[28px] border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] transition-all duration-300 flex items-center justify-between group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><AvatarImage src={avatar} /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{teacher.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p></div></div><div className="flex items-center gap-6 shrink-0"><span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2.5 py-1">{teacher._count?.taughtSubjects || 0} subjects</span><button type="button" onClick={onView} className="h-9 rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md transition-all cursor-pointer">View</button><button type="button" onClick={onRemove} className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 border border-rose-100 shadow-sm hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md transition-all cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Revoke</button></div></div>);
 }
 
 function AdminRow({ admin, onRemove }: { admin: any; onRemove?: () => void }) {
@@ -922,7 +923,7 @@ function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate
 
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <img src={avatar} alt="" className="h-full w-full object-cover" />
+          <AvatarImage src={avatar} />
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (

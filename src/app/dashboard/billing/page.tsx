@@ -239,6 +239,13 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!paymentModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setPaymentModalOpen(false); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [paymentModalOpen]);
+
   const recordPayment = async () => {
     if (!paymentModal) return;
     setIsSubmittingPayment(true);
@@ -782,7 +789,7 @@ export default function BillingPage({ embedded = false }: BillingPageProps = {})
 
       {paymentModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={() => setPaymentModalOpen(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <Building2 className="w-5 h-5 text-[#1f1a23]" />
               <h3 className="text-lg font-bold text-[#1f1a23]">Bank Transfer</h3>

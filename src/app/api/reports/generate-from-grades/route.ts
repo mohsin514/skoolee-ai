@@ -116,17 +116,18 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true, totalMarks: true },
     });
 
-    let generated = 0;
-    for (const grade of grades) {
-      const existing = await prisma.reportCard.findFirst({
-        where: { examId: finalExam.id, studentId: grade.studentId },
-      });
+    const studentIds = grades.map((g) => g.studentId);
+    const existingCards = await prisma.reportCard.findMany({
+      where: { examId: finalExam.id, studentId: { in: studentIds } },
+      select: { id: true, studentId: true },
+    });
+    const existingMap = new Map(existingCards.map((c) => [c.studentId, c.id]));
+    const totalMarks = subjects.reduce((s, sub) => s + sub.totalMarks, 0);
+    const now = new Date();
 
-      const reportData = {
-        campusId: user.campusId,
-        examId: finalExam.id,
-        studentId: grade.studentId,
-        totalMarks: subjects.reduce((s, sub) => s + sub.totalMarks, 0),
+    const ops = grades.map((grade) => {
+      const shared = {
+        totalMarks,
         obtainedMarks: grade.subjectBreakdown.reduce((s, sb) => s + sb.obtainedMarks, 0),
         percentage: grade.overallPercentage,
         grade: grade.overallGrade,
@@ -137,21 +138,18 @@ export async function POST(req: NextRequest) {
         remarksApproved: false,
         isSent: false,
         deliveryStatus: "PENDING",
-        generatedAt: new Date(),
+        generatedAt: now,
       };
-
-      if (existing) {
-        await prisma.reportCard.update({
-          where: { id: existing.id },
-          data: reportData,
-        });
-      } else {
-        await prisma.reportCard.create({ data: reportData });
+      const existingId = existingMap.get(grade.studentId);
+      if (existingId) {
+        return prisma.reportCard.update({ where: { id: existingId }, data: shared });
       }
-      generated++;
-    }
+      return prisma.reportCard.create({ data: { ...shared, campusId: user.campusId!, examId: finalExam!.id, studentId: grade.studentId } });
+    });
 
-    return NextResponse.json({ success: true, count: generated });
+    await prisma.$transaction(ops);
+
+    return NextResponse.json({ success: true, count: grades.length });
   } catch (error: any) {
     console.error("Generate-from-grades error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });

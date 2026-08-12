@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { FileText, TrendingUp, TrendingDown } from "lucide-react";
 
 interface MarkEntry {
@@ -82,7 +83,7 @@ export function SingleSubjectReportCard({
             </p>
           </div>
           {logo ? (
-            <img src={logo} alt="" className="h-12 w-12 rounded-xl bg-white/20 object-contain" />
+            <Image src={logo} alt="School logo" width={48} height={48} className="rounded-xl bg-white/20 object-contain" unoptimized />
           ) : (
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
               <FileText className="h-6 w-6 text-white" />

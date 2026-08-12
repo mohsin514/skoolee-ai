@@ -50,16 +50,14 @@ export async function POST(req: NextRequest) {
     if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
     if (!quantity || quantity <= 0) throw new ApiError("quantity must be a positive number", 400);
 
-    const item = await prisma.item.findFirst({ where: { id: itemId, campusId } });
+    const [item, store, supplier] = await Promise.all([
+      prisma.item.findFirst({ where: { id: itemId, campusId } }),
+      prisma.itemStore.findFirst({ where: { id: storeId, campusId } }),
+      supplierId ? prisma.supplier.findFirst({ where: { id: supplierId, campusId } }) : null,
+    ]);
     if (!item) throw new ApiError("Item not found", 404);
-
-    const store = await prisma.itemStore.findFirst({ where: { id: storeId, campusId } });
     if (!store) throw new ApiError("Store not found", 404);
-
-    if (supplierId) {
-      const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, campusId } });
-      if (!supplier) throw new ApiError("Supplier not found", 404);
-    }
+    if (supplierId && !supplier) throw new ApiError("Supplier not found", 404);
 
     const transaction = await prisma.$transaction(async (tx) => {
       if (kind === "RECEIVE" || kind === "RETURN") {

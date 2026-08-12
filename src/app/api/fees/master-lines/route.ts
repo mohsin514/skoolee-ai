@@ -38,9 +38,11 @@ export async function POST(req: NextRequest) {
     const amount = Number(body.amount);
     if (!Number.isInteger(amount) || amount < 0) throw new ApiError("amount must be a non-negative integer (paisa)", 400);
 
-    const group = await prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } });
+    const [group, type] = await Promise.all([
+      prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } }),
+      prisma.feeType.findFirst({ where: { id: body.feeTypeId, campusId } }),
+    ]);
     if (!group) throw new ApiError("Fee group not found", 404);
-    const type = await prisma.feeType.findFirst({ where: { id: body.feeTypeId, campusId } });
     if (!type) throw new ApiError("Fee type not found", 404);
 
     const existing = await prisma.feesMasterLine.findUnique({

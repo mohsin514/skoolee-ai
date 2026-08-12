@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,11 +129,17 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
   const progressPercent = ((step + 1) / STEPS.length) * 100;
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={onClose}>
       <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" />
 
-      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
+      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-7 py-5">
           <div>

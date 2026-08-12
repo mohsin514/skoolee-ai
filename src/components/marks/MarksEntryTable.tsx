@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Table,
   TableHeader,
@@ -126,6 +127,7 @@ export function MarksEntryTable({
           throw new Error("API error");
         }
       } catch {
+        toast.error("Failed to save marks");
         setStudents((prev) => {
           const updated = [...prev];
           updated[index] = { ...updated[index], isGenerating: false };

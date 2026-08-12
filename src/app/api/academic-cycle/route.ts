@@ -13,6 +13,11 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     const sp = req.nextUrl.searchParams;
+
+    if (!user.campusId && user.role !== "SUPER_ADMIN") {
+      return Response.json({ success: true, data: [], active: null });
+    }
+
     const campusId = await resolveCampusId(user, sp.get("campusId"));
 
     const cycles = await prisma.academicCycle.findMany({

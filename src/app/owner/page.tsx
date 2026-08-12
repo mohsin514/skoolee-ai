@@ -1742,9 +1742,15 @@ function SchoolDetailModal({
   const inactiveTabClass = "text-sm font-bold text-[#4d4354]/40 pb-2 cursor-pointer hover:text-[#4d4354]/70 transition-colors";
   const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5">
-      <div className="animate-modal-enter bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5" onClick={onClose}>
+      <div role="dialog" aria-modal="true" className="animate-modal-enter bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
@@ -1933,6 +1939,12 @@ function ChangePasswordModal({
 
   const strength = getPasswordStrength(newPassword);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handleSubmit = async () => {
     setError("");
     if (!newPassword) return setError("Password is required");
@@ -1958,8 +1970,8 @@ function ChangePasswordModal({
   };
 
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5">
-      <div className="animate-modal-enter bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar">
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5" onClick={onClose}>
+      <div role="dialog" aria-modal="true" className="animate-modal-enter bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start gap-5 mb-6">
           <div>
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Security action</p>

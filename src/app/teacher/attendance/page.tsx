@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { toast } from "sonner";
 import {
   AlertTriangle, BarChart3, CalendarCheck, CheckCheck, CheckCircle2, ChevronLeft, ChevronRight, Copy, History, ListChecks, Loader2, Plus, TrendingUp,
@@ -524,7 +525,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                 )}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-                      <img src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.name)}`} alt="" className="h-full w-full object-cover" />
+                      <AvatarImage src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.name)}`} alt={student.name} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#1d1b20] truncate">{student.name}</p>

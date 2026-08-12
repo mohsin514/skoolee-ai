@@ -12,7 +12,7 @@ import {
   normalizeUserRole,
 } from "./lib/roles";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",

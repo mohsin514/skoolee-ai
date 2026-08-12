@@ -36,16 +36,13 @@ export async function GET(req: NextRequest) {
         balanceDue: { gt: 0 },
         dueDate: { lt: new Date() },
       },
-      include: {
+      select: {
+        id: true, studentId: true, invoiceNumber: true, totalAmount: true, totalAmountPaid: true,
+        balanceDue: true, dueDate: true, status: true,
         student: {
           select: {
-            id: true,
-            fullName: true,
-            rollNo: true,
-            guardianName: true,
-            guardianPhone: true,
-            guardianEmail: true,
-            class: { select: { name: true, section: true } },
+            id: true, fullName: true, rollNo: true, guardianName: true, guardianPhone: true,
+            guardianEmail: true, class: { select: { name: true, section: true } },
           },
         },
       },

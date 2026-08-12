@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Award, Briefcase, CalendarCheck, Check, ChevronDown, Clock,
   GraduationCap, HelpCircle, Users, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 export function UnifiedAttendancePanel() {
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
@@ -46,7 +48,7 @@ export function UnifiedAttendancePanel() {
         setTeacherRoster(json.data || []);
         setTeacherSummary(json.summary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 });
       }
-    } catch { /* silent */ }
+    } catch { toast.error("Failed to load teacher attendance"); }
     finally { setTeacherLoading(false); }
   }, [teacherDate]);
 
@@ -60,7 +62,7 @@ export function UnifiedAttendancePanel() {
       } else {
         setTeacherMonthly([]);
       }
-    } catch { setTeacherMonthly([]); }
+    } catch { setTeacherMonthly([]); toast.error("Failed to load monthly teacher records"); }
     finally { setTeacherMonthlyLoading(false); }
   }, [teacherSelectedMonth]);
 
@@ -261,7 +263,7 @@ export function UnifiedAttendancePanel() {
                       )}>
                         <div className="col-span-5 flex items-center gap-3 min-w-0">
                           <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                            <img src={teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`} alt="" className="h-full w-full object-cover" />
+                            <AvatarImage src={teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`} alt={teacher.fullName} />
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-[#1f1a23] truncate">{teacher.fullName}</p>
@@ -334,7 +336,7 @@ export function UnifiedAttendancePanel() {
                       <div key={record.userId || record.id} className="p-3 rounded-2xl bg-[#f3f4f9]/50 border border-transparent hover:border-[#8127cf]/10 transition-all">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 shrink-0 rounded-lg bg-[#fbf0fe] overflow-hidden">
-                            <img src={record.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(record.fullName || "T")}`} alt="" className="h-full w-full object-cover" />
+                            <AvatarImage src={record.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(record.fullName || "T")}`} alt={record.fullName || "Staff"} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-black text-[#1f1a23] truncate">{record.fullName || "Teacher"}</p>

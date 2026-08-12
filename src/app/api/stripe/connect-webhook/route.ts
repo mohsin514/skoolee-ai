@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
         data: { value: updated },
       });
 
-      console.log(`[connect-webhook] Account ${accountId} updated: charges=${account.charges_enabled}, details=${account.details_submitted}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[connect-webhook] Account ${accountId} updated: charges=${account.charges_enabled}, details=${account.details_submitted}`);
+      }
     }
 
     return Response.json({ received: true });

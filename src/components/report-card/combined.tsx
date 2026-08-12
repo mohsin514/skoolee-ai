@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { FileText, TrendingUp, TrendingDown, Award, BarChart3 } from "lucide-react";
 
 interface SubjectResult {
@@ -96,7 +97,7 @@ export function CombinedReportCard({
             </p>
           </div>
           {logo ? (
-            <img src={logo} alt="" className="h-12 w-12 rounded-xl bg-white/20 object-contain" />
+            <Image src={logo} alt="School logo" width={48} height={48} className="rounded-xl bg-white/20 object-contain" unoptimized />
           ) : (
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
               <FileText className="h-6 w-6 text-white" />
@@ -161,8 +162,8 @@ export function CombinedReportCard({
 
         <div>
           <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subject Performance</p>
-          <div className="overflow-hidden rounded-[26px] border border-[#cfc2d6]/10">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto rounded-[26px] border border-[#cfc2d6]/10">
+            <table className="w-full min-w-[480px] text-left">
               <thead>
                 <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
                   <th className="px-5 py-3">Subject</th>

@@ -35,9 +35,11 @@ export async function POST(req: NextRequest) {
     const academicYear = Number(body.academicYear ?? new Date().getFullYear());
     if (!Number.isInteger(academicYear) || academicYear < 2000) throw new ApiError("invalid academicYear", 400);
 
-    const group = await prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } });
+    const [group, cls] = await Promise.all([
+      prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } }),
+      prisma.class.findFirst({ where: { id: body.classId, campusId } }),
+    ]);
     if (!group) throw new ApiError("Fee group not found", 404);
-    const cls = await prisma.class.findFirst({ where: { id: body.classId, campusId } });
     if (!cls) throw new ApiError("Class not found", 404);
 
     const existing = await prisma.feeGroupAssignment.findUnique({

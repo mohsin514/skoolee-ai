@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -141,7 +142,7 @@ export function RoleHeader({
       .then((data) => {
         if (!cancelled && data?.profile) setHeaderProfile(data.profile);
       })
-      .catch(() => {});
+      .catch(() => { toast.error("Failed to load profile"); });
 
     return () => {
       cancelled = true;
@@ -305,7 +306,7 @@ export function RoleHeader({
             aria-expanded={menuOpen}
           >
             <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-              <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
+              <AvatarImage src={displayAvatar} />
             </div>
             <div className="hidden sm:block text-left">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
@@ -321,7 +322,7 @@ export function RoleHeader({
               <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
                 <div className="flex items-center gap-3">
                   <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-                    <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
+                    <AvatarImage src={displayAvatar} />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
@@ -377,12 +378,12 @@ export function RoleHeader({
       </header>
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter">
-          <div className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter" onClick={() => setSettingsOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Account Settings" onClick={(e) => e.stopPropagation()} className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
             <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white shadow-inner ring-1 ring-[#cfc2d6]/15">
-                  <img src={displayAvatar} alt="" className="h-full w-full object-cover" />
+                  <AvatarImage src={displayAvatar} />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Account Settings</h2>
@@ -465,8 +466,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter">
-      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Change Password" onClick={(e) => e.stopPropagation()} className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
         <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] shadow-sm ring-1 ring-[#cfc2d6]/15">

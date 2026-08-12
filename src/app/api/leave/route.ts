@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { getLeaveBalances, rangeTenths } from "@/lib/leave";
+import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 
 // Leave requests.
@@ -34,12 +34,11 @@ export async function GET(req: NextRequest) {
         select: { id: true, fullName: true, role: true, email: true },
         orderBy: { fullName: "asc" },
       });
-      const balancesAll = await Promise.all(
-        staff.map(async (s) => ({
-          user: s,
-          balances: await getLeaveBalances(campusId, s.id, s.role, academicYear),
-        }))
-      );
+      const balancesMap = await getBatchLeaveBalances(campusId, staff, academicYear);
+      const balancesAll = staff.map((s) => ({
+        user: s,
+        balances: balancesMap.get(s.id) || [],
+      }));
       return Response.json({ success: true, data: { staff: balancesAll, academicYear } });
     }
 

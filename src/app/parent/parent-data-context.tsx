@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 interface ReportCard {
   id: string;
@@ -87,16 +88,23 @@ const ParentDataContext = createContext<ParentDataContextType>({
   token: null,
 });
 
+const parentCache = new Map<string, { data: ParentData; ts: number }>();
+const CACHE_TTL = 60_000;
+
 export function ParentDataProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const cacheKey = `parent-${token || "session"}`;
 
-  const [data, setData] = useState<ParentData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ParentData | null>(() => {
+    const cached = parentCache.get(cacheKey);
+    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null;
+  });
+  const [loading, setLoading] = useState(data === null);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (data === null) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -104,18 +112,28 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/parent/data?${params}`);
       const json = await res.json();
       if (json.success) {
+        parentCache.set(cacheKey, { data: json.data, ts: Date.now() });
         setData(json.data);
       } else {
         setError(json.error || "Access denied");
       }
     } catch {
       setError("Failed to load data");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, cacheKey, data]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const cached = parentCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      setData(cached.data);
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [loadData, cacheKey]);
 
   return (
     <ParentDataContext.Provider value={{ data, loading, error, refetch: loadData, token }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -333,9 +333,15 @@ export function CreateClassWizard({
   const progressPercent = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
   const sectionCount = hasSections ? (sectionNames.length || Math.max(sections.length, 1)) : 0;
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, busy]);
+
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-md">
-      <div className="animate-modal-enter flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-md" onClick={() => { if (!busy) onClose(); }}>
+      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="animate-modal-enter flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
         {/* Header */}
         <div className="shrink-0 border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 px-7 pt-5 pb-4">
           <div className="flex items-center justify-between">

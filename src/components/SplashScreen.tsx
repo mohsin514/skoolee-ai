@@ -12,25 +12,25 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const startTime = Date.now();
-    const duration = 5500;
+    const duration = 2800;
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const pct = Math.min(100, Math.round((elapsed / duration) * 100));
       setProgress(pct);
       if (pct >= 100) clearInterval(interval);
-    }, 80);
+    }, 50);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    // Keep splash visible for 8 seconds, then redirect
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      router.push('/login');
-    }, 8000);
-
-    return () => clearTimeout(timer);
-  }, [router]);
+    if (progress === 100) {
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        router.push('/login');
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [progress, router]);
 
   if (!isVisible) return null;
 

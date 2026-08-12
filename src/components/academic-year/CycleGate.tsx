@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
 
 interface CycleContextValue {
@@ -46,6 +47,7 @@ export function CycleProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) setState((s) => ({ ...s, loading: false }));
+        toast.error("Failed to load academic cycle");
       }
     })();
     return () => { cancelled = true; };

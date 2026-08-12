@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
 
 const WEEKDAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -50,6 +51,7 @@ export function ExamDateSheet({
   const [weekends, setWeekends] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSheet, setLoadingSheet] = useState(false);
+  const fetchedSheets = useRef(new Set<string>());
 
   const qp = campusId ? `?campusId=${campusId}` : "";
 
@@ -78,7 +80,7 @@ export function ExamDateSheet({
         if (calJson?.success) setWeekends(calJson.data.weekends || []);
       }
     } catch {
-      // ignore — empty state below
+      toast.error("Failed to load exam schedule");
     } finally {
       setLoading(false);
     }
@@ -105,8 +107,8 @@ export function ExamDateSheet({
   }, [exams]);
 
   useEffect(() => {
-    if (token) return;
-    if (!selectedExamId || schedules[selectedExamId] !== undefined) return;
+    if (token || !selectedExamId || fetchedSheets.current.has(selectedExamId)) return;
+    fetchedSheets.current.add(selectedExamId);
     let cancelled = false;
     setLoadingSheet(true);
     fetch(`/api/academic/exam-schedule?examId=${selectedExamId}${qp}`)
@@ -116,10 +118,10 @@ export function ExamDateSheet({
           setSchedules((prev) => ({ ...prev, [selectedExamId]: j.data || [] }));
         }
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) toast.error("Failed to load date sheet"); })
       .finally(() => { if (!cancelled) setLoadingSheet(false); });
     return () => { cancelled = true; };
-  }, [selectedExamId, qp, token, schedules]);
+  }, [selectedExamId, qp, token]);
 
   const selectedExam = visibleExams.find((e) => e.id === selectedExamId);
   const rawRows = selectedExam ? (schedules[selectedExam.id] || []) : [];

@@ -110,6 +110,7 @@ export default function ReportsPage() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [tone, setTone] = useState<"formal" | "encouraging" | "constructive">("encouraging");
   const [language, setLanguage] = useState<"en" | "ur" | "both">("both");
+  const [loadingExams, setLoadingExams] = useState(true);
 
   useEffect(() => {
     fetch("/api/exams")
@@ -117,7 +118,8 @@ export default function ReportsPage() {
       .then((data) => {
         setExams((data.exams || []).filter((exam: Exam) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status)));
       })
-      .catch(() => toast.error("Could not load locked exams"));
+      .catch(() => toast.error("Could not load locked exams"))
+      .finally(() => setLoadingExams(false));
   }, []);
 
   const loadReportCards = async (exam: Exam) => {
@@ -238,6 +240,11 @@ export default function ReportsPage() {
             <CardDescription>Report cards are generated from locked exams only</CardDescription>
           </CardHeader>
           <CardContent>
+            {loadingExams ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
             <div className="flex flex-wrap gap-3">
               {exams.map((exam) => (
                 <button
@@ -260,6 +267,7 @@ export default function ReportsPage() {
                 <p className="text-sm text-muted-foreground">No locked exams yet. Lock an exam from Academic Engine first.</p>
               ) : null}
             </div>
+            )}
           </CardContent>
         </Card>
 

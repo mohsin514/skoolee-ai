@@ -29,36 +29,48 @@ export async function GET(req: NextRequest) {
 
     const campusIds = campuses.map((c) => c.id);
 
-    const invoiceAgg = await prisma.invoice.aggregate({
-      where: { campusId: { in: campusIds } },
-      _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
-    });
+    const [invoiceAgg, overdueAgg, byClassRaw, overdueInvoices, recentPayments] = await Promise.all([
+      prisma.invoice.aggregate({
+        where: { campusId: { in: campusIds } },
+        _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] } },
+        _sum: { balanceDue: true },
+      }),
+      prisma.invoice.groupBy({
+        by: ["studentId"],
+        where: { campusId: { in: campusIds } },
+        _sum: { totalAmount: true, totalAmountPaid: true },
+      }),
+      prisma.invoice.findMany({
+        where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } },
+        include: { student: { select: { id: true, fullName: true, class: { select: { name: true } } } } },
+        orderBy: { dueDate: "asc" },
+        take: 50,
+      }),
+      prisma.payment.findMany({
+        where: { campusId: { in: campusIds } },
+        include: {
+          student: { select: { fullName: true } },
+          invoice: { select: { invoiceNumber: true } },
+        },
+        orderBy: { paymentDate: "desc" },
+        take: 10,
+      }),
+    ]);
 
     const totalReceivable = invoiceAgg._sum.totalAmount ?? 0;
     const totalCollected = invoiceAgg._sum.totalAmountPaid ?? 0;
     const totalOutstanding = invoiceAgg._sum.balanceDue ?? 0;
-
-    const overdueAgg = await prisma.invoice.aggregate({
-      where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] } },
-      _sum: { balanceDue: true },
-    });
     const totalOverdue = overdueAgg._sum.balanceDue ?? 0;
-
-    const collectionRate = totalReceivable > 0
-      ? Math.round((totalCollected / totalReceivable) * 100)
-      : 0;
-
-    const byClassRaw = await prisma.invoice.groupBy({
-      by: ["studentId"],
-      where: { campusId: { in: campusIds } },
-      _sum: { totalAmount: true, totalAmountPaid: true },
-    });
+    const collectionRate = totalReceivable > 0 ? Math.round((totalCollected / totalReceivable) * 100) : 0;
 
     const studentIds = byClassRaw.map((r) => r.studentId);
-    const students = await prisma.student.findMany({
+    const students = studentIds.length > 0 ? await prisma.student.findMany({
       where: { id: { in: studentIds } },
       select: { id: true, class: { select: { id: true, name: true } } },
-    });
+    }) : [];
     const studentClassMap = new Map(students.map((s) => [s.id, s.class.name]));
 
     const classMap = new Map<string, { totalDue: number; totalPaid: number }>();
@@ -77,18 +89,9 @@ export async function GET(req: NextRequest) {
       collectionRate: vals.totalDue > 0 ? Math.round((vals.totalPaid / vals.totalDue) * 100) : 0,
     }));
 
-    const overdueInvoices = await prisma.invoice.findMany({
-      where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } },
-      include: { student: { select: { id: true, fullName: true, class: { select: { name: true } } } } },
-      orderBy: { dueDate: "asc" },
-      take: 50,
-    });
-
     const atRiskStudents = overdueInvoices
       .map((inv) => {
-        const daysOverdue = Math.floor(
-          (Date.now() - inv.dueDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        const daysOverdue = Math.floor((Date.now() - inv.dueDate.getTime()) / (1000 * 60 * 60 * 24));
         return {
           studentId: inv.studentId,
           studentName: inv.student.fullName,
@@ -100,16 +103,6 @@ export async function GET(req: NextRequest) {
       })
       .filter((s, idx, self) => self.findIndex((t) => t.studentId === s.studentId) === idx)
       .slice(0, 20);
-
-    const recentPayments = await prisma.payment.findMany({
-      where: { campusId: { in: campusIds } },
-      include: {
-        student: { select: { fullName: true } },
-        invoice: { select: { invoiceNumber: true } },
-      },
-      orderBy: { paymentDate: "desc" },
-      take: 10,
-    });
 
     return Response.json({
       success: true,

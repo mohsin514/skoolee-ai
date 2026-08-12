@@ -4,8 +4,17 @@ import { prisma } from "@/lib/db/prisma";
 import { randomUUID } from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
 import bcrypt from "bcryptjs";
+import { rateLimit } from "@/lib/rate-limit";
+import { headers } from "next/headers";
 
 export async function requestPasswordReset(email: string) {
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const { ok } = rateLimit(`reset:${ip}`, { limit: 3, windowMs: 300_000 });
+  if (!ok) {
+    throw new Error("Too many reset requests. Please try again in a few minutes.");
+  }
+
   const user = await prisma.user.findUnique({ where: { email } });
   
   // Security best practice: Always return success even if user doesn't exist to prevent email enumeration

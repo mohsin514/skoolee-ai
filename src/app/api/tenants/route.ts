@@ -8,6 +8,7 @@ import { createTenantSchema } from "@/lib/db/tenant";
 import { onboardingSchema } from "@/lib/validators/schemas";
 import { DEFAULT_PERMISSIONS, PERMISSION_MODULES } from "@/lib/permissions";
 import type { UserRole } from "@/lib/roles";
+import { getAuthUser } from "@/lib/auth";
 
 export async function seedRolePermissions(schoolId: string) {
   const rows = [];
@@ -34,6 +35,11 @@ export async function seedRolePermissions(schoolId: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!user || (user.role !== "APP_OWNER" && user.role !== "SUPER_ADMIN")) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const parsed = onboardingSchema.safeParse(body);
     
@@ -95,5 +101,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return Response.json({ message: "Auth required to fetch school details" });
+  return Response.json({ error: "Method not supported" }, { status: 405 });
 }

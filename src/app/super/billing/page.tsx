@@ -1,5 +1,12 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SuperBillingPage() {
-  redirect("/super?view=billing");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/super?view=billing");
+  }, [router]);
+  return null;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ export function CycleBadge() {
           }
         }
       } catch {
-        /* non-critical */
+        toast.error("Failed to load cycle");
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
   const baseUrl = req.nextUrl.origin;
   const magicLink = `${baseUrl}/accept-invite?token=${token}&userId=${newUser.id}`;
 
-  // In production: send via email. For now log it.
-  console.log(`[INVITE] Magic link for ${email}: ${magicLink}`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[INVITE] Magic link for ${email}: ${magicLink}`);
+  }
 
   return Response.json({
     success: true,

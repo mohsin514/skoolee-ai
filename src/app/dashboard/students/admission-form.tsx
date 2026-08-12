@@ -483,11 +483,17 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
   const progressPercent = ((step + 1) / STEPS.length) * 100;
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0" />
+      <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0" onClick={onClose} />
 
-      <div className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 group">
+      <div role="dialog" aria-modal="true" className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 group" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="shrink-0 border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 px-6 pt-5 pb-4">
           <div className="flex items-center justify-between">

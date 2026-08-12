@@ -6,9 +6,18 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createTenantSchema } from "@/lib/db/tenant";
 import bcrypt from "bcryptjs";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const { ok } = rateLimit(`register:${ip}`, { limit: 5, windowMs: 300_000 });
+    if (!ok) {
+      return Response.json(
+        { error: "Too many registration attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
     const body = await req.json();
     const { type, ...data } = body;
 

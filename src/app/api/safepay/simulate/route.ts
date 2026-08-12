@@ -10,6 +10,10 @@ export const dynamic = "force-dynamic";
 // Supports both plan purchases (schoolId + plan) and fee payments (orderRef).
 
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === "production" && !process.env.SAFEPAY_SANDBOX) {
+    return Response.json({ error: "Not available in production" }, { status: 403 });
+  }
+
   try {
     const { orderRef, schoolId, plan } = await req.json();
     if (orderRef && schoolId && plan) {

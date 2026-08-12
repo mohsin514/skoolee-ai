@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function updateSchoolSettings(data: { name: string; slug: string }) {
   const cookieStore = await cookies();

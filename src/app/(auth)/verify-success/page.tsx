@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 
 export default function VerifySuccessPage() {
@@ -16,7 +17,6 @@ export default function VerifySuccessPage() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          router.push('/login');
           return 0;
         }
         return prev - 1;
@@ -24,7 +24,13 @@ export default function VerifySuccessPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      router.push('/login');
+    }
+  }, [countdown, router]);
 
   return (
     <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
@@ -32,7 +38,7 @@ export default function VerifySuccessPage() {
       {/* ─── LEFT SIDE: Visual Narrative ─── */}
       <section className="hidden md:block relative overflow-hidden h-screen">
         <div className="absolute inset-0 bg-emerald-500/10 mix-blend-multiply z-10"></div>
-        <img src="/login.svg" alt="Skoolee Verification" className="absolute inset-0 w-full h-full object-cover" />
+        <Image src="/login.svg" alt="Skoolee Verification" fill className="object-cover" priority />
         <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent z-20"></div>
         <div className="absolute bottom-12 left-12 z-30 max-w-md">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">

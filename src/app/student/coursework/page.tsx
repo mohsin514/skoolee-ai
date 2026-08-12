@@ -99,7 +99,7 @@ export default function CourseworkPage() {
                   )}
                 </div>
               </div>
-              <table className="w-full text-left">
+              <div className="overflow-x-auto"><table className="w-full text-left min-w-[480px]">
                 <thead>
                   <tr className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-[#4d4354]/40 uppercase tracking-wider border-b border-[#cfc2d6]/10">
                     <th className="px-6 py-3.5">Subject</th>
@@ -151,7 +151,7 @@ export default function CourseworkPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
         </div>

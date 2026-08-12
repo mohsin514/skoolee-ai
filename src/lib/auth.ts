@@ -5,7 +5,7 @@ import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { normalizeUserRole, type UserRole } from "@/lib/roles";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export interface AuthUser {
   userId: string;

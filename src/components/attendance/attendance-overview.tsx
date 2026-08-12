@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   CalendarCheck,
   ChevronLeft,
@@ -346,6 +347,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setSummaryData(data);
       } catch {
         setSummaryData(null);
+        toast.error("Failed to load attendance summary");
       } finally {
         setLoadingSummary(false);
       }
@@ -365,6 +367,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setMonthlyData(data);
       } catch {
         setMonthlyData(null);
+        toast.error("Failed to load monthly attendance");
       } finally {
         setLoadingMonthly(false);
       }
@@ -384,6 +387,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setClassDetail(data);
       } catch {
         setClassDetail(null);
+        toast.error("Failed to load class attendance details");
       } finally {
         setLoadingClass(false);
       }

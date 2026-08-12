@@ -58,15 +58,16 @@ export async function GET(req: NextRequest) {
     if (date) {
       const targetDate = parseLocalDate(date);
 
-      const teachers = await prisma.user.findMany({
-        where: { campusId, role: "TEACHER", isActive: true },
-        select: { id: true, fullName: true, email: true, profileImageUrl: true },
-        orderBy: { fullName: "asc" },
-      });
-
-      const attendance = await prisma.teacherAttendance.findMany({
-        where: { campusId, date: targetDate },
-      });
+      const [teachers, attendance] = await Promise.all([
+        prisma.user.findMany({
+          where: { campusId, role: "TEACHER", isActive: true },
+          select: { id: true, fullName: true, email: true, profileImageUrl: true },
+          orderBy: { fullName: "asc" },
+        }),
+        prisma.teacherAttendance.findMany({
+          where: { campusId, date: targetDate },
+        }),
+      ]);
 
       const attendanceMap = new Map(attendance.map((a) => [a.userId, a]));
 
@@ -92,16 +93,17 @@ export async function GET(req: NextRequest) {
       const startDate = new Date(`${y}-${String(m).padStart(2, "0")}-01`);
       const endDate = new Date(m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`);
 
-      const teachers = await prisma.user.findMany({
-        where: { campusId, role: "TEACHER", isActive: true },
-        select: { id: true, fullName: true, email: true, profileImageUrl: true },
-        orderBy: { fullName: "asc" },
-      });
-
-      const records = await prisma.teacherAttendance.findMany({
-        where: { campusId, date: { gte: startDate, lt: endDate } },
-        select: { userId: true, status: true },
-      });
+      const [teachers, records] = await Promise.all([
+        prisma.user.findMany({
+          where: { campusId, role: "TEACHER", isActive: true },
+          select: { id: true, fullName: true, email: true, profileImageUrl: true },
+          orderBy: { fullName: "asc" },
+        }),
+        prisma.teacherAttendance.findMany({
+          where: { campusId, date: { gte: startDate, lt: endDate } },
+          select: { userId: true, status: true },
+        }),
+      ]);
 
       const perTeacher = new Map<string, { present: number; absent: number; leave: number; total: number }>();
       for (const r of records) {

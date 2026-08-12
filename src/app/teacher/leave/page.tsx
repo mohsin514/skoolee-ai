@@ -68,6 +68,13 @@ export default function LeavePage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!showApply) return;
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setShowApply(false); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showApply]);
+
   const computedDays = (() => {
     if (!applyForm.fromDate || !applyForm.toDate) return null;
     const start = new Date(applyForm.fromDate);
@@ -243,8 +250,8 @@ export default function LeavePage() {
 
       {showApply ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" />
-          <div className="relative z-[121] w-full max-w-xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
+          <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" onClick={() => setShowApply(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-[121] w-full max-w-xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-7 py-5">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Leave Management</p>

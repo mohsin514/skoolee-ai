@@ -1,21 +1,56 @@
 "use client";
 
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
+  Award,
   Bell,
+  BookOpen,
   Calendar,
+  CalendarCheck,
   ChevronDown,
   CreditCard,
+  FileText,
+  GraduationCap,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
+  Mail,
+  Receipt,
   Settings,
   ShieldCheck,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+
+const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
+  Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
+  GraduationCap, LayoutGrid, Mail, Receipt, UserCheck,
+};
+
+function resolveNotifIcon(name: string | null): LucideIcon {
+  return (name && NOTIF_ICON_MAP[name]) || Bell;
+}
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 interface HeaderProps {
   title: string;
@@ -40,9 +75,12 @@ interface ActiveCycle {
 
 export function Header({ title, description, actions }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [user, setUser] = useState<HeaderUser | null>(null);
   const [cycle, setCycle] = useState<ActiveCycle | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const notifRef = useRef<HTMLDivElement | null>(null);
+  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +101,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             if (data?.active) setCycle(data.active);
           }
         }
-      } catch {}
+      } catch { toast.error("Failed to load notifications"); }
     };
 
     load();
@@ -74,16 +112,20 @@ export function Header({ title, description, actions }: HeaderProps) {
   }, []);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !notifOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
+      if (menuRef.current?.contains(event.target as Node)) return;
+      if (notifRef.current?.contains(event.target as Node)) return;
+      setMenuOpen(false);
+      setNotifOpen(false);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setNotifOpen(false);
+      }
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -93,7 +135,7 @@ export function Header({ title, description, actions }: HeaderProps) {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpen]);
+  }, [menuOpen, notifOpen]);
 
   const initials = useMemo(() => {
     const name = user?.fullName || "User";
@@ -143,23 +185,98 @@ export function Header({ title, description, actions }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="relative shrink-0 rounded-xl bg-white/80 hover:-translate-y-0.5 h-10 w-10"
-            title="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="sk-glow absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
-          </Button>
+          <div ref={notifRef} className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="relative shrink-0 rounded-xl bg-white/80 hover:-translate-y-0.5 h-10 w-10"
+              title="Notifications"
+              onClick={() => {
+                setNotifOpen((open) => !open);
+                setMenuOpen(false);
+              }}
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="sk-glow absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#8127cf] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </Button>
+
+            {notifOpen && (
+              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+                <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-5 py-4">
+                  <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-semibold text-[#8127cf]">{unreadCount} new</span>
+                  )}
+                </div>
+                <div className="max-h-[360px] space-y-0.5 overflow-y-auto p-1.5">
+                  {liveNotifications.length === 0 ? (
+                    <div className="py-10 text-center">
+                      <Bell className="mx-auto mb-3 h-8 w-8 text-[#4d4354]/15" />
+                      <p className="text-sm font-bold text-[#4d4354]/40">No notifications yet</p>
+                      <p className="mt-1 text-xs font-medium text-[#4d4354]/30">You&#39;re all caught up</p>
+                    </div>
+                  ) : (
+                    liveNotifications.map((n) => {
+                      const Icon = resolveNotifIcon(n.icon);
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (!n.isRead) markAsRead([n.id]);
+                          }}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-3 transition-all hover:bg-[#fbf0fe]/60",
+                            !n.isRead && "bg-[#fbf0fe]/30"
+                          )}
+                        >
+                          <div className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                            !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-[#4d4354]/50"
+                          )}>
+                            <Icon className="h-[18px] w-[18px]" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={cn("truncate text-sm", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-[#4d4354]/80")}>{n.title}</p>
+                              {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
+                            </div>
+                            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-[#4d4354]/50">{n.message}</p>
+                            <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/35">{relativeTime(n.createdAt)}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={markAllAsRead}
+                      className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {actions}
 
           <div ref={menuRef} className="relative z-[80]">
             <button
               type="button"
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={() => {
+                setMenuOpen((open) => !open);
+                setNotifOpen(false);
+              }}
               className={cn(
                 "flex h-10 items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/85 px-2 pr-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:bg-white hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer",
                 menuOpen && "border-[#8127cf]/35 bg-white shadow-lg ring-2 ring-[#8127cf]/15"
@@ -168,7 +285,7 @@ export function Header({ title, description, actions }: HeaderProps) {
               aria-expanded={menuOpen}
             >
               <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#8127cf] text-[10px] font-black text-white">
-                {user?.profileImageUrl ? <img src={avatarSrc} alt="" className="h-full w-full object-cover" /> : initials}
+                {user?.profileImageUrl ? <AvatarImage src={avatarSrc} /> : initials}
               </span>
               <span className="hidden min-w-0 sm:block">
                 <span className="max-w-28 truncate text-xs font-semibold text-[#1f1a23]">
@@ -191,7 +308,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                 <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-[#8127cf] text-xs font-black text-white shadow-lg shadow-[#8127cf]/20">
-                      {user?.profileImageUrl ? <img src={avatarSrc} alt="" className="h-full w-full object-cover" /> : initials}
+                      {user?.profileImageUrl ? <AvatarImage src={avatarSrc} /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-xs font-bold text-[#1f1a23]">

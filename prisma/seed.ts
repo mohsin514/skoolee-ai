@@ -37,7 +37,14 @@ async function upsertUser(opts: {
 }) {
   return prisma.user.upsert({
     where: { email: opts.email },
-    update: {},
+    update: {
+      password: opts.password,
+      role: opts.role,
+      schoolId: opts.schoolId,
+      campusId: opts.campusId,
+      isActive: true,
+      onboardingComplete: true,
+    },
     create: {
       email: opts.email,
       fullName: opts.fullName,
@@ -306,10 +313,11 @@ async function seedStudents(campusId: string, classes: Array<{ id: string; name:
     const def = studentDefs[i];
     const campusClassRoll = `${campusId}-${def.rollNo}`;
     const existing = await prisma.student.findUnique({
-      where: { campusId_rollNo: { campusId, rollNo: def.rollNo } },
+      where: { id: campusClassRoll },
     });
     if (existing) {
       students.push(existing);
+      if (linkTargetId === null) linkTargetId = existing.id;
       continue;
     }
 

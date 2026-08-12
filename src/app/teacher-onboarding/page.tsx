@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
+import Image from "next/image";
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -132,7 +133,7 @@ export default function TeacherOnboardingPage() {
     <main className="grid min-h-screen grid-cols-1 overflow-hidden bg-[#fff7fe] font-sans text-[#1f1a23] md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
         <div className="absolute inset-0 z-10 bg-[#8127cf]/10 mix-blend-multiply" />
-        <img src="/login.svg" alt="Skoolee onboarding" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/login.svg" alt="Skoolee onboarding" fill className="object-cover" priority />
         <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#8127cf]/40 to-transparent" />
         <div className="absolute bottom-12 left-12 z-30 max-w-md rounded-xl border border-white/20 bg-white/70 p-8 shadow-2xl backdrop-blur-[24px]">
           <span className="mb-2 block text-[12px] font-bold uppercase tracking-normal text-[#9c48ea]">Almost There</span>

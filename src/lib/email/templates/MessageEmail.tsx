@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Section, Text } from "@react-email/components";
 import { detailBox, mutedParagraph, paragraph, SkooleeEmail } from "./SkooleeEmail";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface MessageEmailProps {
   subject: string;
@@ -35,7 +36,7 @@ export function MessageEmail({
       logoUrl={logoUrl}
     >
       {html ? (
-        <Section style={detailBox} dangerouslySetInnerHTML={{ __html: html }} />
+        <Section style={detailBox} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
       ) : (
         textBlocks(text || "").map((block, index) => (
           <Text key={index} style={index === 0 ? paragraph : mutedParagraph}>

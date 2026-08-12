@@ -44,7 +44,9 @@ export async function PUT(request: Request) {
       }
     }
 
-    console.log("[platform-config] upserting with:", JSON.stringify(pricing));
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[platform-config] upserting with:", JSON.stringify(pricing));
+    }
     const config = await prisma.platformConfig.upsert({
       where: { key: CONFIG_KEY },
       create: { key: CONFIG_KEY, value: pricing, updatedBy: user.userId },

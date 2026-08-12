@@ -526,25 +526,27 @@ export async function POST(req: NextRequest) {
       { timeout: 20000 }
     );
 
-    for (const s of created) {
-      await prisma.auditLog.create({
-        data: {
+    if (created.length > 0) {
+      await prisma.auditLog.createMany({
+        data: created.map((s) => ({
           tableName: 'student',
           recordId: s.id,
           newValue: { fullName: s.fullName, rollNo: s.rollNo },
           userId: user.userId,
-        }
+        })),
       });
 
-      const cls = classesById.get(s.classId);
-      notify("STUDENT_ADMITTED", {
-        schoolId: user.schoolId,
-        campusId: cls?.campusId ?? user.campusId,
-        actorId: user.userId,
-        actorName: user.fullName,
-        studentName: s.fullName,
-        classId: s.classId,
-      });
+      for (const s of created) {
+        const cls = classesById.get(s.classId);
+        notify("STUDENT_ADMITTED", {
+          schoolId: user.schoolId,
+          campusId: cls?.campusId ?? user.campusId,
+          actorId: user.userId,
+          actorName: user.fullName,
+          studentName: s.fullName,
+          classId: s.classId,
+        });
+      }
     }
 
     const guardianInviteFailures: string[] = [];

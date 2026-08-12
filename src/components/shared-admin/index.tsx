@@ -68,6 +68,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
 export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 export type ClassFormState = {
   name: string;
@@ -747,7 +748,7 @@ export function ExamDetailModal({
           setMarksData(marksRes);
           setReportsData(reportsRes);
         }
-      } catch {}
+      } catch { if (!cancelled) toast.error("Failed to load exam data"); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -1187,7 +1188,7 @@ export function ExamCyclesPanel({
       const res = await fetch("/api/exams");
       const j = await res.json();
       if (j.success) setFetchedExams(j.exams || []);
-    } catch {}
+    } catch { toast.error("Failed to load exams"); }
   };
 
   const generateReportCards = async (examId: string) => {
@@ -1530,7 +1531,7 @@ export function StudentsPanel({
                   <div className="flex min-w-0 items-center gap-4">
                     <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-[#8127cf]/35 to-[#9c48ea]/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-[#8127cf] group-hover/student:to-[#9c48ea] group-hover/student:shadow-md">
                       <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-[#fbf0fe]">
-                        <img src={avatar} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110" />
+                        <AvatarImage src={avatar} alt="Student photo" className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110" />
                       </div>
                     </div>
                     <div className="min-w-0">
@@ -1970,7 +1971,7 @@ export function ClassDetailModal({
               </div>
               {cls.classTeacher?.profileImageUrl ? (
                 <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm sm:block">
-                  <img src={cls.classTeacher.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                  <AvatarImage src={cls.classTeacher.profileImageUrl} alt="Teacher photo" />
                 </div>
               ) : null}
             </div>
@@ -2451,7 +2452,7 @@ export function StudentDetailModal({
       <>
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <img src={avatar} alt="" className="h-full w-full object-cover" />
+          <AvatarImage src={avatar} />
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -3264,7 +3265,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
       {/* ── Header Card ── */}
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <img src={avatar} alt="" className="h-full w-full object-cover" />
+          <AvatarImage src={avatar} />
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -3705,9 +3706,15 @@ export function ModalFrame({
   onClose: () => void;
   wide?: boolean;
 }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
-      <div className={cn(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onClick={(e) => e.stopPropagation()} className={cn(
         "bg-white w-full max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter",
         wide ? "max-w-4xl" : "max-w-lg"
       )}>
@@ -3717,7 +3724,7 @@ export function ModalFrame({
             <h3 className="mt-1.5 text-2xl font-black text-[#1f1a23] tracking-tight">{title}</h3>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" /><span className="sr-only">Close</span>
           </button>
         </div>
         {children}
@@ -4317,7 +4324,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           <div className="relative shrink-0">
             <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500" />
             <div className="relative h-12 w-12 bg-[#fbf0fe] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 group-hover/faculty:border-[#8127cf]/20 group-hover/faculty:shadow-md">
-              <img src={avatar} alt="" className="h-full w-full object-cover" />
+              <AvatarImage src={avatar} />
             </div>
           </div>
           <div className="min-w-0">

@@ -772,10 +772,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
               },
             },
             subject: { select: { id: true, name: true } },
-            marks: {
-              select: { id: true, studentId: true, subjectId: true },
-            },
-            _count: { select: { reportCards: true } },
+            _count: { select: { marks: true, reportCards: true } },
           },
           orderBy: [{ academicYear: "desc" }, { title: "asc" }],
           take: 24,
@@ -845,10 +842,9 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
     const editableSubjects = relevantClassSubjects.filter((subject) =>
       subject.teacherId === session.userId || ledClassIds.has(exam.class.id)
     );
-    const editableSubjectIds = new Set(editableSubjects.map((subject) => subject.id));
-    const relevantMarks = exam.marks.filter((mark) => editableSubjectIds.has(mark.subjectId));
     const studentCount = studentsByClass[exam.class.id] || exam.class._count.students || 0;
     const expectedMarks = studentCount * editableSubjects.length;
+    const enteredMarks = Math.min(exam._count.marks, expectedMarks);
 
     return {
       id: exam.id,
@@ -862,9 +858,9 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
       subject: exam.subject || null,
       subjectId: exam.subjectId,
       editableSubjects,
-      enteredMarks: relevantMarks.length,
+      enteredMarks,
       expectedMarks,
-      missingMarks: Math.max(expectedMarks - relevantMarks.length, 0),
+      missingMarks: Math.max(expectedMarks - enteredMarks, 0),
       reportCards: exam._count.reportCards,
     };
   });

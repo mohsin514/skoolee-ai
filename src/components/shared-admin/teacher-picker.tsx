@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { AlertTriangle, BookOpen, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 export interface PickerTeacher {
   id: string;
@@ -41,7 +43,7 @@ export function useTeacherAvailability(enabled = true) {
       const json = await res.json();
       if (json.success) setAvailability(json.data || []);
     } catch {
-      /* availability is an enhancement — the picker still works without it */
+      toast.error("Failed to load teachers");
     } finally {
       setLoading(false);
     }
@@ -223,7 +225,7 @@ export function TeacherPicker({
                   )}
                 >
                   <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                    <img src={teacherAvatar({ ...t, id: t.id })} alt="" className="h-full w-full object-cover" />
+                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} alt="Teacher photo" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -282,7 +284,7 @@ export function TeacherPicker({
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                  {selected ? <img src={teacherAvatar({ ...selected, id: selected.id })} alt="" className="h-full w-full object-cover" /> : null}
+                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} alt="Teacher photo" /> : null}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-[#1f1a23]">{selected?.fullName || "Assigned teacher"}</span>

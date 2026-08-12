@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
-import { ChevronDown, type LucideIcon } from "lucide-react";
+import { ChevronDown, Menu, X as XIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 
@@ -42,8 +42,18 @@ export function RoleSidebar({
   items,
   bottomItems = [],
 }: RoleSidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const topFiveItems = items.filter((e): e is RoleNavItem => !isNavGroup(e)).slice(0, 5);
+
   return (
     <MotionConfig reducedMotion="user">
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white/70 backdrop-blur-xl border-r border-[#cfc2d6]/25 flex-col p-6 fixed h-full z-50 shadow-[12px_0_40px_rgba(129,39,207,0.05)]">
         <div className="mb-6 shrink-0">
           <div className="mb-1.5">
@@ -72,6 +82,70 @@ export function RoleSidebar({
           </div>
         )}
       </aside>
+
+      {/* Mobile bottom tab bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-t border-[#cfc2d6]/25 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-around px-1 py-1 safe-area-pb">
+        {topFiveItems.slice(0, 4).map((item) => (
+          <MobileTabButton key={item.label} item={item} />
+        ))}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-[#4d4354]/60 text-[10px] font-semibold"
+        >
+          <Menu className="w-5 h-5" />
+          <span>More</span>
+        </button>
+      </nav>
+
+      {/* Mobile slide-out drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="md:hidden fixed inset-0 z-[130] bg-[#1f1a23]/45 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", stiffness: 400, damping: 35 }}
+              className="md:hidden fixed inset-y-0 left-0 z-[131] w-72 bg-white flex flex-col p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <SkooleeLogo size="1.5rem" />
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="p-2 rounded-xl text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                >
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
+              <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
+                {items.map((entry) =>
+                  isNavGroup(entry) ? (
+                    <NavGroup key={entry.label} group={entry} />
+                  ) : (
+                    <SidebarButton key={entry.label} item={entry} />
+                  )
+                )}
+              </nav>
+              {bottomItems.length > 0 && (
+                <div className="pt-4 border-t border-[#cfc2d6]/20 space-y-1 shrink-0">
+                  {bottomItems.map((item) => (
+                    <SidebarButton key={item.label} item={item} />
+                  ))}
+                </div>
+              )}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </MotionConfig>
   );
 }
@@ -125,6 +199,31 @@ function NavGroup({ group }: { group: RoleNavGroup }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function MobileTabButton({ item }: { item: RoleNavItem }) {
+  const Icon = item.icon;
+  const router = useRouter();
+  const pathname = usePathname();
+  const hrefPath = item.href?.split("?")[0] ?? item.href;
+  const isActive = item.active ?? (hrefPath ? pathname === hrefPath || (!["/teacher", "/student", "/parent"].includes(hrefPath) && pathname.startsWith(hrefPath)) : false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (item.href) router.push(item.href);
+        else item.onClick?.();
+      }}
+      className={cn(
+        "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-semibold transition-colors min-w-0",
+        isActive ? "text-[#8127cf]" : "text-[#4d4354]/60"
+      )}
+    >
+      <Icon className={cn("w-5 h-5", isActive && "text-[#8127cf]")} />
+      <span className="truncate max-w-[56px]">{item.label}</span>
+    </button>
   );
 }
 

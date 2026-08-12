@@ -6,7 +6,7 @@ import { jwtVerify } from "jose";
 import { inviteStaff } from "./invite";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function addCampus(name: string, location: string, board: string = "FBise", adminEmail?: string, regId?: string) {
   const cookieStore = await cookies();

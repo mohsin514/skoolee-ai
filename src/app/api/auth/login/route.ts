@@ -8,19 +8,28 @@ import { loginSchema } from "@/lib/validators/schemas";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { logSuperAdminAction, hashToken, recordLoginSession } from "@/lib/audit";
+import { rateLimit } from "@/lib/rate-limit";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const body = await req.json();
+    const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
+    const { ok, remaining } = rateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
+    if (!ok) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again in a minute." },
+        { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": String(remaining) } }
+      );
+    }
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
     const { email, password } = parsed.data;
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;
     const ua = req.headers.get("user-agent") || undefined;
 
     // 1. Find user
