@@ -41,7 +41,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import BillingPage from "@/app/dashboard/billing/page";
-import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard";
+import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
+import { ClassManager } from "@/components/shared-admin/class-manager";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
@@ -63,7 +64,7 @@ import {
   AdmissionQueriesPanel,
   AIPanel,
   ArchivedStudentsPanel,
-  ClassDetailModal,
+  classGroupKey,
   ExamCyclesPanel,
   ExamDetailModal,
   ExamRoutinePanel,
@@ -999,13 +1000,19 @@ export default function CampusAdminDashboard() {
       )}
 
       {showClassWizard ? (
-        <CreateClassWizard
+        <QuickCreateClass
           teachers={data.teachers || []}
           classes={data.classes || []}
           onClose={() => setShowClassWizard(false)}
-          onCreated={async () => {
+          onCreated={async (createdClasses: any[]) => {
             setShowClassWizard(false);
-            await loadData();
+            const nextData = await loadData();
+            if (createdClasses.length > 0) {
+              const freshClass = (nextData?.classes || []).find(
+                (c: any) => c.id === createdClasses[0].id
+              );
+              if (freshClass) setSelectedClass(freshClass);
+            }
           }}
         />
       ) : null}
@@ -1045,9 +1052,17 @@ export default function CampusAdminDashboard() {
       ) : null}
 
       {selectedClass ? (
-        <ClassDetailModal
+        <ClassManager
           cls={selectedClass}
+          allSections={(data.classes || []).filter(
+            (c: any) => classGroupKey(c) === classGroupKey(selectedClass)
+          )}
           students={data.students.filter((student: any) => student.class?.id === selectedClass.id)}
+          allStudents={(data.students || []).filter((student: any) =>
+            (data.classes || [])
+              .filter((c: any) => classGroupKey(c) === classGroupKey(selectedClass))
+              .some((c: any) => c.id === student.class?.id || c.id === student.classId)
+          )}
           teachers={data.teachers}
           classes={data.classes}
           teacherBusy={savingClassTeacherId === selectedClass.id}
@@ -1062,7 +1077,6 @@ export default function CampusAdminDashboard() {
           onCreateSubject={handleCreateSubject}
           onChangeSubjectTeacher={handleChangeSubjectTeacher}
           onAddStudent={() => {
-            setSelectedClass(null);
             openAdmissionForm(selectedClass.id);
           }}
           onViewStudent={(student) => {
@@ -1073,6 +1087,7 @@ export default function CampusAdminDashboard() {
           onUpdateClass={handleUpdateClass}
           onDeleteSubject={handleDeleteSubject}
           onUpdateSubject={handleUpdateSubject}
+          onRefresh={loadData}
         />
       ) : null}
 
