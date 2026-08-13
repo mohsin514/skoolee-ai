@@ -70,6 +70,7 @@ import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin
 export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 export type ClassFormState = {
   name: string;
@@ -117,6 +118,9 @@ export function classLabel(item: any) {
   if (!item) return "Unassigned";
   return [item.name, item.section].filter(Boolean).join(" ");
 }
+
+// Initials live with the avatar component that renders them.
+export { initialsOf } from "@/components/ui/avatar-image";
 
 export function sectionLabel(item: any) {
   return item?.section || "Main";
@@ -388,7 +392,7 @@ export function LeadershipPanel({
                 <div className="relative shrink-0">
                   <div className="absolute -inset-2 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-2xl blur-md" />
                   <div className="relative h-16 w-16 rounded-2xl bg-white border-2 border-emerald-100 shadow-sm flex items-center justify-center overflow-hidden">
-                    <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.principal.email)}`} alt="" className="h-full w-full object-cover" />
+                    <AvatarImage name={data.principal.email} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
                 </div>
@@ -446,7 +450,7 @@ export function LeadershipPanel({
                 <div key={staff.id} className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/30 via-white to-blue-50/30 px-4 py-3 border border-transparent hover:border-blue-100 transition-all">
                   <div className="relative shrink-0">
                     <div className="h-10 w-10 rounded-xl bg-white border border-blue-100 shadow-sm flex items-center justify-center overflow-hidden">
-                      <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(staff.email)}`} alt="" className="h-full w-full object-cover" />
+                      <AvatarImage name={staff.email} alt="" className="h-full w-full object-cover" />
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1509,7 +1513,7 @@ export function StudentsPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {pagedStudents.map((student: any, i: number) => {
           const report = student.reportCards?.[0];
-          const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+          const avatar = student.profileImageUrl;
           return (
             <div
               key={student.id}
@@ -1532,16 +1536,27 @@ export function StudentsPanel({
                   <div className="flex min-w-0 items-center gap-4">
                     <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-[#8127cf]/35 to-[#9c48ea]/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-[#8127cf] group-hover/student:to-[#9c48ea] group-hover/student:shadow-md">
                       <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-[#fbf0fe]">
-                        <AvatarImage src={avatar} alt="Student photo" className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110" />
+                        <AvatarImage
+                          src={avatar}
+                          name={student.fullName}
+                          alt="Student photo"
+                          initialsClassName="text-base"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110"
+                        />
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-base font-black text-[#1f1a23] tracking-tight transition-colors duration-300 group-hover/student:text-[#8127cf]">{student.fullName}</p>
+                      <p
+                        className="truncate text-base font-black text-[#1f1a23] tracking-tight transition-colors duration-300 group-hover/student:text-[#8127cf]"
+                        title={student.fullName}
+                      >
+                        {student.fullName}
+                      </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
                           Roll {student.rollNo || "—"}
                         </span>
-                        <span className="inline-flex items-center rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/60">
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/60">
                           {classLabel(student.class)}
                         </span>
                         {student.category?.name ? (
@@ -1557,13 +1572,18 @@ export function StudentsPanel({
                       </div>
                     </div>
                   </div>
-                  <StatusPill status={report ? report.status : "NO_REPORT"} />
                 </div>
+                {/*
+                  The report-card status used to sit beside the name and squeezed
+                  it into an ellipsis. It is secondary information, so it lives on
+                  the footer row and the name gets the full width of the card.
+                */}
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#f3f4f9] pt-3.5">
                   <div className="min-w-0">
                     <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">Guardian</p>
                     <p className="truncate text-xs font-bold text-[#4d4354]/70">{student.guardianName || "Not linked"}</p>
                   </div>
+                  <StatusPill status={report ? report.status : "NO_REPORT"} />
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white group-hover/student:shadow-sm">
                     <ArrowRight className="h-3.5 w-3.5" />
                   </div>
@@ -1978,7 +1998,7 @@ export function ClassDetailModal({
               </div>
               {cls.classTeacher?.profileImageUrl ? (
                 <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm sm:block">
-                  <AvatarImage src={cls.classTeacher.profileImageUrl} alt="Teacher photo" />
+                  <AvatarImage src={cls.classTeacher.profileImageUrl} name={cls.classTeacher.fullName} alt="Teacher photo" initialsClassName="text-base" />
                 </div>
               ) : null}
             </div>
@@ -2229,7 +2249,7 @@ export function ClassDetailModal({
               >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <img
-                    src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`}
+                    src={student.profileImageUrl}
                     alt=""
                     className="h-full w-full object-cover"
                   />
@@ -2266,7 +2286,7 @@ export function StudentDetailModal({
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
   const report = student.reportCards?.[0];
-  const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const avatar = student.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [parentLink, setParentLink] = useState<string | null>(null);
@@ -2468,7 +2488,7 @@ export function StudentDetailModal({
       <>
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} />
+          <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-3xl" />
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -3043,7 +3063,7 @@ export function StudentAdmissionsPanel({
 export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void> }) {
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
-  const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  const avatar = teacher.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -3307,7 +3327,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
       {/* ── Header Card ── */}
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} />
+          <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-3xl" />
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -4235,7 +4255,7 @@ export function SectionCard({
                   <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
                     <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-[#fbf0fe] border border-white">
                       <img
-                        src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`}
+                        src={student.profileImageUrl}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -4270,7 +4290,7 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
           <div className="relative shrink-0">
             <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/row:opacity-100 transition-opacity duration-500" />
             <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-[#8127cf]/30 group-hover/row:shadow-md">
-              <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.email)}`} alt="" className="h-full w-full object-cover" />
+              <AvatarImage name={admin.email} alt="" className="h-full w-full object-cover" />
             </div>
             <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-[#8127cf]"}`} />
           </div>
@@ -4375,7 +4395,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
 }
 
 export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
-  const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  const avatar = teacher.profileImageUrl;
 
   return (
     <div className="sk-rise group/faculty relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
@@ -4385,7 +4405,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           <div className="relative shrink-0">
             <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500" />
             <div className="relative h-12 w-12 bg-[#fbf0fe] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 group-hover/faculty:border-[#8127cf]/20 group-hover/faculty:shadow-md">
-              <AvatarImage src={avatar} />
+              <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-sm" />
             </div>
           </div>
           <div className="min-w-0">
@@ -5915,9 +5935,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-        </div>
+        <SkeletonList rows={4} label="Loading archived students" />
       ) : filtered.length === 0 ? (
         <EmptyInline text="No archived or inactive students — archived profiles appear here" />
       ) : (
@@ -6193,9 +6211,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-        </div>
+        <SkeletonList rows={5} label="Loading leave records" />
       ) : tab === "requests" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -7017,6 +7033,9 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
   const [busy, setBusy] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ roomNumber: "", capacity: "0" });
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -7059,19 +7078,36 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
     }
   };
 
-  const updateRoom = async (id: string, field: "capacity" | "roomNumber", value: string) => {
+  const startEdit = (room: any) => {
+    setDraft({ roomNumber: room.roomNumber, capacity: String(room.capacity ?? "0") });
+    setEditId(room.id);
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!draft.roomNumber.trim()) {
+      toast.error("Room number is required");
+      return;
+    }
+    setSaving(true);
     try {
       const res = await fetch("/api/academic/rooms", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, [field]: field === "capacity" ? Number(value) || 0 : value }),
+        body: JSON.stringify({
+          id,
+          roomNumber: draft.roomNumber.trim(),
+          capacity: Number(draft.capacity) || 0,
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Update failed");
       toast.success("Room updated");
+      setEditId(null);
       setReloadTick((t) => t + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Update failed");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -7150,37 +7186,83 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                 <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-black text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
                   {room.roomNumber.slice(0, 2).toUpperCase()}
                 </div>
-                <button
-                  onClick={() => deleteRoom(room.id)}
-                  disabled={deleting === room.id}
-                  className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                  aria-label="Delete room"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {editId === room.id ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditId(null)}
+                      className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-[#4d4354]/5"
+                      aria-label="Cancel editing"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(room)}
+                      className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                      aria-label="Edit room"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteRoom(room.id)}
+                    disabled={deleting === room.id}
+                    className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                    aria-label="Delete room"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <input
-                className="mt-3 w-full bg-transparent text-lg font-black tracking-tight text-[#1f1a23] outline-none focus:border-b focus:border-[#8127cf]/30"
-                value={room.roomNumber}
-                onChange={(e) => updateRoom(room.id, "roomNumber", e.target.value)}
-                onBlur={(e) => {
-                  if (e.target.value.trim() !== room.roomNumber) updateRoom(room.id, "roomNumber", e.target.value.trim());
-                }}
-              />
-              <div className="mt-2 flex items-center gap-2">
-                <Users className="h-3.5 w-3.5 text-[#4d4354]/40" />
-                <input
-                  type="number"
-                  min={0}
-                  className="w-20 bg-transparent text-sm font-bold text-[#4d4354] outline-none focus:border-b focus:border-[#8127cf]/30"
-                  value={room.capacity}
-                  onChange={(e) => updateRoom(room.id, "capacity", e.target.value)}
-                  onBlur={(e) => {
-                    if (Number(e.target.value) !== room.capacity) updateRoom(room.id, "capacity", e.target.value);
-                  }}
-                />
-                <span className="text-xs font-semibold text-[#4d4354]/40">seats</span>
-              </div>
+              {editId === room.id ? (
+                <div className="mt-3 space-y-2 rounded-2xl border border-[#8127cf]/20 bg-white p-3">
+                  <input
+                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                    value={draft.roomNumber}
+                    onChange={(e) => setDraft((d) => ({ ...d, roomNumber: e.target.value }))}
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      className="h-9 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#4d4354] outline-none focus:border-[#8127cf]/40"
+                      value={draft.capacity}
+                      onChange={(e) => setDraft((d) => ({ ...d, capacity: e.target.value }))}
+                    />
+                    <span className="text-xs font-semibold text-[#4d4354]/40">seats</span>
+                    <div className="ml-auto flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditId(null)}
+                        disabled={saving}
+                        className="rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 hover:bg-[#4d4354]/5 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(room.id)}
+                        disabled={saving}
+                        className="flex cursor-pointer items-center gap-1 rounded-xl bg-[#8127cf] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white hover:bg-[#6a1fb0]"
+                      >
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        {saving ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-3 text-lg font-black tracking-tight text-[#1f1a23]">{room.roomNumber}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Users className="h-3.5 w-3.5 text-[#4d4354]/40" />
+                    <span className="text-sm font-bold text-[#4d4354]">{room.capacity ?? 0}</span>
+                    <span className="text-xs font-semibold text-[#4d4354]/40">seats</span>
+                  </div>
+                </>
+              )}
               {room.note ? <p className="mt-2 text-xs font-semibold text-[#4d4354]/55">{room.note}</p> : null}
               <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">
                 {room._count?.slots ?? 0} timetable slot(s)

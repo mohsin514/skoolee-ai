@@ -5,6 +5,7 @@ import { Download, FileText, Loader2, Receipt, Wallet } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { toast } from "sonner";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface FeeData {
   studentId: string;
@@ -77,9 +78,7 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-      </div>
+      <SkeletonList rows={4} label="Loading fees" />
     );
   }
 

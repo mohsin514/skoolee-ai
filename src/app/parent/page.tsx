@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default function ParentOverviewPage() {
 
   const { student, campus } = data;
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
-  const profileImage = student.profileImageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const profileImage = student.profileImageUrl;
   const latestPct = data.reportCards?.[0]?.percentage;
   const feeOutstanding = data.fees?.reduce((sum, f) => sum + (f.balance || 0), 0) || 0;
 
@@ -128,6 +129,8 @@ export default function ParentOverviewPage() {
             </div>
           </div>
         </div>
+
+        <AcademicCalendar readOnly role="PARENT" />
       </div>
     </section>
   );

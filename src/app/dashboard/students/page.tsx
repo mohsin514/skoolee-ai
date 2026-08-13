@@ -20,6 +20,7 @@ import { AlertCircle, CalendarCheck, Loader2, Plus, Search, Upload, Users } from
 import { toast } from "sonner";
 import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -262,9 +263,7 @@ export default function StudentsPage() {
             </div>
 
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <SkeletonList rows={4} label="Loading classes" />
             ) : classes.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Plus className="mb-3 h-8 w-8 text-muted-foreground" />
@@ -375,9 +374,7 @@ export default function StudentsPage() {
             </div>
 
             {attendanceLoading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-7 w-7 animate-spin text-primary" />
-              </div>
+              <SkeletonList rows={5} label="Loading students" />
             ) : attendanceStudents.length === 0 ? (
               <div className="py-8 text-sm text-muted-foreground">Select a class with students to mark attendance.</div>
             ) : (

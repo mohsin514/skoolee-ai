@@ -163,7 +163,7 @@ export function Header({ title, description, actions }: HeaderProps) {
     window.location.href = "/login";
   };
   const billingHref = user?.dashboardPath === "/super" ? "/super?view=billing" : "/dashboard/billing";
-  const avatarSrc = user?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.fullName || "Account")}`;
+  const avatarSrc = user?.profileImageUrl;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/25 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">

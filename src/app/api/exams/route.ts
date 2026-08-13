@@ -6,6 +6,26 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
 import { assertPermission } from "@/lib/permissions";
+import {
+  canManageExamType,
+  isOfficeRole,
+  TERM_EXAM_DENIED_MESSAGE,
+} from "@/lib/academic/exam-permissions";
+
+/**
+ * assertPermission throws an Error carrying a 403. Without this the caller sees
+ * a bare 500 "Operation failed" and has no idea it was a permissions problem.
+ */
+function permissionAwareError(error: unknown) {
+  const status = (error as { status?: number })?.status;
+  if (status === 403) {
+    return Response.json(
+      { error: (error as Error).message || "Insufficient permissions" },
+      { status: 403 },
+    );
+  }
+  return Response.json({ error: "Operation failed" }, { status: 500 });
+}
 
 function canManageExams(role: string) {
   return role === "SUPER_ADMIN" || role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
@@ -27,11 +47,30 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "campusId required" }, { status: 400 });
     }
 
+    // Families only ever see their own class, and never a draft the office is
+    // still preparing.
+    let audienceScope: Record<string, unknown> = {};
+    if (user.role === "STUDENT" || user.role === "PARENT") {
+      const students = await prisma.student.findMany({
+        where:
+          user.role === "STUDENT"
+            ? { studentUserId: user.userId }
+            : { parentUserId: user.userId },
+        select: { classId: true },
+      });
+      const classIds = Array.from(new Set(students.map((s) => s.classId)));
+      // No linked student record means nothing to show.
+      if (classIds.length === 0) return Response.json({ success: true, exams: [] });
+      // Teachers still need their own drafts, so this only applies to families.
+      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" } };
+    }
+
     const exams = await prisma.exam.findMany({
       where: {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
         ...(classId ? { classId } : {}),
         ...(status ? { status } : {}),
+        ...audienceScope,
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -48,8 +87,6 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Operation failed" }, { status: 500 });
   }
 }
-
-const EXAM_TYPES = ["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL", "CUSTOM"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -94,7 +131,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const examType = body.examType && EXAM_TYPES.includes(body.examType) ? body.examType : "CLASS_TEST";
+    // Teachers own quizzes and class tests; term exams belong to the office.
+    const examType = body.examType || "CLASS_TEST";
+    if (!canManageExamType(user.role, examType)) {
+      return Response.json({ error: TERM_EXAM_DENIED_MESSAGE }, { status: 403 });
+    }
 
     const subjectFilter = parsed.data.subjectId
       ? { id: parsed.data.subjectId }
@@ -142,7 +183,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ success: true, exam }, { status: 201 });
   } catch (error) {
     console.error("[exams] POST failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
+    return permissionAwareError(error);
   }
 }
 
@@ -173,7 +214,19 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ error: "Exam is outside your campus" }, { status: 403 });
     }
 
+    // A teacher may only move their own quizzes and class tests along.
+    if (!canManageExamType(user.role, exam.examType)) {
+      return Response.json({ error: TERM_EXAM_DENIED_MESSAGE }, { status: 403 });
+    }
+
     const target = parsed.data.status;
+    // Review and publish are office decisions regardless of exam type.
+    if ((target === "PRINCIPAL_REVIEWED" || target === "PUBLISHED") && !isOfficeRole(user.role)) {
+      return Response.json(
+        { error: "Only the school office can review and publish results" },
+        { status: 403 },
+      );
+    }
     if (exam.isLocked && (target === "DRAFT" || target === "ACTIVE" || target === "MARKS_ENTRY")) {
       return Response.json({ error: "Locked exams cannot return to editable states" }, { status: 409 });
     }
@@ -219,6 +272,6 @@ export async function PATCH(req: NextRequest) {
     return Response.json({ success: true, exam: updated });
   } catch (error) {
     console.error("[exams] PATCH failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
+    return permissionAwareError(error);
   }
 }

@@ -17,6 +17,7 @@ import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -194,9 +195,7 @@ export default function CommunicationsPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <SkeletonTable rows={6} columns={4} label="Loading messages" />
             ) : (
               <Table>
                 <TableHeader>

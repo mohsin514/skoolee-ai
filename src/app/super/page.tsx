@@ -48,6 +48,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { useSuperAdminData } from "./super-data-context";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -1198,9 +1199,7 @@ function ActivityLogModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalFrame title="Activity Log" onClose={onClose} wide>
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
-        </div>
+        <SkeletonList rows={5} label="Loading activity" />
       ) : logs.length === 0 ? (
         <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>
       ) : (

@@ -58,7 +58,7 @@ export function useTeacherAvailability(enabled = true) {
 
 function teacherAvatar(teacher: { fullName?: string | null; email?: string | null; id: string; profileImageUrl?: string | null }) {
   const seed = teacher.fullName || teacher.email || teacher.id;
-  return teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`;
+  return teacher.profileImageUrl;
 }
 
 /** Case-insensitive check that a teacher is qualified for a given subject. */

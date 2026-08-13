@@ -25,6 +25,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, GraduationCap, Loader2, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface Teacher {
   id: string;
@@ -225,9 +226,7 @@ export default function ClassesPage() {
 
       <div className="p-6 space-y-6">
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <SkeletonList rows={4} label="Loading classes" />
         ) : classes.length === 0 ? (
           <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }}>
             <CardContent className="flex flex-col items-center justify-center py-16">

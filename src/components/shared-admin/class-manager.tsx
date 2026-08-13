@@ -113,11 +113,7 @@ function teacherAvatar(t: {
   id: string;
   profileImageUrl?: string | null;
 }) {
-  const seed = t.fullName || t.email || t.id;
-  return (
-    t.profileImageUrl ||
-    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`
-  );
+  return t.profileImageUrl || undefined;
 }
 
 function sectionSetupStatus(section: any): "ready" | "partial" | "empty" {
@@ -1134,13 +1130,7 @@ function SectionDetailView({
                     key={s.id}
                     className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm"
                   >
-                    <AvatarImage
-                      src={
-                        s.profileImageUrl ||
-                        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s.fullName)}`
-                      }
-                      alt=""
-                    />
+                    <AvatarImage src={s.profileImageUrl} name={s.fullName} alt="" initialsClassName="text-[10px]" />
                   </div>
                 ))}
                 {students.length > 5 ? (
@@ -1309,13 +1299,7 @@ function SectionDetailView({
                 className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-[#cfc2d6]/10 bg-white px-4 py-3 text-left transition-all hover:shadow-md sm:w-auto sm:min-w-[200px]"
               >
                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
-                  <AvatarImage
-                    src={
-                      student.profileImageUrl ||
-                      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`
-                    }
-                    alt=""
-                  />
+                  <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-[10px]" />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-black text-[#1f1a23]">

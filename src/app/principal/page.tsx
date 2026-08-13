@@ -10,7 +10,6 @@ import {
   BookOpen,
   Calendar,
   CalendarCheck,
-  CalendarClock,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -28,6 +27,8 @@ import {
   Heart,
   History,
   LayoutGrid,
+  LayoutDashboard,
+  CalendarRange,
   Loader2,
   MapPin,
   MessageSquare,
@@ -83,7 +84,11 @@ import {
   LibraryPanel,
   InventoryPanel,
 } from "@/components/operations";
-import { TimetablePanel } from "@/components/timetable/TimetablePanel";
+import { TimetableStudio } from "@/components/timetable/TimetableStudio";
+import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
+import { AcademicHub } from "@/components/academic/AcademicHub";
+import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
@@ -94,8 +99,6 @@ import {
   AIPanel,
   ArchivedStudentsPanel,
   ClassDetailModal,
-  ExamCyclesPanel,
-  ExamRoutinePanel,
   HelpModal,
   LeadershipPanel,
   LeaveManagementPanel,
@@ -104,7 +107,6 @@ import {
   RolePermissionsPanel,
   ReportCardsPanel,
   RoomsPanel,
-  SchoolCalendarPanel,
   StudentsPanel,
   StudentSetupPanel,
   TeacherConflictsBanner,
@@ -138,12 +140,13 @@ type PrincipalView =
   | "permissions"
   | "attendance"
   | "year-cycle"
+  | "academic-hub"
+  | "year-setup"
   | "exam-cycles"
   | "fees"
   | "timetable"
   | "class-rooms"
   | "period-setup"
-  | "exam-routine"
   | "school-calendar"
   | "teacher-performance"
   | "report-cards"
@@ -396,48 +399,49 @@ export default function PrincipalDashboard() {
 
   const navItems: SidebarEntry[] = [
     { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
-    { icon: School, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
     {
       icon: GraduationCap, label: "Students", children: [
         { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
-        { icon: PhoneCall, label: "Admission Queries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
-        { icon: Tags, label: "Student Setup", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
-        { icon: ArrowRightLeft, label: "Promote & Archive", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
+        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
+        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
+        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
       ],
     },
     {
       icon: BookOpen, label: "Academics", children: [
-        { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-        { icon: CalendarDays, label: "School Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: Clock, label: "Period Setup", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: DoorOpen, label: "Class Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: CalendarClock, label: "Exam Routine", active: activeView === "exam-routine", onClick: () => setActiveView("exam-routine") },
+        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", onClick: () => setActiveView("academic-hub") },
+        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", onClick: () => setActiveView("year-setup") },
+        { icon: School, label: "Classes & Subjects", active: activeView === "classes", onClick: () => setActiveView("classes") },
+        { icon: History, label: "Academic Years", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
+        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
+        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
+        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
+        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
         { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
       ],
     },
     {
       icon: UserCog, label: "Staff", children: [
-        { icon: Users, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: Plane, label: "Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
+        { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
+        { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
         { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-        { icon: Shield, label: "Role Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
-      ],
-    },
-    {
-      icon: Wrench, label: "Operations", children: [
-        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
-        { icon: Building2, label: "Dormitory", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
       ],
     },
     { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    {
+      icon: Wrench, label: "Operations", children: [
+        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
+        { icon: Building2, label: "Hostel", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
+        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+      ],
+    },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
-    { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: School, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
   ];
   const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
@@ -565,24 +569,40 @@ export default function PrincipalDashboard() {
         {activeView === "permissions" ? <RolePermissionsPanel /> : null}
         {activeView === "year-cycle" ? (
           <div className="space-y-8">
-            <CycleManagementPanel />
+            <CycleManagementPanel
+              campusId={data.campusId}
+              canForceClose
+              onNavigate={(v) => setActiveView(v as PrincipalView)}
+            />
             <div className="border-t border-[#cfc2d6]/15 pt-6">
               <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
               <AcademicYearPanel />
             </div>
           </div>
         ) : null}
-        {activeView === "exam-cycles" ? <ExamCyclesPanel exams={data.recentExams} /> : null}
+        {activeView === "academic-hub" ? (
+          <AcademicHub
+            campusId={data.campusId}
+            onNavigate={(v) => setActiveView(v as PrincipalView)}
+          />
+        ) : null}
+
+        {activeView === "year-setup" ? (
+          <YearSetupWizard
+            campusId={data.campusId}
+            onComplete={() => setActiveView("academic-hub")}
+          />
+        ) : null}
+
+        {activeView === "exam-cycles" ? <ExamCycleManager campusId={data.campusId} /> : null}
         {activeView === "fees" ? <FeeOverviewTab /> : null}
-        {activeView === "timetable" ? <TimetablePanel /> : null}
+        {activeView === "timetable" ? <TimetableStudio campusId={data.campusId} /> : null}
 
         {activeView === "class-rooms" ? <RoomsPanel /> : null}
 
         {activeView === "period-setup" ? <PeriodsPanel /> : null}
 
-        {activeView === "exam-routine" ? <ExamRoutinePanel /> : null}
-
-        {activeView === "school-calendar" ? <SchoolCalendarPanel /> : null}
+        {activeView === "school-calendar" ? <AcademicCalendar campusId={data.campusId} role="PRINCIPAL" /> : null}
         {activeView === "teacher-performance" ? <TeacherPerformancePanel /> : null}
         {activeView === "report-cards" ? (
           <div className="space-y-8">
@@ -764,12 +784,12 @@ function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onRese
 }
 
 function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
-  const avatar = teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`;
+  const avatar = teacher.profileImageUrl;
   return (<div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-5 rounded-[28px] border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] transition-all duration-300 flex items-center justify-between group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><AvatarImage src={avatar} /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{teacher.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p></div></div><div className="flex items-center gap-6 shrink-0"><span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2.5 py-1">{teacher._count?.taughtSubjects || 0} subjects</span><button type="button" onClick={onView} className="h-9 rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md transition-all cursor-pointer">View</button><button type="button" onClick={onRemove} className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 border border-rose-100 shadow-sm hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md transition-all cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Revoke</button></div></div>);
 }
 
 function AdminRow({ admin, onRemove }: { admin: any; onRemove?: () => void }) {
-  return (<div className="bg-gradient-to-br from-[#fbf0fe]/45 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-lg transition-all duration-300 flex items-center justify-between gap-4"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><img src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(admin.email)}`} alt="" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{admin.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider leading-none truncate">{admin.email}</p><p className="mt-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">{formatStatus(admin.role)}</p></div></div>{onRemove ? (<button type="button" onClick={onRemove} className="shrink-0 h-9 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 border border-rose-100 shadow-sm transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md cursor-pointer">Remove</button>) : null}</div>);
+  return (<div className="bg-gradient-to-br from-[#fbf0fe]/45 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-lg transition-all duration-300 flex items-center justify-between gap-4"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><AvatarImage name={admin.fullName || admin.email} alt="" className="h-full w-full object-cover" initialsClassName="text-sm" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{admin.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider leading-none truncate">{admin.email}</p><p className="mt-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">{formatStatus(admin.role)}</p></div></div>{onRemove ? (<button type="button" onClick={onRemove} className="shrink-0 h-9 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 border border-rose-100 shadow-sm transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md cursor-pointer">Remove</button>) : null}</div>);
 }
 
 function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; icon: LucideIcon; busy: boolean; onClick: () => void }) {
@@ -795,7 +815,7 @@ function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate
   student: any; busy: boolean; onClose: () => void; onMove: () => void; onDelete: (student: any) => void; onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
   const report = student.reportCards?.[0];
-  const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const avatar = student.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [parentLink, setParentLink] = useState<string | null>(null);

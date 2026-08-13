@@ -9,6 +9,7 @@ import { DashboardSkeleton, StudentErrorState } from "@/components/student/stude
 import { useStudentData } from "./student-data-context";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { downloadPdfFile } from "@/lib/download";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
 const WEEKDAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -80,7 +81,7 @@ export default function StudentDashboard() {
     { feature: "study_plan", label: "Study Plan", placeholder: "Goal, exam, or available study time" },
     { feature: "school_faq", label: "School FAQ", field: "question" as const, placeholder: "Ask an approved school question" },
   ];
-  const profileImage = user.profileImageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.fullName)}`;
+  const profileImage = user.profileImageUrl;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -180,6 +181,8 @@ export default function StudentDashboard() {
               </div>
             </div>
           )}
+
+          <AcademicCalendar readOnly role="STUDENT" />
 
           <div className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-8" style={{ animationDelay: "400ms" }}>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />

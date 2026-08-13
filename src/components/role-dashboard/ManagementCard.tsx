@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, Clock, Copy, MailPlus, Send, Trash2, UserPlus, X } from "lucide-react";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface ManagedUser {
   id?: string;
@@ -73,10 +74,11 @@ export function ManagementCard({
                     {isPendingInvite ? (
                       <MailPlus className="w-6 h-6 text-[#8127cf]" />
                     ) : (
-                      <img
-                        src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.email)}`}
+                      <AvatarImage
+                        name={user.fullName || user.email}
                         alt=""
                         className="h-full w-full object-cover"
+                        initialsClassName="text-base"
                       />
                     )}
                   </div>

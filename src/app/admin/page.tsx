@@ -9,7 +9,6 @@ import {
   Bus,
   Calendar,
   CalendarCheck,
-  CalendarClock,
   CalendarDays,
   ClipboardList,
   Clock,
@@ -18,7 +17,9 @@ import {
   FileText,
   GraduationCap,
   History,
+  LayoutDashboard,
   LayoutGrid,
+  CalendarRange,
   Package,
   PhoneCall,
   Plane,
@@ -47,7 +48,12 @@ import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
 import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
-import { TimetablePanel } from "@/components/timetable/TimetablePanel";
+import { TimetableStudio } from "@/components/timetable/TimetableStudio";
+import { AcademicHub } from "@/components/academic/AcademicHub";
+import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
+import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
+import { YearEndPanel } from "@/components/academic/YearEndPanel";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -65,9 +71,7 @@ import {
   AIPanel,
   ArchivedStudentsPanel,
   classGroupKey,
-  ExamCyclesPanel,
   ExamDetailModal,
-  ExamRoutinePanel,
   FacultyPanel,
   groupClasses,
   HelpModal,
@@ -78,7 +82,6 @@ import {
   RolePermissionsPanel,
   ReportCardsPanel,
   RoomsPanel,
-  SchoolCalendarPanel,
   StudentDetailModal,
   StudentsPanel,
   StudentSetupPanel,
@@ -103,7 +106,6 @@ type AdminView =
   | "timetable"
   | "class-rooms"
   | "period-setup"
-  | "exam-routine"
   | "school-calendar"
   | "year-cycle"
   | "teacher-performance"
@@ -114,13 +116,17 @@ type AdminView =
   | "dormitory"
   | "inventory"
   | "library"
-;
+  | "academic-hub"
+  | "year-setup"
+  ;
 
 export default function CampusAdminDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<AdminView>("leadership");
+  // Land on the academic overview: it shows where the year stands and what to
+  // do next. Campus Control is account administration, not a daily starting point.
+  const [activeView, setActiveView] = useState<AdminView>("academic-hub");
   const [showClassWizard, setShowClassWizard] = useState(false);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [admissionClassId, setAdmissionClassId] = useState("");
@@ -691,48 +697,55 @@ export default function CampusAdminDashboard() {
     finally { setRemarkGeneratingFor(null); }
   };
 
+  /*
+   * Ordered by how often an admin actually needs each area: academics and
+   * students first, day-to-day operations next, and account administration
+   * last. Campus Control used to sit at the top even though it is a settings
+   * screen most admins open once a term.
+   */
   const navItems: SidebarEntry[] = [
-    { icon: LayoutGrid, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
     {
       icon: GraduationCap, label: "Students", children: [
         { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
-        { icon: PhoneCall, label: "Admission Queries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
-        { icon: Tags, label: "Student Setup", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
-        { icon: ArrowRightLeft, label: "Promote & Archive", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
+        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
+        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
+        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
       ],
     },
     {
       icon: BookOpen, label: "Academics", children: [
-        { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-        { icon: CalendarDays, label: "School Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: Clock, label: "Period Setup", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: DoorOpen, label: "Class Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: CalendarClock, label: "Exam Routine", active: activeView === "exam-routine", onClick: () => setActiveView("exam-routine") },
+        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", onClick: () => setActiveView("academic-hub") },
+        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", onClick: () => setActiveView("year-setup") },
+        { icon: School, label: "Classes & Subjects", active: activeView === "classes", onClick: () => setActiveView("classes") },
+        { icon: History, label: "Academic Years", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
+        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
+        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
+        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
+        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
         { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
       ],
     },
     {
       icon: UserCog, label: "Staff", children: [
-        { icon: Users, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: Plane, label: "Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
+        { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
+        { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
         { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-        { icon: Shield, label: "Role Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
-      ],
-    },
-    {
-      icon: Wrench, label: "Operations", children: [
-        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
-        { icon: Building2, label: "Dormitory", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
       ],
     },
     { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
-    { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    {
+      icon: Wrench, label: "Operations", children: [
+        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
+        { icon: Building2, label: "Hostel", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
+        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+      ],
+    },
+    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: LayoutGrid, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
   ];
 
   if (data?.role === "ADMIN") {
@@ -741,28 +754,32 @@ export default function CampusAdminDashboard() {
     );
   }
   const VIEW_MODULE: Record<string, string> = {
-    "Academic Plan": "timetable",
-    Timetable: "timetable",
-    "Class Rooms": "timetable",
-    "Period Setup": "timetable",
-    "Exam Routine": "exams",
-    "School Calendar": "timetable",
-    "Exam Cycles": "exams",
+    "Academic Overview": "timetable",
+    "Set Up New Year": "timetable",
+    "Classes & Subjects": "timetable",
+    "Class Timetable": "timetable",
+    Rooms: "timetable",
+    "Daily Periods": "timetable",
+    "Holidays & Calendar": "timetable",
+    "Exams & Results": "exams",
     "Report Cards": "reports",
-    "Year Cycle": "students",
+    "Academic Years": "students",
     "Student List": "students",
-    "Admission Queries": "admissions",
-    "Student Setup": "students",
-    "Promote & Archive": "students",
-    "Faculty Hub": "staff",
+    "Admission Enquiries": "admissions",
+    "Student Categories": "students",
+    "Promote Students": "students",
+    Teachers: "staff",
     Attendance: "attendance",
     "Teacher Performance": "staff",
-    Leave: "leave",
+    "Staff Leave": "leave",
+    "Staff Permissions": "staff",
     Fees: "fees",
-    "AI Engine": "ai",
-    "Campus Control": "staff",
+    "AI Assistant": "ai",
+    "Admins & Access": "staff",
+    // Was unmapped and silently fell back to the students module.
+    Billing: "accounts",
     Transport: "staff",
-    Dormitory: "staff",
+    Hostel: "staff",
     Inventory: "staff",
     Library: "staff",
   };
@@ -888,22 +905,7 @@ export default function CampusAdminDashboard() {
           {activeView === "promote-archive" ? (
             <div className="space-y-6">
               <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
-              <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
-                      <GraduationCap className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">Year-End Promotion</h3>
-                      <p className="text-xs font-bold text-[#4d4354]/55">Batch promote students with final grades, pass/fail outcomes and fee carry-forward</p>
-                    </div>
-                  </div>
-                  <BrandButton variant="dark" icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => setActiveView("year-cycle")}>
-                    Open Promotion Wizard
-                  </BrandButton>
-                </div>
-              </div>
+              <YearEndPanel campusId={data.campusId} />
             </div>
           ) : null}
 
@@ -932,8 +934,16 @@ export default function CampusAdminDashboard() {
             <FeeOverviewTab campusId={data.campusId} />
           ) : null}
 
+          {activeView === "academic-hub" ? (
+            <AcademicHub campusId={data.campusId} onNavigate={(v) => setActiveView(v as AdminView)} />
+          ) : null}
+
+          {activeView === "year-setup" ? (
+            <YearSetupWizard campusId={data.campusId} onComplete={() => setActiveView("academic-hub")} />
+          ) : null}
+
           {activeView === "timetable" ? (
-            <TimetablePanel />
+            <TimetableStudio campusId={data.campusId} />
           ) : null}
 
           {activeView === "class-rooms" ? (
@@ -944,17 +954,16 @@ export default function CampusAdminDashboard() {
             <PeriodsPanel />
           ) : null}
 
-          {activeView === "exam-routine" ? (
-            <ExamRoutinePanel />
-          ) : null}
-
           {activeView === "school-calendar" ? (
-            <SchoolCalendarPanel />
+            <AcademicCalendar campusId={data.campusId} />
           ) : null}
 
           {activeView === "year-cycle" ? (
             <div className="space-y-8">
-              <CycleManagementPanel />
+              <CycleManagementPanel
+                campusId={data.campusId}
+                onNavigate={(v) => setActiveView(v as AdminView)}
+              />
               <div className="border-t border-[#cfc2d6]/15 pt-6">
                 <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
                 <AcademicYearPanel />
@@ -967,7 +976,7 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "exam-cycles" ? (
-            <ExamCyclesPanel exams={data.recentExams} onSelect={setSelectedExam} />
+            <ExamCycleManager campusId={data.campusId} />
           ) : null}
 
           {activeView === "report-cards" ? (

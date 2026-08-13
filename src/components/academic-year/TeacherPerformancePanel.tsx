@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/role-dashboard";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface TeacherPerf {
   teacherId: string;
@@ -157,10 +158,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
 
                 {/* Avatar */}
                 <div className="h-11 w-11 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                  <img
-                    src={teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`}
-                    alt="" className="h-full w-full object-cover"
-                  />
+                  <AvatarImage src={teacher.profileImageUrl} name={teacher.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-xs" />
                 </div>
 
                 {/* Info */}

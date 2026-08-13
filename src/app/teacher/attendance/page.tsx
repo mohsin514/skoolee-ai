@@ -525,7 +525,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                 )}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-                      <AvatarImage src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.name)}`} alt={student.name} />
+                      <AvatarImage src={student.profileImageUrl} alt={student.name} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#1d1b20] truncate">{student.name}</p>

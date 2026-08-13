@@ -10,6 +10,7 @@ import {
   GraduationCap, AlertTriangle, BookOpen, Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonBlock } from "@/components/ui/skeleton";
 
 interface AnalyticsData {
   summary: {
@@ -55,9 +56,7 @@ export function AnalyticsCharts() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-      </div>
+      <SkeletonBlock label="Loading chart" />
     );
   }
 

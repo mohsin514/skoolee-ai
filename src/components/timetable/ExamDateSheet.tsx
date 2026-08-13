@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 const WEEKDAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -193,9 +194,7 @@ export function ExamDateSheet({
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]/40" />
-        </div>
+        <SkeletonList rows={3} label="Loading exams" />
       ) : visibleExams.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16">
           <CalendarDays className="mb-4 h-12 w-12 text-[#8127cf]/25" />
@@ -221,9 +220,7 @@ export function ExamDateSheet({
           </div>
 
           {loadingSheet ? (
-            <div className="flex items-center justify-center py-14">
-              <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]/40" />
-            </div>
+            <SkeletonList rows={4} label="Loading date sheet" />
           ) : !hasSheets ? (
             <div className="flex flex-col items-center justify-center py-14">
               <CalendarDays className="mb-3 h-10 w-10 text-[#8127cf]/20" />

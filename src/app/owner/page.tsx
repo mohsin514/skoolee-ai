@@ -50,6 +50,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AddUserModal } from "@/components/owner/provisioning-modals";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import {
   BrandButton,
   EmptyState,
@@ -445,9 +446,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-          </div>
+          <SkeletonList rows={4} label="Loading schools" />
         ) : schools.length === 0 ? (
           <EmptyState
             icon={School}
@@ -717,9 +716,7 @@ function UsersView() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-          </div>
+          <SkeletonList rows={5} label="Loading users" />
         ) : users.length === 0 ? (
           <EmptyState icon={Users} title="No Users Found" description="Try adjusting your filters." />
         ) : (
@@ -884,9 +881,7 @@ function AuditLogView() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-          </div>
+          <SkeletonList rows={5} label="Loading audit log" />
         ) : logs.length === 0 ? (
           <EmptyState icon={FileText} title="No Audit Entries" description="No actions recorded in this time period." />
         ) : (
@@ -1084,9 +1079,7 @@ function SessionsView() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-          </div>
+          <SkeletonList rows={4} label="Loading sessions" />
         ) : sessions.length === 0 ? (
           <EmptyState icon={Lock} title="No Sessions" description="No sessions found with the current filter." />
         ) : (
@@ -1611,9 +1604,7 @@ function PaymentSettingsView() {
 
   if (loading) {
     return (
-      <div className="p-8 overflow-y-auto custom-scrollbar flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-      </div>
+      <SkeletonCards count={4} label="Loading billing" />
     );
   }
 

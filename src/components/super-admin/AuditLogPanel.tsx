@@ -20,6 +20,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface AuditEntry {
   id: string;
@@ -162,9 +163,7 @@ export function AuditLogPanel() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-          </div>
+          <SkeletonList rows={5} label="Loading audit log" />
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface TeacherRecord {
   id: string;
@@ -193,10 +194,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
             return (
               <div key={teacher.id} className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${hasEdit ? "bg-[#fbf0fe]/40 border border-[#8127cf]/10" : "bg-white border border-[#cfc2d6]/10 hover:shadow-md"}`}>
                 <div className="h-11 w-11 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                  <img
-                    src={teacher.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(teacher.fullName)}`}
-                    alt="" className="h-full w-full object-cover"
-                  />
+                  <AvatarImage src={teacher.profileImageUrl} name={teacher.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-xs" />
                 </div>
 
                 <div className="flex-1 min-w-0">

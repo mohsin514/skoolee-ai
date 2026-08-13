@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { getYearClosureReport } from "@/lib/academic/year-closure";
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,8 +55,24 @@ export async function POST(req: NextRequest) {
     const campusId = await resolveCampusId(user, rawCampusId);
 
     if (action === "close-year") {
-      const { academicYear } = body;
+      const { academicYear, force } = body;
       if (!academicYear) throw new ApiError("academicYear is required", 400);
+
+      /**
+       * This archives students into history and marks classes COMPLETED, so it
+       * is subject to the same gate as ending the cycle. Without this an admin
+       * could bypass the checklist entirely through the Academic Years screen.
+       */
+      const closure = await getYearClosureReport(campusId, Number(academicYear));
+      if (!closure.canClose) {
+        const isPrincipal = user.role === "SUPER_ADMIN" || user.role === "PRINCIPAL";
+        if (!force || !isPrincipal) {
+          throw new ApiError(
+            `Academic year ${academicYear} is not ready to close. ${closure.blockingReasons.join(" ")}`,
+            409,
+          );
+        }
+      }
 
       const classes = await prisma.class.findMany({
         where: { campusId, academicYear, status: "ACTIVE" },

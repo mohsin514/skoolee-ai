@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -155,9 +156,7 @@ export default function LeavePage() {
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-[#8127cf]" />
-        </div>
+        <SkeletonList rows={4} label="Loading leave requests" />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -14,6 +14,8 @@ import {
   ReportCardDetailModal, StudentDetailModal, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "./teacher-data-context";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
+import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 
 interface TimetableSlot {
   id: string;
@@ -636,6 +638,12 @@ export default function TeacherDashboardHub() {
             </div>
           </div>
         </div>
+
+        {/* ── My Tests & Quizzes ── */}
+        <ExamCycleManager role="TEACHER" />
+
+        {/* ── Academic Calendar ── */}
+        <AcademicCalendar readOnly role="TEACHER" />
 
         {/* ── Class Hubs ── */}
         {classHubs.length > 0 && (

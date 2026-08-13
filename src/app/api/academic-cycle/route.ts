@@ -8,6 +8,12 @@ import {
   resolveCampusId,
   canManageOperations,
 } from "@/lib/api/scope";
+import { getYearClosureReport, getUnclosedPriorCycles } from "@/lib/academic/year-closure";
+
+/** Only these roles may close a year with outstanding work, and only deliberately. */
+function canForceClose(role: string) {
+  return role === "SUPER_ADMIN" || role === "PRINCIPAL";
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,6 +58,17 @@ export async function POST(req: NextRequest) {
       });
       if (existing) throw new ApiError("An active cycle already exists. End or pause it first.");
 
+      // Pausing an unfinished year must not become a back door into the next
+      // one — every earlier year has to be properly closed first.
+      const unclosed = await getUnclosedPriorCycles(campusId, Number(academicYear));
+      if (unclosed.length > 0) {
+        throw new ApiError(
+          `Close ${unclosed.map((c) => c.label).join(", ")} before starting ${label}. ` +
+            "A year can only be closed once marks, report cards and the principal's approval are complete.",
+          409,
+        );
+      }
+
       const cycle = await prisma.academicCycle.create({
         data: {
           campusId,
@@ -82,6 +99,17 @@ export async function POST(req: NextRequest) {
       });
       if (existing && existing.id !== cycleId) {
         throw new ApiError("Another cycle is already active. End or pause it first.");
+      }
+
+      const target = await prisma.academicCycle.findUnique({ where: { id: cycleId } });
+      if (!target) throw new ApiError("Cycle not found", 404);
+
+      const unclosedBefore = await getUnclosedPriorCycles(campusId, target.academicYear);
+      if (unclosedBefore.length > 0) {
+        throw new ApiError(
+          `Close ${unclosedBefore.map((c) => c.label).join(", ")} before activating ${target.label}.`,
+          409,
+        );
       }
 
       const cycle = await prisma.academicCycle.update({
@@ -152,8 +180,44 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "end") {
-      const { cycleId } = body;
+      const { cycleId, force } = body;
       if (!cycleId) throw new ApiError("cycleId required");
+
+      const target = await prisma.academicCycle.findUnique({ where: { id: cycleId } });
+      if (!target) throw new ApiError("Cycle not found", 404);
+
+      /**
+       * Closing is irreversible for the people downstream — report cards become
+       * the permanent record and students get promoted out. Refuse until the
+       * year is genuinely finished.
+       */
+      const report = await getYearClosureReport(campusId, target.academicYear);
+      if (!report.canClose) {
+        if (!force) {
+          throw new ApiError(
+            `${target.label} is not ready to close. ${report.blockingReasons.join(" ")}`,
+            409,
+          );
+        }
+        // A principal may override, but never silently.
+        if (!canForceClose(user.role)) {
+          throw new ApiError(
+            "Only the principal can close a year that still has outstanding work.",
+            403,
+          );
+        }
+        // An override is an exception to the rule, so leave a trace of who made
+        // it and what was unfinished at the time.
+        notify("ACADEMIC_CYCLE_CHANGED", {
+          schoolId: user.schoolId,
+          campusId,
+          actorId: user.userId,
+          actorName: user.fullName,
+          label: target.label,
+          status: "FORCE_CLOSED",
+          note: `Closed with outstanding work: ${report.blockingReasons.join(" ")}`,
+        });
+      }
 
       const cycle = await prisma.academicCycle.update({
         where: { id: cycleId },

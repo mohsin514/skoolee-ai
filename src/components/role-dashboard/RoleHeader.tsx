@@ -95,7 +95,7 @@ export function RoleHeader({
   const toastedNotifIds = useRef<Set<string>>(new Set());
   const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   const displayRole = headerProfile?.roleLabel || userRole;
-  const displayAvatar = headerProfile?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(avatarSeed || displayName)}`;
+  const displayAvatar = headerProfile?.profileImageUrl;
 
   const greeting = (() => {
     const h = new Date().getHours();

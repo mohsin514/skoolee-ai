@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonCards } from "@/components/ui/skeleton";
 
 interface SessionEntry {
   id: string;
@@ -140,9 +141,7 @@ export function SecurityPanel() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" />
-        </div>
+        <SkeletonCards count={4} label="Loading security overview" />
       ) : (
         <>
           {stats && (

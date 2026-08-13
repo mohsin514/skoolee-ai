@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2,
-  Pause, Play, Plus, Power, XCircle,
+  Pause, Play, Plus, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
+import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
 
 interface Cycle {
   id: string;
@@ -27,7 +28,16 @@ const statusConfig: Record<string, { color: string; bg: string; icon: typeof Act
   ENDED: { color: "text-gray-600", bg: "bg-gray-50 border-gray-200/40", icon: XCircle, label: "Ended" },
 };
 
-export function CycleManagementPanel() {
+export function CycleManagementPanel({
+  campusId,
+  canForceClose = false,
+  onNavigate,
+}: {
+  campusId?: string;
+  /** Principals may close a year that still has outstanding work. */
+  canForceClose?: boolean;
+  onNavigate?: (view: string) => void;
+} = {}) {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -160,17 +170,24 @@ export function CycleManagementPanel() {
                 {acting === `pause-${activeCycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                 Pause
               </button>
-              <button
-                onClick={() => doAction("end", activeCycle.id)}
-                disabled={acting !== null}
-                className="flex items-center gap-2 rounded-2xl border border-rose-200/40 bg-rose-50 px-4 py-2.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100 active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                {acting === `end-${activeCycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
-                End Cycle
-              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/*
+        Closing a year is gated on the checklist below rather than a bare
+        "End Cycle" button, so an admin can never close a year that still has
+        marks outstanding or results the principal has not approved.
+      */}
+      {activeCycle && (
+        <YearClosureChecklist
+          campusId={campusId}
+          year={activeCycle.academicYear}
+          canForceClose={canForceClose}
+          onNavigate={onNavigate}
+          onClosed={fetchCycles}
+        />
       )}
 
       {!activeCycle && (

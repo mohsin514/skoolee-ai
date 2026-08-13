@@ -26,6 +26,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SkeletonTable } from "@/components/ui/skeleton";
 
 interface ClassRecord {
   id: string;
@@ -570,9 +571,7 @@ export default function BillingPage({ embedded = false, hideHeader = false }: Bi
         <Card className="sk-rise overflow-hidden border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <SkeletonTable rows={6} columns={4} label="Loading invoices" />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

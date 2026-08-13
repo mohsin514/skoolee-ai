@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
+import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface ClassSummary {
   id: string;
@@ -433,7 +434,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <span className="text-xs font-bold text-[#4d4354]/30">{i + 1}</span>
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                        <img src={record.student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(record.student.fullName)}`} alt="" className="h-full w-full object-cover" />
+                        <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-[11px]" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-[#1d1b20] truncate">{record.student.fullName}</p>

@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     }
 
     const exams = await prisma.exam.findMany({
-      where: { classId },
+      // Never show families an exam the office is still drafting.
+      where: { classId, status: { not: "DRAFT" } },
       select: {
         id: true,
         title: true,

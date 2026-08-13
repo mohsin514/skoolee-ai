@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SkeletonCards } from "@/components/ui/skeleton";
 
 interface ReportCard {
   id: string;
@@ -241,9 +242,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             {loadingExams ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
+              <SkeletonCards count={4} label="Loading exams" />
             ) : (
             <div className="flex flex-wrap gap-3">
               {exams.map((exam) => (

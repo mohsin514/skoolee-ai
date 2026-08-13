@@ -98,7 +98,7 @@ export default function TeacherStudentsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((student: any, index: number) => {
               const report = student.reportCards?.[0];
-              const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+              const avatar = student.profileImageUrl;
               return (
                 <button
                   key={student.id}

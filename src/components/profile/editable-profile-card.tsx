@@ -24,8 +24,9 @@ type EditableProfileCardProps = {
   className?: string;
 };
 
-function fallbackAvatar(name?: string) {
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || "Skoolee User")}`;
+// Initials are rendered by AvatarImage; there is no synthetic photo URL.
+function fallbackAvatar(_name?: string): string | undefined {
+  return undefined;
 }
 
 export function EditableProfileCard({ compact, initialProfile, onSaved, className }: EditableProfileCardProps) {

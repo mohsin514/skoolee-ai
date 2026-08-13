@@ -126,7 +126,7 @@ export function StudentMini({ student }: { student: any }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-        <AvatarImage src={student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`} alt={student.fullName} />
+        <AvatarImage src={student.profileImageUrl} alt={student.fullName} />
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
@@ -510,7 +510,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
 
 export function StudentDetailModal({ student, exams, onClose }: { student: any; exams: any[]; onClose: () => void }) {
   const report = student.reportCards?.[0];
-  const avatar = student.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(student.fullName)}`;
+  const avatar = student.profileImageUrl;
   const latestMarks = (student.marks || []).slice(0, 8);
 
   return (
@@ -596,7 +596,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   const urduTouchedRef = useRef(Boolean(report.remarksUr));
   const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translateSeq = useRef(0);
-  const avatar = report.student?.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(report.student?.fullName || "Student")}`;
+  const avatar = report.student?.profileImageUrl;
 
   useEffect(() => {
     setDetailReport(report);

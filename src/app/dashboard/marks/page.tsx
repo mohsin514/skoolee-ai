@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { SkeletonTable } from "@/components/ui/skeleton";
 
 interface Student {
   id: string;
@@ -481,9 +482,7 @@ export default function MarksEntryPage() {
               </CardHeader>
               <CardContent className="p-0">
                 {isLoadingMarks ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
+                  <SkeletonTable rows={6} columns={4} label="Loading marks" />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
