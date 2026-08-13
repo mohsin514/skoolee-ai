@@ -27,6 +27,7 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
       userName={child?.fullName || "Guardian"}
       userRole={child?.className || "Guardian Console"}
       avatarSeed={child?.fullName || "Parent"}
+      logoUrl={data?.campus?.logoUrl || data?.campus?.school?.logoUrl}
       dashboardHref={link("/parent")}
     >
       {children}

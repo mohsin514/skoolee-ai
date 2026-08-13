@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Calendar, CalendarCheck, Clock, CreditCard, FileText, HelpCircle, LayoutGrid, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
+import { useStudentData } from "./student-data-context";
 
 export function StudentShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { data } = useStudentData();
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -32,6 +34,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
       userName="Student"
       userRole="Student Console"
       avatarSeed="Student"
+      logoUrl={data?.logoUrl}
       dashboardHref="/student"
     >
       {children}

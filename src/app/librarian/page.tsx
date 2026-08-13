@@ -1,16 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, CalendarClock, LayoutGrid, Users } from "lucide-react";
+import {
+  BookOpen,
+  CalendarClock,
+  FolderOpen,
+  LayoutGrid,
+  Package,
+  RotateCcw,
+  Users,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
-import { LibraryPanel } from "@/components/operations";
+import { LibraryPanel, InventoryPanel } from "@/components/operations";
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
 
-type LibrarianView = "dashboard" | "library" | "leave";
+type LibrarianView = "dashboard" | "library" | "inventory" | "leave";
 
 export default function LibrarianPage() {
   const router = useRouter();
@@ -47,6 +55,7 @@ export default function LibrarianPage() {
   const navItems: SidebarEntry[] = [
     { label: "Dashboard", icon: LayoutGrid, active: activeView === "dashboard", onClick: () => setActiveView("dashboard") },
     { label: "Library", icon: BookOpen, active: activeView === "library", onClick: () => setActiveView("library") },
+    { label: "Inventory", icon: Package, active: activeView === "inventory", onClick: () => setActiveView("inventory") },
     { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
   ];
 
@@ -58,6 +67,7 @@ export default function LibrarianPage() {
       userName={data.userName}
       userRole="Librarian"
       avatarSeed={data.userEmail}
+      logoUrl={data.logoUrl}
       dashboardHref="/librarian"
     >
       <section className="flex-1 min-h-0 overflow-y-auto pr-1 pb-8 pt-2">
@@ -68,12 +78,32 @@ export default function LibrarianPage() {
                 <div className="space-y-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">{data.campusName}</p>
                   <h2 className="text-2xl font-black text-[#1f1a23]">Welcome, {data.userName}</h2>
-                  <p className="text-sm text-[#4d4354]/60">Manage books, members, and issue/return for {data.schoolName}.</p>
+                  <p className="text-sm text-[#4d4354]/60">Manage books, members, issue/return, and inventory for {data.schoolName}.</p>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { label: "Library", icon: BookOpen, view: "library" as LibrarianView, desc: "Books, members & issues", color: "from-purple-500 to-violet-600" },
+                  { label: "Inventory", icon: Package, view: "inventory" as LibrarianView, desc: "Items, stores & suppliers", color: "from-blue-500 to-cyan-600" },
+                  { label: "Leave", icon: CalendarClock, view: "leave" as LibrarianView, desc: "Apply & track leave", color: "from-amber-500 to-orange-600" },
+                ].map((card) => (
+                  <button
+                    key={card.label}
+                    onClick={() => setActiveView(card.view)}
+                    className="group relative overflow-hidden rounded-2xl border border-[#cfc2d6]/20 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className={`mb-3 inline-flex rounded-xl bg-gradient-to-br ${card.color} p-2.5 text-white shadow-lg`}>
+                      <card.icon className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm font-bold text-[#1f1a23]">{card.label}</p>
+                    <p className="mt-1 text-xs text-[#4d4354]/50">{card.desc}</p>
+                  </button>
+                ))}
               </div>
             </div>
           ) : null}
           {activeView === "library" ? <LibraryPanel /> : null}
+          {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
         </div>
       </section>

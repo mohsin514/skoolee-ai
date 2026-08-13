@@ -665,7 +665,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [subjects, ledClasses, aiInsights] = await Promise.all([
+  const [subjects, ledClasses, aiInsights, teacherCampus] = await Promise.all([
     prisma.subject.findMany({
       where: { campusId, teacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
@@ -697,6 +697,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
       orderBy: { createdAt: "desc" },
       take: 4,
     }),
+    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { logoUrl: true, school: { select: { logoUrl: true } } } }),
   ]);
 
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
@@ -877,6 +878,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
 
   return {
     teacherName: session.fullName || "Teacher",
+    logoUrl: teacherCampus?.logoUrl || teacherCampus?.school.logoUrl || null,
     subjects,
     ledClasses,
     classHubs,
@@ -1221,6 +1223,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     campusCity: campus?.city || "",
     campusRegId: campus?.regId || "",
     schoolName: campus?.school.name || "Institution",
+    logoUrl: campus?.logoUrl || campus?.school.logoUrl || null,
     currentUserId: session.userId,
     campusId,
     totalStudents,
@@ -1291,7 +1294,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
   ];
 
   const studentInclude = {
-      campus: { select: { id: true, name: true, city: true } },
+      campus: { select: { id: true, name: true, city: true, logoUrl: true, school: { select: { logoUrl: true } } } },
       class: {
         select: {
           id: true,
@@ -1381,6 +1384,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
 
   return {
     profileMissing: !student,
+    logoUrl: student?.campus?.logoUrl || student?.campus?.school?.logoUrl || null,
     user: {
       id: student?.id || account?.id || session.userId,
       fullName: student?.fullName || account?.fullName || "Student",
@@ -1415,8 +1419,8 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
   const campusId = requireCampusId(session);
 
   const [school, campus] = await Promise.all([
-    prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true } }),
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true } }),
+    prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true, logoUrl: true } }),
+    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
   ]);
 
   return {
@@ -1426,6 +1430,7 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
     campusName: campus?.name || "Campus",
     campusCity: campus?.city || "",
     schoolName: school?.name || "Institution",
+    logoUrl: campus?.logoUrl || school?.logoUrl || null,
     campusId,
   };
 });

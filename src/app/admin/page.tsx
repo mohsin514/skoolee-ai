@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Award,
   ArrowRightLeft,
-  Banknote,
   BookOpen,
   Building2,
   Bus,
@@ -16,15 +15,11 @@ import {
   Clock,
   CreditCard,
   DoorOpen,
-  Eye,
   FileText,
   GraduationCap,
   History,
   LayoutGrid,
-  Mail,
-  MessageSquare,
   Package,
-  Phone,
   PhoneCall,
   Plane,
   Receipt,
@@ -50,7 +45,7 @@ import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
-import { FeesPanel } from "@/components/fees/FeesPanel";
+import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
@@ -59,13 +54,8 @@ import { ReportCardDetailModal } from "@/components/teacher/teacher-components";
 import {
   TransportPanel,
   DormitoryPanel,
-  LibraryPanel,
   InventoryPanel,
-  VisitorsPanel,
-  ComplaintsPanel,
-  PostalPanel,
-  PhoneCallsPanel,
-  CertificatesPanel,
+  LibraryPanel,
 } from "@/components/operations";
 import {
   AcademicPanel,
@@ -83,7 +73,6 @@ import {
   LeadershipPanel,
   LeaveManagementPanel,
   MoveStudentModal,
-  PayrollPanel,
   PeriodsPanel,
   RolePermissionsPanel,
   ReportCardsPanel,
@@ -106,7 +95,6 @@ type AdminView =
   | "student-setup"
   | "promote-archive"
   | "leave"
-  | "payroll"
   | "permissions"
   | "attendance"
   | "ai"
@@ -123,13 +111,9 @@ type AdminView =
   | "report-cards"
   | "transport"
   | "dormitory"
-  | "library"
   | "inventory"
-  | "visitors"
-  | "complaints"
-  | "postal"
-  | "phone-calls"
-  | "certificates";
+  | "library"
+;
 
 export default function CampusAdminDashboard() {
   const router = useRouter();
@@ -475,6 +459,9 @@ export default function CampusAdminDashboard() {
   const handleStaffAdded = async () => {
     setShowAddAdminForm(false);
     setShowAddPrincipalForm(false);
+    setShowAddAccountantForm(false);
+    setShowAddLibrarianForm(false);
+    setShowAddReceptionistForm(false);
     await loadData();
   };
 
@@ -706,19 +693,6 @@ export default function CampusAdminDashboard() {
   const navItems: SidebarEntry[] = [
     { icon: LayoutGrid, label: "Campus Control", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
     {
-      icon: BookOpen, label: "Academics", children: [
-        { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: DoorOpen, label: "Class Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: Clock, label: "Period Setup", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: CalendarClock, label: "Exam Routine", active: activeView === "exam-routine", onClick: () => setActiveView("exam-routine") },
-        { icon: CalendarDays, label: "School Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
-        { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-      ],
-    },
-    {
       icon: GraduationCap, label: "Students", children: [
         { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
         { icon: PhoneCall, label: "Admission Queries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
@@ -727,33 +701,36 @@ export default function CampusAdminDashboard() {
       ],
     },
     {
+      icon: BookOpen, label: "Academics", children: [
+        { icon: School, label: "Academic Plan", active: activeView === "classes", onClick: () => setActiveView("classes") },
+        { icon: History, label: "Year Cycle", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
+        { icon: CalendarDays, label: "School Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
+        { icon: Calendar, label: "Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
+        { icon: Clock, label: "Period Setup", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
+        { icon: DoorOpen, label: "Class Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
+        { icon: FileText, label: "Exam Cycles", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
+        { icon: CalendarClock, label: "Exam Routine", active: activeView === "exam-routine", onClick: () => setActiveView("exam-routine") },
+        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
+      ],
+    },
+    {
       icon: UserCog, label: "Staff", children: [
         { icon: Users, label: "Faculty Hub", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
-        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
         { icon: Plane, label: "Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
-        { icon: Banknote, label: "Payroll", active: activeView === "payroll", onClick: () => setActiveView("payroll") },
+        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
         { icon: Shield, label: "Role Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
       ],
     },
-    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
     {
       icon: Wrench, label: "Operations", children: [
         { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
         { icon: Building2, label: "Dormitory", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
         { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
       ],
     },
-    {
-      icon: Phone, label: "Front Desk", children: [
-        { icon: Eye, label: "Visitors", active: activeView === "visitors", onClick: () => setActiveView("visitors") },
-        { icon: MessageSquare, label: "Complaints", active: activeView === "complaints", onClick: () => setActiveView("complaints") },
-        { icon: Mail, label: "Postal", active: activeView === "postal", onClick: () => setActiveView("postal") },
-        { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", onClick: () => setActiveView("phone-calls") },
-        { icon: FileText, label: "Certificates", active: activeView === "certificates", onClick: () => setActiveView("certificates") },
-      ],
-    },
+    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
     { icon: Sparkles, label: "AI Engine", active: activeView === "ai", onClick: () => setActiveView("ai") },
   ];
 
@@ -780,19 +757,13 @@ export default function CampusAdminDashboard() {
     Attendance: "attendance",
     "Teacher Performance": "staff",
     Leave: "leave",
-    Payroll: "payroll",
     Fees: "fees",
     "AI Engine": "ai",
     "Campus Control": "staff",
     Transport: "staff",
     Dormitory: "staff",
-    Library: "staff",
     Inventory: "staff",
-    Visitors: "staff",
-    Complaints: "staff",
-    Postal: "staff",
-    "Phone Calls": "staff",
-    Certificates: "staff",
+    Library: "staff",
   };
   const filteredNavItems: SidebarEntry[] = navItems
     .map((entry) => {
@@ -939,10 +910,6 @@ export default function CampusAdminDashboard() {
           <LeaveManagementPanel campusId={data.campusId} />
         ) : null}
 
-          {activeView === "payroll" ? (
-            <PayrollPanel campusId={data.campusId} />
-          ) : null}
-
           {activeView === "permissions" ? (
             <RolePermissionsPanel />
           ) : null}
@@ -961,7 +928,7 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "fees" ? (
-            <FeesPanel />
+            <FeeOverviewTab campusId={data.campusId} />
           ) : null}
 
           {activeView === "timetable" ? (
@@ -1008,13 +975,8 @@ export default function CampusAdminDashboard() {
 
           {activeView === "transport" ? <TransportPanel /> : null}
           {activeView === "dormitory" ? <DormitoryPanel /> : null}
-          {activeView === "library" ? <LibraryPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
-          {activeView === "visitors" ? <VisitorsPanel /> : null}
-          {activeView === "complaints" ? <ComplaintsPanel /> : null}
-          {activeView === "postal" ? <PostalPanel /> : null}
-          {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
-          {activeView === "certificates" ? <CertificatesPanel /> : null}
+          {activeView === "library" ? <LibraryPanel /> : null}
           {activeView === "billing" ? <BillingPage embedded hideHeader /> : null}
         </div>
       </section>

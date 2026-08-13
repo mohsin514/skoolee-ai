@@ -24,7 +24,7 @@ export function FeeOverviewTab({
   onNavigate,
 }: {
   campusId?: string;
-  onNavigate: (tab: FeeTab) => void;
+  onNavigate?: (tab: FeeTab) => void;
 }) {
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,17 +79,19 @@ export function FeeOverviewTab({
             </div>
             <h3 className="text-lg font-black text-[#1f1a23]">Fee Dashboard</h3>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => onNavigate("structures")}>
-              Structures
-            </BrandButton>
-            <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => onNavigate("invoices")}>
-              Invoices
-            </BrandButton>
-            <BrandButton variant="soft" icon={<Wallet className="w-4 h-4" />} onClick={() => onNavigate("payments")}>
-              Payments
-            </BrandButton>
-          </div>
+          {onNavigate && (
+            <div className="flex flex-wrap gap-2">
+              <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => onNavigate("structures")}>
+                Structures
+              </BrandButton>
+              <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => onNavigate("invoices")}>
+                Invoices
+              </BrandButton>
+              <BrandButton variant="soft" icon={<Wallet className="w-4 h-4" />} onClick={() => onNavigate("payments")}>
+                Payments
+              </BrandButton>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
@@ -175,7 +177,7 @@ export function FeeOverviewTab({
               <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
                 At-Risk Students
               </h4>
-              {summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
+              {onNavigate && summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onNavigate("reports")}
@@ -232,13 +234,15 @@ export function FeeOverviewTab({
               </div>
               <h4 className="text-sm font-black text-[#1f1a23]">Recent Payments</h4>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate("payments")}
-              className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-            >
-              View All
-            </button>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate("payments")}
+                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
+              >
+                View All
+              </button>
+            )}
           </div>
           <div className="space-y-2">
             {summary.recentPayments.slice(0, 5).map((p) => (

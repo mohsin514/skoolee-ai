@@ -76,6 +76,7 @@ export default function ReceptionistPage() {
       userName={data.userName}
       userRole="Receptionist"
       avatarSeed={data.userEmail}
+      logoUrl={data.logoUrl}
       dashboardHref="/receptionist"
     >
       <section className="flex-1 min-h-0 overflow-y-auto pr-1 pb-8 pt-2">

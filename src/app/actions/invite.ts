@@ -127,7 +127,8 @@ async function getRequestBaseUrl() {
 
 export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role))) {
+  const canInvite = session && (session.role === 'SUPER_ADMIN' || isCampusAdminRole(session.role) || session.role === 'PRINCIPAL');
+  if (!canInvite) {
     throw new Error('403 Forbidden');
   }
   await assertSchoolOperational(session.schoolId);
@@ -138,7 +139,7 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   const targetCampusId = valid.campusId || session.campusId;
 
   // Non-super callers may only invite staff into their own campus.
-  if (isCampusAdminRole(session.role) && targetCampusId !== session.campusId) {
+  if ((isCampusAdminRole(session.role) || session.role === 'PRINCIPAL') && targetCampusId !== session.campusId) {
     throw new Error("You can only invite staff to your own campus");
   }
 
@@ -253,7 +254,7 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
 export async function removeStaff(userId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role))) {
+  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
     throw new Error('403 Forbidden');
   }
   await assertSchoolOperational(session.schoolId);
@@ -297,7 +298,7 @@ export async function removeStaff(userId: string) {
 
 export async function cancelInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role))) {
+  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
     throw new Error('403 Forbidden');
   }
   await assertSchoolOperational(session.schoolId);
@@ -324,7 +325,7 @@ export async function cancelInvitation(inviteId: string) {
 
 export async function resendInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role))) {
+  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
     throw new Error('403 Forbidden');
   }
   await assertSchoolOperational(session.schoolId);

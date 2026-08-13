@@ -38,6 +38,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
         userName={teacherName}
         userRole="Faculty Console"
         avatarSeed={teacherName}
+        logoUrl={data?.logoUrl}
         dashboardHref="/teacher"
       >
         <CycleGate>

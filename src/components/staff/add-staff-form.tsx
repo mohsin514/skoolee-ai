@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { addStaff } from "@/app/actions/addStaff";
+import { inviteStaff } from "@/app/actions/invite";
 
 interface AddStaffFormProps {
   role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST";
@@ -59,11 +59,11 @@ const emptyForm = {
 type FormData = typeof emptyForm;
 
 const ROLE_LABELS: Record<string, { title: string; eyebrow: string; submitLabel: string }> = {
-  CAMPUS_ADMIN: { title: "Add New Admin", eyebrow: "Campus Administration", submitLabel: "Add Admin" },
-  PRINCIPAL: { title: "Appoint Principal", eyebrow: "Academic Leadership", submitLabel: "Appoint Principal" },
-  ACCOUNTANT: { title: "Add Accountant", eyebrow: "Finance Team", submitLabel: "Add Accountant" },
-  LIBRARIAN: { title: "Add Librarian", eyebrow: "Library Staff", submitLabel: "Add Librarian" },
-  RECEPTIONIST: { title: "Add Receptionist", eyebrow: "Front Desk", submitLabel: "Add Receptionist" },
+  CAMPUS_ADMIN: { title: "Invite Admin", eyebrow: "Campus Administration", submitLabel: "Send Invitation" },
+  PRINCIPAL: { title: "Invite Principal", eyebrow: "Academic Leadership", submitLabel: "Send Invitation" },
+  ACCOUNTANT: { title: "Invite Accountant", eyebrow: "Finance Team", submitLabel: "Send Invitation" },
+  LIBRARIAN: { title: "Invite Librarian", eyebrow: "Library Staff", submitLabel: "Send Invitation" },
+  RECEPTIONIST: { title: "Invite Receptionist", eyebrow: "Front Desk", submitLabel: "Send Invitation" },
 };
 
 export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
@@ -112,16 +112,28 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
     setIsSubmitting(true);
     try {
-      await addStaff({
-        ...form,
-        dateOfBirth: form.dateOfBirth || undefined,
+      await inviteStaff({
+        email: form.email.trim().toLowerCase(),
+        fullName: form.fullName.trim(),
         role,
+        profile: {
+          fullName: form.fullName.trim(),
+          phone: form.phone.trim() || undefined,
+          cnic: form.cnic.trim() || undefined,
+          dateOfBirth: form.dateOfBirth || undefined,
+          gender: form.gender || undefined,
+          address: form.address.trim() || undefined,
+          city: form.city.trim() || undefined,
+          province: form.province || undefined,
+          postalCode: form.postalCode.trim() || undefined,
+          emergencyContact: form.emergencyContact.trim() || undefined,
+          emergencyPhone: form.emergencyPhone.trim() || undefined,
+        },
       });
-      const label = ROLE_LABELS[role]?.submitLabel || "Add Staff";
-      toast.success(`${label} added successfully`);
+      toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
       onSuccess();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add staff member");
+      toast.error(error instanceof Error ? error.message : "Could not send invitation");
     } finally {
       setIsSubmitting(false);
     }
@@ -383,7 +395,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-bold text-amber-700">
-                  Default password <span className="font-black">skoolee123</span> will be set. The {role === "PRINCIPAL" ? "principal" : "admin"} should change it on first login.
+                  An invitation email will be sent. They must click the invite link, set their password, and complete onboarding.
                 </p>
               </div>
             </div>
