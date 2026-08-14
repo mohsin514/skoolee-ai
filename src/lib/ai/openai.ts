@@ -1,13 +1,18 @@
 import OpenAI from "openai";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { getPlanLimits } from "@/config/plans";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 import { transliterateToUrdu } from "@/lib/urdu";
+import { assertNoPII, Pseudonymizer } from "./pseudonymize";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
+
+// Providers that run off our own infrastructure. Everything else is a remote
+// third party and only ever receives pseudonymized, PII-scanned text.
+const LOCAL_PROVIDERS = new Set<AIProvider>(["ollama"]);
 type ChatRole = "system" | "user" | "assistant";
 
 interface ChatMessage {
@@ -74,7 +79,13 @@ function providerOrder() {
   const configuredProvider = normalizeProvider(process.env.AI_PROVIDER);
   if (configuredProvider !== "auto") return [configuredProvider];
 
-  const configuredOrder = (process.env.AI_PROVIDER_ORDER || "pollinations,ollama")
+  // Default to OpenAI: it is contractually bound (DPA, no training on API
+  // data by default). The free public pollinations endpoint is deliberately
+  // NOT in the default chain — it has no data-processing agreement and must
+  // never be the fallback for children's data. It can still be selected
+  // explicitly via AI_PROVIDER / AI_PROVIDER_ORDER, and even then only ever
+  // receives pseudonymized text (see completeWithProvider's egress scan).
+  const configuredOrder = (process.env.AI_PROVIDER_ORDER || "openai")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
@@ -287,6 +298,15 @@ async function completeWithProvider(
     maxTokens: number;
   }
 ) {
+  // Last line of defence before data leaves our infrastructure: if any
+  // message still carries a phone/email/CNIC, refuse the send. Local
+  // providers (Ollama) run on our own boxes, so they are exempt.
+  if (!LOCAL_PROVIDERS.has(provider)) {
+    for (const message of input.messages) {
+      assertNoPII(message.content, `${provider} request`);
+    }
+  }
+
   switch (provider) {
     case "openai":
       return completeWithOpenAI(input);
@@ -380,7 +400,7 @@ export async function ensureAICreditsAvailable(schoolId: string, credits = 1) {
 
 export async function consumeAICreditAndLog<T = null>(
   input: AIUsageRecordInput,
-  afterLog?: (tx: Prisma.TransactionClient) => Promise<T>
+  afterLog?: (tx: TxClient) => Promise<T>
 ) {
   const credits = input.credits ?? 1;
 
@@ -462,7 +482,16 @@ export async function generateAIDraft({
 export async function generateRemark(
   request: AIRemarkRequest
 ): Promise<AIRemarkResponse> {
-  const prompt = buildRemarkPrompt(request);
+  // The student's real name is the identifier here. Swap it for a token
+  // before the prompt is built, and put it back in the model's reply. The
+  // model writes about "[STUDENT_1]"; the school user only ever sees the
+  // real name.
+  const pseudonymizer = new Pseudonymizer();
+  const safeRequest: AIRemarkRequest = {
+    ...request,
+    studentName: pseudonymizer.token(request.studentName, "STUDENT"),
+  };
+  const prompt = buildRemarkPrompt(safeRequest);
 
   const result = await completeChat({
     messages: [
@@ -480,9 +509,12 @@ export async function generateRemark(
     maxTokens: 500,
   });
 
+  // Restore the real student name in the generated draft.
+  const text = pseudonymizer.unmask(result.text);
+
   if (request.language === "both") {
-    const parts = result.text.split("---").map((s) => s.trim()).filter(Boolean);
-    const remarkEn = parts[0] || result.text;
+    const parts = text.split("---").map((s) => s.trim()).filter(Boolean);
+    const remarkEn = parts[0] || text;
     const remarkUr = parts[1] || transliterateToUrdu(remarkEn);
     return {
       remarkEn,
@@ -494,8 +526,8 @@ export async function generateRemark(
   }
 
   return {
-    remarkEn: request.language === "en" ? result.text : undefined,
-    remarkUr: request.language === "ur" ? result.text : undefined,
+    remarkEn: request.language === "en" ? text : undefined,
+    remarkUr: request.language === "ur" ? text : undefined,
     tokensUsed: result.tokensUsed,
     model: result.model,
     promptVersion: AI_PROMPT_VERSION,

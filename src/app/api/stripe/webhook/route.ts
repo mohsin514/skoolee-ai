@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
 import { getPlanLimits, normalizePlan } from "@/config/plans";
 import { stripe } from "@/lib/stripe/server";
 import {
@@ -85,6 +86,15 @@ async function suspendByCustomer(customerId: string | null) {
 }
 
 export async function POST(req: NextRequest) {
+  // Gateway callbacks carry no session; the signature check inside is
+  // what authenticates them, and the school is resolved from the
+  // gateway's own identifiers rather than from a logged-in user.
+  return runUnscoped("stripe webhook: no session, school resolved from subscription/customer id", () =>
+    handleWebhook(req)
+  );
+}
+
+async function handleWebhook(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const signature = req.headers.get("stripe-signature");
 

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { createConnectAccount, createConnectOnboardingLink, appUrl } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,7 @@ function readValue(config: { value: Prisma.JsonValue } | null): Record<string, u
 
 export async function GET() {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const config = await prisma.platformConfig.findUnique({ where: { key: CONFIG_KEY } });
     const value = readValue(config);
@@ -39,8 +38,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const body = await req.json();
     const { action } = body;

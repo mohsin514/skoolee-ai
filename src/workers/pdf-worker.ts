@@ -1,12 +1,15 @@
 import { Worker, Job } from "bullmq";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { generateReportCardPdf } from "@/lib/academic/pdf";
 import { generateReportCardsForLockedExam } from "@/lib/academic/report-cards";
 import { notifyReportCardsGenerated } from "@/lib/notifications/automation";
 import type { PdfJobData } from "@/lib/queue/queues";
 
 type BulkPdfJobData = Partial<PdfJobData> & {
+  /** Owning school. Required: the worker has no session to derive it from. */
+  tenantId: string;
   examId: string;
   campusId?: string;
 };
@@ -14,6 +17,16 @@ type BulkPdfJobData = Partial<PdfJobData> & {
 const worker = new Worker<BulkPdfJobData>(
   "pdf-generation",
   async (job: Job<BulkPdfJobData>) => {
+    // A queue job has no session, so the school travels on the job payload.
+    return runWithTenantContext({ schoolId: job.data.tenantId }, () => processPdfJob(job));
+  },
+  {
+    connection: redis,
+    concurrency: 2,
+  }
+);
+
+async function processPdfJob(job: Job<BulkPdfJobData>) {
     const { examId, reportCardId } = job.data;
 
     if (reportCardId) {
@@ -45,12 +58,7 @@ const worker = new Worker<BulkPdfJobData>(
     }
 
     return { generated, total: reportCards.length };
-  },
-  {
-    connection: redis,
-    concurrency: 2,
-  }
-);
+}
 
 worker.on("completed", (job) => {
   console.log(`[PDF Worker] Job ${job.id} completed`);

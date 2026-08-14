@@ -2,6 +2,7 @@ import { Worker, Job } from "bullmq";
 import type { Prisma } from "@prisma/client";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { consumeAICreditAndLog, ensureAICreditsAvailable, generateRemark, getAIModel } from "@/lib/ai/openai";
 import { isLockedStatus } from "@/lib/academic/report-cards";
 import type { RemarkJobData } from "@/lib/queue/queues";
@@ -13,6 +14,17 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
 const worker = new Worker<RemarkJobData>(
   "ai-remarks",
   async (job: Job<RemarkJobData>) => {
+    const { tenantId, userId } = job.data;
+    // A queue job has no session, so the school travels on the job payload.
+    return runWithTenantContext({ schoolId: tenantId, userId }, () => processRemark(job));
+  },
+  {
+    connection: redis,
+    concurrency: 3,
+  }
+);
+
+async function processRemark(job: Job<RemarkJobData>) {
     const { tenantId, userId, studentId, examId, language, tone } = job.data;
 
     await ensureAICreditsAvailable(tenantId);
@@ -129,12 +141,7 @@ const worker = new Worker<RemarkJobData>(
     );
 
     return { remarkEn: result.remarkEn, remarkUr: result.remarkUr };
-  },
-  {
-    connection: redis,
-    concurrency: 3,
-  }
-);
+}
 
 worker.on("completed", (job) => {
   console.log(`[Remark Worker] Job ${job.id} completed`);

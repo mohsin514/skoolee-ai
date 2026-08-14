@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
 import { applySchoolPlan } from "@/lib/billing/entitlements";
 
@@ -10,6 +11,15 @@ export const dynamic = "force-dynamic";
 // Supports both plan purchases (schoolId + plan) and fee payments (orderRef).
 
 export async function POST(req: NextRequest) {
+  // Gateway callbacks carry no session; the signature check inside is
+  // what authenticates them, and the school is resolved from the
+  // gateway's own identifiers rather than from a logged-in user.
+  return runUnscoped("safepay sandbox simulate: no session, school resolved from order ref", () =>
+    handleWebhook(req)
+  );
+}
+
+async function handleWebhook(req: NextRequest) {
   if (process.env.NODE_ENV === "production" && !process.env.SAFEPAY_SANDBOX) {
     return Response.json({ error: "Not available in production" }, { status: 403 });
   }

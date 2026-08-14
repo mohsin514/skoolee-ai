@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
+import { createVerificationToken } from "@/lib/auth/verification";
 import { sendVerificationEmail } from "@/lib/email";
 
 export const SignupStep1Schema = z.object({
@@ -49,30 +51,43 @@ export function signupError(error: unknown, fallback = "Registration failed") {
 export async function saveSignupStep1(data: SignupStep1Input): Promise<SignupResult> {
   const valid = SignupStep1Schema.parse(data);
 
-  const existing = await prisma.pendingRegistration.findFirst({
-    where: { email: valid.email },
+  // Self-serve signup runs before any school exists, so there is no tenant
+  // to scope to. Everything touched here is keyed by the applicant's email.
+  return runUnscoped("signup step 1: no school exists yet", async () => {
+
+    const existing = await prisma.pendingRegistration.findFirst({
+      where: { email: valid.email },
+    });
+
+    if (existing) {
+      await prisma.pendingRegistration.update({
+        where: { id: existing.id },
+        data: { registrationType: valid.registrationType },
+      });
+    } else {
+      await prisma.pendingRegistration.create({
+        data: {
+          email: valid.email,
+          registrationType: valid.registrationType,
+        },
+      });
+    }
+
+    return { success: true };
   });
-
-  if (existing) {
-    await prisma.pendingRegistration.update({
-      where: { id: existing.id },
-      data: { registrationType: valid.registrationType },
-    });
-  } else {
-    await prisma.pendingRegistration.create({
-      data: {
-        email: valid.email,
-        registrationType: valid.registrationType,
-      },
-    });
-  }
-
-  return { success: true };
 }
 
 export async function completeSignupStep2(data: SignupStep2Input): Promise<SignupResult> {
   const valid = SignupStep2Schema.parse(data);
 
+  // This call creates the school, so it necessarily runs before a tenant
+  // exists. Uniqueness checks below are platform-wide by design.
+  return runUnscoped("signup step 2: creates the school itself", () =>
+    createSchoolAndOwner(valid)
+  );
+}
+
+async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResult> {
   const pending = await prisma.pendingRegistration.findUnique({
     where: { email: valid.email },
   });
@@ -123,14 +138,16 @@ export async function completeSignupStep2(data: SignupStep2Input): Promise<Signu
     return createdUser;
   });
 
-  const token = randomUUID();
+  // Signed, expiring, and bound to this user — the link is the only thing
+  // /api/auth/verify will accept.
+  const token = await createVerificationToken(user.id);
   try {
     const delivery = await sendVerificationEmail(user.email, user.id, token);
     if ("bypass" in delivery && delivery.bypass && process.env.NODE_ENV !== "production") {
       return {
         success: true,
         warning: `Email delivery is disabled in development. Verify your account here: ${
-          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/verify?id=${user.id}&token=${token}`
+          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/verify?token=${token}`
         }`,
         user: { id: user.id, email: user.email },
       };

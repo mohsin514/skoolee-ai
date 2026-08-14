@@ -1,12 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const [
       schoolCount,

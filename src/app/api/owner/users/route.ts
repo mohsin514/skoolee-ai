@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import bcrypt from "bcryptjs";
 import { logSuperAdminAction } from "@/lib/audit";
 import { isUserRole, type UserRole } from "@/lib/roles";
@@ -16,8 +16,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const { searchParams } = new URL(req.url);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
@@ -85,8 +84,7 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const actor = await requireAuthUser({ allowSuspended: true });
-    if (actor.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const actor = await requirePlatformOwner();
 
     const body = await req.json();
 

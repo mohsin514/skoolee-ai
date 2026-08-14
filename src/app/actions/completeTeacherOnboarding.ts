@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { enterTenantContext } from "@/lib/db/tenant-context";
 
 export async function getTeacherOnboardingSession() {
   const cookieStore = await cookies();
@@ -15,6 +16,8 @@ export async function getTeacherOnboardingSession() {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
     if (payload.role !== "TEACHER") return { redirect: true, role: payload.role as string };
+
+    enterTenantContext({ schoolId: String(payload.schoolId), userId: String(payload.userId || "") });
 
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
@@ -58,6 +61,7 @@ export async function completeTeacherOnboarding(data: {
   if (payload.onboardingComplete) throw new Error("Onboarding already completed");
 
   const userId = String(payload.userId);
+  enterTenantContext({ schoolId: String(payload.schoolId), userId });
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },

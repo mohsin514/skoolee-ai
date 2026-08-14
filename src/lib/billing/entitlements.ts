@@ -1,10 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { PLANS, PLAN_ORDER, canUseFeature, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
 import type { PlanDetails } from "@/types";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { PlanType } from "@/types";
 
-type DbClient = typeof prisma | Prisma.TransactionClient;
+type DbClient = typeof prisma | TxClient;
 type LimitMetric = "students" | "teachers" | "campuses";
 
 const ACTIVE_SCHOOL_STATUSES = new Set(["ACTIVE", "TRIAL"]);

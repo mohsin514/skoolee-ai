@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { SignJWT, jwtVerify } from "jose";
+import { runUnscoped } from "@/lib/db/tenant-context";
 
 const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "parent-portal-secret");
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
@@ -16,14 +17,20 @@ export async function POST(req: NextRequest) {
         id: studentId,
         campus: { schoolId: user.schoolId },
       },
-      select: { id: true, guardianWhatsapp: true, guardianPhone: true },
+      select: { id: true, schoolId: true, guardianWhatsapp: true, guardianPhone: true },
     });
 
     if (!student) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
-    const token = await new SignJWT({ studentId: student.id, type: "parent_portal" })
+    // The school travels in the token so parent-portal requests, which have
+    // no session, can still be bound to a tenant on the way in.
+    const token = await new SignJWT({
+      studentId: student.id,
+      schoolId: student.schoolId,
+      type: "parent_portal",
+    })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime(`${THIRTY_DAYS}s`)
       .setIssuedAt()
@@ -43,13 +50,33 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function verifyParentToken(token: string): Promise<{ studentId: string } | null> {
+export async function verifyParentToken(
+  token: string
+): Promise<{ studentId: string; schoolId: string } | null> {
   try {
     const { payload } = await jwtVerify(token, SECRET);
     if (payload.type !== "parent_portal" || typeof payload.studentId !== "string") {
       return null;
     }
-    return { studentId: payload.studentId };
+
+    const studentId = payload.studentId;
+    if (typeof payload.schoolId === "string" && payload.schoolId) {
+      return { studentId, schoolId: payload.schoolId };
+    }
+
+    // Tokens issued before the school was embedded. Resolve it once from the
+    // student the token already names — the token is the authority for which
+    // student that is, so this reads exactly one row.
+    const student = await runUnscoped(
+      "parent portal: resolve school for a legacy token",
+      () =>
+        prisma.student.findUnique({
+          where: { id: studentId },
+          select: { schoolId: true },
+        })
+    );
+
+    return student ? { studentId, schoolId: student.schoolId } : null;
   } catch {
     return null;
   }

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import { generateAIDraft } from "@/lib/ai/openai";
+import { Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +58,14 @@ export async function POST(req: NextRequest) {
 async function handleParentMessage(phone: string, message: string) {
   const normalizedPhone = phone.replace(/^\+/, "");
 
-  const student = await prisma.student.findFirst({
+  // A parent's phone number is not tied to a known school until we find their
+  // child, so this lookup legitimately spans every school. It is safe: the
+  // match is by the guardian's own phone number, and nothing is returned to a
+  // caller — the reply goes only to that same number.
+  const student = await runUnscoped(
+    "whatsapp inbound: resolve student by guardian phone across all schools",
+    () =>
+      prisma.student.findFirst({
     where: {
       OR: [
         { guardianWhatsapp: { contains: normalizedPhone } },
@@ -85,7 +94,8 @@ async function handleParentMessage(phone: string, message: string) {
         take: 30,
       },
     },
-  });
+      })
+  );
 
   if (!student) {
     await sendWhatsAppMessage({
@@ -113,8 +123,11 @@ async function handleParentMessage(phone: string, message: string) {
     )
     .join("\n");
 
+  // Tokenize the student's name before the prompt leaves for the model, then
+  // restore it in the reply the parent receives.
+  const pseudonymizer = new Pseudonymizer();
   const context = [
-    `Student: ${student.fullName}`,
+    `Student: ${pseudonymizer.token(student.fullName, "STUDENT")}`,
     `Class: ${[student.class.name, student.class.section].filter(Boolean).join(" - ")}`,
     `School: ${student.campus.name}`,
     `Roll No: ${student.rollNo}`,
@@ -126,7 +139,7 @@ async function handleParentMessage(phone: string, message: string) {
     .join("\n");
 
   try {
-    const result = await generateAIDraft({
+    const draft = await generateAIDraft({
       system:
         "You are SkooleeAI, a school information assistant replying to a parent via WhatsApp. " +
         "Reply in Urdu (Roman Urdu script) with English terms for academic words. " +
@@ -137,28 +150,33 @@ async function handleParentMessage(phone: string, message: string) {
       temperature: 0.5,
       maxTokens: 400,
     });
+    const result = { ...draft, text: pseudonymizer.unmask(draft.text) };
 
     await sendWhatsAppMessage({ to: phone, text: result.text });
 
-    await prisma.parentCommunication.create({
-      data: {
-        schoolId: student.campus.schoolId,
-        studentId: student.id,
-        campusId: student.campusId,
-        channel: "WHATSAPP",
-        templateKey: "WHATSAPP_CHATBOT",
-        recipient: phone,
-        body: message,
-        status: "DELIVERED",
-        metadata: {
-          direction: "INBOUND",
-          phone,
-          responseContent: result.text,
-          aiModel: result.model,
-          tokensUsed: result.tokensUsed,
+    // Now that we know the student's school, log the communication under that
+    // tenant's context so the guard scopes the write correctly.
+    await runWithTenantContext({ schoolId: student.campus.schoolId }, () =>
+      prisma.parentCommunication.create({
+        data: {
+          schoolId: student.campus.schoolId,
+          studentId: student.id,
+          campusId: student.campusId,
+          channel: "WHATSAPP",
+          templateKey: "WHATSAPP_CHATBOT",
+          recipient: phone,
+          body: message,
+          status: "DELIVERED",
+          metadata: {
+            direction: "INBOUND",
+            phone,
+            responseContent: result.text,
+            aiModel: result.model,
+            tokensUsed: result.tokensUsed,
+          },
         },
-      },
-    });
+      })
+    );
   } catch {
     await sendWhatsAppMessage({
       to: phone,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
@@ -19,6 +20,23 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
   if (!options.allowSuspended) {
     await assertSchoolOperational(user.schoolId);
   }
+  return user;
+}
+
+/**
+ * Platform-operator entry point. The APP_OWNER administers every school, so
+ * this is the one logged-in role whose work is legitimately cross-tenant.
+ *
+ * Authenticates, enforces the role, and only then stands the tenant guard
+ * down for the rest of the request. Owner routes must use this rather than
+ * calling runUnscoped()/enterUnscoped() directly, so the bypass can never
+ * be reached without the role check that precedes it.
+ */
+export async function requirePlatformOwner(): Promise<AuthUser> {
+  const user = await requireAuthUser({ allowSuspended: true });
+  if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+
+  enterUnscoped(`platform owner ${user.userId} administering all schools`);
   return user;
 }
 

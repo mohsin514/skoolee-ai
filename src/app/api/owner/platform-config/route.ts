@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -7,8 +7,7 @@ const CONFIG_KEY = "default_plan_pricing";
 
 export async function GET() {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const config = await prisma.platformConfig.findUnique({ where: { key: CONFIG_KEY } });
     const defaults = (config?.value as Record<string, { price?: number | null }> | null) ?? {
@@ -26,8 +25,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const body = await request.json();
     const { pricing } = body as { pricing: Record<string, { price?: number | null }> };

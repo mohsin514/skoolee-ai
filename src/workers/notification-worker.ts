@@ -6,6 +6,7 @@
 import { Worker, Job } from "bullmq";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
@@ -18,6 +19,26 @@ import type { NotificationJobData } from "@/lib/queue/queues";
 const worker = new Worker<NotificationJobData>(
   "notifications",
   async (job: Job<NotificationJobData>) => {
+    const data = job.data;
+    // A queue job has no session, so the school travels on the job payload.
+    // The legacy job shape calls the same field `tenantId`.
+    const schoolId =
+      ("schoolId" in data ? data.schoolId : undefined) ||
+      ("tenantId" in data ? data.tenantId : undefined);
+
+    if (!schoolId) {
+      throw new Error("Notification job is missing schoolId — cannot scope it to a tenant");
+    }
+
+    return runWithTenantContext({ schoolId }, () => processNotification(job));
+  },
+  {
+    connection: redis,
+    concurrency: 5,
+  }
+);
+
+async function processNotification(job: Job<NotificationJobData>) {
     const data = job.data;
 
     if ("kind" in data && data.kind === "RUN_AUTOMATION") {
@@ -106,12 +127,7 @@ const worker = new Worker<NotificationJobData>(
     }
 
     return { status: "SENT" };
-  },
-  {
-    connection: redis,
-    concurrency: 5,
-  }
-);
+}
 
 worker.on("completed", (job) => {
   console.log(`[Notification Worker] Job ${job.id} completed`);

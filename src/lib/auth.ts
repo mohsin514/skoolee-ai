@@ -36,6 +36,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
       ? payload.campusId
       : null;
 
+    // Deliberately does NOT bind tenant context here. enterWith() inside a
+    // function the caller awaits does not propagate back to that caller, so
+    // this silently bound nothing — and could surface a store left over from
+    // unrelated work. The Prisma guard derives the tenant from this same
+    // session cookie instead (resolveTenantFromRequest), which is reliable.
     return {
       userId,
       email: String(payload.email || ""),

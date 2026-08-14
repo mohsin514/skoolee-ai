@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { jwtVerify } from "jose";
 import { logSuperAdminAction, hashToken } from "@/lib/audit";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
@@ -14,11 +15,16 @@ export async function POST() {
     try {
       const { payload } = await jwtVerify(token, JWT_SECRET);
       const userId = payload.userId as string;
+      const schoolId = String(payload.schoolId || "");
       const tHash = hashToken(token);
 
-      prisma.loginSession.updateMany({
-        where: { tokenHash: tHash, isActive: true },
-        data: { isActive: false, logoutAt: new Date() },
+      // getAuthUser() is never called here (the cookie is being torn down),
+      // so the session close-out needs its tenant bound explicitly.
+      runWithTenantContext({ schoolId, userId }, async () => {
+        await prisma.loginSession.updateMany({
+          where: { tokenHash: tHash, isActive: true },
+          data: { isActive: false, logoutAt: new Date() },
+        });
       }).catch(() => {});
 
       if (payload.role === "SUPER_ADMIN") {
