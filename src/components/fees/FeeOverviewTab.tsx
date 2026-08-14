@@ -150,7 +150,7 @@ export function FeeOverviewTab({
                     <div className="mt-1 h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#a855f7] transition-all"
-                        style={{ width: `${cls.collectionRate}%` }}
+                        style={{ width: `${Math.min(100, cls.collectionRate)}%` }}
                       />
                     </div>
                   </div>

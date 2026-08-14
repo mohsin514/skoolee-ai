@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertPermission, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertPermission, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -48,8 +48,25 @@ export async function GET(req: NextRequest) {
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const examId = searchParams.get("examId");
 
+    // Families see the date sheet for their own class only, and never for an
+    // exam the office is still drafting. Without this, any signed-in student
+    // could read every class's papers on the campus.
+    let audienceScope: Record<string, unknown> = {};
+    if (isFamilyRole(user)) {
+      const students = await prisma.student.findMany({
+        where:
+          user.role === "STUDENT"
+            ? { studentUserId: user.userId }
+            : { parentUserId: user.userId },
+        select: { classId: true },
+      });
+      const classIds = Array.from(new Set(students.map((s) => s.classId)));
+      if (classIds.length === 0) return Response.json({ success: true, data: [] });
+      audienceScope = { exam: { classId: { in: classIds }, status: { not: "DRAFT" } } };
+    }
+
     const schedules = await prisma.examSchedule.findMany({
-      where: { campusId, ...(examId ? { examId } : {}) },
+      where: { campusId, ...(examId ? { examId } : {}), ...audienceScope },
       include: scheduleInclude,
       orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
     });

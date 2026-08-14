@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Calendar, CalendarX2, Loader2 } from "lucide-react";
+import { AlertTriangle, Calendar, CalendarX2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
+import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
+import { clashingSlotIds } from "@/lib/timetable/clashes";
 
 interface TeacherSlot {
   id: string;
@@ -51,6 +53,7 @@ export default function TeacherTimetablePage() {
 
   const today = new Date().getDay(); // 0=Sun, 1=Mon...
   const todaySlots = slots.filter((s) => s.dayOfWeek === (today === 0 ? 7 : today) && s.slotType === "CLASS" && s.subject);
+  const clashIds = clashingSlotIds(slots);
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -79,6 +82,8 @@ export default function TeacherTimetablePage() {
         </div>
       ) : (
         <>
+          <ScheduleConflictsBanner slots={slots} />
+
           {/* Today's classes highlight */}
           {todaySlots.length > 0 && (
             <div className="sk-rise rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
@@ -89,16 +94,28 @@ export default function TeacherTimetablePage() {
                 <h3 className="text-xs font-black text-[#1f1a23]">Today&apos;s Classes</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {todaySlots.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 rounded-xl bg-white/80 border border-[#cfc2d6]/10 px-3 py-2">
-                    <span className="text-[10px] font-black text-[#8127cf]">{s.startTime}</span>
-                    <span className="text-[10px] font-bold text-[#4d4354]/30">|</span>
-                    <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
-                    <span className="text-[9px] font-semibold text-[#4d4354]/40">
-                      {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
-                    </span>
-                  </div>
-                ))}
+                {todaySlots.map((s) => {
+                  const clashes = clashIds.has(s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      title={clashes ? "You are booked in another class this period" : undefined}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                        clashes
+                          ? "bg-rose-50 border-rose-200"
+                          : "bg-white/80 border-[#cfc2d6]/10"
+                      }`}
+                    >
+                      {clashes ? <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" /> : null}
+                      <span className={`text-[10px] font-black ${clashes ? "text-rose-600" : "text-[#8127cf]"}`}>{s.startTime}</span>
+                      <span className="text-[10px] font-bold text-[#4d4354]/30">|</span>
+                      <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
+                      <span className="text-[9px] font-semibold text-[#4d4354]/40">
+                        {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

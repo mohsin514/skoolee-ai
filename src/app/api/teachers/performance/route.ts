@@ -86,8 +86,15 @@ export async function GET(req: NextRequest) {
         where: { campusId, classId: { in: allClassIds }, date: { gte: yearStart } },
         _count: { id: true },
       }),
+      // Physical table and column names, not the Prisma model names. Postgres
+      // folds unquoted identifiers to lower case and treats quoted ones
+      // literally, so "Attendance"/"classId" resolved to nothing and the whole
+      // endpoint 500'd with 42P01 — which the panel rendered as "0 teachers".
       prisma.$queryRawUnsafe<Array<{ classId: string; days: bigint }>>(
-        `SELECT "classId", COUNT(DISTINCT "date") as days FROM "Attendance" WHERE "campusId" = $1 AND "classId" = ANY($2) AND "date" >= $3 GROUP BY "classId"`,
+        `SELECT "class_id" AS "classId", COUNT(DISTINCT "date") AS days
+           FROM "attendance"
+          WHERE "campus_id" = $1 AND "class_id" = ANY($2) AND "date" >= $3
+          GROUP BY "class_id"`,
         campusId, allClassIds, yearStart
       ),
       prisma.teacherAttendance.groupBy({

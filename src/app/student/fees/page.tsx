@@ -6,13 +6,6 @@ import { FeesSkeleton, StudentErrorState } from "@/components/student/student-co
 import { useStudentData } from "../student-data-context";
 import { toast } from "sonner";
 
-const dummyInvoices = [
-  { id: "dummy-1", term: "Term 1 Tuition Fee", totalAmount: 45000, status: "PARTIAL", dueDate: "2026-04-15", payments: [{ amountPaid: 25000 }] },
-  { id: "dummy-2", term: "Annual Admission Fee", totalAmount: 12000, status: "PAID", dueDate: "2026-03-01", payments: [{ amountPaid: 12000 }] },
-  { id: "dummy-3", term: "Transport Charges (Q1)", totalAmount: 8000, status: "PARTIAL", dueDate: "2026-05-01", payments: [{ amountPaid: 3000 }] },
-  { id: "dummy-4", term: "Lab & Activity Fee", totalAmount: 5500, status: "PENDING", dueDate: "2026-06-01", payments: [] },
-  { id: "dummy-5", term: "Term 2 Tuition Fee", totalAmount: 45000, status: "UNPAID", dueDate: "2026-07-15", payments: [] },
-];
 
 export default function FeesPage() {
   const { data, loading, error, refetch } = useStudentData();
@@ -39,38 +32,20 @@ export default function FeesPage() {
     }
   };
 
-  const { invoices, balanceDue } = useMemo(() => {
-    const hasRealInvoices = data?.user?.invoices?.length > 0;
-    const invs = hasRealInvoices ? data.user.invoices : dummyInvoices;
-    const bal = hasRealInvoices
-      ? data.user.balanceDue
-      : dummyInvoices.reduce((sum, inv) => {
-          const paid = inv.payments.reduce((p, pm) => p + pm.amountPaid, 0);
-          return sum + Math.max(inv.totalAmount - paid, 0);
-        }, 0);
-    return { invoices: invs, balanceDue: bal };
-  }, [data]);
+  const invoices = data?.user?.invoices ?? [];
 
-  const useDummy = data && !data.user?.invoices?.length;
-
+  // Invoice.totalAmountPaid / balanceDue are the columns the ledger maintains,
+  // and the parent portal already reads them. Re-deriving the totals from the
+  // payment rows here is what let this page drift from the parent view.
   const summary = useMemo(() => {
     if (!invoices.length) return { total: 0, paid: 0, outstanding: 0, overdue: 0, pending: 0 };
     const now = new Date();
     return {
       total: invoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0),
-      paid: invoices.reduce((s: number, i: any) => s + (i.payments?.reduce((p: number, pm: any) => p + pm.amountPaid, 0) || 0), 0),
-      outstanding: invoices.reduce((s: number, i: any) => {
-        const paid = i.payments?.reduce((p: number, pm: any) => p + pm.amountPaid, 0) || 0;
-        return s + Math.max((i.totalAmount || 0) - paid, 0);
-      }, 0),
-      overdue: invoices.filter((i: any) => {
-        const paid = i.payments?.reduce((p: number, pm: any) => p + pm.amountPaid, 0) || 0;
-        return paid < (i.totalAmount || 0) && i.dueDate && new Date(i.dueDate) < now;
-      }).length,
-      pending: invoices.filter((i: any) => {
-        const paid = i.payments?.reduce((p: number, pm: any) => p + pm.amountPaid, 0) || 0;
-        return paid < (i.totalAmount || 0);
-      }).length,
+      paid: invoices.reduce((s: number, i: any) => s + (i.totalAmountPaid || 0), 0),
+      outstanding: invoices.reduce((s: number, i: any) => s + Math.max(i.balanceDue || 0, 0), 0),
+      overdue: invoices.filter((i: any) => (i.balanceDue || 0) > 0 && i.dueDate && new Date(i.dueDate) < now).length,
+      pending: invoices.filter((i: any) => (i.balanceDue || 0) > 0).length,
     };
   }, [invoices]);
 
@@ -91,9 +66,6 @@ export default function FeesPage() {
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Fee Tokens</h2>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Invoices, payment progress, and outstanding balances.</p>
-          {useDummy && (
-            <p className="mt-1 text-[10px] font-semibold text-amber-600 italic">Showing sample data</p>
-          )}
         </div>
       </div>
 
@@ -186,8 +158,8 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
 }
 
 function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean; onPay: () => void }) {
-  const paid = invoice.payments?.reduce((sum: number, payment: any) => sum + payment.amountPaid, 0) || 0;
-  const balance = Math.max((invoice.totalAmount || 0) - paid, 0);
+  const paid = invoice.totalAmountPaid || 0;
+  const balance = Math.max(invoice.balanceDue || 0, 0);
   const progress = invoice.totalAmount ? Math.round(paid / invoice.totalAmount * 100) : 0;
   const isOverdue = invoice.dueDate && new Date(invoice.dueDate) < new Date() && balance > 0;
 
@@ -204,7 +176,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
       <div className="relative p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            <p className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{invoice.term || "Fee invoice"}</p>
+            <p className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : "Fee invoice"}</p>
             <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/45">
               {invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "No due date"}
             </p>

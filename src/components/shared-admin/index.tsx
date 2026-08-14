@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -140,6 +140,19 @@ export function classGroupKey(item: any) {
   return `${item?.academicYear || ""}::${item?.name || ""}`;
 }
 
+/** Minutes from one "HH:MM" to another. 0 if either is unparseable or the
+ *  second is not after the first. */
+function minutesBetween(from: string, to: string) {
+  const parse = (t: string) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t || "");
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const a = parse(from);
+  const b = parse(to);
+  if (a === null || b === null || b <= a) return 0;
+  return b - a;
+}
+
 export function groupClasses(classes: any[]) {
   const groups = new Map<string, ClassGroup>();
 
@@ -166,6 +179,63 @@ export function groupClasses(classes: any[]) {
         String(a.name || "").localeCompare(String(b.name || ""))
     );
 }
+
+/**
+ * Every field is quoted and inner quotes are doubled. The old inline versions
+ * quoted only the name columns, so a class called "Year 1, Blue" or a guardian
+ * name with a quote in it silently shifted every later column.
+ *
+ * A leading =, +, - or @ is prefixed with a quote character so spreadsheets
+ * treat the value as text instead of a formula.
+ */
+function csvCell(value: unknown) {
+  const raw = value === null || value === undefined ? "" : String(value);
+  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+const STUDENT_CSV_COLUMNS: [string, (s: any) => unknown][] = [
+  ["Full Name", (s) => s.fullName],
+  ["Roll No", (s) => s.rollNo],
+  ["Gender", (s) => s.gender || ""],
+  ["Class", (s) => classLabel(s.class)],
+  ["Category", (s) => s.category?.name || ""],
+  ["Group", (s) => s.group?.name || ""],
+  ["Guardian Name", (s) => s.guardianName || ""],
+  ["Guardian Phone", (s) => s.guardianPhone || ""],
+  ["Guardian Email", (s) => s.guardianEmail || ""],
+];
+
+/** Downloads the given students as CSV. Shared by the admin and principal views. */
+export function exportStudentsToCSV(students: any[], campusName?: string) {
+  if (!students.length) {
+    toast.error("Nothing to export — no students match the current filters");
+    return;
+  }
+  const rows = [
+    STUDENT_CSV_COLUMNS.map(([header]) => csvCell(header)).join(","),
+    ...students.map((s) => STUDENT_CSV_COLUMNS.map(([, read]) => csvCell(read(s))).join(",")),
+  ];
+  // The BOM makes Excel read the file as UTF-8, so Urdu names survive.
+  const blob = new Blob(["﻿", rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(campusName || "campus").replace(/\s+/g, "_")}_students.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast.success(`${students.length} student${students.length === 1 ? "" : "s"} exported`);
+}
+
+/** Every non-active roll state, as shown to admins. */
+const ARCHIVED_STATUS_LABELS: Record<string, string> = {
+  inactive: "Inactive",
+  archived: "Archived",
+  transferred: "Transferred",
+  graduated: "Graduated",
+};
 
 export function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -203,7 +273,6 @@ export function LeadershipPanel({
   const principalAssigned = data.principal ? 1 : 0;
   const pendingCount = data.pendingAdminInvitations?.length || 0;
   const opsCount = data.operationsStaff?.length || 0;
-  const totalRoles = adminCount + principalAssigned + pendingCount + opsCount || 1;
 
   const donutData = [
     { name: "Admins", value: adminCount, color: "#8127cf" },
@@ -217,16 +286,21 @@ export function LeadershipPanel({
       <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
-                <LayoutGrid className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">{data.campusName}</p>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#8127cf]">Campus Control</p>
-                <p className="text-[9px] font-semibold text-[#4d4354]/50">Manage the single campus owner workspace, admin access, principal authority, and pending invitations.</p>
-              </div>
+          {/* Eyebrow → title → explanation, in that order, matching the
+              academics overview. It previously led with the campus name in
+              grey and buried the actual heading underneath it at 9px. */}
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <LayoutGrid className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+                Staff · {data.campusName}
+              </p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admins &amp; Access</h2>
+              <p className="mt-0.5 max-w-xl text-xs font-semibold text-[#4d4354]/60">
+                Who runs this campus: admin access, the principal, office staff, and invitations still outstanding.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -283,12 +357,15 @@ export function LeadershipPanel({
                     { label: "Operations", value: opsCount, color: "#3b82f6" },
                     { label: "Pending", value: pendingCount, color: "#f59e0b" },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                    // gap-3 and a shrink-0 value: justify-between alone let the
+                    // widest label ("Operations", uppercase with wide tracking)
+                    // run straight into its number — it read as "OPERATIONS1".
+                    <div key={item.label} className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="truncate text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
                       </div>
-                      <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
+                      <span className="shrink-0 text-xs font-bold text-[#1d1b20]">{item.value}</span>
                     </div>
                   ))}
                 </div>
@@ -1119,7 +1196,7 @@ export function ExamCreateModal({
   };
 
   return (
-    <ModalFrame title="New Exam Cycle" eyebrow="Exams & Grading" onClose={onClose}>
+    <ModalFrame title="New Exam Cycle" eyebrow="Exams & Grading" icon={ClipboardList} onClose={onClose}>
       <div className="space-y-5">
         <FormInput label="Exam Title" value={title} placeholder="e.g. Final Term 2026" onChange={setTitle} />
         <div className="grid grid-cols-2 gap-4">
@@ -1344,55 +1421,278 @@ export function FacultyPanel({
   onCancel: (id: string) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const filtered = teachers.filter((t) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q);
-  });
+  const [facultyFilter, setFacultyFilter] = useState<"all" | "unassigned" | "classTeachers" | "onboarding">("all");
+  const [sortKey, setSortKey] = useState<"name" | "subjects" | "classes">("name");
+
+  const q = searchQuery.trim().toLowerCase();
+  const matches = (value?: string) => Boolean(value?.toLowerCase().includes(q));
+
+  const subjectCount = (t: any) => t._count?.taughtSubjects ?? t.taughtSubjects?.length ?? 0;
+  const classCount = (t: any) => t._count?.ledClasses ?? t.ledClasses?.length ?? 0;
+
+  const filtered = useMemo(() => {
+    const result = teachers.filter((t) => {
+      if (facultyFilter === "unassigned" && subjectCount(t) > 0) return false;
+      if (facultyFilter === "classTeachers" && classCount(t) === 0) return false;
+      if (facultyFilter === "onboarding" && t.onboardingComplete) return false;
+      if (!q) return true;
+      return matches(t.fullName) || matches(t.email) || Boolean(t.phone?.includes(q));
+    });
+    return result.sort((a, b) => {
+      if (sortKey === "subjects") return subjectCount(b) - subjectCount(a);
+      if (sortKey === "classes") return classCount(b) - classCount(a);
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+  }, [teachers, q, facultyFilter, sortKey]);
+
+  /*
+   * Pending invites used to disappear the moment you typed anything, so an
+   * admin searching for the person they had just invited found nothing and
+   * concluded the invite had failed. They are searchable like everyone else,
+   * and only hidden when a filter genuinely does not apply to an invite.
+   */
+  const filteredInvites = useMemo(() => {
+    if (facultyFilter !== "all") return [];
+    if (!q) return pendingInvites;
+    return pendingInvites.filter((i) => matches(i.email) || matches(i.profile?.fullName));
+  }, [pendingInvites, q, facultyFilter]);
+
+  const expiredInvites = pendingInvites.filter((i) => i.expiresAt && new Date() > new Date(i.expiresAt)).length;
+  const unassigned = teachers.filter((t) => subjectCount(t) === 0).length;
+  const onboarding = teachers.filter((t) => !t.onboardingComplete).length;
+
+  const filtersActive = facultyFilter !== "all" || Boolean(q);
+  const nothingToShow = filtered.length === 0 && filteredInvites.length === 0;
 
   if (teachers.length === 0 && pendingInvites.length === 0) {
     return (
       <EmptyState
         icon={Users}
-        title="No faculty records found"
-        description="Invite teachers so subjects and classes can be assigned from the central model."
+        title="No teachers yet"
+        description="Invite your teaching staff. Once they are here you can make them class teachers and assign them subjects, which is what the timetable and marks entry are built on."
         action={<BrandButton onClick={onInvite}>Add Teacher</BrandButton>}
       />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 w-full max-w-xs transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text" placeholder="Search teachers..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
-          />
+    <div className="space-y-6">
+      {/* ── Header: same anatomy as the academics overview ── */}
+      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <Users className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Teachers</h2>
+            </div>
+          </div>
+          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
+            Add Teacher
+          </BrandButton>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
-          Add Teacher
-        </BrandButton>
       </div>
-      {filtered.map((teacher: any) => (
-        <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id)} />
-      ))}
-      {!searchQuery.trim() ? pendingInvites.map((invite: any) => (
-        <PendingFacultyRow
-          key={invite.id}
-          invite={invite}
-          onResend={() => onResend(invite.id)}
-          onCancel={() => onCancel(invite.id)}
+
+      {/* ── At a glance. The last three are chores, so they filter the list. ── */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard
+          icon={Users}
+          label="Teachers on staff"
+          value={teachers.length}
+          tone="violet"
+          active={facultyFilter === "all"}
+          onClick={() => setFacultyFilter("all")}
         />
-      )) : null}
-      {filtered.length === 0 && teachers.length > 0 ? <EmptyInline text="No teachers match your search." /> : null}
+        <MetricCard
+          icon={BookOpen}
+          label="No subjects assigned"
+          value={unassigned}
+          hint={unassigned ? "Tap to filter" : "Everyone is teaching"}
+          tone={unassigned ? "amber" : "emerald"}
+          active={facultyFilter === "unassigned"}
+          onClick={unassigned ? () => setFacultyFilter(facultyFilter === "unassigned" ? "all" : "unassigned") : undefined}
+        />
+        <MetricCard
+          icon={Clock}
+          label="Invites pending"
+          value={pendingInvites.length}
+          hint={expiredInvites ? `${expiredInvites} expired` : pendingInvites.length ? "Awaiting sign-up" : "None outstanding"}
+          tone={expiredInvites ? "amber" : "teal"}
+        />
+        <MetricCard
+          icon={UserCheck}
+          label="Onboarding unfinished"
+          value={onboarding}
+          hint={onboarding ? "Tap to filter" : "All set up"}
+          tone={onboarding ? "amber" : "emerald"}
+          active={facultyFilter === "onboarding"}
+          onClick={onboarding ? () => setFacultyFilter(facultyFilter === "onboarding" ? "all" : "onboarding") : undefined}
+        />
+      </div>
+
+      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px] max-w-xs">
+            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
+            <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text" placeholder="Name, email or phone…" value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#4d4354]/35 transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <FormSelect label="Show" value={facultyFilter} onChange={(v) => setFacultyFilter(v as typeof facultyFilter)}>
+            <option value="all">Everyone</option>
+            <option value="classTeachers">Class teachers only</option>
+            <option value="unassigned">No subjects assigned</option>
+            <option value="onboarding">Onboarding unfinished</option>
+          </FormSelect>
+          <FormSelect label="Sort by" value={sortKey} onChange={(v) => setSortKey(v as typeof sortKey)}>
+            <option value="name">Name (A–Z)</option>
+            <option value="subjects">Most subjects</option>
+            <option value="classes">Most classes led</option>
+          </FormSelect>
+          <div className="pb-1.5 flex items-center gap-2">
+            <StatusPill status={`${filtered.length} of ${teachers.length} shown`} />
+            {filtersActive ? (
+              <button
+                type="button"
+                onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
+                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+              >
+                <X className="h-3 w-3" /> Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {filtered.map((teacher: any) => (
+            <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id)} />
+          ))}
+
+          {filteredInvites.length ? (
+            <>
+              <p className="pt-2 pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                Invited, not signed up yet
+              </p>
+              {filteredInvites.map((invite: any) => (
+                <PendingFacultyRow
+                  key={invite.id}
+                  invite={invite}
+                  onResend={() => onResend(invite.id)}
+                  onCancel={() => onCancel(invite.id)}
+                />
+              ))}
+            </>
+          ) : null}
+
+          {/* Covers the case the old check missed: no matches at all, whether
+              that is teachers, invites, or both. */}
+          {nothingToShow ? (
+            <EmptyInline
+              text={
+                filtersActive
+                  ? "Nobody matches your search and filters. Try clearing them."
+                  : "No teachers to show."
+              }
+            />
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
+
+/**
+ * One headline number, optionally doubling as a filter toggle for the chore it
+ * counts. Mirrors the academics `StatCard` so the students and staff sections
+ * of the admin read as the same product.
+ */
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone = "violet",
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number | string;
+  hint?: string;
+  tone?: "violet" | "teal" | "amber" | "emerald";
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const tones = {
+    violet: "bg-[#f3eeff] text-[#8127cf]",
+    teal: "bg-teal-50 text-teal-600",
+    amber: "bg-amber-50 text-amber-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+  } as const;
+  const interactive = Boolean(onClick);
+  const className = cn(
+    "rounded-[24px] border bg-white p-5 text-left transition-all duration-200",
+    active
+      ? "border-[#8127cf] shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
+      : "border-[#cfc2d6]/25 shadow-sm",
+    interactive ? "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md" : "",
+  );
+  // A card with nothing to do is not a button — rendering it as a disabled one
+  // announced "dimmed button" to screen readers for what is just a number.
+  const Tag = interactive ? "button" : "div";
+  return (
+    <Tag
+      {...(interactive ? { type: "button" as const, onClick, "aria-pressed": Boolean(active) } : {})}
+      className={className}
+    >
+      <span className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", tones[tone])}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{value}</p>
+      <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">{label}</p>
+      {hint ? (
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">{hint}</p>
+      ) : null}
+    </Tag>
+  );
+}
+
+const STUDENT_SORTS = {
+  name: { label: "Name (A–Z)", compare: (a: any, b: any) => (a.fullName || "").localeCompare(b.fullName || "") },
+  roll: { label: "Roll number", compare: (a: any, b: any) => (a.rollNo || "").localeCompare(b.rollNo || "", undefined, { numeric: true }) },
+  newest: {
+    label: "Recently added",
+    compare: (a: any, b: any) =>
+      new Date(b.enrollmentDate || b.createdAt || 0).getTime() - new Date(a.enrollmentDate || a.createdAt || 0).getTime(),
+  },
+  classOrder: {
+    label: "Class, then roll",
+    compare: (a: any, b: any) =>
+      classLabel(a.class).localeCompare(classLabel(b.class), undefined, { numeric: true }) ||
+      (a.rollNo || "").localeCompare(b.rollNo || "", undefined, { numeric: true }),
+  },
+} as const;
+
+type StudentSortKey = keyof typeof STUDENT_SORTS;
 
 export function StudentsPanel({
   students,
@@ -1407,67 +1707,182 @@ export function StudentsPanel({
   onAddStudent: (classId?: string) => void;
   onViewStudent: (student: any) => void;
   onBulkImport?: () => void;
-  onExport?: () => void;
+  /** Receives exactly what the admin is looking at, not the whole roster. */
+  onExport?: (visible: any[]) => void;
 }) {
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(false);
+  const [sortKey, setSortKey] = useState<StudentSortKey>("name");
+  const [perPage, setPerPage] = useState(12);
   const [page, setPage] = useState(1);
-  const perPage = 12;
   const classGroups = groupClasses(classes);
   const selectedGroup = classGroups.find((group) => group.key === classFilter);
-  const filteredStudents = students.filter((student) => {
-    if (sectionFilter !== "all") return student.class?.id === sectionFilter;
-    if (classFilter !== "all") return classGroupKey(student.class) === classFilter;
-    return true;
-  }).filter((student) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      student.fullName?.toLowerCase().includes(q) ||
-      student.rollNo?.toLowerCase().includes(q) ||
-      student.guardianName?.toLowerCase().includes(q) ||
-      student.guardianPhone?.includes(q)
-    );
-  });
+
+  // Category and group tags come off the roster itself — no extra request, and
+  // the filter can only ever offer values that actually match a student.
+  const { categoryOptions, groupOptions } = useMemo(() => {
+    const cats = new Map<string, string>();
+    const grps = new Map<string, string>();
+    for (const s of students) {
+      if (s.category?.id) cats.set(s.category.id, s.category.name);
+      if (s.group?.id) grps.set(s.group.id, s.group.name);
+    }
+    return {
+      categoryOptions: [...cats.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+      groupOptions: [...grps.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+    };
+  }, [students]);
+
+  const missingGuardian = useMemo(
+    () => students.filter((s) => !s.guardianPhone && !s.guardianEmail).length,
+    [students],
+  );
+  const classesCovered = useMemo(
+    () => new Set(students.map((s) => s.class?.id).filter(Boolean)).size,
+    [students],
+  );
+  const noPortalLogin = useMemo(() => students.filter((s) => !s.studentUser?.email).length, [students]);
+
+  const filteredStudents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const result = students.filter((student) => {
+      if (sectionFilter !== "all" && student.class?.id !== sectionFilter) return false;
+      if (sectionFilter === "all" && classFilter !== "all" && classGroupKey(student.class) !== classFilter) return false;
+      if (categoryFilter === "none" && student.category?.id) return false;
+      if (categoryFilter !== "all" && categoryFilter !== "none" && student.category?.id !== categoryFilter) return false;
+      if (groupFilter === "none" && student.group?.id) return false;
+      if (groupFilter !== "all" && groupFilter !== "none" && student.group?.id !== groupFilter) return false;
+      if (onlyMissingGuardian && (student.guardianPhone || student.guardianEmail)) return false;
+      if (!q) return true;
+      return Boolean(
+        student.fullName?.toLowerCase().includes(q) ||
+        student.rollNo?.toLowerCase().includes(q) ||
+        student.guardianName?.toLowerCase().includes(q) ||
+        student.guardianPhone?.includes(q) ||
+        student.guardianEmail?.toLowerCase().includes(q),
+      );
+    });
+    return result.sort(STUDENT_SORTS[sortKey].compare);
+  }, [students, classFilter, sectionFilter, categoryFilter, groupFilter, searchQuery, sortKey, onlyMissingGuardian]);
+
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / perPage));
   const safePage = Math.min(page, totalPages);
+  const firstShown = filteredStudents.length === 0 ? 0 : (safePage - 1) * perPage + 1;
+  const lastShown = Math.min(safePage * perPage, filteredStudents.length);
   const pagedStudents = filteredStudents.slice((safePage - 1) * perPage, safePage * perPage);
 
-  useEffect(() => { setPage(1); }, [classFilter, sectionFilter, searchQuery]);
+  const filtersActive =
+    classFilter !== "all" || sectionFilter !== "all" || categoryFilter !== "all" || groupFilter !== "all" ||
+    onlyMissingGuardian || Boolean(searchQuery.trim());
+
+  const resetFilters = () => {
+    setClassFilter("all");
+    setSectionFilter("all");
+    setCategoryFilter("all");
+    setGroupFilter("all");
+    setOnlyMissingGuardian(false);
+    setSearchQuery("");
+  };
+
+  useEffect(() => { setPage(1); }, [classFilter, sectionFilter, categoryFilter, groupFilter, searchQuery, onlyMissingGuardian, perPage]);
 
   if (students.length === 0) {
     return (
       <EmptyState
         icon={GraduationCap}
-        title="No students linked yet"
-        description="Student profiles will appear here after classes and enrollment records are created."
-        action={<BrandButton onClick={() => onAddStudent()} disabled={classes.length === 0}>Add Student</BrandButton>}
+        title={classes.length === 0 ? "Create a class first" : "No students enrolled yet"}
+        description={
+          classes.length === 0
+            ? "Students are admitted into a class, so there is nothing to enrol them into yet. Create your classes and sections under Academics → Classes & Subjects, then come back here."
+            : "Admit your first student, or bulk-import an existing roster from a spreadsheet."
+        }
+        action={
+          classes.length === 0 ? undefined : (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <BrandButton onClick={() => onAddStudent()}>Add Student</BrandButton>
+              {onBulkImport ? (
+                <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={onBulkImport}>
+                  Bulk Import
+                </BrandButton>
+              ) : null}
+            </div>
+          )
+        }
       />
     );
   }
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <PanelTitle icon={GraduationCap} title="Student Directory" />
-          <div className="flex items-center gap-2">
-            <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
+    <div className="space-y-6">
+      {/* ── Header: who is on the roster, and the things you do to it ── */}
+      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <GraduationCap className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Student Directory</h2>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
               Add Student
             </BrandButton>
             {onBulkImport ? (
-              <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={onBulkImport}>
+              <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={onBulkImport}>
                 Bulk Import
               </BrandButton>
             ) : null}
             {onExport ? (
-              <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={onExport}>
-                Export CSV
+              <BrandButton
+                variant="soft"
+                icon={<Download className="w-4 h-4" />}
+                onClick={() => onExport(filteredStudents)}
+                disabled={filteredStudents.length === 0}
+              >
+                Export {filtersActive ? `${filteredStudents.length} Shown` : "CSV"}
               </BrandButton>
             ) : null}
           </div>
         </div>
+      </div>
+
+      {/* ── At a glance. The last two are clickable because they are chores. ── */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard icon={Users} label="Students on roll" value={students.length} tone="violet" />
+        <MetricCard
+          icon={School}
+          label="Classes with students"
+          value={classesCovered}
+          hint={`of ${classes.length} class${classes.length === 1 ? "" : "es"}`}
+          tone="teal"
+        />
+        <MetricCard
+          icon={PhoneCall}
+          label="No guardian contact"
+          value={missingGuardian}
+          hint={missingGuardian ? (onlyMissingGuardian ? "Showing these only" : "Tap to filter") : "All reachable"}
+          tone={missingGuardian ? "amber" : "emerald"}
+          active={onlyMissingGuardian}
+          onClick={missingGuardian ? () => setOnlyMissingGuardian((v) => !v) : undefined}
+        />
+        <MetricCard
+          icon={Mail}
+          label="No student login"
+          value={noPortalLogin}
+          hint={noPortalLogin ? "Portal access not set" : "Everyone has access"}
+          tone={noPortalLogin ? "amber" : "emerald"}
+        />
+      </div>
+
+      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px] max-w-xs">
             <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
@@ -1476,10 +1891,20 @@ export function StudentsPanel({
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
-                type="text" placeholder="Search students..." value={searchQuery}
+                type="text" placeholder="Name, roll no, guardian, phone…" value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
               />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#4d4354]/35 transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
             </div>
           </div>
           <FormSelect
@@ -1505,15 +1930,48 @@ export function StudentsPanel({
               </option>
             ))}
           </FormSelect>
-          <div className="pb-1.5">
-            <StatusPill status={`${filteredStudents.length} Shown`} />
-          </div>
+          {categoryOptions.length ? (
+            <FormSelect label="Category" value={categoryFilter} onChange={setCategoryFilter}>
+              <option value="all">All categories</option>
+              <option value="none">No category</option>
+              {categoryOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </FormSelect>
+          ) : null}
+          {groupOptions.length ? (
+            <FormSelect label="Group" value={groupFilter} onChange={setGroupFilter}>
+              <option value="all">All groups</option>
+              <option value="none">No group</option>
+              {groupOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </FormSelect>
+          ) : null}
+          <FormSelect label="Sort by" value={sortKey} onChange={(v) => setSortKey(v as StudentSortKey)}>
+            {Object.entries(STUDENT_SORTS).map(([key, s]) => (
+              <option key={key} value={key}>{s.label}</option>
+            ))}
+          </FormSelect>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <StatusPill status={`${filteredStudents.length} of ${students.length} shown`} />
+          {filtersActive ? (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+            >
+              <X className="h-3 w-3" /> Clear filters
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {pagedStudents.map((student: any, i: number) => {
           const report = student.reportCards?.[0];
           const avatar = student.profileImageUrl;
+          const noContact = !student.guardianPhone && !student.guardianEmail;
           return (
             <div
               key={student.id}
@@ -1578,45 +2036,97 @@ export function StudentsPanel({
                   it into an ellipsis. It is secondary information, so it lives on
                   the footer row and the name gets the full width of the card.
                 */}
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#f3f4f9] pt-3.5">
-                  <div className="min-w-0">
-                    <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">Guardian</p>
-                    <p className="truncate text-xs font-bold text-[#4d4354]/70">{student.guardianName || "Not linked"}</p>
-                  </div>
-                  <StatusPill status={report ? report.status : "NO_REPORT"} />
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white group-hover/student:shadow-sm">
-                    <ArrowRight className="h-3.5 w-3.5" />
+                {/*
+                  Two rows, not one. The card is ~225px at the 3-column
+                  breakpoint; with the guardian, the report pill and the chevron
+                  all on one line the name was left ~90px and ellipsised — and
+                  only for the longer names, so a row of cards looked ragged.
+                  The name now owns the full width and the secondary bits share
+                  the line below it.
+                */}
+                <div className="mt-4 border-t border-[#f3f4f9] pt-3.5">
+                  <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">Guardian</p>
+                  <p
+                    className="truncate text-xs font-bold text-[#4d4354]/70"
+                    title={student.guardianName || undefined}
+                  >
+                    {student.guardianName || "Not linked"}
+                  </p>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    {/* A name with no way to reach them is the thing worth flagging. */}
+                    <p
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-[10px] font-bold",
+                        noContact ? "text-amber-600" : "text-[#4d4354]/45",
+                      )}
+                    >
+                      {noContact ? "No phone or email" : student.guardianPhone || student.guardianEmail}
+                    </p>
+                    <StatusPill status={report ? report.status : "NO_REPORT"} />
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white group-hover/student:shadow-sm">
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           );
         })}
-        {pagedStudents.length === 0 ? <EmptyInline text="No students match your search and filters." /> : null}
+        {/*
+          Spans the whole grid: dropped into a single cell it rendered as a
+          narrow strip beside empty columns.
+        */}
+        {pagedStudents.length === 0 ? (
+          <div className="col-span-full">
+            <EmptyInline text="No students match your search and filters. Try clearing them." />
+          </div>
+        ) : null}
       </div>
-      {totalPages > 1 ? (
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={safePage <= 1}
-            className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
-          >
-            Previous
-          </button>
-          <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
-            Page {safePage} of {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={safePage >= totalPages}
-            className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
-          >
-            Next
-          </button>
+      {filteredStudents.length > 0 ? (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#f3f4f9] pt-5">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            Showing {firstShown}–{lastShown} of {filteredStudents.length}
+          </p>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">
+              Per page
+              <select
+                value={perPage}
+                onChange={(e) => setPerPage(Number(e.target.value))}
+                className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+              >
+                {[12, 24, 48, 96].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                >
+                  Previous
+                </button>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -1644,7 +2154,7 @@ export function AIPanel({
         <AiActionPanel title={title} options={features} compact onComplete={onComplete} />
       </div>
       <div className="space-y-8">
-        <SnapshotColumn icon={Sparkles} title="AI Review Queue">
+        <SnapshotColumn icon={Sparkles} title="AI Review Queue" count={reviewItems?.length ?? 0}>
           <AIReviewQueue items={reviewItems} onComplete={onComplete} />
         </SnapshotColumn>
         <SnapshotColumn
@@ -1709,7 +2219,14 @@ export function MoveStudentModal({
   };
 
   return (
-    <ModalFrame title="Move Student" eyebrow="Class placement" onClose={onClose}>
+    <ModalFrame
+      title="Move Student"
+      eyebrow="Class Placement"
+      subtitle="Moving a student re-issues their roll number in the new section."
+      icon={ArrowRightLeft}
+      tone="sky"
+      onClose={onClose}
+    >
       <div className="rounded-3xl bg-[#fbf0fe]/65 p-5 mb-5">
         <p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
@@ -1900,7 +2417,7 @@ export function ClassDetailModal({
   ];
 
   return (
-    <ModalFrame title={classLabel(cls)} eyebrow="Manage class" onClose={onClose} wide>
+    <ModalFrame title={classLabel(cls)} eyebrow="Manage Class" icon={School} onClose={onClose} wide>
       {/* Tabs — the modal used to be one long scroll mixing class settings,
           subjects and students together, which made it hard to tell what a
           given control actually affected. */}
@@ -2270,6 +2787,44 @@ export function ClassDetailModal({
   );
 }
 
+/**
+ * Taking a student off the roll without deleting them. The API has always
+ * accepted these, but the admin had no way to reach them — the only exit from
+ * the directory was a permanent delete, which loses the student's history.
+ */
+const STUDENT_STATUS_CHANGES = {
+  archived: {
+    label: "Archive",
+    icon: Archive,
+    title: "Archive this student?",
+    describe: (name: string) =>
+      `${name} comes off the active roll and stops appearing in class lists, attendance and marks entry. Their record, results and history are kept, and you can restore them at any time from Promote Students.`,
+  },
+  transferred: {
+    label: "Mark Transferred",
+    icon: ArrowRightLeft,
+    title: "Mark as transferred out?",
+    describe: (name: string) =>
+      `${name} is recorded as having left for another school. They come off the active roll but keep their full history, and can be restored later.`,
+  },
+  graduated: {
+    label: "Mark Graduated",
+    icon: Award,
+    title: "Mark as graduated?",
+    describe: (name: string) =>
+      `${name} is recorded as having completed their schooling here. They come off the active roll and their results stay on file.`,
+  },
+  active: {
+    label: "Restore to Roll",
+    icon: RotateCcw,
+    title: "Restore this student?",
+    describe: (name: string) =>
+      `${name} goes back onto the active roll and will appear again in class lists, attendance and marks entry.`,
+  },
+} as const;
+
+type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
+
 export function StudentDetailModal({
   student,
   busy,
@@ -2296,6 +2851,10 @@ export function StudentDetailModal({
   const [tagsLoading, setTagsLoading] = useState(true);
   const [profileTab, setProfileTab] = useState<"overview" | "siblings" | "documents" | "timeline">("overview");
   const [siblingsVersion, setSiblingsVersion] = useState(0);
+  const [statusChange, setStatusChange] = useState<StudentStatusChange | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const currentStatus = (student.status || "active").toLowerCase();
+  const isActive = currentStatus === "active";
 
   useEffect(() => {
     let active = true;
@@ -2419,12 +2978,37 @@ export function StudentDetailModal({
   };
 
   return (
-    <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer">
-            <Trash2 className="h-3.5 w-3.5" />Delete Student
-          </button>
+    <ModalFrame
+      title={student.fullName}
+      eyebrow="Student Profile"
+      subtitle={`${student.rollNo || "No roll number"} · ${classLabel(student.class)}`}
+      avatar={<AvatarImage src={avatar} name={student.fullName} initialsClassName="text-lg" />}
+      chips={
+        <>
+          {student.nameUr ? (
+            <span className="text-sm font-bold text-[#4d4354]/70" dir="rtl">{student.nameUr}</span>
+          ) : null}
+          {student.category?.name ? (
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
+              {student.category.name}
+            </span>
+          ) : null}
+          {student.group?.name ? (
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
+              {student.group.name}
+            </span>
+          ) : null}
+        </>
+      }
+      tone={isActive ? "violet" : "amber"}
+      onClose={onClose}
+      wide
+    >
+      {/* Pinned inside the scroll area: on a profile this long the actions
+          and the tab strip used to scroll out of reach within one flick. */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[#cfc2d6]/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <button type="button" onClick={onMove} className="flex h-9 items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95 cursor-pointer">
             <ArrowRightLeft className="h-3.5 w-3.5" />Move Class
           </button>
@@ -2432,11 +3016,56 @@ export function StudentDetailModal({
             {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
             Parent Portal Link
           </button>
+          {/*
+            Leaving the roll is the common case and archiving is reversible, so
+            it leads. Delete is destructive and irreversible, so it is last and
+            visually quiet rather than a headline action.
+          */}
+          {(isActive
+            ? (["archived", "transferred", "graduated"] as StudentStatusChange[])
+            : (["active"] as StudentStatusChange[])
+          ).map((key) => {
+            const action = STUDENT_STATUS_CHANGES[key];
+            const Icon = action.icon;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setStatusChange(key)}
+                className={cn(
+                  "flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+                  key === "active"
+                    ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {action.label}
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 active:scale-95 cursor-pointer">
+            <Trash2 className="h-3.5 w-3.5" />Delete
+          </button>
         </div>
-        <button type="button" onClick={() => setEditing(!editing)} className={cn(
-          "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
-          editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
-        )}>
+        {/* ml-auto, not just justify-between: once the row wraps, a
+            justify-between child starts at the left edge of the new line, so
+            Edit Details lost its separation and the whole strip read as one
+            undifferentiated wall of buttons. */}
+        <button
+          type="button"
+          onClick={() => {
+            // The editable fields only exist on Overview. Turning on edit mode
+            // from Siblings/Documents/Timeline otherwise showed the Cancel and
+            // Save Changes footer over a tab with nothing editable on it.
+            if (!editing) setProfileTab("overview");
+            setEditing(!editing);
+          }}
+          className={cn(
+            "ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+            editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+          )}
+        >
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
@@ -2452,7 +3081,7 @@ export function StudentDetailModal({
         </div>
       )}
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {([
           ["overview", "Overview", User],
           ["siblings", "Siblings", Users],
@@ -2475,6 +3104,7 @@ export function StudentDetailModal({
           </button>
         ))}
       </div>
+      </div>
 
       {profileTab !== "overview" ? (
         <StudentAdmissionsPanel
@@ -2486,46 +3116,48 @@ export function StudentDetailModal({
         />
       ) : (
       <>
-      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
-        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-3xl" />
+      {/*
+        Name, roll, class, photo and tags all live in the dialog header now.
+        This block used to repeat them a third time — once in the header, once
+        as chips here, and once again in the metric row below.
+      */}
+      {editing ? (
+        <div className="mb-5 space-y-3 rounded-[24px] border border-[#cfc2d6]/25 bg-[#faf7fc] p-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
+            <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
+          </div>
+          <FormInput label="Roll Number" value={ed("rollNo")} placeholder="Roll number" onChange={(v) => setEd("rollNo", v)} />
         </div>
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
-                <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
-              </div>
-              <FormInput label="Roll Number" value={ed("rollNo")} placeholder="Roll number" onChange={(v) => setEd("rollNo", v)} />
-            </div>
-          ) : (
-            <>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Student Record</p>
-              <h3 className="mt-1 truncate text-3xl font-black tracking-tight text-[#1f1a23]">{student.fullName}</h3>
-              {student.nameUr ? <p className="mt-0.5 text-lg font-semibold text-[#4d4354]/70" dir="rtl">{student.nameUr}</p> : null}
-              <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-[#4d4354]/55">
-                {student.rollNo || "No roll number"} - {classLabel(student.class)}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+      ) : null}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Say plainly when this profile is not on the active roll. */}
+      {!isActive ? (
+        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p className="text-xs font-semibold text-amber-800">
+            This student is <b>{ARCHIVED_STATUS_LABELS[currentStatus] || currentStatus}</b> and is off the active roll —
+            they will not appear in class lists, attendance or marks entry. Use <b>Restore to Roll</b> to bring them back.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-10">
         <MiniMetric label="Roll No" value={student.rollNo || "N/A"} active />
         <MiniMetric label="Class" value={classLabel(student.class)} />
-        <MiniMetric label="Status" value={student.status === "active" ? "Active" : student.status || "Active"} />
+        <MiniMetric label="Status" value={ARCHIVED_STATUS_LABELS[currentStatus] || "Active"} />
         <MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={User} title="Personal Info" />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Date of Birth" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* A real date picker — this used to be a free-text box that
+                  silently dropped anything not typed as YYYY-MM-DD. */}
+              <FormInput label="Date of Birth" type="date" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
               <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
                 <option value="">Not specified</option>
                 <option value="MALE">Male</option>
@@ -2582,7 +3214,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Guardian Details */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={Users} title="Guardian" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -2611,7 +3243,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Address */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={MapPin} title="Address" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -2633,7 +3265,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Medical & Report */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={Heart} title="Medical & Health" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -2654,7 +3286,7 @@ export function StudentDetailModal({
       </div>
 
       {/* Report Card */}
-      <div className="mt-5 rounded-3xl bg-[#fbf0fe]/60 p-5">
+      <div className="mt-5 rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
         <PanelTitle icon={FileText} title="Report Card" />
         {report ? (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2671,16 +3303,41 @@ export function StudentDetailModal({
       </>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-        {editing ? (
+      {/*
+        Save is the only footer action now. "Move Class / Section" used to sit
+        here as well as in the toolbar above — the same action twice in one
+        dialog, which just made the footer look like it did something else.
+      */}
+      {editing ? (
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+          <BrandButton variant="soft" className="h-12" onClick={() => setEditing(false)} disabled={busy}>
+            Cancel
+          </BrandButton>
           <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
           </BrandButton>
-        ) : null}
-        <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>
-          Move Class / Section
-        </BrandButton>
-      </div>
+        </div>
+      ) : null}
+
+      <ConfirmAction
+        open={Boolean(statusChange)}
+        title={statusChange ? STUDENT_STATUS_CHANGES[statusChange].title : ""}
+        description={statusChange ? STUDENT_STATUS_CHANGES[statusChange].describe(student.fullName) : ""}
+        confirmLabel={statusChange ? STUDENT_STATUS_CHANGES[statusChange].label : ""}
+        tone={statusChange === "active" ? "primary" : "warning"}
+        busy={statusBusy}
+        onCancel={() => setStatusChange(null)}
+        onConfirm={async () => {
+          if (!statusChange) return;
+          setStatusBusy(true);
+          try {
+            await onUpdate(student.id, { status: statusChange });
+            setStatusChange(null);
+          } finally {
+            setStatusBusy(false);
+          }
+        }}
+      />
     </ModalFrame>
   );
 }
@@ -2852,7 +3509,7 @@ export function StudentAdmissionsPanel({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
           <div className="mt-4 space-y-2">
             {[0, 1, 2].map((i) => (
@@ -2866,7 +3523,7 @@ export function StudentAdmissionsPanel({
             ))}
           </div>
         </div>
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
           <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-[#8127cf]/10 animate-pulse" />
         </div>
@@ -2877,7 +3534,7 @@ export function StudentAdmissionsPanel({
   if (tab === "siblings") {
     return (
       <div className="space-y-4">
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={Users} title="Siblings" />
           {siblings.length === 0 ? (
             <div className="mt-4">
@@ -2906,7 +3563,7 @@ export function StudentAdmissionsPanel({
           )}
         </div>
 
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={UserCheck} title="Link a sibling" />
           <div className="mt-4 space-y-3">
             <FormInput
@@ -2952,7 +3609,7 @@ export function StudentAdmissionsPanel({
   if (tab === "documents") {
     return (
       <div className="space-y-4">
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={FileText} title="Admission Documents" />
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="w-48">
@@ -3025,7 +3682,7 @@ export function StudentAdmissionsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
         <PanelTitle icon={History} title="Timeline" />
         <div className="mt-4 flex items-end gap-3">
           <div className="flex-1">
@@ -3070,6 +3727,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [teachesAll, setTeachesAll] = useState(false);
   const [specialtyDraft, setSpecialtyDraft] = useState("");
+  const [teacherTab, setTeacherTab] = useState<"overview" | "teaching" | "record">("overview");
 
   // ── Staff Records (payroll / bank / documents / timeline) ──
   const isStaffAdmin = Boolean(onUpdate);
@@ -3307,9 +3965,74 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
   };
 
   return (
-    <ModalFrame title={teacher.fullName} eyebrow="Teacher profile" onClose={onClose} wide>
-      <div className="mb-4 flex justify-end">
-        {onUpdate ? (
+    <ModalFrame
+      title={teacher.fullName}
+      eyebrow="Teacher Profile"
+      subtitle={teacher.email || "No email on file"}
+      avatar={<AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-lg" />}
+      chips={
+        <>
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider",
+              (teacher._count?.taughtSubjects || taughtSubjects.length) === 0
+                ? "bg-amber-50 text-amber-600"
+                : "bg-emerald-50 text-emerald-600",
+            )}
+          >
+            {(teacher._count?.taughtSubjects || taughtSubjects.length) === 0
+              ? "No subjects"
+              : `${teacher._count?.taughtSubjects || taughtSubjects.length} subjects`}
+          </span>
+          {(teacher._count?.ledClasses || ledClasses.length) > 0 ? (
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
+              Class teacher · {teacher._count?.ledClasses || ledClasses.length}
+            </span>
+          ) : null}
+          {!teacher.onboardingComplete ? (
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
+              Onboarding pending
+            </span>
+          ) : null}
+        </>
+      }
+      onClose={onClose}
+      wide
+    >
+      {/* Pinned inside the scroll area so the tab strip and Edit stay reachable. */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[#cfc2d6]/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/*
+          Tabs, matching the student profile. This dialog used to be a single
+          scroll of ten sections — personal, professional, address, emergency,
+          classes, subjects, payroll, bank, documents, timeline — so finding
+          anything below the fold meant scrolling past everything above it.
+        */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["overview", "Overview", User],
+              ["teaching", "Teaching", BookOpen],
+              ...(isStaffAdmin ? ([["record", "Staff Record", Wallet]] as const) : []),
+            ] as const
+          ).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTeacherTab(key)}
+              className={cn(
+                "flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+                teacherTab === key
+                  ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
+                  : "bg-[#fbf0fe]/70 text-[#4d4354]/60 hover:bg-[#f0e0f8] hover:text-[#8127cf]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+        {onUpdate && teacherTab === "overview" ? (
           <button
             type="button"
             onClick={() => setEditing(!editing)}
@@ -3323,29 +4046,18 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
           </button>
         ) : null}
       </div>
-
-      {/* ── Header Card ── */}
-      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-[#fbf0fe]/65 p-5 sm:flex-row sm:items-center">
-        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-3xl" />
-        </div>
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <FormInput label="Full Name" value={ed("fullName")} placeholder="Teacher name" onChange={(v) => setEd("fullName", v)} />
-          ) : (
-            <>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Faculty Record</p>
-              <h3 className="mt-1 truncate text-3xl font-black tracking-tight text-[#1f1a23]">{teacher.fullName}</h3>
-              <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-[#4d4354]/55">
-                {teacher.email || "No email"}
-              </p>
-            </>
-          )}
-        </div>
       </div>
 
+      {/* ── Header Card ── */}
+      {/* Photo, name, email and flags are all in the dialog header now. */}
+      {editing ? (
+        <div className="mb-5 rounded-[24px] border border-[#cfc2d6]/25 bg-[#faf7fc] p-5">
+          <FormInput label="Full Name" value={ed("fullName")} placeholder="Teacher name" onChange={(v) => setEd("fullName", v)} />
+        </div>
+      ) : null}
+
       {/* ── Quick Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-10">
         <MiniMetric label="Subjects" value={teacher._count?.taughtSubjects || taughtSubjects.length} active />
         <MiniMetric label="Class Teacher" value={teacher._count?.ledClasses || ledClasses.length} />
         <MiniMetric label="Status" value={teacher.isActive ? "Active" : "Inactive"} />
@@ -3353,16 +4065,34 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
       </div>
 
       {/* ── Profile Sections ── */}
+      {teacherTab === "overview" ? (
+      <>
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={User} title="Personal Info" />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Email" value={teacher.email || ""} placeholder="Email" onChange={() => {}} />
+              {/*
+                Email is the login identity and is not editable here. It used to
+                render as a normal input wired to a no-op onChange, so it looked
+                editable, accepted nothing, and gave no reason why.
+              */}
+              <div>
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Email</span>
+                <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-[#4d4354]/55">
+                  <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-[#4d4354]/35" />
+                  <span className="truncate">{teacher.email || "No email"}</span>
+                </div>
+                <p className="mt-1.5 pl-2 text-[10px] font-semibold text-[#4d4354]/45">
+                  This is the teacher&apos;s sign-in address and cannot be changed here.
+                </p>
+              </div>
               <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
               <FormInput label="CNIC" value={ed("cnic")} placeholder="12345-1234567-1" onChange={(v) => setEd("cnic", v)} />
-              <FormInput label="Date of Birth" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* A real date picker — this used to be a free-text box that
+                  silently dropped anything not typed as YYYY-MM-DD. */}
+              <FormInput label="Date of Birth" type="date" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
               <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
                 <option value="">Not specified</option>
                 <option value="MALE">Male</option>
@@ -3382,7 +4112,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
         </div>
 
         {/* Professional Details */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={Briefcase} title="Professional" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3398,7 +4128,8 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                 <option value="M.Ed">M.Ed</option>
               </FormSelect>
               <FormInput label="Experience" value={ed("experience")} placeholder="e.g. 5 years" onChange={(v) => setEd("experience", v)} />
-              <FormInput label="Joining Date" value={ed("joiningDate")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("joiningDate", v)} />
+              {/* Was free text; anything not typed as YYYY-MM-DD was dropped. */}
+              <FormInput label="Joining Date" type="date" value={ed("joiningDate")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("joiningDate", v)} />
               <div className="sm:col-span-2">
                 <SpecialtyEditor
                   specialties={specialties}
@@ -3430,7 +4161,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
         </div>
 
         {/* Address */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={MapPin} title="Address" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3461,7 +4192,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
         </div>
 
         {/* Emergency Contact */}
-        <div className="rounded-3xl bg-[#fbf0fe]/60 p-5">
+        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
           <PanelTitle icon={Shield} title="Emergency Contact" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3478,14 +4209,20 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
       </div>
 
       {editing ? (
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-3">
+          <BrandButton variant="soft" className="h-12" onClick={() => setEditing(false)} disabled={saving}>
+            Cancel
+          </BrandButton>
           <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
           </BrandButton>
         </div>
       ) : null}
+      </>
+      ) : null}
 
       {/* ── Led Classes & Taught Subjects ── */}
+      {teacherTab === "teaching" ? (
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -3494,7 +4231,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
           </div>
           <div className="space-y-2">
             {ledClasses.map((cls: any) => (
-              <div key={cls.id} className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
+              <div key={cls.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                 <p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p>
                 <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
                   {cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects
@@ -3512,23 +4249,24 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
           </div>
           <div className="space-y-2">
             {taughtSubjects.map((subject: any) => (
-              <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
+              <div key={subject.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                 <p className="text-sm font-black text-[#1f1a23]">{subject.name}</p>
                 <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
                   {classLabel(subject.class)} - {subject.totalMarks || 100} marks
                 </p>
               </div>
             ))}
-            {taughtSubjects.length === 0 ? <EmptyInline text="No subjects are assigned to this teacher yet." /> : null}
+            {taughtSubjects.length === 0 ? <EmptyInline text="No subjects are assigned to this teacher yet. Assign them under Academics → Classes & Subjects, otherwise they cannot be placed on a timetable or enter marks." /> : null}
           </div>
         </div>
       </div>
+      ) : null}
 
-      {isStaffAdmin ? (
+      {isStaffAdmin && teacherTab === "record" ? (
         <div className="mt-6 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
                 <Wallet className="h-4 w-4" />
               </div>
               <div>
@@ -3547,7 +4285,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
 
           {editStaff ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-3xl bg-white/80 p-5">
+              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Banknote} title="Payroll" />
                 <div className="mt-4 space-y-3">
                   <FormInput label="Designation" value={staffForm.designation || ""} placeholder="e.g. Senior Maths Teacher" onChange={(v) => setStaffForm((p) => ({ ...p, designation: v }))} />
@@ -3562,7 +4300,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                   <AmountRowsEditor title="Deductions" rows={deductions} onChange={setDeductions} />
                 </div>
               </div>
-              <div className="rounded-3xl bg-white/80 p-5">
+              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Landmark} title="Bank Details" />
                 <p className="mt-1 text-[10px] font-bold text-[#4d4354]/45">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
@@ -3574,7 +4312,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-3xl bg-white/80 p-5">
+              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Banknote} title="Payroll" />
                 <div className="mt-4 space-y-3">
                   <DetailRow label="Designation" value={staff?.staffProfile?.designation || "Not set"} />
@@ -3602,7 +4340,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                   />
                 </div>
               </div>
-              <div className="rounded-3xl bg-white/80 p-5">
+              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Landmark} title="Bank Details" />
                 <p className="mt-1 text-[10px] font-bold text-[#4d4354]/45">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
@@ -3623,14 +4361,14 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
           ) : null}
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="rounded-3xl bg-white/80 p-5">
+            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
               <PanelTitle icon={FileText} title="Documents" />
               <div className="mt-4 space-y-2">
                 {staffDocs.length === 0 ? (
                   <EmptyInline text="No documents uploaded yet." />
                 ) : (
                   staffDocs.map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
+                    <div key={doc.id} className="flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf]">
                         <FileText className="h-4 w-4" />
                       </div>
@@ -3675,14 +4413,14 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
               </div>
             </div>
 
-            <div className="rounded-3xl bg-white/80 p-5">
+            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
               <PanelTitle icon={History} title="Timeline" />
               <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                 {staffTimeline.length === 0 ? (
                   <EmptyInline text="No staff record events yet." />
                 ) : (
                   staffTimeline.map((event) => (
-                    <div key={event.id} className="flex items-start gap-3 rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
+                    <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf]">
                         {event.kind === "SALARY" ? <Banknote className="h-3.5 w-3.5" /> : event.kind === "BANK" ? <CreditCard className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
                       </div>
@@ -3755,24 +4493,103 @@ function AmountRowsEditor({
   );
 }
 
+/**
+ * Accent colours a modal can carry. The tone drives the header wash, the icon
+ * tile and the eyebrow, so a destructive dialog never looks like a create one.
+ */
+export const MODAL_TONES = {
+  violet: {
+    wash: "from-[#faf7fc] via-white to-[#f3eeff]",
+    tile: "from-[#8127cf] to-[#6a1fb0] shadow-[#8127cf]/25",
+    eyebrow: "text-[#8127cf]",
+    orb: "from-[#8127cf]/12",
+    rule: "border-[#cfc2d6]/20",
+  },
+  emerald: {
+    wash: "from-emerald-50/70 via-white to-emerald-50/40",
+    tile: "from-emerald-500 to-emerald-700 shadow-emerald-500/25",
+    eyebrow: "text-emerald-600",
+    orb: "from-emerald-400/12",
+    rule: "border-emerald-200/50",
+  },
+  amber: {
+    wash: "from-amber-50/70 via-white to-amber-50/40",
+    tile: "from-amber-500 to-amber-600 shadow-amber-500/25",
+    eyebrow: "text-amber-600",
+    orb: "from-amber-400/12",
+    rule: "border-amber-200/50",
+  },
+  rose: {
+    wash: "from-rose-50/70 via-white to-rose-50/40",
+    tile: "from-rose-500 to-rose-600 shadow-rose-500/25",
+    eyebrow: "text-rose-600",
+    orb: "from-rose-400/12",
+    rule: "border-rose-200/50",
+  },
+  sky: {
+    wash: "from-sky-50/70 via-white to-sky-50/40",
+    tile: "from-sky-500 to-sky-700 shadow-sky-500/25",
+    eyebrow: "text-sky-600",
+    orb: "from-sky-400/12",
+    rule: "border-sky-200/50",
+  },
+} as const;
+
+export type ModalTone = keyof typeof MODAL_TONES;
+
+const MODAL_SIZES = {
+  sm: "max-w-lg",
+  md: "max-w-2xl",
+  lg: "max-w-4xl",
+  xl: "max-w-6xl",
+} as const;
+
+/**
+ * The shell every admin dialog sits in.
+ *
+ * The header and footer are pinned and only the body scrolls. They used to
+ * scroll away with the content, so in the long profile dialogs you lost both
+ * the title and the save button as soon as you started reading.
+ */
 export function ModalFrame({
   title,
   eyebrow,
+  subtitle,
+  icon: Icon,
+  avatar,
+  chips,
+  tone = "violet",
   children,
   onClose,
   wide = false,
+  size,
+  footer,
+  headerActions,
 }: {
   title: string;
-  eyebrow: string;
+  eyebrow?: string;
+  /** One plain line under the title saying what this dialog is for. */
+  subtitle?: ReactNode;
+  icon?: LucideIcon;
+  /** A photo shown instead of the icon tile — used by the profile dialogs. */
+  avatar?: ReactNode;
+  /** Small status pills under the subtitle. */
+  chips?: ReactNode;
+  tone?: ModalTone;
   children: ReactNode;
   onClose: () => void;
+  /** Legacy shorthand for size="lg". */
   wide?: boolean;
+  size?: keyof typeof MODAL_SIZES;
+  /** Pinned to the bottom, outside the scroll area. */
+  footer?: ReactNode;
+  /** Sits beside the close button, e.g. an Edit toggle. */
+  headerActions?: ReactNode;
 }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
+  const t = MODAL_TONES[tone];
+  const width = MODAL_SIZES[size ?? (wide ? "lg" : "sm")];
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Render to <body> via a portal. ModalFrame uses `position: fixed`, which
   // positions relative to the nearest ancestor that has a transform/filter/
@@ -3781,24 +4598,134 @@ export function ModalFrame({
   // instead of centering over the viewport. Portaling escapes all of that.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  // Focus management. Without this the caret stays on whatever opened the
+  // dialog, so screen readers never enter it and Tab walks the page behind the
+  // backdrop. Move focus to the first real field (falling back to the dialog
+  // itself), keep Tab inside, and hand focus back to the opener on close.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const opener = document.activeElement as HTMLElement | null;
+
+    const focusables = () =>
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+
+    // Prefer a data-entry field over the close button, which is first in the DOM.
+    const items = focusables();
+    const firstField = items.find((el) => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
+    (firstField ?? items[0] ?? dialog).focus({ preventScroll: true });
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (!list.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = list[0]!;
+      const last = list[list.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !dialog.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => {
+      dialog.removeEventListener("keydown", onKeyDown);
+      opener?.focus?.({ preventScroll: true });
+    };
+    // Runs once the portal is actually in the DOM — before that dialogRef is null.
+  }, [mounted]);
+
+  // While a dialog is open the page behind it must not scroll — otherwise
+  // scrolling past the end of the dialog silently moved the page underneath.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onClick={(e) => e.stopPropagation()} className={cn(
-        "bg-white w-full max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter",
-        wide ? "max-w-4xl" : "max-w-lg"
-      )}>
-        <div className="flex justify-between items-start gap-5 mb-7">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-            <h3 className="mt-1.5 text-2xl font-black text-[#1f1a23] tracking-tight">{title}</h3>
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/50 backdrop-blur-md p-4 sm:p-6 animate-backdrop-enter"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.28)] animate-modal-enter",
+          width,
+        )}
+      >
+        {/* ── Pinned header ── */}
+        <div className={cn("relative shrink-0 overflow-hidden border-b bg-gradient-to-br px-6 py-5 sm:px-7", t.rule, t.wash)}>
+          <div className={cn("pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)} />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3.5">
+              {avatar ? (
+                <span className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-lg">
+                  {avatar}
+                </span>
+              ) : Icon ? (
+                <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", t.tile)}>
+                  <Icon className="h-6 w-6" />
+                </span>
+              ) : null}
+              <div className="min-w-0">
+                {eyebrow ? (
+                  <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
+                ) : null}
+                <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">{title}</h3>
+                {subtitle ? (
+                  <p className="mt-1 text-xs font-semibold leading-snug text-[#4d4354]/60">{subtitle}</p>
+                ) : null}
+                {chips ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{chips}</div> : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {headerActions}
+              <button
+                type="button"
+                onClick={onClose}
+                className="group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+              >
+                <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
-            <X className="w-5 h-5" /><span className="sr-only">Close</span>
-          </button>
         </div>
-        {children}
+
+        {/* ── Scrolling body ── */}
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-6 sm:px-7">{children}</div>
+
+        {/* ── Pinned footer ── */}
+        {footer ? (
+          <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-6 py-4 sm:px-7">{footer}</div>
+        ) : null}
       </div>
     </div>,
     document.body
@@ -3811,28 +4738,41 @@ export function ModalActions({
   actionLabel,
   onClose,
   onSave,
+  tone = "violet",
+  hint,
 }: {
   busy: boolean;
   busyLabel: string;
   actionLabel: string;
   onClose: () => void;
   onSave: () => void;
+  tone?: ModalTone;
+  /** Optional note explaining what the action will do. */
+  hint?: ReactNode;
 }) {
   return (
-    <div className="mt-8 flex gap-3 pt-6 border-t border-[#cfc2d6]/10">
-      <BrandButton variant="soft" className="flex-1 h-13" onClick={onClose}>
-        Cancel
-      </BrandButton>
-      <BrandButton variant="dark" className="flex-[2] h-13" onClick={onSave} disabled={busy}>
-        {busy ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {busyLabel}
-          </>
-        ) : (
-          actionLabel
-        )}
-      </BrandButton>
+    <div className="mt-8 border-t border-[#cfc2d6]/15 pt-6">
+      {hint ? <p className="mb-3 text-xs font-semibold text-[#4d4354]/55">{hint}</p> : null}
+      <div className="flex gap-3">
+        <BrandButton variant="soft" className="flex-1 h-13" onClick={onClose}>
+          Cancel
+        </BrandButton>
+        <BrandButton
+          variant={tone === "rose" ? "danger" : "dark"}
+          className="flex-[2] h-13"
+          onClick={onSave}
+          disabled={busy}
+        >
+          {busy ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {busyLabel}
+            </>
+          ) : (
+            actionLabel
+          )}
+        </BrandButton>
+      </div>
     </div>
   );
 }
@@ -3951,7 +4891,11 @@ export function ClassGroupCard({
       "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
       open
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
+        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10",
+      // Expanded, the card carries per-section rows with their own metadata and
+      // action buttons. In a half-width grid column those wrapped into a jumble,
+      // so an open card takes the whole row.
+      open && "md:col-span-2"
     )}>
       {/* div, not <button>: the Delete control below is itself a button, and
           nested interactive elements are invalid HTML (triggers a hydration
@@ -3968,7 +4912,7 @@ export function ClassGroupCard({
           }
         }}
         className={cn(
-          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
+          "group/classrow flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
@@ -3994,18 +4938,25 @@ export function ClassGroupCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/*
+            Deleting a class cascades to its sections, subjects, marks and the
+            students on its roll, so it does not get to sit in every row as a
+            permanently lit red button competing with the row itself. It appears
+            on hover, and on keyboard focus so it stays reachable.
+          */}
           {onDeleteClass ? (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
-              className="flex h-8 items-center gap-1 rounded-lg bg-rose-50 px-2 text-[8px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer"
+              aria-label={`Delete ${group.name}`}
+              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40 opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
             >
               <Trash2 className="h-3 w-3" />
               Delete
             </button>
           ) : null}
           <span className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">
-            {group.sections.length} cls
+            {group.sections.length} section{group.sections.length === 1 ? "" : "s"}
           </span>
           <ChevronDown
             className={cn(
@@ -4279,7 +5230,7 @@ export function SectionCard({
   );
 }
 
-export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserId?: string; onRemove: () => void }) {
+export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserId?: string; onRemove?: () => void }) {
   const isCurrentUser = admin.id === currentUserId;
 
   return (
@@ -4312,7 +5263,7 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
             </div>
           </div>
         </div>
-        {!isCurrentUser && (
+        {!isCurrentUser && onRemove && (
           <button
             type="button"
             onClick={onRemove}
@@ -4396,6 +5347,8 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
 
 export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
   const avatar = teacher.profileImageUrl;
+  const subjects = teacher._count?.taughtSubjects ?? teacher.taughtSubjects?.length ?? 0;
+  const classes = teacher._count?.ledClasses ?? teacher.ledClasses?.length ?? 0;
 
   return (
     <div className="sk-rise group/faculty relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
@@ -4411,11 +5364,34 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           <div className="min-w-0">
             <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none mb-1 truncate">{teacher.fullName}</h4>
             <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {classes > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-sky-600">
+                  <School className="h-2.5 w-2.5" />
+                  Class teacher · {classes}
+                </span>
+              ) : null}
+              {!teacher.onboardingComplete ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-amber-600">
+                  <Clock className="h-2.5 w-2.5" />
+                  Onboarding
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-emerald-600">
-            {teacher._count?.taughtSubjects || 0} subjects
+          {/*
+            Zero subjects used to read in the same confident green as twelve.
+            It is the thing that blocks the timetable, so it reads as a warning.
+          */}
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-1 text-[8px] font-black uppercase tracking-wider",
+              subjects === 0 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600",
+            )}
+          >
+            {subjects === 0 ? "No subjects" : `${subjects} subject${subjects === 1 ? "" : "s"}`}
           </span>
           <button
             type="button"
@@ -4424,7 +5400,15 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           >
             View
           </button>
-          <button type="button" onClick={onRemove} className="h-9 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20 transition-all duration-200 active:scale-95 cursor-pointer">
+          {/* Revoking a teacher's access is destructive and irreversible from
+              here, so it does not sit lit up in red on every row beside View.
+              It surfaces on hover, and on keyboard focus so it stays reachable. */}
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Revoke access for ${teacher.fullName}`}
+            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
+          >
             <Trash2 className="w-3.5 h-3.5" />
             Revoke
           </button>
@@ -4445,17 +5429,23 @@ export function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: str
   );
 }
 
-export function SnapshotColumn({ icon: Icon, title, after, children }: { icon: LucideIcon; title: string; after?: ReactNode; children: ReactNode }) {
+export function SnapshotColumn({ icon: Icon, title, after, count, children }: { icon: LucideIcon; title: string; after?: ReactNode; count?: number; children: ReactNode }) {
   const [open, setOpen] = useState(true);
+  // Counting React children only works when the caller spreads a list into the
+  // column. A caller that renders one component which owns the list — the AI
+  // Review Queue does — always counted as exactly 1, so an empty queue was
+  // labelled "1 item" directly above "No AI drafts are waiting for review".
+  // `count` lets those callers report the real number.
   const childCount = useMemo(() => {
-    let count = 0;
+    if (typeof count === "number") return count;
+    let n = 0;
     if (Array.isArray(children)) {
-      count = children.filter(Boolean).length;
+      n = children.filter(Boolean).length;
     } else if (children) {
-      count = 1;
+      n = 1;
     }
-    return count;
-  }, [children]);
+    return n;
+  }, [children, count]);
 
   return (
     <div className={cn(
@@ -4657,7 +5647,7 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <ModalFrame title="Activity Log" eyebrow="Campus audit trail" onClose={onClose} wide>
+    <ModalFrame title="Activity Log" eyebrow="Campus Audit Trail" subtitle="Every change made on this campus, newest first." icon={History} tone="sky" onClose={onClose} wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">
           {tableOptions.map((opt) => (
@@ -4752,7 +5742,7 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   return (
-    <ModalFrame title="Help Center" eyebrow="Campus support" onClose={onClose}>
+    <ModalFrame title="Help Center" eyebrow="Campus Support" icon={Sparkles} tone="emerald" onClose={onClose}>
       <div className="space-y-5">
         <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
           <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Getting Started</p>
@@ -4983,14 +5973,32 @@ export function StudentSetupPanel() {
 
   return (
     <div className="space-y-8">
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <PanelTitle icon={Tag} title="Student Setup" />
-        <p className="mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+      {/* Header matches the academics overview so the students section of the
+          admin does not read as a different application. */}
+      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <Tag className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Categories &amp; Groups</h2>
+            </div>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+            {categories.length + groups.length} tag{categories.length + groups.length === 1 ? "" : "s"} defined
+          </span>
+        </div>
+        <p className="mt-4 max-w-2xl text-xs font-semibold leading-relaxed text-[#4d4354]/60">
           Categories tag a student's fee or scholarship eligibility (General, Scholarship, Orphan, Staff Child…) and
           drive fee discounts. Groups tag logistics and cohorts (Transport users, Hostel residents, House A…). Both are
           optional per student and can be assigned during admission or from a student's profile.
         </p>
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+      </div>
+
+      <div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <TagListCard
             kind="category"
             icon={Tag}
@@ -5183,11 +6191,21 @@ function TagFormModal({
   return (
     <ModalFrame
       title={item ? `Edit ${kind === "category" ? "category" : "group"}` : `New ${kind === "category" ? "category" : "group"}`}
-      eyebrow="Student Setup"
+      eyebrow="Students · Tags"
+      icon={kind === "category" ? Tag : Layers}
+      tone={kind === "category" ? "emerald" : "sky"}
       onClose={onClose}
     >
       <div className="space-y-4">
-        <FormInput label="Name" value={name} placeholder={kind === "category" ? "e.g. Scholarship" : "e.g. Transport users"} onChange={setName} />
+        <FormInput
+          label="Name"
+          value={name}
+          placeholder={kind === "category" ? "e.g. Scholarship" : "e.g. Transport users"}
+          onChange={(v) => {
+            setName(v);
+            if (error) setError("");
+          }}
+        />
         {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
           <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Description</span>
@@ -5345,12 +6363,43 @@ export function AdmissionQueriesPanel({
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       <div className="mb-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <PanelTitle icon={PhoneCall} title="Admission Queries" />
-          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => setShowNewModal(true)}>
-            New Query
+        {/* Same header anatomy as the academics overview: icon tile, eyebrow,
+            title, and the one action that starts new work. */}
+        <div className="-mx-6 -mt-6 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <PhoneCall className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admission Enquiries</h2>
+              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+                Families who have asked about a place. Follow them up, then convert the ones who enrol.
+              </p>
+            </div>
+          </div>
+          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowNewModal(true)}>
+            New Enquiry
           </BrandButton>
         </div>
+
+        {/* Overdue follow-ups are the only thing here that goes wrong on its
+            own, so they get called out above the list rather than buried. */}
+        {counts.OVERDUE > 0 && !showOverdue ? (
+          <button
+            type="button"
+            onClick={() => { setStatusFilter("ALL"); setShowOverdue(true); setSourceFilter("ALL"); }}
+            className="mb-4 flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left transition-all hover:brightness-95"
+          >
+            <span className="flex items-center gap-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+              <span className="text-sm font-bold text-rose-600">
+                {counts.OVERDUE} follow-up{counts.OVERDUE === 1 ? " is" : "s are"} overdue
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-rose-600" />
+          </button>
+        ) : null}
 
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {[
@@ -5550,7 +6599,7 @@ function NewQueryModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create query");
-      toast.success("Admission query created");
+      toast.success("Enquiry created");
       onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create query");
@@ -5560,7 +6609,7 @@ function NewQueryModal({
   };
 
   return (
-    <ModalFrame title="New Admission Query" eyebrow="Lead CRM" onClose={onClose}>
+    <ModalFrame title="New Admission Enquiry" eyebrow="Admissions" subtitle="Log a family who has asked about a place." icon={PhoneCall} tone="emerald" onClose={onClose}>
       <div className="space-y-4">
         <FormInput label="Name *" value={form.name} placeholder="Guardian or student name" onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -5595,7 +6644,7 @@ function NewQueryModal({
           />
         </label>
       </div>
-      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Query" onClose={onClose} onSave={submit} />
+      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Enquiry" onClose={onClose} onSave={submit} />
     </ModalFrame>
   );
 }
@@ -5643,7 +6692,7 @@ function QueryDetailModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
-      toast.success("Query updated");
+      toast.success("Enquiry updated");
       onChanged(data.data);
       return data.data;
     } catch (error) {
@@ -5693,7 +6742,7 @@ function QueryDetailModal({
   const overdue = ["ACTIVE", "FOLLOW_UP"].includes(query.status) && query.nextFollowUp && new Date(query.nextFollowUp).getTime() < now;
 
   return (
-    <ModalFrame title={query.name} eyebrow={`Admission Query · ${QUERY_SOURCES_LABELS[query.source] || query.source}`} onClose={onClose} wide>
+    <ModalFrame title={query.name} eyebrow={`Admission Enquiry · ${QUERY_SOURCES_LABELS[query.source] || query.source}`} subtitle={query.phone} icon={PhoneCall} onClose={onClose} wide>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -5850,19 +6899,12 @@ function QueryDetailModal({
   );
 }
 
-const ARCHIVED_STATUS_LABELS: Record<string, string> = {
-  inactive: "Inactive",
-  archived: "Archived",
-  transferred: "Transferred",
-  graduated: "Graduated",
-};
-
 export function ArchivedStudentsPanel({ version, onVersionBump }: { version: number; onVersionBump: () => void }) {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [restoring, setRestoring] = useState<string | null>(null);
-  const [graduating, setGraduating] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5880,10 +6922,17 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     load();
   }, [load, version]);
 
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const s of students) c[s.status] = (c[s.status] || 0) + 1;
+    return c;
+  }, [students]);
+
   const filtered = students.filter((s) => {
+    if (statusFilter !== "all" && s.status !== statusFilter) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    return (
+    return Boolean(
       s.fullName?.toLowerCase().includes(q) ||
       s.rollNo?.toLowerCase().includes(q) ||
       s.guardianName?.toLowerCase().includes(q)
@@ -5891,8 +6940,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   });
 
   const changeStatus = async (student: any, status: string, successMsg: string) => {
-    const setBusy = status === "active" ? setRestoring : setGraduating;
-    setBusy(student.id);
+    setBusyId(student.id);
     try {
       const res = await fetch("/api/students", {
         method: "PATCH",
@@ -5907,17 +6955,47 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Update failed");
     } finally {
-      setBusy(null);
+      setBusyId(null);
     }
   };
 
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Archive} title="Archived & Inactive Students" />
         <div className="pb-1.5">
           <StatusPill status={`${filtered.length} records`} />
         </div>
+      </div>
+      <p className="mb-5 max-w-2xl text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+        Students who have left the active roll. Their results and history stay on file. Restore anyone who
+        was taken off by mistake, or mark a leaver as graduated so the record shows why they left. Take a
+        student off the roll from their profile in the Student Directory.
+      </p>
+
+      {/* Status chips: "archived" and "graduated" are different situations and
+          admins usually want one or the other, not the pile. */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          { key: "all", label: `All (${students.length})` },
+          ...Object.keys(ARCHIVED_STATUS_LABELS)
+            .filter((k) => counts[k])
+            .map((k) => ({ key: k, label: `${ARCHIVED_STATUS_LABELS[k]} (${counts[k]})` })),
+        ].map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => setStatusFilter(chip.key)}
+            className={cn(
+              "h-9 cursor-pointer rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+              statusFilter === chip.key
+                ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+                : "border border-[#cfc2d6]/25 bg-white text-[#4d4354]/60 hover:border-[#8127cf]/30 hover:text-[#8127cf]",
+            )}
+          >
+            {chip.label}
+          </button>
+        ))}
       </div>
 
       <div className="mb-4 max-w-xs">
@@ -5959,14 +7037,26 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               </div>
               <StatusPill status={ARCHIVED_STATUS_LABELS[s.status] || s.status} />
               <div className="flex shrink-0 items-center gap-2">
+                <BrandButton
+                  variant="soft"
+                  icon={<RotateCcw className="w-4 h-4" />}
+                  disabled={busyId === s.id}
+                  onClick={() => changeStatus(s, "active", `${s.fullName} restored to the active roll`)}
+                >
+                  {busyId === s.id ? "Working…" : "Restore"}
+                </BrandButton>
+                {/*
+                  Marking a leaver as graduated was already wired in the handler
+                  but had no button, so the status could never be reached here.
+                */}
                 {s.status === "graduated" ? null : (
                   <BrandButton
                     variant="soft"
-                    icon={<RotateCcw className="w-4 h-4" />}
-                    disabled={restoring === s.id}
-                    onClick={() => changeStatus(s, "active", `${s.fullName} restored to active roster`)}
+                    icon={<Award className="w-4 h-4" />}
+                    disabled={busyId === s.id}
+                    onClick={() => changeStatus(s, "graduated", `${s.fullName} marked as graduated`)}
                   >
-                    {restoring === s.id ? "Restoring..." : "Restore"}
+                    Graduated
                   </BrandButton>
                 )}
               </div>
@@ -6178,17 +7268,54 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <PanelTitle icon={Plane} title="Leave Management" />
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="number"
-            value={academicYear}
-            onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
-            className="h-9 w-24 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-black text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
-          />
-          <StatusPill status={`${pendingCount} pending`} />
+      {/* Header matches the academics overview. */}
+      <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <Plane className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Leave Management</h2>
+              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+                Approve requests, set leave types and allowances, and see what each member of staff has left.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">
+              Year
+              <input
+                type="number"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
+                className="h-9 w-24 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-black text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+              />
+            </label>
+            <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+              {pendingCount} pending
+            </span>
+          </div>
         </div>
+
+        {/* Pending approvals are the only thing here that blocks someone else,
+            so they get called out rather than sitting inside a tab. */}
+        {pendingCount > 0 && tab !== "requests" ? (
+          <button
+            type="button"
+            onClick={() => { setTab("requests"); setStatusFilter("PENDING"); }}
+            className="mt-4 flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left transition-all hover:brightness-95"
+          >
+            <span className="flex items-center gap-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="text-sm font-bold text-amber-700">
+                {pendingCount} leave request{pendingCount === 1 ? "" : "s"} waiting on you
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-amber-700" />
+          </button>
+        ) : null}
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -6298,7 +7425,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
                   <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/55">
-                    {t._count?.allocations || 0} allocation(s) · {t._count?.requests || 0} request(s)
+                    {t._count?.allocations || 0} allocation{(t._count?.allocations || 0) === 1 ? "" : "s"} ·{" "}
+                    {t._count?.requests || 0} request{(t._count?.requests || 0) === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -6363,7 +7491,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {showAddType ? (
-        <ModalFrame title="Add Leave Type" eyebrow="Leave Management" onClose={() => setShowAddType(false)}>
+        <ModalFrame title="Add Leave Type" eyebrow="Staff · Leave" icon={Plane} tone="sky" onClose={() => setShowAddType(false)}>
           <div className="space-y-4">
             <FormInput label="Type Name" value={typeForm.name} placeholder="e.g. Casual Leave" onChange={(v) => setTypeForm((p) => ({ ...p, name: v }))} />
             <FormInput label="Default Days / Year" type="number" value={typeForm.defaultDays} placeholder="e.g. 10" onChange={(v) => setTypeForm((p) => ({ ...p, defaultDays: v }))} />
@@ -6377,7 +7505,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {showAddAllocation ? (
-        <ModalFrame title="Add Leave Allocation" eyebrow="Leave Management" onClose={() => setShowAddAllocation(false)}>
+        <ModalFrame title="Add Leave Allocation" eyebrow="Staff · Leave" icon={Plane} tone="sky" onClose={() => setShowAddAllocation(false)}>
           <div className="space-y-4">
             <FormSelect label="Leave Type" value={allocForm.leaveTypeId} onChange={(v) => setAllocForm((p) => ({ ...p, leaveTypeId: v }))}>
               <option value="">Select type</option>
@@ -6453,12 +7581,26 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                         const b = (row.balances as any[]).find((bl: any) => bl.leaveTypeId === t.id);
                         const alloc = b ? b.allocated / 10 : 0;
                         const used = b ? b.approved / 10 : 0;
-                        const left = b ? b.remaining / 10 : 0;
+                        // `remaining` is floored at 0 by the API, which hid
+                        // over-allocation: 15 allocated against 23 approved
+                        // showed "0 left" rather than 8 days overdrawn. Show the
+                        // real shortfall so it can be acted on.
+                        const left = used > alloc ? alloc - used : b ? b.remaining / 10 : 0;
+                        const overdrawn = left < 0;
                         return (
                           <React.Fragment key={t.id}>
                             <td className="text-center py-2 px-1 text-[#4d4354]/70">{alloc}</td>
                             <td className="text-center py-2 px-1 text-[#4d4354]/70">{used}</td>
-                            <td className={`text-center py-2 px-1 font-semibold ${left <= 0 && alloc > 0 ? "text-rose-600" : left <= alloc * 0.2 && alloc > 0 ? "text-amber-600" : "text-emerald-600"}`}>{left}</td>
+                            <td
+                              title={
+                                overdrawn
+                                  ? `${Math.abs(left)} day${Math.abs(left) === 1 ? "" : "s"} over the allocation`
+                                  : undefined
+                              }
+                              className={`text-center py-2 px-1 font-semibold ${left <= 0 && alloc > 0 ? "text-rose-600" : left <= alloc * 0.2 && alloc > 0 ? "text-amber-600" : "text-emerald-600"}`}
+                            >
+                              {left}
+                            </td>
                           </React.Fragment>
                         );
                       })}
@@ -6892,12 +8034,24 @@ export function RolePermissionsPanel() {
   const toggle = async (module: string, action: string) => {
     if (!matrix || matrix[activeRole]._fixed) return;
     const current = matrix[activeRole][module][action];
+    const next = !current;
+
+    // View gates the rest: a role that cannot see a module has no business
+    // adding, editing or deleting inside it. The matrix previously allowed
+    // states like Payroll "view off, add on", which is not a permission any
+    // screen can honour. Turning view off clears the other three in the same
+    // write, so the stored matrix never holds that combination.
+    const changes: Record<string, boolean> =
+      action === "canView" && !next
+        ? { canView: false, canAdd: false, canEdit: false, canDelete: false }
+        : { [action]: next };
+
     setSaving(`${module}:${action}`);
     try {
       const res = await fetch("/api/roles/permissions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: activeRole, module, [action]: !current }),
+        body: JSON.stringify({ role: activeRole, module, ...changes }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Update failed");
@@ -6905,7 +8059,7 @@ export function RolePermissionsPanel() {
         ...prev,
         [activeRole]: {
           ...prev[activeRole],
-          [module]: { ...prev[activeRole][module], [action]: !current },
+          [module]: { ...prev[activeRole][module], ...changes },
         },
       }));
       toast.success(`${action.replace("can", "").toUpperCase()} ${module} updated for ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`);
@@ -6921,18 +8075,30 @@ export function RolePermissionsPanel() {
 
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <PanelTitle icon={Shield} title="Role Permissions" />
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Header matches the academics overview. */}
+      <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <Shield className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
+            <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Permissions</h2>
+            <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+              Pick a role, then choose which parts of the system it can see and change.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           {PERM_ROLES.map((r) => (
             <button
               key={r.id}
               onClick={() => setActiveRole(r.id)}
               className={cn(
-                "rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors",
+                "cursor-pointer rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95",
                 activeRole === r.id
-                  ? "bg-[#1f1a23] text-white"
-                  : "bg-[#f3f4f9] text-[#4d4354]/70 hover:bg-[#e9e6ef]"
+                  ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+                  : "border border-[#cfc2d6]/25 bg-white text-[#4d4354]/70 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
               )}
             >
               {r.label}
@@ -6973,6 +8139,10 @@ export function RolePermissionsPanel() {
                     <td className="py-2 px-3 font-semibold capitalize text-[#4d4354]">{module.replace("-", " ")}</td>
                     {PERM_ACTIONS.map((a) => {
                       const on = Boolean(flags[a.key]);
+                      // Without view, the write actions are meaningless — so
+                      // they are not offered rather than silently ignored.
+                      const gatedByView = a.key !== "canView" && !flags.canView;
+                      const busy = saving === `${module}:${a.key}`;
                       return (
                         <td key={a.key} className="text-center py-2 px-3">
                           {isFixed ? (
@@ -6980,11 +8150,15 @@ export function RolePermissionsPanel() {
                           ) : (
                             <button
                               onClick={() => toggle(module, a.key)}
-                              disabled={saving === `${module}:${a.key}`}
+                              disabled={busy || gatedByView}
+                              role="switch"
+                              aria-checked={on}
+                              title={gatedByView ? `Turn on View for ${module.replace("-", " ")} first` : undefined}
                               className={cn(
                                 "relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors",
                                 on ? "bg-[#8127cf]" : "bg-[#ddd6e4]",
-                                saving === `${module}:${a.key}` && "opacity-60"
+                                busy && "opacity-60",
+                                gatedByView && "cursor-not-allowed opacity-35"
                               )}
                               aria-label={`${module} ${a.label}`}
                             >
@@ -7265,7 +8439,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
               )}
               {room.note ? <p className="mt-2 text-xs font-semibold text-[#4d4354]/55">{room.note}</p> : null}
               <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">
-                {room._count?.slots ?? 0} timetable slot(s)
+                {room._count?.slots ?? 0} timetable slot{(room._count?.slots ?? 0) === 1 ? "" : "s"}
               </p>
             </div>
           ))}
@@ -7429,9 +8603,26 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         <EmptyInline text="No periods defined yet. These drive the timetable grid row headers." />
       ) : (
         <div className="space-y-2">
-          {periods.map((p, i) => (
+          {periods.map((p, i) => {
+            // Unscheduled time between two periods is the school's break. There
+            // is no break record to render, so the list used to jump straight
+            // from "Period 3, ends 10:00" to "Period 5, starts 10:40" and read
+            // as a missing period rather than as an intended gap.
+            const prev = i > 0 ? periods[i - 1] : null;
+            const gapMinutes =
+              prev && prev.endTime && p.startTime ? minutesBetween(prev.endTime, p.startTime) : 0;
+            return (
+            <React.Fragment key={p.id}>
+            {gapMinutes > 0 ? (
+              <div className="flex items-center gap-3 px-4 py-1" aria-hidden="true">
+                <span className="h-px flex-1 bg-[#cfc2d6]/25" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/35">
+                  {gapMinutes} min break
+                </span>
+                <span className="h-px flex-1 bg-[#cfc2d6]/25" />
+              </div>
+            ) : null}
             <div
-              key={p.id}
               className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/25 px-4 py-3"
             >
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
@@ -7468,7 +8659,9 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
-          ))}
+            </React.Fragment>
+            );
+          })}
           <p className="pt-2 text-xs font-bold text-[#4d4354]/45">
             Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and
             leaves existing slots untouched.

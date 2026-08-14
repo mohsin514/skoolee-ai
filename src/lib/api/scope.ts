@@ -53,6 +53,26 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
   return Response.json({ error: fallback }, { status: 500 });
 }
 
+/**
+ * Students and guardians. They are authenticated, but they are *outside* the
+ * staff boundary: every route that returns roster-wide data (other children's
+ * PII, campus-wide schedules, staff records) must exclude them explicitly.
+ * requireAuthUser() alone is not a sufficient gate for those routes.
+ */
+export function isFamilyRole(user: AuthUser) {
+  return user.role === "STUDENT" || user.role === "PARENT";
+}
+
+/**
+ * Guard for staff-only reads. Families get their own data through the
+ * dedicated /student and /parent endpoints, never through roster routes.
+ */
+export function assertStaffRole(user: AuthUser) {
+  if (isFamilyRole(user)) {
+    throw new ApiError("This data is not available to student or guardian accounts", 403);
+  }
+}
+
 export function canManageOperations(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role) || user.role === "PRINCIPAL";
 }

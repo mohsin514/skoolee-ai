@@ -36,7 +36,13 @@ export async function POST(request: NextRequest) {
     if (existing) throw new ApiError("Room type already exists", 409);
 
     const data = await prisma.dormRoomType.create({
-      data: { campusId, name },
+      data: {
+        campusId,
+        name,
+        description: body.description ? String(body.description).trim() : null,
+        // Paisa, matching every other money column.
+        costPerTerm: Number.isFinite(Number(body.costPerTerm)) ? Math.max(0, Math.round(Number(body.costPerTerm))) : 0,
+      },
     });
 
     return Response.json({ success: true, data });
@@ -74,7 +80,15 @@ export async function PATCH(request: NextRequest) {
 
     const data = await prisma.dormRoomType.update({
       where: { id },
-      data: { name: updates.name },
+      data: {
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        ...(updates.description !== undefined
+          ? { description: updates.description ? String(updates.description).trim() : null }
+          : {}),
+        ...(updates.costPerTerm !== undefined
+          ? { costPerTerm: Math.max(0, Math.round(Number(updates.costPerTerm) || 0)) }
+          : {}),
+      },
     });
 
     return Response.json({ success: true, data });

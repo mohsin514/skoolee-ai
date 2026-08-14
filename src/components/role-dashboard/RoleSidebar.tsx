@@ -38,17 +38,49 @@ interface RoleSidebarProps {
   logoUrl?: string | null;
 }
 
-function InstitutionBadge({ logoUrl, className }: { logoUrl?: string | null; className?: string }) {
+/** First letters of the institution/campus name, e.g. "Main Campus · Lahore" → "MC". */
+function initialsOf(name?: string | null) {
+  const words = (name ?? "")
+    .split(/[·|,–-]/)[0]
+    .trim()
+    .split(/\s+/)
+    .filter((w) => /[a-z0-9]/i.test(w));
+  if (!words.length) return "S";
+  return words
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+}
+
+function InstitutionBadge({
+  logoUrl,
+  name,
+  className,
+}: {
+  logoUrl?: string | null;
+  name?: string | null;
+  className?: string;
+}) {
+  const base = className ?? "h-11 w-11 shrink-0 rounded-2xl border border-[#cfc2d6]/25";
+
   if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt="Institution logo"
-        className={className ?? "h-11 w-11 rounded-2xl object-cover border border-[#cfc2d6]/25"}
-      />
-    );
+    return <img src={logoUrl} alt="Institution logo" className={cn(base, "object-cover")} />;
   }
-  return <SkooleeLogo size="1.5rem" />;
+
+  // No uploaded logo: a compact monogram tile. Never the wordmark — it sits
+  // right next to the Skoolee wordmark and would render the brand twice.
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        base,
+        "grid place-items-center bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white font-bold tracking-tight",
+        "text-[13px] shadow-[0_4px_12px_rgba(129,39,207,0.25)]"
+      )}
+    >
+      {initialsOf(name)}
+    </span>
+  );
 }
 
 export function RoleSidebar({
@@ -71,7 +103,7 @@ export function RoleSidebar({
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white/70 backdrop-blur-xl border-r border-[#cfc2d6]/25 flex-col p-6 fixed h-full z-50 shadow-[12px_0_40px_rgba(129,39,207,0.05)]">
         <div className="mb-6 shrink-0 flex items-center gap-3">
-          <InstitutionBadge logoUrl={logoUrl} />
+          <InstitutionBadge logoUrl={logoUrl} name={tagline} />
           <div className="min-w-0">
             <SkooleeLogo size="1.2rem" />
             <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider truncate">
@@ -133,7 +165,11 @@ export function RoleSidebar({
               className="md:hidden fixed inset-y-0 left-0 z-[131] w-72 bg-white flex flex-col p-6 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-6">
-                <InstitutionBadge logoUrl={logoUrl} className="h-10 w-10 rounded-2xl object-cover border border-[#cfc2d6]/25" />
+                <InstitutionBadge
+                  logoUrl={logoUrl}
+                  name={tagline}
+                  className="h-10 w-10 shrink-0 rounded-2xl border border-[#cfc2d6]/25"
+                />
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}
@@ -181,6 +217,7 @@ function NavGroup({ group }: { group: RoleNavGroup }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className={cn(
           "w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 text-[13px] font-bold tracking-wide cursor-pointer",
           active
@@ -264,6 +301,7 @@ function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean
       type="button"
       onClick={handleClick}
       title={item.label}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
         "relative isolate w-full flex cursor-pointer items-center gap-3 rounded-2xl transition-all duration-300 font-semibold hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
         compact ? "px-3 py-2.5 text-[13px]" : "px-4 py-3 text-sm",

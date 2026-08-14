@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertTriangle,
   Award,
   ArrowRightLeft,
   BookOpen,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { userMessage } from "@/lib/errors";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import { RoleShell, type RoleNavItem, BrandButton } from "@/components/role-dashboard";
@@ -70,6 +72,7 @@ import {
   AdmissionQueriesPanel,
   AIPanel,
   ArchivedStudentsPanel,
+  exportStudentsToCSV,
   classGroupKey,
   ExamDetailModal,
   FacultyPanel,
@@ -120,13 +123,95 @@ type AdminView =
   | "year-setup"
   ;
 
+/** Land on the academic overview: it shows where the year stands and what to do
+ *  next. Campus Control is account administration, not a daily starting point. */
+const DEFAULT_VIEW: AdminView = "academic-hub";
+
+const ADMIN_VIEWS: readonly AdminView[] = [
+  "leadership", "classes", "teachers", "students", "admission-queries",
+  "student-setup", "promote-archive", "leave", "permissions", "attendance",
+  "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
+  "year-cycle", "teacher-performance", "exam-cycles", "billing", "report-cards",
+  "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup",
+];
+
+function isAdminView(value: string | null): value is AdminView {
+  return !!value && (ADMIN_VIEWS as readonly string[]).includes(value);
+}
+
+function viewFromLocation(): AdminView {
+  if (typeof window === "undefined") return DEFAULT_VIEW;
+  const v = new URLSearchParams(window.location.search).get("view");
+  return isAdminView(v) ? v : DEFAULT_VIEW;
+}
+
+/**
+ * The section the admin is looking at, mirrored into `?view=`.
+ *
+ * Kept in the URL rather than in component state alone so a refresh, a browser
+ * Back, or a pasted link all land on the same section instead of bouncing the
+ * user back to the overview. We drive it with the History API directly instead
+ * of the Next router so switching sections does not re-run the route's data
+ * loading — it is a purely client-side panel swap.
+ */
+function useAdminView(): [AdminView, (next: AdminView) => void] {
+  const [activeView, setActiveViewState] = useState<AdminView>(viewFromLocation);
+
+  useEffect(() => {
+    const onPop = () => setActiveViewState(viewFromLocation());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Stamp the default onto the URL so the first Back does not leave a bare
+  // /admin entry that would silently reset the section.
+  useEffect(() => {
+    if (!isAdminView(new URLSearchParams(window.location.search).get("view"))) {
+      window.history.replaceState(null, "", `/admin?view=${activeView}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The history write stays outside the state updater: updaters must be pure,
+  // and pushing from inside one makes React warn about updating the Router
+  // while another component renders.
+  const setActiveView = useCallback((next: AdminView) => {
+    if (viewFromLocation() !== next) {
+      window.history.pushState(null, "", `/admin?view=${next}`);
+    }
+    setActiveViewState(next);
+  }, []);
+
+  return [activeView, setActiveView];
+}
+
+/** Shown when a section is reachable by URL but not permitted for this role. */
+function RestrictedView({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+        <Shield className="h-6 w-6" />
+      </span>
+      <h2 className="text-lg font-black tracking-tight text-[#1f1a23]">Not available for your role</h2>
+      <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+        Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
+      </p>
+      <button
+        type="button"
+        onClick={onBack}
+        className="mt-6 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+      >
+        Back to overview
+      </button>
+    </div>
+  );
+}
+
 export default function CampusAdminDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  // Land on the academic overview: it shows where the year stands and what to
-  // do next. Campus Control is account administration, not a daily starting point.
-  const [activeView, setActiveView] = useState<AdminView>("academic-hub");
+  const [activeView, setActiveView] = useAdminView();
   const [showClassWizard, setShowClassWizard] = useState(false);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [admissionClassId, setAdmissionClassId] = useState("");
@@ -199,7 +284,9 @@ export default function CampusAdminDashboard() {
       setData(nextData);
       return nextData;
     } catch (error: any) {
-      toast.error(error.message);
+      // Server-action failures arrive as raw engine errors — query text,
+      // absolute build paths, database host. Never straight into a toast.
+      toast.error(userMessage(error, "Could not load the campus dashboard."));
       return null;
     } finally {
       setLoading(false);
@@ -215,31 +302,10 @@ export default function CampusAdminDashboard() {
     router.push("/login");
   };
 
-  const exportStudentsCSV = () => {
-    const students = data?.students || [];
-    if (!students.length) return toast.error("No student data to export");
-    const headers = ["Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email"];
-    const rows = students.map((s: any) =>
-      [
-        `"${s.fullName}"`,
-        s.rollNo,
-        s.gender || "MALE",
-        s.class ? `${s.class.name} ${s.class.section || ""}`.trim() : "",
-        `"${s.guardianName || ""}"`,
-        s.guardianPhone || "",
-        s.guardianEmail || "",
-      ].join(",")
-    );
-    const csv = [...headers, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${data.campusName.replace(/\s+/g, "_")}_students.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`${students.length} students exported`);
-  };
+  // Exports exactly what the directory is showing, so a filtered view exports
+  // the filtered roster rather than silently dumping every student.
+  const exportStudentsCSV = (visible?: any[]) =>
+    exportStudentsToCSV(visible ?? data?.students ?? [], data?.campusName);
 
   const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST") => {
     if (role === "CAMPUS_ADMIN") setShowAddAdminForm(true);
@@ -805,7 +871,31 @@ export default function CampusAdminDashboard() {
     return <AdminSkeleton standalone={true} />;
   }
 
-  if (!data) return null;
+  // `return null` here rendered a blank page whenever the dashboard load
+  // failed — a white screen and a toast that disappears after five seconds,
+  // with no way back other than guessing to reload.
+  if (!data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#faf7fc] p-6">
+        <div className="w-full max-w-sm rounded-[28px] border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+            <AlertTriangle className="h-6 w-6" />
+          </span>
+          <h1 className="text-lg font-black tracking-tight text-[#1f1a23]">Couldn&apos;t load your dashboard</h1>
+          <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+            The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
+          </p>
+          <button
+            type="button"
+            onClick={() => loadData()}
+            className="mt-6 w-full rounded-2xl bg-[#8127cf] px-4 py-3 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const canInvitePrincipal = !data.principal;
 
@@ -902,10 +992,17 @@ export default function CampusAdminDashboard() {
             <StudentSetupPanel />
           ) : null}
 
+          {/*
+            Year-end work leads. This view is reached from a nav item called
+            "Promote Students", so opening on the archived-students list put the
+            promised action below the fold and behind a list that is empty for
+            most of the year. Archived students are the follow-up, not the
+            headline.
+          */}
           {activeView === "promote-archive" ? (
             <div className="space-y-6">
-              <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
               <YearEndPanel campusId={data.campusId} />
+              <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
             </div>
           ) : null}
 
@@ -987,7 +1084,14 @@ export default function CampusAdminDashboard() {
           {activeView === "dormitory" ? <DormitoryPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "library" ? <LibraryPanel /> : null}
-          {activeView === "billing" ? <BillingPage embedded hideHeader /> : null}
+          {/* Billing is only in the sidebar for ADMIN, but the section also
+              lives at ?view=billing, so a campus admin could reach it by URL.
+              Gate the view on the same condition as the nav entry. */}
+          {activeView === "billing"
+            ? data?.role === "ADMIN"
+              ? <BillingPage embedded hideHeader />
+              : <RestrictedView onBack={() => setActiveView(DEFAULT_VIEW)} />
+            : null}
         </div>
       </section>
 

@@ -98,6 +98,11 @@ import {
   AdmissionQueriesPanel,
   AIPanel,
   ArchivedStudentsPanel,
+  AdminRow,
+  FacultyRow,
+  PendingFacultyRow,
+  StudentDetailModal,
+  exportStudentsToCSV,
   ClassDetailModal,
   HelpModal,
   LeadershipPanel,
@@ -208,18 +213,10 @@ export default function PrincipalDashboard() {
 
   const handleLogout = async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); };
 
-  const exportStudentsCSV = () => {
-    const students = data?.students || [];
-    if (!students.length) return toast.error("No student data to export");
-    const headers = ["Full Name,Roll No,Gender,Class,Guardian Name,Guardian Phone,Guardian Email"];
-    const rows = students.map((s: any) => [`"${s.fullName}"`, s.rollNo, s.gender || "MALE", s.class ? `${s.class.name} ${s.class.section || ""}`.trim() : "", `"${s.guardianName || ""}"`, s.guardianPhone || "", s.guardianEmail || ""].join(","));
-    const csv = [...headers, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${data.campusName.replace(/\s+/g, "_")}_students.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast.success("CSV exported");
-  };
+  // Exports exactly what the directory is showing, so a filtered view exports
+  // the filtered roster rather than silently dumping every student.
+  const exportStudentsCSV = (visible?: any[]) =>
+    exportStudentsToCSV(visible ?? data?.students ?? [], data?.campusName);
 
   const handleAdmissionSuccess = async (createdStudent?: any) => {
     const studentId = createdStudent?.id;
@@ -777,21 +774,6 @@ function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; t
 }
 
 
-function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onResend: () => void; onCancel: () => void }) {
-  const expired = invite.expiresAt ? new Date() > new Date(invite.expiresAt) : false;
-  const expiryLabel = invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
-  return (<div className="bg-gradient-to-br from-amber-50 via-amber-50/80 to-white p-5 rounded-[28px] border border-amber-100/80 flex items-center justify-between gap-4 group hover:shadow-lg transition-all duration-300"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center shrink-0"><Clock className="w-5 h-5 text-amber-500" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{invite.profile?.fullName || "Invitation pending"}</h4><p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-wider leading-none truncate">{invite.email}</p>{expiryLabel ? (<p className={`mt-2 text-[8px] font-black uppercase tracking-wider ${expired ? "text-rose-600" : "text-amber-600"}`}>{expired ? "Expired" : "Expires"} {expiryLabel}</p>) : null}</div></div><div className="flex flex-wrap items-center justify-end gap-2 shrink-0"><StatusPill status={expired ? "Expired" : formatStatus(invite.role)} /><button type="button" onClick={onResend} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] flex items-center gap-1.5 justify-center border border-[#8127cf]/10 shadow-sm hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md transition-all cursor-pointer"><Send className="w-3.5 h-3.5" />Resend</button><button type="button" onClick={onCancel} className="h-9 rounded-lg bg-white px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 shadow-sm hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md transition-all cursor-pointer"><X className="w-4 h-4" />Cancel</button></div></div>);
-}
-
-function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
-  const avatar = teacher.profileImageUrl;
-  return (<div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-5 rounded-[28px] border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] transition-all duration-300 flex items-center justify-between group"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><AvatarImage src={avatar} /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{teacher.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p></div></div><div className="flex items-center gap-6 shrink-0"><span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2.5 py-1">{teacher._count?.taughtSubjects || 0} subjects</span><button type="button" onClick={onView} className="h-9 rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md transition-all cursor-pointer">View</button><button type="button" onClick={onRemove} className="h-9 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 border border-rose-100 shadow-sm hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md transition-all cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Revoke</button></div></div>);
-}
-
-function AdminRow({ admin, onRemove }: { admin: any; onRemove?: () => void }) {
-  return (<div className="bg-gradient-to-br from-[#fbf0fe]/45 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-[#cfc2d6]/10 hover:border-[#8127cf]/20 hover:shadow-lg transition-all duration-300 flex items-center justify-between gap-4"><div className="flex items-center gap-5 min-w-0"><div className="h-12 w-12 bg-white rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0"><AvatarImage name={admin.fullName || admin.email} alt="" className="h-full w-full object-cover" initialsClassName="text-sm" /></div><div className="min-w-0"><h4 className="text-base font-black text-[#1f1a23] tracking-wider leading-none mb-1 truncate">{admin.fullName}</h4><p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider leading-none truncate">{admin.email}</p><p className="mt-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">{formatStatus(admin.role)}</p></div></div>{onRemove ? (<button type="button" onClick={onRemove} className="shrink-0 h-9 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 border border-rose-100 shadow-sm transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md cursor-pointer">Remove</button>) : null}</div>);
-}
-
 function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; icon: LucideIcon; busy: boolean; onClick: () => void }) {
   return (<button type="button" onClick={onClick} disabled={busy} className="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe] text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-md hover:shadow-[#8127cf]/20 disabled:opacity-40 disabled:cursor-not-allowed">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}{label}</button>);
 }
@@ -809,264 +791,6 @@ function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; 
 
 function EngagementMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
   return (<div className="flex items-center justify-between p-1 transition-all hover:bg-[#fbf0fe]/40 rounded-xl -mx-1"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm"><Icon className="h-4 w-4" /></div><p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">{label}</p></div><p className="text-sm font-black text-[#1f1a23]">{value}</p></div>);
-}
-
-function StudentDetailModal({ student, busy, onClose, onMove, onDelete, onUpdate }: {
-  student: any; busy: boolean; onClose: () => void; onMove: () => void; onDelete: (student: any) => void; onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
-}) {
-  const report = student.reportCards?.[0];
-  const avatar = student.profileImageUrl;
-  const [editing, setEditing] = useState(false);
-  const [edits, setEdits] = useState<Record<string, string>>({});
-  const [parentLink, setParentLink] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [generatingLink, setGeneratingLink] = useState(false);
-
-  const generateParentLink = async () => {
-    setGeneratingLink(true);
-    try {
-      const res = await fetch("/api/parent/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: student.id }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setParentLink(json.portalUrl);
-        toast.success("Parent portal link generated (valid 30 days)");
-      } else {
-        toast.error(json.error || "Failed to generate link");
-      }
-    } catch {
-      toast.error("Failed to generate parent link");
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  const copyParentLink = () => {
-    if (!parentLink) return;
-    navigator.clipboard.writeText(parentLink);
-    setLinkCopied(true);
-    toast.success("Link copied to clipboard!");
-    setTimeout(() => setLinkCopied(false), 2000);
-  };
-
-  useEffect(() => {
-    setEdits({
-      fullName: student.fullName || "", nameUr: student.nameUr || "", rollNo: student.rollNo || "",
-      dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
-      gender: student.gender || "", bloodType: student.bloodType || "", nationality: student.nationality || "",
-      phone: student.phone || "", guardianName: student.guardianName || "", guardianNameUr: student.guardianNameUr || "",
-      guardianPhone: student.guardianPhone || "", guardianEmail: student.guardianEmail || "",
-      guardianRelationship: student.guardianRelationship || "", guardianOccupation: student.guardianOccupation || "",
-      city: student.city || "", province: student.province || "", postalCode: student.postalCode || "",
-      address: student.address || "", medicalNotes: student.medicalNotes || "", specialNeeds: student.specialNeeds || "",
-      allergies: student.allergies || "", medications: student.medications || "", previousSchool: student.previousSchool || "",
-    });
-  }, [student.id]);
-
-  const ed = (field: string) => edits[field] || "";
-  const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
-
-  const saveEdits = async () => {
-    const updates: Record<string, any> = {};
-    const strFields = ["fullName","nameUr","rollNo","gender","bloodType","nationality","phone","guardianName","guardianNameUr","guardianPhone","guardianEmail","guardianRelationship","guardianOccupation","city","province","postalCode","address","medicalNotes","specialNeeds","allergies","medications","previousSchool"];
-    for (const f of strFields) updates[f] = edits[f] || null;
-    if (edits.fullName) updates.fullName = edits.fullName;
-    if (edits.rollNo) updates.rollNo = edits.rollNo;
-    if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
-    await onUpdate(student.id, updates);
-    setEditing(false);
-  };
-
-  const formatDob = (d: any) => { if (!d) return "N/A"; try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; } };
-  const genderLabel = (g: string) => { if (g === "MALE") return "Male"; if (g === "FEMALE") return "Female"; if (g === "OTHER") return "Other"; return g || "N/A"; };
-  const relationshipLabel = (r: string) => { const m: Record<string, string> = { FATHER: "Father", MOTHER: "Mother", GUARDIAN: "Guardian", UNCLE: "Uncle", AUNT: "Aunt", GRANDPARENT: "Grandparent", SIBLING: "Sibling" }; return m[r] || r || "N/A"; };
-
-  return (
-    <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer">
-            <Trash2 className="h-3.5 w-3.5" />Delete Student
-          </button>
-          <button type="button" onClick={onMove} className="flex h-9 items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white cursor-pointer">
-            <ArrowRightLeft className="h-3.5 w-3.5" />Move Class
-          </button>
-          <button type="button" onClick={generateParentLink} disabled={generatingLink} className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-wider text-emerald-600 transition-all hover:bg-emerald-100 cursor-pointer disabled:opacity-50">
-            {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-            Parent Portal Link
-          </button>
-        </div>
-        <button type="button" onClick={() => setEditing(!editing)} className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"}`}>
-          <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
-        </button>
-      </div>
-
-      {parentLink && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">
-          <ExternalLink className="h-4 w-4 text-emerald-600 shrink-0" />
-          <input type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
-          <button type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
-            {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {linkCopied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-      )}
-
-      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/65 via-[#fbf0fe]/40 to-white border border-[#cfc2d6]/10 p-5 sm:flex-row sm:items-center">
-        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} />
-        </div>
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
-                <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
-              </div>
-              <FormInput label="Roll Number" value={ed("rollNo")} placeholder="Roll number" onChange={(v) => setEd("rollNo", v)} />
-            </div>
-          ) : (
-            <>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Student Record</p>
-              <h3 className="mt-1 truncate text-3xl font-black tracking-wider text-[#1f1a23]">{student.fullName}</h3>
-              {student.nameUr ? <p className="mt-0.5 text-lg font-semibold text-[#4d4354]/70" dir="rtl">{student.nameUr}</p> : null}
-              <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-[#4d4354]/55">{student.rollNo || "No roll number"} - {classLabel(student.class)}</p>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MiniMetric label="Roll No" value={student.rollNo || "N/A"} active />
-        <MiniMetric label="Class" value={classLabel(student.class)} />
-        <MiniMetric label="Status" value={student.status === "active" ? "Active" : student.status || "Active"} />
-        <MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
-          <PanelTitle icon={User} title="Personal Info" />
-          {editing ? (
-            <div className="mt-4 space-y-3">
-              <FormInput label="Date of Birth" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
-              <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">Not specified</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
-              </FormSelect>
-              <FormSelect label="Blood Type" value={ed("bloodType")} onChange={(v) => setEd("bloodType", v)}>
-                <option value="">Not known</option>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
-              </FormSelect>
-              <FormInput label="Nationality" value={ed("nationality")} placeholder="Pakistan" onChange={(v) => setEd("nationality", v)} />
-              <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
-              <FormInput label="Previous School" value={ed("previousSchool")} placeholder="Previous school" onChange={(v) => setEd("previousSchool", v)} />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
-              <DetailRow label="Gender" value={genderLabel(student.gender)} />
-              <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
-              <DetailRow label="Nationality" value={student.nationality || "N/A"} />
-              <DetailRow label="Phone" value={student.phone || "N/A"} />
-              <DetailRow label="Previous School" value={student.previousSchool || "N/A"} />
-              <DetailRow label="Enrolled" value={formatDob(student.enrollmentDate)} />
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
-          <PanelTitle icon={Users} title="Guardian" />
-          {editing ? (
-            <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput label="Name (English)" value={ed("guardianName")} placeholder="Guardian name" onChange={(v) => setEd("guardianName", v)} />
-                <FormInput label="Name (Urdu)" value={ed("guardianNameUr")} placeholder="سرپرست کا نام" onChange={(v) => setEd("guardianNameUr", v)} />
-              </div>
-              <FormSelect label="Relationship" value={ed("guardianRelationship")} onChange={(v) => setEd("guardianRelationship", v)}>
-                <option value="">Select</option>{["FATHER","MOTHER","GUARDIAN","UNCLE","AUNT","GRANDPARENT","SIBLING"].map((r) => <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>)}
-              </FormSelect>
-              <FormInput label="Occupation" value={ed("guardianOccupation")} placeholder="Occupation" onChange={(v) => setEd("guardianOccupation", v)} />
-              <FormInput label="Phone" value={ed("guardianPhone")} placeholder="Guardian phone" onChange={(v) => setEd("guardianPhone", v)} />
-              <FormInput label="Email" value={ed("guardianEmail")} placeholder="Guardian email" onChange={(v) => setEd("guardianEmail", v)} />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <DetailRow label="Name" value={student.guardianName || "N/A"} />
-              {student.guardianNameUr ? <DetailRow label="Name (Urdu)" value={<span dir="rtl">{student.guardianNameUr}</span>} /> : null}
-              <DetailRow label="Relationship" value={relationshipLabel(student.guardianRelationship)} />
-              <DetailRow label="Occupation" value={student.guardianOccupation || "N/A"} />
-              <DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
-              <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
-          <PanelTitle icon={MapPin} title="Address" />
-          {editing ? (
-            <div className="mt-4 space-y-3">
-              <FormInput label="Address" value={ed("address")} placeholder="Street address" onChange={(v) => setEd("address", v)} />
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput label="City" value={ed("city")} placeholder="City" onChange={(v) => setEd("city", v)} />
-                <FormInput label="Province" value={ed("province")} placeholder="Province" onChange={(v) => setEd("province", v)} />
-              </div>
-              <FormInput label="Postal Code" value={ed("postalCode")} placeholder="Postal code" onChange={(v) => setEd("postalCode", v)} />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <DetailRow label="Address" value={student.address || "N/A"} />
-              <DetailRow label="City" value={student.city || "N/A"} />
-              <DetailRow label="Province" value={student.province || "N/A"} />
-              <DetailRow label="Postal Code" value={student.postalCode || "N/A"} />
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
-          <PanelTitle icon={Heart} title="Medical & Health" />
-          {editing ? (
-            <div className="mt-4 space-y-3">
-              <FormInput label="Medical Notes" value={ed("medicalNotes")} placeholder="Medical conditions" onChange={(v) => setEd("medicalNotes", v)} />
-              <FormInput label="Special Needs" value={ed("specialNeeds")} placeholder="Special needs" onChange={(v) => setEd("specialNeeds", v)} />
-              <FormInput label="Allergies" value={ed("allergies")} placeholder="Allergies" onChange={(v) => setEd("allergies", v)} />
-              <FormInput label="Medications" value={ed("medications")} placeholder="Medications" onChange={(v) => setEd("medications", v)} />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <DetailRow label="Medical Notes" value={student.medicalNotes || "None"} />
-              <DetailRow label="Special Needs" value={student.specialNeeds || "None"} />
-              <DetailRow label="Allergies" value={student.allergies || "None"} />
-              <DetailRow label="Medications" value={student.medications || "None"} />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-3xl bg-gradient-to-br from-[#fbf0fe]/60 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/10 p-5 shadow-sm">
-        <PanelTitle icon={FileText} title="Report Card" />
-        {report ? (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <DetailRow label="Exam" value={report.exam?.title || "N/A"} />
-            <DetailRow label="Status" value={<StatusPill status={report.status} />} />
-            <DetailRow label="Generated" value={formatDate(report.generatedAt)} />
-          </div>
-        ) : (
-          <div className="mt-4"><EmptyInline text="No report card has been generated for this student yet." /></div>
-        )}
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-        {editing ? (
-          <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
-          </BrandButton>
-        ) : null}
-        <BrandButton variant="soft" icon={<School className="w-4 h-4" />} onClick={onMove}>Move Class / Section</BrandButton>
-      </div>
-    </ModalFrame>
-  );
 }
 
 function SkeletonBlock({ className = "" }: { className?: string }) {

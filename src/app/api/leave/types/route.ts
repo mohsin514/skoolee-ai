@@ -106,7 +106,10 @@ export async function DELETE(req: NextRequest) {
     });
     if (!type) throw new ApiError("Leave type not found", 404);
     if (type._count.requests > 0) {
-      throw new ApiError(`Cannot delete "${type.name}" — ${type._count.requests} leave request(s) reference it`, 409);
+      throw new ApiError(
+        `Cannot delete "${type.name}" — ${type._count.requests} leave request${type._count.requests === 1 ? "" : "s"} reference it`,
+        409
+      );
     }
 
     await prisma.leaveType.delete({ where: { id } });

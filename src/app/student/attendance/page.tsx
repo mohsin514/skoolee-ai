@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ATTENDANCE_RISK_THRESHOLD, summarizeAttendance } from "@/lib/attendance";
 import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, X, Clock } from "lucide-react";
 import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
@@ -12,17 +13,12 @@ export default function StudentAttendancePage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  const stats = useMemo(() => {
-    if (!data?.user?.attendance) return { total: 0, present: 0, absent: 0, leave: 0, rate: 0 };
-    const att = data.user.attendance;
-    return {
-      total: att.length,
-      present: att.filter((e: any) => e.status === "PRESENT").length,
-      absent: att.filter((e: any) => e.status === "ABSENT").length,
-      leave: att.filter((e: any) => e.status === "LEAVE").length,
-      rate: data.user.attendanceRate || 0,
-    };
-  }, [data]);
+  // Shared helper so this page, the dashboard, the parent portal, and the
+  // office's monthly report all quote the same percentage.
+  const stats = useMemo(
+    () => summarizeAttendance(data?.user?.attendance || []),
+    [data],
+  );
 
   const monthRecords = useMemo(() => {
     if (!data?.user?.attendance?.length) return [];
@@ -33,14 +29,7 @@ export default function StudentAttendancePage() {
     }).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [data, selectedMonth]);
 
-  const monthStats = useMemo(() => {
-    const present = monthRecords.filter((r: any) => r.status === "PRESENT").length;
-    const absent = monthRecords.filter((r: any) => r.status === "ABSENT").length;
-    const leave = monthRecords.filter((r: any) => r.status === "LEAVE").length;
-    const total = monthRecords.length;
-    const percentage = total > 0 ? Math.round(((present + leave) / total) * 100) : 0;
-    return { present, absent, leave, total, percentage };
-  }, [monthRecords]);
+  const monthStats = useMemo(() => summarizeAttendance(monthRecords), [monthRecords]);
 
   const calendarDays = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -98,7 +87,7 @@ export default function StudentAttendancePage() {
   if (error) return <StudentErrorState error={error} onRetry={refetch} />;
   if (!data || !data.user) return null;
 
-  const isAtRisk = stats.rate > 0 && stats.rate < 75;
+  const isAtRisk = stats.rate !== null && stats.rate < ATTENDANCE_RISK_THRESHOLD;
 
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
@@ -163,7 +152,7 @@ export default function StudentAttendancePage() {
 
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/50 px-3 py-1.5 border border-[#cfc2d6]/10">
-              <span className="text-xs font-bold text-[#1d1b20]">{monthStats.percentage}%</span>
+              <span className="text-xs font-bold text-[#1d1b20]">{monthStats.rate ?? 0}%</span>
               <span className="text-[9px] font-semibold text-[#4d4354]/50">this month</span>
             </div>
             <div className="flex gap-3">

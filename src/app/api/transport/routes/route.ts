@@ -28,15 +28,16 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
     const body = await req.json();
-    const { title, fare, campusId: rawCampusId } = body;
+    const { title, description, fare, campusId: rawCampusId } = body;
     const campusId = await resolveCampusId(user, rawCampusId);
 
-    if (!title) throw new ApiError("title is required", 400);
+    if (!title) throw new ApiError("Route name is required", 400);
 
     const route = await prisma.transportRoute.create({
       data: {
         campusId,
         title,
+        description: description ? String(description).trim() : null,
         fare: typeof fare === "number" ? fare : 0,
       },
       include: {
@@ -57,7 +58,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
     const body = await req.json();
-    const { id, title, fare, campusId: rawCampusId, vehicleIds } = body;
+    const { id, title, description, fare, campusId: rawCampusId, vehicleIds } = body;
     if (!id) throw new ApiError("id is required", 400);
 
     const campusId = await resolveCampusId(user, rawCampusId);
@@ -80,6 +81,7 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data: {
         ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description: description ? String(description).trim() : null } : {}),
         ...(fare !== undefined ? { fare } : {}),
       },
       include: {

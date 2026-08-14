@@ -360,9 +360,13 @@ export function AcademicCalendar({
 function LayerChip({ label, color, active, onClick }: { label: string; color: string; active: boolean; onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      // These are filters, not a legend. On/off is conveyed only by a colour
+      // shift, so the state has to be exposed for assistive tech too.
+      aria-pressed={active}
       className={cn(
-        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all",
+        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30",
         active ? "border-[#cfc2d6]/30 bg-white text-[#1d1b20]" : "border-[#cfc2d6]/15 bg-[#faf7fc] text-[#4d4354]/40"
       )}
     >

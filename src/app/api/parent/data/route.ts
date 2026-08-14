@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { enterTenantContext } from "@/lib/db/tenant-context";
+import { summarizeAttendance } from "@/lib/attendance";
 import { verifyParentToken } from "../token/route";
 
 export const runtime = "nodejs";
@@ -42,13 +43,18 @@ export async function GET(req: NextRequest) {
       include: {
         class: { select: { name: true, section: true, academicYear: true } },
         campus: { select: { name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
+        // A report card sits in GENERATED/REVIEWED while the office is still
+        // checking it. Families only ever see one the school has released.
         reportCards: {
+          where: { status: { in: ["PUBLISHED", "SENT"] } },
           orderBy: { generatedAt: "desc" },
           include: {
             exam: { select: { id: true, title: true, term: true, academicYear: true } },
           },
         },
+        // Same rule for raw marks: nothing before the exam is published.
         marks: {
+          where: { exam: { status: "PUBLISHED" } },
           include: {
             subject: { select: { name: true, totalMarks: true } },
             exam: { select: { title: true, term: true } },
@@ -69,9 +75,10 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
-    const totalAttendance = student.attendance.length;
-    const presentCount = student.attendance.filter((a) => a.status === "PRESENT").length;
-    const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
+    const attendanceSummary = summarizeAttendance(student.attendance);
+    const totalAttendance = attendanceSummary.total;
+    const presentCount = attendanceSummary.present;
+    const attendanceRate = attendanceSummary.rate;
 
     const marksByExam = new Map<string, { examTitle: string; term: string; marks: typeof student.marks }>();
     for (const m of student.marks) {

@@ -613,11 +613,17 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                     : undefined
                 }
               />
+              {/*
+                No records for the period is not a 0% attendance rate. Marking
+                simply has not happened yet, and a big dark "0%" read as though
+                every student were absent.
+              */}
               <SummaryStatCard
                 icon={TrendingUp}
                 label="Attendance Rate"
-                value={`${summaryRate}%`}
+                value={summaryData?.totalRecords ? `${summaryRate}%` : "—"}
                 tone="dark"
+                sub={summaryData?.totalRecords ? undefined : "Not marked yet"}
               />
             </div>
           )}

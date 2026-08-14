@@ -8,6 +8,14 @@ interface CycleContextValue {
   hasActiveCycle: boolean;
   cycleLabel: string | null;
   cycleStatus: string | null;
+  /**
+   * Year of the active cycle. Everything a teacher creates (exams, grade
+   * config, report cards) must be stamped with this and never with the
+   * calendar year — a cycle labelled 2027 routinely starts in August 2026, so
+   * `new Date().getFullYear()` files the record under a year the office is no
+   * longer looking at.
+   */
+  academicYear: number | null;
   loading: boolean;
 }
 
@@ -15,6 +23,7 @@ const CycleContext = createContext<CycleContextValue>({
   hasActiveCycle: false,
   cycleLabel: null,
   cycleStatus: null,
+  academicYear: null,
   loading: true,
 });
 
@@ -22,11 +31,21 @@ export function useCycleStatus() {
   return useContext(CycleContext);
 }
 
+/**
+ * Academic year to stamp on new records. Falls back to the calendar year only
+ * while the cycle is still loading.
+ */
+export function useAcademicYear() {
+  const { academicYear } = useContext(CycleContext);
+  return academicYear ?? new Date().getFullYear();
+}
+
 export function CycleProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CycleContextValue>({
     hasActiveCycle: false,
     cycleLabel: null,
     cycleStatus: null,
+    academicYear: null,
     loading: true,
   });
 
@@ -42,6 +61,7 @@ export function CycleProvider({ children }: { children: ReactNode }) {
             hasActiveCycle: !!active,
             cycleLabel: active?.label || null,
             cycleStatus: active?.status || (json.data?.[0]?.status || null),
+            academicYear: active?.academicYear ?? null,
             loading: false,
           });
         }

@@ -8,6 +8,8 @@ import { Select } from "@/components/ui/select";
 import {
   classLabel, CreateAssessmentModal, EmptyInline, FinalGradesModal, GradeConfigModal, MarksSkeleton, MiniMetric, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
+import { useGradingTools } from "../use-grading-tools";
+import { GradingModals, GradingToolbar } from "../grading-tools";
 import { cn } from "@/lib/utils";
 
 export default function MarksPage() {
@@ -17,19 +19,8 @@ export default function MarksPage() {
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
   const [marksLoading, setMarksLoading] = useState(false);
   const [marksSaving, setMarksSaving] = useState(false);
-  const [showExamModal, setShowExamModal] = useState(false);
-  const [showGradeConfigModal, setShowGradeConfigModal] = useState(false);
-  const [showGradeOverviewModal, setShowGradeOverviewModal] = useState(false);
-  const [examForm, setExamForm] = useState({ title: "", term: "", classId: "", subjectId: "" as string, examType: "CLASS_TEST" as string });
-  const [creatingExam, setCreatingExam] = useState(false);
-  const [gradeConfig, setGradeConfig] = useState<Record<string, number>>({});
-  const [gradeConfigLoading, setGradeConfigLoading] = useState(false);
-  const [gradeConfigSaving, setGradeConfigSaving] = useState(false);
-  const [weightedGradeResult, setWeightedGradeResult] = useState<any>(null);
-  const [weightedGradeLoading, setWeightedGradeLoading] = useState(false);
-  const [selectedGradeClassId, setSelectedGradeClassId] = useState("");
-  const [generatingReportCards, setGeneratingReportCards] = useState(false);
-  const [reportCardsGenerated, setReportCardsGenerated] = useState(false);
+
+  const grading = useGradingTools({ onChanged: loadData });
 
   const classHubs = data?.classHubs || [];
   const activeExam = (data?.exams || []).find((exam: any) => exam.id === selectedExamId);
@@ -120,81 +111,6 @@ export default function MarksPage() {
     URL.revokeObjectURL(url);
   }, [markSheet, marksByKey, selectedExamId]);
 
-  const handleCreateExam = useCallback(async () => {
-    if (!examForm.title || !examForm.classId) { toast.error("Title and class are required"); return; }
-    setCreatingExam(true);
-    try {
-      const res = await fetch("/api/exams", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...examForm, academicYear: new Date().getFullYear() }),
-      });
-      const text = await res.text(); const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to create");
-      toast.success(`Assessment "${examForm.title}" created`);
-      setShowExamModal(false);
-      setExamForm({ title: "", term: "", classId: "", subjectId: "", examType: "CLASS_TEST" });
-      await loadData();
-    } catch (error: any) { toast.error(error.message); }
-    finally { setCreatingExam(false); }
-  }, [examForm, loadData]);
-
-  const loadGradeConfig = useCallback(async (classId: string) => {
-    if (!classId) return;
-    setGradeConfigLoading(true);
-    try {
-      const res = await fetch(`/api/grade-config?classId=${classId}&academicYear=${new Date().getFullYear()}`);
-      const text = await res.text(); const result = JSON.parse(text);
-      if (result.config) {
-        const { quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, gradeAplus, gradeA, gradeB, gradeC, gradeD } = result.config;
-        setGradeConfig({ quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, gradeAplus, gradeA, gradeB, gradeC, gradeD });
-      }
-    } catch { setGradeConfig({ quizWeight: 10, classTestWeight: 20, midTermWeight: 30, finalWeight: 40, passingPercentage: 50, gradeAplus: 90, gradeA: 80, gradeB: 70, gradeC: 60, gradeD: 50 }); }
-    finally { setGradeConfigLoading(false); }
-  }, []);
-
-  const saveGradeConfig = useCallback(async () => {
-    if (!selectedGradeClassId) return;
-    setGradeConfigSaving(true);
-    try {
-      const res = await fetch("/api/grade-config", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), ...gradeConfig }),
-      });
-      const text = await res.text(); const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to save");
-      toast.success("Grade configuration saved");
-      setShowGradeConfigModal(false);
-    } catch (error: any) { toast.error(error.message); }
-    finally { setGradeConfigSaving(false); }
-  }, [selectedGradeClassId, gradeConfig]);
-
-  const loadWeightedGrade = useCallback(async (classId: string) => {
-    if (!classId) return;
-    setWeightedGradeLoading(true); setWeightedGradeResult(null);
-    try {
-      const res = await fetch(`/api/grade-config/weighted-result?classId=${classId}&academicYear=${new Date().getFullYear()}`);
-      const text = await res.text(); const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "No grades");
-      setWeightedGradeResult(result.grades || []);
-    } catch (error: any) { toast.error(error.message); }
-    finally { setWeightedGradeLoading(false); }
-  }, []);
-
-  const handleGenerateReportCards = useCallback(async () => {
-    if (!selectedGradeClassId) return;
-    setGeneratingReportCards(true);
-    try {
-      const res = await fetch("/api/reports/generate-from-grades", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear() }),
-      });
-      const text = await res.text(); const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Generation failed");
-      toast.success(`Generated ${result.count || 0} report cards`); setReportCardsGenerated(true);
-    } catch (error: any) { toast.error(error.message); }
-    finally { setGeneratingReportCards(false); }
-  }, [selectedGradeClassId]);
-
   if (loading && !data) return <MarksSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
@@ -215,9 +131,7 @@ export default function MarksPage() {
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Enter marks, create assessments, and manage grade configurations.</p>
         </div>
         <div className="relative flex flex-wrap gap-2">
-          <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={() => setShowExamModal(true)}><span title="Create a new exam or test">Create Assessment</span></BrandButton>
-          <BrandButton variant="soft" icon={<Star className="w-4 h-4" />} onClick={() => { if (classHubs[0]) { setSelectedGradeClassId(classHubs[0].id); loadGradeConfig(classHubs[0].id); } setShowGradeConfigModal(true); }}><span title="Configure grading weights and thresholds">Grade Config</span></BrandButton>
-          <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => { if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id); setWeightedGradeResult(null); setReportCardsGenerated(false); setShowGradeOverviewModal(true); }}><span title="View weighted final grade calculations">Final Grades</span></BrandButton>
+          <GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />
         </div>
       </header>
 
@@ -376,20 +290,7 @@ export default function MarksPage() {
         </div>
       </div>
 
-      <CreateAssessmentModal open={showExamModal} classHubs={classHubs} examForm={examForm} creatingExam={creatingExam}
-        onClose={() => setShowExamModal(false)}
-        onFormChange={(field, value) => setExamForm((f) => ({ ...f, [field]: value }))} onCreate={handleCreateExam} />
-      <GradeConfigModal open={showGradeConfigModal} classHubs={classHubs} selectedGradeClassId={selectedGradeClassId}
-        gradeConfig={gradeConfig} gradeConfigLoading={gradeConfigLoading} gradeConfigSaving={gradeConfigSaving}
-        onClose={() => setShowGradeConfigModal(false)}
-        onClassChange={(id) => { setSelectedGradeClassId(id); loadGradeConfig(id); }}
-        onConfigChange={setGradeConfig} onSave={saveGradeConfig} />
-      <FinalGradesModal open={showGradeOverviewModal} classHubs={classHubs} selectedGradeClassId={selectedGradeClassId}
-        weightedGradeResult={weightedGradeResult} weightedGradeLoading={weightedGradeLoading}
-        generatingReportCards={generatingReportCards} reportCardsGenerated={reportCardsGenerated}
-        onClose={() => setShowGradeOverviewModal(false)}
-        onClassChange={(id) => { setSelectedGradeClassId(id); setWeightedGradeResult(null); setReportCardsGenerated(false); }}
-        onGenerate={loadWeightedGrade} onGenerateReportCards={handleGenerateReportCards} />
+      <GradingModals grading={grading} classHubs={classHubs} />
     </section>
   );
 }

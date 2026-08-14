@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
 
     let resolvedClassId = classId;
 
-    if (!resolvedClassId && (user.role === "STUDENT" || user.role === "PARENT")) {
+    // Families are pinned to their own class: an explicit ?classId= from a
+    // student or guardian is ignored, so it can't be swapped for another
+    // section's published timetable.
+    if (user.role === "STUDENT" || user.role === "PARENT") {
       const student = await prisma.student.findFirst({
         where: user.role === "STUDENT"
           ? { studentUserId: user.userId }

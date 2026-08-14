@@ -879,6 +879,16 @@ model GradeWeightConfig {
   midTermWeight     Float    @default(30) @map("mid_term_weight")
   finalWeight       Float    @default(40) @map("final_weight")
   passingPercentage Float    @default(50) @map("passing_percentage")
+  // How the weighted overall percentage is derived. Every school marks a
+  // different way, so this is per class + year like the weights themselves.
+  //
+  // NORMALIZED (default) — the honest mid-year number. Exams are averaged
+  //   within their type, then the weights of the types that actually happened
+  //   are rescaled to 100. After only a mid-term, 100% shows as 100%.
+  // ABSOLUTE — the legacy scale. Every exam contributes against the full 100,
+  //   so exam types that have not happened yet count as zero. Use this only
+  //   when a school genuinely reports cumulative year-to-date progress.
+  weightMode        String   @default("NORMALIZED") @map("weight_mode")
   gradeAplus        Float    @default(90) @map("grade_aplus")
   gradeA            Float    @default(80) @map("grade_a")
   gradeB            Float    @default(70) @map("grade_b")
@@ -1966,9 +1976,10 @@ model TransportRoute {
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId  String   @map("campus_id")
   campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  title     String
-  fare      Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
+  title       String
+  description String?
+  fare        Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
 
   vehicles RouteVehicle[]
   students Student[]      @relation("StudentTransportRoute")
@@ -2019,8 +2030,11 @@ model DormRoomType {
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId  String   @map("campus_id")
   campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  name      String
-  createdAt DateTime @default(now()) @map("created_at")
+  name        String
+  description String?
+  /** Charge per term, in paisa — same unit as every other money column. */
+  costPerTerm Int      @default(0) @map("cost_per_term")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   rooms DormRoom[]
 

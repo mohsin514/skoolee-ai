@@ -26,6 +26,24 @@ interface YearGroup {
   classes: ClassSummary[];
 }
 
+/**
+ * How a class/year roll-up status reads on screen.
+ *
+ * The underlying value is Class.status (ACTIVE | COMPLETED), which says whether
+ * a year's classes have been closed out. That is a different question from
+ * AcademicCycle.status, which says which session the campus is currently
+ * running and is also rendered as an "ACTIVE" pill. Both used to appear on this
+ * screen at once — "2027 · ACTIVE" for the cycle and "2026 · ACTIVE" for the
+ * classes — which just looked like the page contradicting itself. Open/Closed
+ * keeps this one about the classes and pairs with the Close Year button beside
+ * it.
+ */
+function yearStatusLabel(status: string) {
+  if (status === "ACTIVE") return "Open";
+  if (status === "COMPLETED") return "Closed";
+  return status;
+}
+
 interface HistoryRecord {
   id: string;
   rollNo: string;
@@ -309,7 +327,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <h3 className="text-lg font-bold text-[#1d1b20]">Academic Year {yg.year}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
-                        {yg.status}
+                        {yearStatusLabel(yg.status)}
                       </span>
                       <span className="text-[11px] font-semibold text-[#4d4354]/50">{yg.classes.length} classes</span>
                       <span className="text-[11px] font-semibold text-[#4d4354]/50">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
@@ -344,7 +362,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                             </p>
                           </div>
                           <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
-                            {cls.status}
+                            {yearStatusLabel(cls.status)}
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
@@ -529,7 +547,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="text-sm font-bold text-[#1d1b20]">{clsLabel(cls)}</h4>
                         <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
-                          {cls.status}
+                          {yearStatusLabel(cls.status)}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-[10px] font-semibold text-[#4d4354]/50">

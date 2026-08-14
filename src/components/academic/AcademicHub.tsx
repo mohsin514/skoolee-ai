@@ -76,6 +76,9 @@ interface Step {
   reason: string;
   /** Short progress note, e.g. "3 of 9 published". */
   detail?: string;
+  /** True when `detail` names the thing blocking the step, so it reads as a
+   *  warning rather than as progress. */
+  detailBlocking?: boolean;
   /** The button wording when this step is the current one. */
   cta: string;
 }
@@ -158,10 +161,16 @@ function buildSteps(s: HubStatNumbers, cycleStatus: string): Step[] {
       icon: BookOpen,
       done: timetableDone,
       reason: timetableReason,
+      // Report what is actually holding the step up. Every timetable can be
+      // published while clashes still block the step, and a bare
+      // "7 of 7 published" then reads as finished on a card marked unfinished.
       detail:
-        s.totalClasses > 0
-          ? `${s.publishedTimetables} of ${s.totalClasses} published`
-          : undefined,
+        s.totalClasses === 0
+          ? undefined
+          : s.teacherConflicts > 0
+          ? `${s.teacherConflicts} clash${s.teacherConflicts > 1 ? "es" : ""} to resolve`
+          : `${s.publishedTimetables} of ${s.totalClasses} published`,
+      detailBlocking: s.teacherConflicts > 0,
       cta: "Open Timetable",
     },
     {
@@ -388,7 +397,11 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                 {s.detail ? (
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      s.done ? "bg-emerald-100 text-emerald-700" : "bg-[#f3eeff] text-[#8127cf]"
+                      s.done
+                        ? "bg-emerald-100 text-emerald-700"
+                        : s.detailBlocking
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-[#f3eeff] text-[#8127cf]"
                     }`}
                   >
                     {s.detail}

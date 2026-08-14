@@ -6,6 +6,7 @@ import {
   ApiError,
   canManageOperations,
   errorResponse,
+  assertStaffRole,
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
@@ -45,6 +46,9 @@ async function assertTeacher(teacherId: string | null | undefined, campusId: str
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Campus-wide structure is staff data. Families see only their own class
+    // through the student/parent endpoints.
+    assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");

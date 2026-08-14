@@ -39,12 +39,33 @@ export interface GradeThresholds {
   d: number;
 }
 
+export type WeightMode = "NORMALIZED" | "ABSOLUTE";
+
+export const WEIGHT_MODES: WeightMode[] = ["NORMALIZED", "ABSOLUTE"];
+
+export const WEIGHT_MODE_LABELS: Record<WeightMode, string> = {
+  NORMALIZED: "Rescale to exams held",
+  ABSOLUTE: "Score against the full year",
+};
+
+export const WEIGHT_MODE_HELP: Record<WeightMode, string> = {
+  NORMALIZED:
+    "Averages repeated exams of the same type, then rescales the weights of the exam types that have actually happened to 100. A student who scores full marks in the only exam so far shows 100%.",
+  ABSOLUTE:
+    "Every exam scores against the full 100-point year. Exam types that have not happened yet count as zero, so percentages stay low until the year is complete.",
+};
+
+export function normalizeWeightMode(mode: unknown): WeightMode {
+  return mode === "ABSOLUTE" ? "ABSOLUTE" : "NORMALIZED";
+}
+
 export interface WeightConfig {
   quizWeight: number;
   classTestWeight: number;
   midTermWeight: number;
   finalWeight: number;
   passingPercentage: number;
+  weightMode: WeightMode;
   thresholds: GradeThresholds;
 }
 
@@ -90,6 +111,7 @@ export async function getOrCreateGradeWeightConfig(campusId: string, classId: st
       midTermWeight: config.midTermWeight,
       finalWeight: config.finalWeight,
       passingPercentage: config.passingPercentage,
+      weightMode: normalizeWeightMode(config.weightMode),
       thresholds: {
         aplus: config.gradeAplus,
         a: config.gradeA,

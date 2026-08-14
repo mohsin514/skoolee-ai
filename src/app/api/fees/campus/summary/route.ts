@@ -64,7 +64,11 @@ export async function GET(req: NextRequest) {
     const totalCollected = invoiceAgg._sum.totalAmountPaid ?? 0;
     const totalOutstanding = invoiceAgg._sum.balanceDue ?? 0;
     const totalOverdue = overdueAgg._sum.balanceDue ?? 0;
-    const collectionRate = totalReceivable > 0 ? Math.round((totalCollected / totalReceivable) * 100) : 0;
+    // Capped at 100. Rows written before overpayments were split into carry-forward
+    // credit can still carry a totalAmountPaid above their totalAmount, and a
+    // headline "102% collected" reads as a reporting bug rather than as overpayment.
+    const collectionRate =
+      totalReceivable > 0 ? Math.min(100, Math.round((totalCollected / totalReceivable) * 100)) : 0;
 
     const studentIds = byClassRaw.map((r) => r.studentId);
     const students = studentIds.length > 0 ? await prisma.student.findMany({
@@ -86,7 +90,8 @@ export async function GET(req: NextRequest) {
       className,
       totalDue: vals.totalDue,
       totalPaid: vals.totalPaid,
-      collectionRate: vals.totalDue > 0 ? Math.round((vals.totalPaid / vals.totalDue) * 100) : 0,
+      collectionRate:
+        vals.totalDue > 0 ? Math.min(100, Math.round((vals.totalPaid / vals.totalDue) * 100)) : 0,
     }));
 
     const atRiskStudents = overdueInvoices

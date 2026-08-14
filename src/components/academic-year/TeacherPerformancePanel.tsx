@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Award, BarChart3, BookOpen, GraduationCap, Loader2, Search,
+  AlertTriangle, Award, BarChart3, BookOpen, GraduationCap, Loader2, Search,
   TrendingDown, TrendingUp, UserCheck, Users,
 } from "lucide-react";
-import { toast } from "sonner";
 import { EmptyState } from "@/components/role-dashboard";
+import { userMessage } from "@/lib/errors";
 import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface TeacherPerf {
@@ -31,6 +31,7 @@ interface TeacherPerf {
 export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
   const [teachers, setTeachers] = useState<TeacherPerf[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"avgPercentage" | "passRate" | "teacherAttendanceRate" | "marksCompletionRate">("avgPercentage");
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -39,12 +40,23 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/teachers/performance?academicYear=${year}${qs}`);
-      const json = await res.json();
-      if (json.success) setTeachers(json.data || []);
-    } catch { toast.error("Failed to load teacher performance"); }
-    finally { setLoading(false); }
+      const json = await res.json().catch(() => null);
+      // fetch resolves on a 4xx/5xx, so the old `if (json.success)` quietly did
+      // nothing and the panel rendered zeros — a broken endpoint was
+      // indistinguishable from a campus with no teachers.
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Request failed (${res.status})`);
+      }
+      setTeachers(json.data || []);
+    } catch (error) {
+      setTeachers([]);
+      setLoadError(userMessage(error, "Could not load teacher performance."));
+    } finally {
+      setLoading(false);
+    }
   }, [year, qs]);
 
   useEffect(() => { load(); }, [load]);
@@ -73,20 +85,44 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Header matches the academics overview so the staff section of the
+          admin reads as the same product. */}
+      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <Award className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff · {year}</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Teacher Performance</h2>
+              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+                How each teacher&apos;s classes are doing, and whether their marks and attendance are up to date.
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+            {loadError ? "Unavailable" : `${teachers.length} teacher${teachers.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+      </div>
+
+      {/* Summary Cards — same 24px card and 3xl figure as the academics stats. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* When the request failed we have no numbers, so the tiles show a dash.
+            Rendering 0 would assert something untrue about the campus. */}
         {[
-          { label: "Teachers", value: teachers.length, icon: Users, color: "text-[#8127cf] bg-[#fbf0fe]" },
-          { label: "Avg Score", value: avgAll ? `${avgAll}%` : "—", icon: BarChart3, color: rateColor(avgAll) + " " + rateBg(avgAll) },
-          { label: "Total Students", value: teachers.reduce((s, t) => s + t.totalStudents, 0), icon: GraduationCap, color: "text-[#8127cf] bg-[#fbf0fe]" },
-          { label: "Report Cards", value: teachers.reduce((s, t) => s + t.reportCardsGenerated, 0), icon: BookOpen, color: "text-[#8127cf] bg-[#fbf0fe]" },
+          { label: "Teachers", value: loadError ? "—" : teachers.length, icon: Users, color: "text-[#8127cf] bg-[#f3eeff]" },
+          { label: "Avg Score", value: loadError ? "—" : avgAll ? `${avgAll}%` : "—", icon: BarChart3, color: rateColor(avgAll) + " " + rateBg(avgAll) },
+          { label: "Total Students", value: loadError ? "—" : teachers.reduce((s, t) => s + t.totalStudents, 0), icon: GraduationCap, color: "text-[#8127cf] bg-[#f3eeff]" },
+          { label: "Report Cards", value: loadError ? "—" : teachers.reduce((s, t) => s + t.reportCardsGenerated, 0), icon: BookOpen, color: "text-[#8127cf] bg-[#f3eeff]" },
         ].map((card, i) => (
-          <div key={card.label} className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 p-4 shadow-sm" style={{ animationDelay: `${i * 60}ms` }}>
-            <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-2 ${card.color}`}>
+          <div key={card.label} className="sk-rise rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-sm" style={{ animationDelay: `${i * 60}ms` }}>
+            <div className={`h-10 w-10 rounded-2xl flex items-center justify-center ${card.color}`}>
               <card.icon className="h-5 w-5" />
             </div>
-            <p className="text-xl font-bold text-[#1d1b20]">{card.value}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">{card.label}</p>
+            <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{card.value}</p>
+            <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">{card.label}</p>
           </div>
         ))}
       </div>
@@ -138,6 +174,21 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               </div>
             </div>
           ))}
+        </div>
+      ) : loadError ? (
+        // A failed request is not an empty campus. Say so, and offer a retry,
+        // rather than showing zeros that read as "there are no teachers".
+        <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-6 text-center">
+          <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-rose-500" />
+          <p className="text-sm font-black text-[#1f1a23]">Couldn&apos;t load teacher performance</p>
+          <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">{loadError}</p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-4 rounded-xl bg-[#1f1a23] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#332b38] active:scale-95"
+          >
+            Try again
+          </button>
         </div>
       ) : sorted.length === 0 ? (
         <EmptyState icon={Award} title="No Performance Data" description="No teacher performance data available for this year." />

@@ -76,10 +76,18 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   const newBalance = invoice.totalAmount - totalPaid;
   const newStatus = newBalance <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "PENDING";
 
+  // Only what this invoice can absorb counts as paid against it. Any excess is
+  // carried into next year as credit just below, so storing the raw payment sum
+  // here counted the overpayment twice: once as collected, once as credit. That
+  // broke the invariant `totalAmountPaid + balanceDue === totalAmount`, which
+  // the campus summary sums directly — it reported collected > receivable and a
+  // collection rate above 100%.
+  const appliedToInvoice = Math.min(totalPaid, invoice.totalAmount);
+
   await tx.invoice.update({
     where: { id: input.invoiceId },
     data: {
-      totalAmountPaid: totalPaid,
+      totalAmountPaid: appliedToInvoice,
       balanceDue: Math.max(0, newBalance),
       status: newStatus,
     },

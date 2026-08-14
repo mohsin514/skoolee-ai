@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -21,6 +20,13 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  FormSection,
+  ReviewHero,
+  ReviewRow,
+  ReviewSection,
+  WizardShell,
+} from "@/components/shared-admin/wizard-shell";
 
 interface ClassRecord {
   id: string;
@@ -47,10 +53,10 @@ interface AdmissionFormProps {
 }
 
 const STEPS = [
-  { label: "Personal Info", icon: User },
-  { label: "Guardian Details", icon: Users },
-  { label: "Address & Medical", icon: MapPin },
-  { label: "Review & Submit", icon: Check },
+  { label: "Personal Info", icon: User, blurb: "Who the student is and which class they join." },
+  { label: "Guardian Details", icon: Users, blurb: "Who the school contacts about this student." },
+  { label: "Address & Medical", icon: MapPin, blurb: "Where they live and anything staff must know." },
+  { label: "Review & Submit", icon: Check, blurb: "Check everything before the record is created." },
 ];
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] as const;
@@ -481,84 +487,22 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     }
   };
 
-  const progressPercent = ((step + 1) / STEPS.length) * 100;
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0" onClick={onClose} />
-
-      <div role="dialog" aria-modal="true" className="relative z-[121] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 group" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="shrink-0 border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 px-6 pt-5 pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
-                  <GraduationCap className="h-5 w-5 text-white" />
-                </div>
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-[#1f1a23]">Student Admission</h2>
-                <p className="text-xs font-semibold text-[#4d4354]/65">
-                  Step {step + 1} of {STEPS.length}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="rounded-xl p-2 text-[#4d4354]/45 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-              onClick={onClose}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mt-4 flex items-center gap-2">
-            {STEPS.map((s, i) => {
-              const Icon = s.icon;
-              const isActive = i === step;
-              const isDone = i < step;
-              return (
-                <button
-                  key={s.label}
-                  type="button"
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition-all ${
-                    isActive
-                      ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                      : isDone
-                        ? "bg-[#8127cf]/10 text-[#8127cf]"
-                        : "bg-white/60 text-[#4d4354]/45"
-                  }`}
-                  onClick={() => {
-                    if (isDone) setStep(i);
-                  }}
-                >
-                  <Icon className="h-3 w-3" />
-                  <span className="hidden sm:inline">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Progress bar line */}
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#cfc2d6]/20">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500 ease-out"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="sk-rise flex-1 overflow-y-auto p-6 custom-scrollbar" style={{ animationDelay: "60ms" }}>
+    <WizardShell
+      eyebrow="New Admission"
+      icon={GraduationCap}
+      steps={STEPS}
+      step={step}
+      onStepChange={setStep}
+      onClose={onClose}
+      onBack={goBack}
+      onNext={goNext}
+      onSubmit={handleSubmit}
+      submitLabel="Submit Admission"
+      submitting={isSubmitting}
+      submittingLabel="Creating…"
+    >
           {step === 0 && (
             <StepPersonalInfo
               form={form}
@@ -584,51 +528,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
           {step === 3 && (
             <StepReview form={form} selectedClass={selectedClass} age={age} tags={tags} siblings={siblings} onEditStep={setStep} />
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-[#fbf0fe]/40 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={step === 0 ? onClose : goBack}
-              disabled={isSubmitting}
-            >
-              {step === 0 ? (
-                "Cancel"
-              ) : (
-                <>
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </>
-              )}
-            </Button>
-
-            {step < STEPS.length - 1 ? (
-              <Button type="button" onClick={goNext}>
-                Next
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Submit Admission
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    </WizardShell>
   );
 }
 
@@ -663,6 +563,7 @@ function StepPersonalInfo({
 }) {
   return (
     <div className="space-y-5">
+      <FormSection icon={User} title="Identity" hint="The student's name as it should appear on records and report cards.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Full Name (English) *" error={errors.fullName}>
           <Input
@@ -680,27 +581,23 @@ function StepPersonalInfo({
         </FieldGroup>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
-          <div className="relative">
-            <Input
-              value={form.rollNo}
-              onChange={(e) => onUpdate("rollNo", e.target.value)}
-              placeholder="NUR-Y-001"
-              className="pr-10"
-            />
-            <button
-              type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[#4d4354]/40 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-              onClick={onRegenerateRollNo}
-              title="Regenerate roll number"
-            >
-              {rollNoLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </button>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FieldGroup label="Gender">
+          <div className="flex gap-2">
+            {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
+                  form.gender === g
+                    ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
+                    : "bg-[#f3f4f9] text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                }`}
+                onClick={() => onUpdate("gender", g)}
+              >
+                {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Other"}
+              </button>
+            ))}
           </div>
         </FieldGroup>
         <FieldGroup
@@ -714,8 +611,23 @@ function StepPersonalInfo({
             onChange={(e) => onUpdate("dateOfBirth", e.target.value)}
           />
         </FieldGroup>
+        <FieldGroup label="Blood Type">
+          <Select
+            value={form.bloodType}
+            onChange={(e) => onUpdate("bloodType", e.target.value)}
+          >
+            <option value="">Not Known</option>
+            {BLOOD_TYPES.map((bt) => (
+              <option key={bt} value={bt}>
+                {bt}
+              </option>
+            ))}
+          </Select>
+        </FieldGroup>
       </div>
+      </FormSection>
 
+      <FormSection icon={GraduationCap} title="Placement" hint="Which class the student joins, and the roll number they are given.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Class *" error={errors.classId}>
           <Select
@@ -745,37 +657,55 @@ function StepPersonalInfo({
         </FieldGroup>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <FieldGroup label="Gender">
-          <div className="flex gap-2">
-            {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
-              <button
-                key={g}
-                type="button"
-                className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
-                  form.gender === g
-                    ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                    : "bg-[#f3f4f9] text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                }`}
-                onClick={() => onUpdate("gender", g)}
-              >
-                {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Other"}
-              </button>
-            ))}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
+          <div className="relative">
+            <Input
+              value={form.rollNo}
+              onChange={(e) => onUpdate("rollNo", e.target.value)}
+              placeholder="NUR-Y-001"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[#4d4354]/40 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+              onClick={onRegenerateRollNo}
+              title="Regenerate roll number"
+            >
+              {rollNoLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </FieldGroup>
-        <FieldGroup label="Blood Type">
-          <Select
-            value={form.bloodType}
-            onChange={(e) => onUpdate("bloodType", e.target.value)}
-          >
-            <option value="">Not Known</option>
-            {BLOOD_TYPES.map((bt) => (
-              <option key={bt} value={bt}>
-                {bt}
-              </option>
-            ))}
-          </Select>
+        <FieldGroup label="Previous School">
+          <Input
+            value={form.previousSchool}
+            onChange={(e) => onUpdate("previousSchool", e.target.value)}
+            placeholder="Name of previous school (if any)"
+          />
+        </FieldGroup>
+      </div>
+      </FormSection>
+
+      <FormSection icon={Users} title="Contact & Access" hint="Optional. An email here creates the student's own portal login.">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FieldGroup label="Student Phone">
+          <Input
+            value={form.phone}
+            onChange={(e) => onUpdate("phone", e.target.value)}
+            placeholder="+92 300 1234567"
+          />
+        </FieldGroup>
+        <FieldGroup label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
+          <Input
+            type="email"
+            value={form.studentEmail}
+            onChange={(e) => onUpdate("studentEmail", e.target.value)}
+            placeholder="student@example.com"
+          />
         </FieldGroup>
         <FieldGroup label="Nationality">
           <Input
@@ -785,33 +715,9 @@ function StepPersonalInfo({
           />
         </FieldGroup>
       </div>
+      </FormSection>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Student Phone">
-          <Input
-            value={form.phone}
-            onChange={(e) => onUpdate("phone", e.target.value)}
-            placeholder="+92 300 1234567"
-          />
-        </FieldGroup>
-        <FieldGroup label="Student Login Email" error={errors.studentEmail}>
-          <Input
-            type="email"
-            value={form.studentEmail}
-            onChange={(e) => onUpdate("studentEmail", e.target.value)}
-            placeholder="student@example.com"
-          />
-        </FieldGroup>
-      </div>
-
-      <FieldGroup label="Previous School">
-        <Input
-          value={form.previousSchool}
-          onChange={(e) => onUpdate("previousSchool", e.target.value)}
-          placeholder="Name of previous school (if any)"
-        />
-      </FieldGroup>
-
+      <FormSection icon={Check} title="Tags & Family" hint="Optional labels that drive fee discounts, transport lists and sibling links.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Category" hint="Fee / scholarship eligibility tag">
           <Select
@@ -859,6 +765,7 @@ function StepPersonalInfo({
           ))}
         </Select>
       </FieldGroup>
+      </FormSection>
     </div>
   );
 }
@@ -874,8 +781,25 @@ function StepGuardianDetails({
   errors: FormErrors;
   onUpdate: (field: keyof FormData, value: string) => void;
 }) {
+  const noContact = !form.guardianPhone.trim() && !form.guardianEmail.trim();
   return (
     <div className="space-y-5">
+      {/*
+        Neither field is required by the API, but a student with no reachable
+        guardian is a support ticket waiting to happen — so say so here rather
+        than letting the directory flag it weeks later.
+      */}
+      {noContact ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <Users className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p className="text-xs font-semibold text-amber-800">
+            No guardian phone or email yet. You can finish the admission without one, but the school will have
+            no way to contact this student&apos;s family and no parent portal invite can be sent.
+          </p>
+        </div>
+      ) : null}
+
+      <FormSection icon={Users} title="Guardian" hint="The primary contact for this student.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Guardian Full Name (English)">
           <Input
@@ -916,6 +840,9 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
+      </FormSection>
+
+      <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Guardian Phone (WhatsApp)">
           <Input
@@ -933,7 +860,7 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
-      <FieldGroup label="Guardian Email" error={errors.guardianEmail}>
+      <FieldGroup label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
         <Input
           type="email"
           value={form.guardianEmail}
@@ -941,6 +868,7 @@ function StepGuardianDetails({
           placeholder="guardian@example.com"
         />
       </FieldGroup>
+      </FormSection>
     </div>
   );
 }
@@ -957,14 +885,9 @@ function StepAddressMedical({
   onUpdate: (field: keyof FormData, value: string) => void;
 }) {
   return (
-    <div className="space-y-6">
-      {/* Address Section */}
-      <div>
-        <div className="mb-3 flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-[#8127cf]" />
-          <span className="text-sm font-black text-[#1f1a23]">Address</span>
-        </div>
-        <div className="space-y-4">
+    <div className="space-y-5">
+      <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records.">
+        <>
           <FieldGroup label="Street Address">
             <Input
               value={form.address}
@@ -1001,16 +924,15 @@ function StepAddressMedical({
               />
             </FieldGroup>
           </div>
-        </div>
-      </div>
+        </>
+      </FormSection>
 
-      {/* Medical Section */}
-      <div>
-        <div className="mb-3 flex items-center gap-2">
-          <Heart className="h-4 w-4 text-[#8127cf]" />
-          <span className="text-sm font-black text-[#1f1a23]">Medical Information</span>
-        </div>
-        <div className="space-y-4">
+      <FormSection
+        icon={Heart}
+        title="Medical Information"
+        hint="Anything staff must know in an emergency. Visible to teachers and the school office."
+      >
+        <>
           <FieldGroup label="Medical Notes">
             <Textarea
               value={form.medicalNotes}
@@ -1043,8 +965,8 @@ function StepAddressMedical({
               rows={2}
             />
           </FieldGroup>
-        </div>
-      </div>
+        </>
+      </FormSection>
     </div>
   );
 }
@@ -1072,13 +994,22 @@ function StepReview({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-semibold text-[#4d4354]/65">
-        Please review all information before submitting.
+      <ReviewHero
+        icon={GraduationCap}
+        eyebrow="Ready to admit"
+        title={form.fullName || "Unnamed student"}
+        meta={[form.rollNo || "No roll number", classDisplay, age !== null ? `${age} yrs` : null]
+          .filter(Boolean)
+          .join(" · ")}
+      />
+      <p className="px-1 text-xs font-semibold text-[#4d4354]/60">
+        Check each section below. Anything wrong can be corrected with <b>Edit</b> — after submitting, changes are
+        made from the student&apos;s profile.
       </p>
 
       <ReviewSection
         title="Student Information"
-        icon={<User className="h-4 w-4" />}
+        icon={User}
         onEdit={() => onEditStep(0)}
       >
         <ReviewRow label="Name (English)" value={form.fullName} required />
@@ -1121,14 +1052,17 @@ function StepReview({
 
       <ReviewSection
         title="Guardian Information"
-        icon={<Users className="h-4 w-4" />}
+        icon={Users}
         onEdit={() => onEditStep(1)}
       >
         {form.guardianName ? (
           <>
             <ReviewRow label="Name" value={form.guardianName} />
             {form.guardianRelationship && (
-              <ReviewRow label="Relationship" value={form.guardianRelationship} />
+              <ReviewRow
+                label="Relationship"
+                value={RELATIONSHIPS.find((r) => r.value === form.guardianRelationship)?.label || form.guardianRelationship}
+              />
             )}
             {form.guardianPhone && <ReviewRow label="Phone" value={form.guardianPhone} />}
             {form.guardianEmail && <ReviewRow label="Email" value={form.guardianEmail} />}
@@ -1143,7 +1077,7 @@ function StepReview({
 
       <ReviewSection
         title="Address & Medical"
-        icon={<MapPin className="h-4 w-4" />}
+        icon={MapPin}
         onEdit={() => onEditStep(2)}
       >
         {form.address || form.city || form.province ? (
@@ -1170,6 +1104,7 @@ function StepReview({
 
 // ─── Shared Components ────────────────────────────────────
 
+
 function FieldGroup({
   label,
   error,
@@ -1183,7 +1118,7 @@ function FieldGroup({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">{label}</Label>
       {children}
       {error && <p className="text-xs font-semibold text-rose-500">{error}</p>}
       {hint && !error && <p className="text-xs font-medium text-[#4d4354]/50">{hint}</p>}
@@ -1191,55 +1126,4 @@ function FieldGroup({
   );
 }
 
-function ReviewSection({
-  title,
-  icon,
-  onEdit,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  onEdit: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/30 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-black text-[#1f1a23]">
-          <span className="text-[#8127cf]">{icon}</span>
-          {title}
-        </div>
-        <button
-          type="button"
-          className="rounded-lg px-2.5 py-1 text-[10px] font-black text-[#8127cf] transition-all hover:bg-[#8127cf]/10"
-          onClick={onEdit}
-        >
-          Edit
-        </button>
-      </div>
-      <div className="space-y-1.5">{children}</div>
-    </div>
-  );
-}
 
-function ReviewRow({
-  label,
-  value,
-  required,
-  dir,
-}: {
-  label: string;
-  value: string;
-  required?: boolean;
-  dir?: "rtl" | "ltr";
-}) {
-  if (!value && !required) return null;
-  return (
-    <div className="flex items-baseline justify-between gap-4 text-sm">
-      <span className="shrink-0 font-semibold text-[#4d4354]/65">{label}</span>
-      <span className="truncate font-bold text-[#1f1a23]" dir={dir}>
-        {value || "—"}
-      </span>
-    </div>
-  );
-}

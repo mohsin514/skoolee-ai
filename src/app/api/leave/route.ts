@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leave";
+import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { notify } from "@/lib/notifications/in-app";
 
 // Leave requests.
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const mode = searchParams.get("mode") || "my";
-    const academicYear = Number(searchParams.get("academicYear")) || new Date().getFullYear();
+    const academicYear =
+      Number(searchParams.get("academicYear")) || (await getActiveAcademicYear(campusId));
     const statusFilter = searchParams.get("status");
 
     const yearStart = new Date(`${academicYear}-01-01T00:00:00Z`);

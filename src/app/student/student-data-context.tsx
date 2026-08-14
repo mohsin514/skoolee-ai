@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
+import { userMessage } from "@/lib/errors"
 import { getStudentDashboardData } from "@/app/actions/dashboard"
 
 type StudentDataContextType = {
@@ -38,8 +39,11 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
       cache.set(CACHE_KEY, { data: fresh, ts: Date.now() })
       setData(fresh)
     } catch (err: any) {
-      setError(err.message)
-      toast.error(`Access denied: ${err.message}`)
+      // Server-action failures surface raw engine text (query, build paths,
+      // database host), so they never go straight to the user.
+      const message = userMessage(err, "Could not load your dashboard.")
+      setError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }

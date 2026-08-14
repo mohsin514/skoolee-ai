@@ -354,12 +354,10 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               ))}
             </div>
             <TermBlocksBar terms={terms} />
-            <div className="flex justify-end">
-              <button onClick={nextFromStep1} disabled={saving}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-3 text-sm font-black text-white disabled:opacity-50">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />} Save &amp; Continue
-              </button>
-            </div>
+            {/* No in-card "Save & Continue" here. It sat a few pixels above the
+                wizard's own Next button, equally weighted, and the two did
+                different things — this one created the academic cycle, Next
+                only advanced. The footer Next now commits the step. */}
           </div>
         )}
 
@@ -477,9 +475,24 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
           className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/30 bg-white px-5 py-2.5 text-sm font-bold text-[#4d4354]/70 disabled:opacity-40">
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
+        {/* Step 1 has pending state to commit (the academic cycle); the later
+            steps save each control as it changes, so a plain advance is
+            correct there. */}
         {step < 3 && (
-          <button onClick={() => setStep((s) => s + 1)} className="flex items-center gap-2 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-sm font-bold text-white">
-            Next <ArrowRight className="h-4 w-4" />
+          <button
+            onClick={step === 0 ? nextFromStep1 : () => setStep((s) => s + 1)}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {step === 0 && saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving
+              </>
+            ) : (
+              <>
+                {step === 0 ? "Save & Continue" : "Next"} <ArrowRight className="h-4 w-4" />
+              </>
+            )}
           </button>
         )}
       </div>

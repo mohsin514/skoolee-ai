@@ -5,6 +5,7 @@ import {
   ApiError,
   canManageOperations,
   errorResponse,
+  assertStaffRole,
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
@@ -29,14 +30,30 @@ async function assertTeacherInCampus(teacherId: string | null | undefined, campu
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Campus-wide structure is staff data. Families see only their own class
+    // through the student/parent endpoints.
+    assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
 
+    // A teacher's class list drives pickers like "create assessment", so it has
+    // to be the classes they actually teach. Campus scope alone offers classes
+    // the exam POST will reject with "You are not assigned to this class".
+    const teacherScope =
+      user.role === "TEACHER"
+        ? {
+            OR: [
+              { classTeacherId: user.userId },
+              { subjects: { some: { teacherId: user.userId } } },
+            ],
+          }
+        : {};
+
     const classes = await prisma.class.findMany({
-      where: scopedCampusWhere(user, campusId),
+      where: { ...scopedCampusWhere(user, campusId), ...teacherScope },
       include: {
         campus: { select: { id: true, name: true } },
         classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },

@@ -76,12 +76,23 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <AppLoaderProvider>
             <NetworkProvider>{children}</NetworkProvider>
+            {/*
+              Bottom-centre, collapsed.
+
+              Top-right put the stack directly over the close button of every
+              centred dialog — elementFromPoint confirmed the toast, not the
+              button, received the click. Bottom-right was no better: a toast is
+              ~356px wide and the wide dialogs are 896px, so at any viewport the
+              toast overhangs their bottom-right corner, which is exactly where
+              the primary action sits. Bottom-centre is the one corner-free
+              position: the dialog footers put their buttons hard left and hard
+              right, so a centred toast clears both.
+            */}
             <Toaster
-              position="top-right"
+              position="bottom-center"
               richColors
-              expand
               closeButton
-              visibleToasts={4}
+              visibleToasts={3}
               toastOptions={{
                 duration: 5000,
                 style: { 

@@ -943,9 +943,13 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               {classes.map((cls) => {
                 const hasTt = timetables.some((t) => t.classId === cls.id);
                 const isPub = timetables.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
+                // Spelled out, not "•" / "○". The glyphs carried the
+                // published/draft distinction with no legend anywhere on the
+                // screen, so they read as a stray bullet.
                 return (
                   <option key={cls.id} value={cls.id}>
-                    {cls.name}{cls.section ? ` - ${cls.section}` : ""}{hasTt ? (isPub ? " •" : " ○") : ""}
+                    {cls.name}{cls.section ? ` - ${cls.section}` : ""}
+                    {hasTt ? (isPub ? " · Published" : " · Draft") : " · No timetable"}
                   </option>
                 );
               })}

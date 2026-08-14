@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { SignJWT, jwtVerify } from "jose";
 import { runUnscoped } from "@/lib/db/tenant-context";
 
@@ -10,6 +10,13 @@ const THIRTY_DAYS = 30 * 24 * 60 * 60;
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Minting a portal token hands over 30 days of unauthenticated access to
+    // one child's marks, attendance, and fees. Only the office issues those
+    // links — a signed-in guardian must never be able to mint one for another
+    // family's child.
+    if (!canManageOperations(user) && user.role !== "RECEPTIONIST") {
+      return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+    }
     const { studentId } = await req.json();
 
     const student = await prisma.student.findFirst({

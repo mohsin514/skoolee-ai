@@ -21,6 +21,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared-admin";
 import { ExamDetailPanel } from "@/components/academic/ExamDetailPanel";
+import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import {
   EXAM_TYPE_LABELS,
   OFFICE_EXAM_TYPES,
@@ -557,6 +558,10 @@ function CreateExamModal({
   // Teachers may only create their own classroom assessments.
   const typeOptions: readonly ExamType[] =
     role === "TEACHER" ? TEACHER_EXAM_TYPES : [...TEACHER_EXAM_TYPES, ...OFFICE_EXAM_TYPES];
+  // Stamp new exams with the active cycle's year, not the calendar year — a
+  // cycle labelled 2027 starts in August 2026, and filing under 2026 hides the
+  // exam from the office's board.
+  const cycleYear = useAcademicYear();
   const [classes, setClasses] = useState<any[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
@@ -565,7 +570,7 @@ function CreateExamModal({
     classId: "",
     title: "",
     term: "Term 1",
-    academicYear: new Date().getFullYear(),
+    academicYear: cycleYear,
     examType: "CLASS_TEST",
     subjectId: "",
   });

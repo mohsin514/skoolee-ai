@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Award, BookOpen, ChevronRight, TrendingUp } from "lucide-react";
+import { Award, BookOpen, ChevronRight, MapPin, TrendingUp, UserRound } from "lucide-react";
 import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
@@ -38,6 +38,60 @@ export default function CourseworkPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+        {/* Moved here when the duplicate "Schedule" page was retired — this is
+            the natural home for class and enrolment details. */}
+        <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
+          <div className="md:col-span-2 rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Current Class</p>
+                <p className="text-lg font-bold text-[#1d1b20]">{user.className}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Class Teacher</p>
+                <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.classTeacher?.fullName || "Not assigned"}</p>
+                {user.classTeacher?.email && (
+                  <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45">{user.classTeacher.email}</p>
+                )}
+              </div>
+              <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Enrolled Subjects</p>
+                <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.subjects.length} subjects</p>
+                <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45 line-clamp-2">
+                  {user.subjects?.length ? user.subjects.map((s: any) => s.name).join(", ") : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <UserRound className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Roll Number</p>
+                <p className="text-lg font-bold text-[#1d1b20]">{user.rollNo || "N/A"}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between gap-3 text-sm">
+                <span className="font-semibold text-[#4d4354]/60">Name</span>
+                <span className="font-bold text-[#1d1b20] truncate">{user.fullName}</span>
+              </div>
+              <div className="flex justify-between gap-3 text-sm">
+                <span className="font-semibold text-[#4d4354]/60">Campus</span>
+                <span className="font-bold text-[#1d1b20] truncate">{user.campusName}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <SummaryCard icon={BookOpen} label="Subjects" value={user.subjects.length} sub="Enrolled" />
           <SummaryCard icon={Award} label="Average" value={`${averages.overall}%`} sub={user.marks.length ? `From ${user.marks.length} scores` : "No data"} tone="green" />

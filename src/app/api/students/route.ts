@@ -6,6 +6,7 @@ import { sendInviteEmail } from "@/lib/email";
 import {
   ApiError,
   assertPermission,
+  assertStaffRole,
   canManageOperations,
   errorResponse,
   requireAuthUser,
@@ -116,6 +117,10 @@ function validationErrorResponse(error: { flatten: () => { fieldErrors: Record<s
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // The roster carries every child's guardian contacts, address, and medical
+    // notes. Families read their own record through /api/parent/data and the
+    // student dashboard action — never through here.
+    assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
@@ -130,8 +135,24 @@ export async function GET(req: NextRequest) {
     // keeps the roster (active students only).
     const archivedOnly = searchParams.get("status") === "archived";
 
+    // Teachers see only the roster of classes they teach or lead. Campus scope
+    // alone hands every teacher the whole campus roster, medical notes and
+    // guardian contacts included.
+    const teacherScope =
+      user.role === "TEACHER"
+        ? {
+            class: {
+              OR: [
+                { classTeacherId: user.userId },
+                { subjects: { some: { teacherId: user.userId } } },
+              ],
+            },
+          }
+        : {};
+
     const where = {
       ...scopedCampusWhere(user, campusId),
+      ...teacherScope,
       ...(classId ? { classId } : {}),
       ...(archivedOnly
         ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }

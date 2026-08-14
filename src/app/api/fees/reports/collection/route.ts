@@ -74,7 +74,9 @@ export async function GET(req: NextRequest) {
         totalDue: c.totalDue,
         totalPaid: c.totalPaid,
         totalOverdue: c.totalOverdue,
-        collectionRate: c.totalDue > 0 ? Math.round((c.totalPaid / c.totalDue) * 100) : 0,
+        // Capped for the same reason as the campus summary: overpaid invoices
+        // written before the carry-forward split can push this past 100.
+        collectionRate: c.totalDue > 0 ? Math.min(100, Math.round((c.totalPaid / c.totalDue) * 100)) : 0,
       }))
       .sort((a, b) => a.collectionRate - b.collectionRate);
 

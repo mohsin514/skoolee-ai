@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { summarizeAttendance } from "@/lib/attendance";
 
 function requireCampusId(session: AuthUser): string {
   if (!session.campusId) {
@@ -1286,12 +1287,18 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
   });
 
   const accountEmail = (account?.email || session.email || "").toLowerCase();
+  // Identity must come from an explicit link (studentUserId / parentUserId) or
+  // an address the office recorded for this guardian. Matching on fullName
+  // would hand any namesake another child's marks, attendance, and fees, so
+  // that fallback is deliberately absent: an unlinked account sees
+  // profileMissing instead of somebody else's record.
   const identityFilters: any[] = [
     ...(session.role === "PARENT" ? [{ parentUserId: session.userId }] : []),
     ...(session.role === "PARENT" && accountEmail ? [{ guardianEmail: { equals: accountEmail, mode: "insensitive" as const } }] : []),
-    ...(account?.fullName ? [{ fullName: account.fullName }] : []),
-    ...(session.fullName ? [{ fullName: session.fullName }] : []),
   ];
+
+  // Kept outside the `as const` include below so Prisma sees a mutable string[].
+  const RELEASED_REPORT_CARD = { status: { in: ["PUBLISHED", "SENT"] } };
 
   const studentInclude = {
       campus: { select: { id: true, name: true, city: true, logoUrl: true, school: { select: { logoUrl: true } } } },
@@ -1313,7 +1320,11 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
           },
         },
       },
+      // Marks and report cards reach the family only once the office has
+      // published them — never while an exam is in DRAFT/MARKS_ENTRY or a card
+      // is still GENERATED/REVIEWED.
       marks: {
+        where: { exam: { status: "PUBLISHED" } },
         include: {
           subject: {
             select: {
@@ -1333,6 +1344,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         take: 60,
       },
       reportCards: {
+        where: RELEASED_REPORT_CARD,
         include: { exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } } },
         orderBy: { generatedAt: "desc" },
         take: 3,
@@ -1364,13 +1376,14 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     include: studentInclude,
   });
 
-  const attendanceTotal = student?.attendance.length || 0;
-  const attendancePresent = student?.attendance.filter((entry) => entry.status === "PRESENT").length || 0;
-  const attendanceRate = attendanceTotal ? Math.round((attendancePresent / attendanceTotal) * 100) : null;
-  const balanceDue = student?.invoices.reduce((total, invoice) => {
-    const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    return total + Math.max(invoice.totalAmount - paid, 0);
-  }, 0) || 0;
+  const attendanceSummary = summarizeAttendance(student?.attendance || []);
+  const attendanceRate = attendanceSummary.rate;
+  // Read the ledger column rather than re-summing payments, so the dashboard,
+  // the student fees page, and the parent portal all quote the same number.
+  const balanceDue = student?.invoices.reduce(
+    (total, invoice) => total + Math.max(invoice.balanceDue, 0),
+    0,
+  ) || 0;
   const aiInsights = await prisma.aIInsight.findMany({
     where: {
       schoolId: session.schoolId,

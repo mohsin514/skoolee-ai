@@ -41,6 +41,29 @@ export async function GET(req: NextRequest) {
     const reportCardId = req.nextUrl.searchParams.get("reportCardId");
     const studentId = req.nextUrl.searchParams.get("studentId");
 
+    // Staff may pull any card in their school, including ones still under
+    // review. A family may only pull a released card for their own child —
+    // school scope alone would let any student download every classmate's PDF
+    // by guessing an id.
+    const isFamily = user.role === "STUDENT" || user.role === "PARENT";
+    let familyScope: Record<string, unknown> = {};
+    if (isFamily) {
+      const own = await prisma.student.findMany({
+        where:
+          user.role === "STUDENT"
+            ? { studentUserId: user.userId }
+            : { parentUserId: user.userId },
+        select: { id: true },
+      });
+      if (own.length === 0) {
+        return Response.json({ error: "No report card found" }, { status: 404 });
+      }
+      familyScope = {
+        studentId: { in: own.map((s) => s.id) },
+        status: { in: ["PUBLISHED", "SENT"] },
+      };
+    }
+
     let reportCard;
 
     if (reportCardId) {
@@ -48,6 +71,7 @@ export async function GET(req: NextRequest) {
         where: {
           id: reportCardId,
           campus: { schoolId: user.schoolId },
+          ...familyScope,
         },
         select: { id: true, pdfUrl: true, campusId: true, examId: true, studentId: true },
       });
@@ -57,6 +81,7 @@ export async function GET(req: NextRequest) {
           studentId,
           campus: { schoolId: user.schoolId },
           status: { in: ["PUBLISHED", "SENT", "REVIEWED", "GENERATED"] },
+          ...familyScope,
         },
         orderBy: { generatedAt: "desc" },
         select: { id: true, pdfUrl: true, campusId: true, examId: true, studentId: true },

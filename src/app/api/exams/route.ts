@@ -65,6 +65,35 @@ export async function GET(req: NextRequest) {
       audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" } };
     }
 
+    // Teachers only see exams they can actually open. This mirrors the
+    // visibility rule in /api/marks GET exactly — anything listed here but
+    // rejected there becomes a dead card on the board ("This exam is not
+    // assigned to you"), which is what a class-only filter produced: a
+    // subject-specific English quiz sitting in a class where the teacher only
+    // takes Maths.
+    if (user.role === "TEACHER") {
+      const taught = await prisma.subject.findMany({
+        where: { teacherId: user.userId, campus: { schoolId: user.schoolId } },
+        select: { classId: true },
+      });
+      const taughtClassIds = [...new Set(taught.map((s) => s.classId))];
+
+      audienceScope = {
+        OR: [
+          // Class teachers own every exam in their class, whatever the subject.
+          { class: { classTeacherId: user.userId } },
+          // Subject-specific exam for a subject they teach.
+          { subject: { teacherId: user.userId } },
+          // Whole-class exam in a class they teach at least one subject in —
+          // /api/marks will show them just their own subjects' rows.
+          { subjectId: null, classId: { in: taughtClassIds } },
+        ],
+        // `audienceScope` is spread after the explicit `classId` filter below
+        // and would otherwise drop it, so re-apply it here.
+        ...(classId ? { classId } : {}),
+      };
+    }
+
     const exams = await prisma.exam.findMany({
       where: {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },

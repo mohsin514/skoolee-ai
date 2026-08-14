@@ -9,10 +9,12 @@ import { Select } from "@/components/ui/select";
 import {
   classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
+import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { cn } from "@/lib/utils";
 
 export default function ReportsPage() {
   const { data, loading, error, loadData } = useTeacherData();
+  const academicYear = useAcademicYear();
   const searchParams = useSearchParams();
   const [selectedReportExamId, setSelectedReportExamId] = useState("");
   const [remarkBusy, setRemarkBusy] = useState(false);
@@ -29,7 +31,7 @@ export default function ReportsPage() {
     if (studentId && classId && data) {
       (async () => {
         try {
-          const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${studentId}&classId=${classId}&academicYear=${new Date().getFullYear()}`);
+          const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${studentId}&classId=${classId}&academicYear=${academicYear}`);
           const rcBody = await rcRes.text();
           const rcResult = JSON.parse(rcBody);
           const reportCard = rcResult.reportCard || null;
@@ -45,7 +47,7 @@ export default function ReportsPage() {
         } catch { toast.error("Failed to load report card"); }
       })();
     }
-  }, [searchParams, data]);
+  }, [searchParams, data, academicYear]);
 
   useEffect(() => {
     if (!data) return;

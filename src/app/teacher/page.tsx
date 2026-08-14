@@ -10,10 +10,13 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { BrandButton } from "@/components/role-dashboard";
 import {
-  classLabel, CreateAssessmentModal, DashboardSkeleton, FinalGradesModal, GradeConfigModal,
-  ReportCardDetailModal, StudentDetailModal, TeacherErrorState,
+  classLabel, DashboardSkeleton, ReportCardDetailModal, StudentDetailModal, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "./teacher-data-context";
+import { useGradingTools } from "./use-grading-tools";
+import { GradingModals, GradingToolbar } from "./grading-tools";
+import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
+import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 
@@ -40,19 +43,7 @@ export default function TeacherDashboardHub() {
   const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [remarkGeneratingFor, setRemarkGeneratingFor] = useState<string | null>(null);
   const [savingRemarks, setSavingRemarks] = useState(false);
-  const [showExamModal, setShowExamModal] = useState(false);
-  const [showGradeConfigModal, setShowGradeConfigModal] = useState(false);
-  const [showGradeOverviewModal, setShowGradeOverviewModal] = useState(false);
-  const [examForm, setExamForm] = useState({ title: "", term: "", classId: "", subjectId: "" as string, examType: "CLASS_TEST" as string });
-  const [creatingExam, setCreatingExam] = useState(false);
-  const [gradeConfig, setGradeConfig] = useState<Record<string, number>>({});
-  const [gradeConfigLoading, setGradeConfigLoading] = useState(false);
-  const [gradeConfigSaving, setGradeConfigSaving] = useState(false);
-  const [weightedGradeResult, setWeightedGradeResult] = useState<any>(null);
-  const [weightedGradeLoading, setWeightedGradeLoading] = useState(false);
-  const [selectedGradeClassId, setSelectedGradeClassId] = useState("");
-  const [generatingReportCards, setGeneratingReportCards] = useState(false);
-  const [reportCardsGenerated, setReportCardsGenerated] = useState(false);
+  const grading = useGradingTools({ onChanged: refetch });
 
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -112,6 +103,8 @@ export default function TeacherDashboardHub() {
     })();
   }, []);
 
+  const todayClashIds = useMemo(() => clashingSlotIds(todaySlots), [todaySlots]);
+
   const classHubs = data?.classHubs || [];
   const teacherSubjects = data?.subjects || [];
   const missingMarksTotal = (data?.activeExams || []).reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
@@ -151,89 +144,6 @@ export default function TeacherDashboardHub() {
   const hasMissingMarks = missingMarksTotal > 0;
 
   /* ── Handlers ── */
-  const handleCreateExam = useCallback(async () => {
-    if (!examForm.title || !examForm.classId) { toast.error("Title and class are required"); return; }
-    setCreatingExam(true);
-    try {
-      const res = await fetch("/api/exams", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...examForm, academicYear: new Date().getFullYear() }),
-      });
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to create assessment");
-      toast.success(`Assessment "${examForm.title}" created`);
-      setShowExamModal(false);
-      setExamForm({ title: "", term: "", classId: "", subjectId: "", examType: "CLASS_TEST" });
-      await refetch();
-    } catch (error: any) { toast.error(error.message); }
-    finally { setCreatingExam(false); }
-  }, [examForm, refetch]);
-
-  const loadGradeConfig = useCallback(async (classId: string) => {
-    if (!classId) return;
-    setGradeConfigLoading(true);
-    try {
-      const res = await fetch(`/api/grade-config?classId=${classId}&academicYear=${new Date().getFullYear()}`);
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (result.config) {
-        const { quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, gradeAplus, gradeA, gradeB, gradeC, gradeD } = result.config;
-        setGradeConfig({ quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, gradeAplus, gradeA, gradeB, gradeC, gradeD });
-      }
-    } catch { setGradeConfig({ quizWeight: 10, classTestWeight: 20, midTermWeight: 30, finalWeight: 40, passingPercentage: 50, gradeAplus: 90, gradeA: 80, gradeB: 70, gradeC: 60, gradeD: 50 }); }
-    finally { setGradeConfigLoading(false); }
-  }, []);
-
-  const saveGradeConfig = useCallback(async () => {
-    if (!selectedGradeClassId) return;
-    setGradeConfigSaving(true);
-    try {
-      const res = await fetch("/api/grade-config", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear(), ...gradeConfig }),
-      });
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to save");
-      toast.success("Grade configuration saved");
-      setShowGradeConfigModal(false);
-    } catch (error: any) { toast.error(error.message); }
-    finally { setGradeConfigSaving(false); }
-  }, [selectedGradeClassId, gradeConfig]);
-
-  const loadWeightedGrade = useCallback(async (classId: string) => {
-    if (!classId) return;
-    setWeightedGradeLoading(true);
-    setWeightedGradeResult(null);
-    try {
-      const res = await fetch(`/api/grade-config/weighted-result?classId=${classId}&academicYear=${new Date().getFullYear()}`);
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "No grades available");
-      setWeightedGradeResult(result.grades || []);
-    } catch (error: any) { toast.error(error.message); }
-    finally { setWeightedGradeLoading(false); }
-  }, []);
-
-  const handleGenerateReportCards = useCallback(async () => {
-    if (!selectedGradeClassId) return;
-    setGeneratingReportCards(true);
-    try {
-      const res = await fetch("/api/reports/generate-from-grades", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: selectedGradeClassId, academicYear: new Date().getFullYear() }),
-      });
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Report card generation failed");
-      toast.success(`Generated ${result.count || 0} report cards`);
-      setReportCardsGenerated(true);
-      await refetch();
-    } catch (error: any) { toast.error(error.message); }
-    finally { setGeneratingReportCards(false); }
-  }, [selectedGradeClassId, refetch]);
-
   const sendReportCard = useCallback(async (reportId: string) => {
     setSendingReport(reportId);
     try {
@@ -316,23 +226,7 @@ export default function TeacherDashboardHub() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <BrandButton variant="soft" icon={<Star className="w-4 h-4" />} onClick={() => setShowExamModal(true)}>
-              <span title="Create a new exam or test">New Assessment</span>
-            </BrandButton>
-            <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => {
-              if (classHubs[0]) { setSelectedGradeClassId(classHubs[0].id); loadGradeConfig(classHubs[0].id); }
-              setShowGradeConfigModal(true);
-            }}>
-              <span title="Configure grading weights">Grade Config</span>
-            </BrandButton>
-            <BrandButton variant="dark" icon={<BarChart3 className="w-4 h-4" />} onClick={() => {
-              if (classHubs[0]) setSelectedGradeClassId(classHubs[0].id);
-              setWeightedGradeResult(null);
-              setReportCardsGenerated(false);
-              setShowGradeOverviewModal(true);
-            }}>
-              <span title="View weighted final grades">Final Grades</span>
-            </BrandButton>
+            <GradingToolbar grading={grading} classHubs={classHubs} />
           </div>
         </div>
       </div>
@@ -433,6 +327,8 @@ export default function TeacherDashboardHub() {
             </div>
           </div>
         ) : todaySlots.length > 0 ? (
+          <div className="space-y-4">
+          <ScheduleConflictsBanner slots={todaySlots} scope="today" />
           <div className="rounded-[28px] bg-gradient-to-r from-[#8127cf]/[0.04] to-[#fbf0fe]/60 border border-[#8127cf]/10 p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
@@ -456,24 +352,34 @@ export default function TeacherDashboardHub() {
                 const slotEnd = new Date(); slotEnd.setHours(endH, endM, 0, 0);
                 const isActive = now >= slotStart && now < slotEnd;
                 const isPast = now >= slotEnd;
+                const isClashing = todayClashIds.has(slot.id);
 
                 return (
                   <div key={slot.id}
+                    title={isClashing ? "You are booked in another class this period" : undefined}
                     className={`shrink-0 rounded-2xl border px-4 py-3 min-w-[160px] transition-all ${
                       isActive
                         ? "bg-[#8127cf] border-[#8127cf] shadow-lg shadow-[#8127cf]/25"
+                        : isClashing
+                        ? "bg-rose-50/70 border-rose-200"
                         : isPast
                         ? "bg-white/60 border-[#cfc2d6]/15"
                         : "bg-white border-[#cfc2d6]/15 hover:border-[#8127cf]/20 hover:shadow-sm"
                     }`}>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className={`text-[10px] font-black ${isActive ? "text-white/70" : isPast ? "text-[#4d4354]/30" : "text-[#8127cf]"}`}>
+                      <span className={`text-[10px] font-black ${isActive ? "text-white/70" : isClashing ? "text-rose-600" : isPast ? "text-[#4d4354]/30" : "text-[#8127cf]"}`}>
                         {slot.startTime} - {slot.endTime}
                       </span>
                       {isActive && (
                         <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[8px] font-bold uppercase text-white">
                           <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                           Now
+                        </span>
+                      )}
+                      {isClashing && !isActive && (
+                        <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[8px] font-bold uppercase text-rose-600">
+                          <AlertCircle className="h-2.5 w-2.5" />
+                          Clash
                         </span>
                       )}
                     </div>
@@ -488,6 +394,7 @@ export default function TeacherDashboardHub() {
                 );
               })}
             </div>
+          </div>
           </div>
         ) : null}
 
@@ -746,20 +653,7 @@ export default function TeacherDashboardHub() {
       </div>
 
       {/* ── Modals ── */}
-      <CreateAssessmentModal open={showExamModal} classHubs={classHubs} examForm={examForm} creatingExam={creatingExam}
-        onClose={() => setShowExamModal(false)}
-        onFormChange={(field, value) => setExamForm((f) => ({ ...f, [field]: value }))} onCreate={handleCreateExam} />
-      <GradeConfigModal open={showGradeConfigModal} classHubs={classHubs} selectedGradeClassId={selectedGradeClassId}
-        gradeConfig={gradeConfig} gradeConfigLoading={gradeConfigLoading} gradeConfigSaving={gradeConfigSaving}
-        onClose={() => setShowGradeConfigModal(false)}
-        onClassChange={(id) => { setSelectedGradeClassId(id); loadGradeConfig(id); }}
-        onConfigChange={setGradeConfig} onSave={saveGradeConfig} />
-      <FinalGradesModal open={showGradeOverviewModal} classHubs={classHubs} selectedGradeClassId={selectedGradeClassId}
-        weightedGradeResult={weightedGradeResult} weightedGradeLoading={weightedGradeLoading}
-        generatingReportCards={generatingReportCards} reportCardsGenerated={reportCardsGenerated}
-        onClose={() => setShowGradeOverviewModal(false)}
-        onClassChange={(id) => { setSelectedGradeClassId(id); setWeightedGradeResult(null); setReportCardsGenerated(false); }}
-        onGenerate={loadWeightedGrade} onGenerateReportCards={handleGenerateReportCards} />
+      <GradingModals grading={grading} classHubs={classHubs} />
       {selectedStudent ? <StudentDetailModal student={selectedStudent} exams={data.exams || []} onClose={() => setSelectedStudent(null)} /> : null}
       {selectedReportCard ? (
         <ReportCardDetailModal report={selectedReportCard} busy={sendingReport === selectedReportCard.id} remarkBusy={remarkGeneratingFor}

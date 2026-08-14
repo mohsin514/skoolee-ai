@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { PanelTitle } from "@/components/shared-admin";
 import { BrandButton } from "@/components/role-dashboard";
+import { formatPKR } from "@/components/fees/fee-utils";
 
 /* ─── tiny helpers ─── */
 const inputCls =
@@ -82,7 +83,9 @@ function RoutesTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", fare: "" });
+  // Field names match TransportRoute exactly. This form used to post `name`,
+  // which the API rejected with "title is required" on every submission.
+  const [form, setForm] = useState({ title: "", description: "", fare: "" });
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -97,13 +100,13 @@ function RoutesTab() {
   useEffect(() => { load(); }, [load]);
 
   const add = async () => {
-    if (!form.name.trim()) return toast.error("Route name required");
+    if (!form.title.trim()) return toast.error("Route name required");
     setBusy(true);
     try {
-      const r = await fetch("/api/transport/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.name, description: form.description, fare: Math.round(Number(form.fare || 0) * 100) }) });
+      const r = await fetch("/api/transport/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: form.title, description: form.description, fare: Math.round(Number(form.fare || 0) * 100) }) });
       const j = await r.json();
       if (!j.success) throw new Error(j.error);
-      toast.success("Route added"); setShowAdd(false); setForm({ name: "", description: "", fare: "" }); load();
+      toast.success("Route added"); setShowAdd(false); setForm({ title: "", description: "", fare: "" }); load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
 
@@ -124,21 +127,23 @@ function RoutesTab() {
       </div>
       {showAdd && (
         <div className={addBoxCls}>
-          <div><label className={labelCls}>Name</label><input className={`${inputCls} w-44`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Route A" /></div>
-          <div><label className={labelCls}>Fare</label><input className={`${inputCls} w-28`} type="number" value={form.fare} onChange={(e) => setForm((f) => ({ ...f, fare: e.target.value }))} placeholder="0" /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
+          <div><label className={labelCls}>Route Name</label><input className={`${inputCls} w-44`} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Route A" /></div>
+          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Stops, timings…" /></div>
+          {/* The stored value is paisa (multiplied by 100 on save), so the unit
+              has to be on the label — otherwise "500" is ambiguous. */}
+          <div><label className={labelCls}>Fare (Rs)</label><input className={`${inputCls} w-28`} type="number" min={0} value={form.fare} onChange={(e) => setForm((f) => ({ ...f, fare: e.target.value }))} placeholder="0" /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-[#cfc2d6]/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{r.name}</td>
+                <td className={tdCls}>{r.title}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.fare != null ? (r.fare / 100).toFixed(2) : "—"}</td>
+                <td className={tdCls}>{r.fare != null ? formatPKR(r.fare) : "—"}</td>
                 <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -238,7 +243,9 @@ export function DormitoryPanel() {
   return (
     <div className={cardCls}>
       <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Building2} title="Dormitory Management" />
+        {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
+            names, on the same screen. */}
+        <PanelTitle icon={Building2} title="Hostel Management" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["types", "rooms"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-[#4d4354]/60 hover:text-[#1d1b20]"}`}>
@@ -270,6 +277,7 @@ function DormRoomTypesTab() {
     if (!form.name.trim()) return toast.error("Type name required");
     setBusy(true);
     try {
+      // costPerTerm is sent in paisa, matching invoices, fees and transport fares.
       const r = await fetch("/api/dormitory/room-types", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.name, description: form.description, costPerTerm: Math.round(Number(form.costPerTerm || 0) * 100) }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
       toast.success("Room type added"); setShowAdd(false); setForm({ name: "", description: "", costPerTerm: "" }); load();
@@ -287,8 +295,8 @@ function DormRoomTypesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <div><label className={labelCls}>Name</label><input className={`${inputCls} w-36`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Single" /></div>
-          <div><label className={labelCls}>Cost/Term</label><input className={`${inputCls} w-28`} type="number" value={form.costPerTerm} onChange={(e) => setForm((f) => ({ ...f, costPerTerm: e.target.value }))} /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
+          <div><label className={labelCls}>Cost/Term (Rs)</label><input className={`${inputCls} w-28`} type="number" min={0} value={form.costPerTerm} onChange={(e) => setForm((f) => ({ ...f, costPerTerm: e.target.value }))} placeholder="0" /></div>
+          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Occupancy, facilities…" /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -300,7 +308,7 @@ function DormRoomTypesTab() {
               <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.costPerTerm != null ? (r.costPerTerm / 100).toFixed(2) : "—"}</td>
+                <td className={tdCls}>{r.costPerTerm ? formatPKR(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -444,7 +452,6 @@ function BookCategoriesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <div><label className={labelCls}>Name</label><input className={`${inputCls} w-40`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Fiction" /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -742,7 +749,6 @@ function ItemCategoriesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <div><label className={labelCls}>Name</label><input className={`${inputCls} w-40`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -898,7 +904,6 @@ function ItemsTab() {
           <div><label className={labelCls}>Name</label><input className={`${inputCls} w-40`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
           <div><label className={labelCls}>Category</label><select className={`${inputCls} w-32`} value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}><option value="">None</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><label className={labelCls}>Unit</label><input className={`${inputCls} w-24`} value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} placeholder="pcs" /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -964,21 +969,25 @@ function TransactionsTab() {
           <div><label className={labelCls}>Item</label><select className={`${inputCls} w-40`} value={form.itemId} onChange={(e) => setForm((f) => ({ ...f, itemId: e.target.value }))}><option value="">Select…</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
           <div><label className={labelCls}>Store</label><select className={`${inputCls} w-36`} value={form.storeId} onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value }))}><option value="">Select…</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div><label className={labelCls}>Qty</label><input className={`${inputCls} w-20`} type="number" value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} /></div>
+          {/* unitPrice was already held in state and posted to the API, but no
+              input ever rendered it, so the column could only ever be null. */}
+          <div><label className={labelCls}>Unit Price (Rs)</label><input className={`${inputCls} w-28`} type="number" min={0} value={form.unitPrice} onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))} placeholder="0" /></div>
           <div><label className={labelCls}>Supplier</label><select className={`${inputCls} w-36`} value={form.supplierId} onChange={(e) => setForm((f) => ({ ...f, supplierId: e.target.value }))}><option value="">None</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Kind", "Item", "Store", "Qty", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No transactions" /> : rows.map((t: any) => (
+            {loading ? <EmptyRow cols={8} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
                 <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.kind === "RECEIVE" || t.kind === "RETURN" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.kind}</span></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>
                 <td className={tdCls}>{t.quantity}</td>
+                <td className={tdCls}>{t.unitPrice != null ? formatPKR(t.unitPrice) : "—"}</td>
                 <td className={tdCls}>{t.supplier?.name || "—"}</td>
                 <td className={tdCls}>{t.note || "—"}</td>
               </tr>
@@ -1088,7 +1097,6 @@ export function ComplaintsPanel() {
           <div><label className={labelCls}>Name</label><input className={`${inputCls} w-36`} value={form.complainantName} onChange={(e) => setForm((f) => ({ ...f, complainantName: e.target.value }))} /></div>
           <div><label className={labelCls}>Type</label><input className={`${inputCls} w-28`} value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} placeholder="General" /></div>
           <div><label className={labelCls}>Priority</label><select className={`${inputCls} w-28`} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -1141,7 +1149,6 @@ export function PostalPanel() {
           <div><label className={labelCls}>Sender</label><input className={`${inputCls} w-32`} value={form.senderName} onChange={(e) => setForm((f) => ({ ...f, senderName: e.target.value }))} /></div>
           <div><label className={labelCls}>Receiver</label><input className={`${inputCls} w-32`} value={form.receiverName} onChange={(e) => setForm((f) => ({ ...f, receiverName: e.target.value }))} /></div>
           <div><label className={labelCls}>Ref #</label><input className={`${inputCls} w-28`} value={form.referenceNumber} onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))} /></div>
-          <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
           <BrandButton variant="dark" onClick={add} disabled={busy}>{busy ? "Saving…" : "Save"}</BrandButton>
         </div>
       )}
@@ -1248,8 +1255,7 @@ export function CertificatesPanel() {
         <div className={`${addBoxCls} flex-col`}>
           <div className="flex flex-wrap gap-3">
             <div><label className={labelCls}>Name</label><input className={`${inputCls} w-48`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Transfer Certificate" /></div>
-            <div className="flex-1"><label className={labelCls}>Description</label><input className={`${inputCls} w-full`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
-          </div>
+            </div>
           <div className="w-full">
             <label className={labelCls}>Body Template</label>
             <textarea className={`${inputCls} w-full min-h-[80px] resize-y py-2`} value={form.bodyTemplate} onChange={(e) => setForm((f) => ({ ...f, bodyTemplate: e.target.value }))} placeholder="Use {{studentName}}, {{className}}, etc." />
