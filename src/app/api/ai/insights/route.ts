@@ -6,6 +6,7 @@ import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { aiFeatureRequestSchema } from "@/lib/validators/schemas";
+import { Pseudonymizer } from "@/lib/ai/pseudonymize";
 import {
   AI_FEATURE_LABELS,
   type AIFeature,
@@ -496,20 +497,29 @@ export async function POST(req: NextRequest) {
 
     await ensureAICreditsAvailable(user.schoolId);
 
+    // Strip personal identifiers (names, guardian phones/emails, addresses,
+    // CNICs) out of the school-scoped context before it is serialized into a
+    // prompt and sent to the model. The model reasons over tokens; the reply
+    // is rehydrated below so the user still sees real names.
+    const pseudonymizer = new Pseudonymizer();
+    const safeContext = pseudonymizer.maskObject(context);
+    const safeInput = pseudonymizer.maskObject({
+      tone: data.tone,
+      targetLanguage: data.targetLanguage,
+      topic: data.topic,
+      text: data.text,
+      question: data.question,
+      ...(data.input || {}),
+    });
+
     const prompt = buildAIFeaturePrompt({
       role: user.role,
       feature,
-      context,
-      input: {
-        tone: data.tone,
-        targetLanguage: data.targetLanguage,
-        topic: data.topic,
-        text: data.text,
-        question: data.question,
-        ...(data.input || {}),
-      },
+      context: safeContext,
+      input: safeInput,
     });
-    const result = await generateAIDraft({ system: prompt.system, prompt: prompt.user });
+    const draft = await generateAIDraft({ system: prompt.system, prompt: prompt.user });
+    const result = { ...draft, text: pseudonymizer.unmask(draft.text) };
     const approvalStatus = featureNeedsHumanApproval(feature) ? "PENDING_REVIEW" : "DRAFT";
     const title = AI_FEATURE_LABELS[feature];
     const summary = firstLine(result.text);

@@ -1,3 +1,4 @@
+import { type TxClient } from "@/lib/db/prisma";
 // ─── Payment recording (single source for collecting fees) ──
 // Used by POST /api/fees/collect, POST /api/fees/payment, and the SafePay
 // webhook. Every amount is Int paisa.
@@ -24,7 +25,7 @@ export interface RecordPaymentInput {
   orderRef?: string | null;
 }
 
-export async function recordPayment(tx: Prisma.TransactionClient, input: RecordPaymentInput) {
+export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
   if (!invoice) throw new Error("Invoice not found");
 

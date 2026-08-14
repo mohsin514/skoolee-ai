@@ -9,10 +9,20 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { logSuperAdminAction, hashToken, recordLoginSession } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
+import { runUnscoped } from "@/lib/db/tenant-context";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
 export async function POST(req: NextRequest) {
+  // Login is inherently cross-tenant: the school is unknown until the
+  // account is found, and email is unique platform-wide. Everything after
+  // the lookup is keyed by the resolved user's own id.
+  return runUnscoped("login: resolve account by email before school is known", () =>
+    handleLogin(req)
+  );
+}
+
+async function handleLogin(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const body = await req.json();
@@ -85,6 +95,7 @@ export async function POST(req: NextRequest) {
     // 4. Track login session & audit log (fire-and-forget)
     const sessionPromise = recordLoginSession({
       userId: user.id,
+      schoolId: user.schoolId,
       tokenHash: hashToken(token),
       expiresAt,
       ipAddress: ip,

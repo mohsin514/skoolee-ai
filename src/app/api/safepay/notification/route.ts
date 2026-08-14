@@ -3,11 +3,21 @@ import { prisma } from "@/lib/db/prisma";
 import { verifySafePayNotification } from "@/lib/payments/safepay";
 import { applySchoolPlan } from "@/lib/billing/entitlements";
 import { recordPayment } from "@/lib/fees/payment";
+import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  // A gateway callback carries no session. The signature below is what
+  // authenticates it; the school is resolved from the gateway's own
+  // identifiers, and the actual mutations are re-bound to that school.
+  return runUnscoped("safepay webhook: no session, school resolved from order ref", () =>
+    handleNotification(req)
+  );
+}
+
+async function handleNotification(req: NextRequest) {
   try {
     const secretKey = process.env.SAFEPAY_SECRET_KEY;
     if (!secretKey) {
@@ -33,27 +43,31 @@ export async function POST(req: NextRequest) {
       if (kind === "FEE" && orderRef) {
         const order = await prisma.onlinePaymentOrder.findUnique({ where: { orderRef } });
         if (order && order.status !== "COMPLETED") {
-          await prisma.$transaction(async (tx) => {
-            const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
-            if (current?.status === "COMPLETED") return;
+          // Now that the owning school is known, settle inside its scope so
+          // the guard constrains every write below.
+          await runWithTenantContext({ schoolId: order.schoolId }, () =>
+            prisma.$transaction(async (tx) => {
+              const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
+              if (current?.status === "COMPLETED") return;
 
-            const result = await recordPayment(tx, {
-              campusId: order.campusId,
-              invoiceId: order.invoiceId,
-              studentId: order.studentId,
-              amount: order.amount,
-              paymentDate: new Date(),
-              paymentMethod: "SAFEPAY",
-              referenceNumber: orderRef,
-              note: "Online payment via SafePay",
-              recordedBy: null,
-            });
+              const result = await recordPayment(tx, {
+                campusId: order.campusId,
+                invoiceId: order.invoiceId,
+                studentId: order.studentId,
+                amount: order.amount,
+                paymentDate: new Date(),
+                paymentMethod: "SAFEPAY",
+                referenceNumber: orderRef,
+                note: "Online payment via SafePay",
+                recordedBy: null,
+              });
 
-            await tx.onlinePaymentOrder.update({
-              where: { id: order.id },
-              data: { status: "COMPLETED", paymentId: result.payment.id, completedAt: new Date() },
-            });
-          }, { timeout: 20000 });
+              await tx.onlinePaymentOrder.update({
+                where: { id: order.id },
+                data: { status: "COMPLETED", paymentId: result.payment.id, completedAt: new Date() },
+              });
+            }, { timeout: 20000 })
+          );
         }
       } else if (orderRef && schoolId && plan) {
         await applySchoolPlan(schoolId, plan as any, "ACTIVE");

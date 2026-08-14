@@ -5,7 +5,6 @@
 export const dynamic = "force-dynamic";
 
 import { getAuthUser } from "@/lib/auth";
-import { getTenantForUser } from "@/lib/db/tenant";
 import { prisma } from "@/lib/db/prisma";
 import { getAICreditSnapshot } from "@/lib/ai/openai";
 
@@ -13,26 +12,23 @@ export async function GET() {
   try {
     const user = await getAuthUser();
     const userId = user?.userId;
-    if (!userId) {
+    if (!userId || !user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tenant = await getTenantForUser(userId);
-    if (!tenant) {
-      return Response.json({ error: "No tenant" }, { status: 403 });
-    }
+    const schoolId = user.schoolId;
 
     const [snapshot, usageByFeature, pendingReviews] = await Promise.all([
-      getAICreditSnapshot(tenant.schoolId),
+      getAICreditSnapshot(schoolId),
       prisma.aIUsageLog.groupBy({
         by: ["feature"],
-        where: { schoolId: tenant.schoolId },
+        where: { schoolId },
         _count: { _all: true },
         _sum: { tokensUsed: true },
       }),
       prisma.aIReviewItem.count({
         where: {
-          schoolId: tenant.schoolId,
+          schoolId,
           status: "PENDING",
           ...(user.campusId ? { campusId: user.campusId } : {}),
         },

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 
 export async function GET(
@@ -8,8 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const { id } = await params;
 
@@ -48,8 +47,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const { id } = await params;
     const body = await req.json();

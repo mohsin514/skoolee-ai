@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { generateAIDraft, ensureAICreditsAvailable, consumeAICreditAndLog } from "@/lib/ai/openai";
 import { AI_PROMPT_VERSION } from "@/lib/ai/prompts";
+import { Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { enterTenantContext, runUnscoped } from "@/lib/db/tenant-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,14 +18,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const schools = await prisma.school.findMany({
-      where: { status: "ACTIVE" },
-      select: { id: true, name: true, plan: true },
-    });
+    // Enumerating schools is the one cross-tenant step; each school's digest
+    // is then generated inside that school's own scope.
+    const schools = await runUnscoped("risk digest cron: enumerate active schools", () =>
+      prisma.school.findMany({
+        where: { status: "ACTIVE" },
+        select: { id: true, name: true, plan: true },
+      })
+    );
 
     const results = [];
 
     for (const school of schools) {
+      // Bind this school for the rest of the iteration; the next iteration
+      // rebinds. Every query below is guarded to this tenant.
+      enterTenantContext({ schoolId: school.id });
+
       try {
         await ensureAICreditsAvailable(school.id, 1);
       } catch {
@@ -64,6 +74,8 @@ export async function POST(req: NextRequest) {
             FROM students s
             JOIN attendance a ON a.student_id = s.id
             WHERE s.campus_id = ${campus.id}
+              AND s.school_id = ${school.id}
+              AND a.school_id = ${school.id}
               AND a.date >= ${thirtyDaysAgo}
             GROUP BY s.id, s.full_name, s.roll_no
             HAVING ROUND(
@@ -93,29 +105,33 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Replace every student name with a stable token before it enters the
+        // prompt; the digest is rehydrated with real names after the model
+        // returns, so leadership still sees who is at risk.
+        const pseudonymizer = new Pseudonymizer();
         const context = [
           `Campus: ${campus.name}`,
           "",
           lowPerformers.length > 0
             ? `Students with below-50% scores (last 30 days):\n${lowPerformers
-                .map((r) => `- ${r.student.fullName} (${r.student.rollNo}): ${r.percentage}% in ${r.exam.title}`)
+                .map((r) => `- ${pseudonymizer.token(r.student.fullName, "STUDENT")} (${r.student.rollNo}): ${r.percentage}% in ${r.exam.title}`)
                 .join("\n")}`
             : "",
           lowAttendance.length > 0
             ? `Students with below-75% attendance (last 30 days):\n${lowAttendance
-                .map((a) => `- ${a.full_name} (${a.roll_no}): ${a.rate}% attendance`)
+                .map((a) => `- ${pseudonymizer.token(a.full_name, "STUDENT")} (${a.roll_no}): ${a.rate}% attendance`)
                 .join("\n")}`
             : "",
           overdueStudents.length > 0
             ? `Students with overdue fees:\n${overdueStudents
-                .map((inv) => `- ${inv.student.fullName}: Rs ${(inv.balanceDue / 100).toLocaleString()} overdue`)
+                .map((inv) => `- ${pseudonymizer.token(inv.student.fullName, "STUDENT")}: Rs ${(inv.balanceDue / 100).toLocaleString()} overdue`)
                 .join("\n")}`
             : "",
         ]
           .filter(Boolean)
           .join("\n");
 
-        const result = await generateAIDraft({
+        const draft = await generateAIDraft({
           system:
             "You are SkooleeAI, a school management assistant generating a weekly risk digest. " +
             "Summarize the at-risk students for this campus in a clear, actionable format. " +
@@ -127,6 +143,7 @@ export async function POST(req: NextRequest) {
           temperature: 0.3,
           maxTokens: 600,
         });
+        const result = { ...draft, text: pseudonymizer.unmask(draft.text) };
 
         const { usageLog, extra: insight } = await consumeAICreditAndLog(
           {

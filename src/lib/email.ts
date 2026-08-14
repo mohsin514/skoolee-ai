@@ -145,7 +145,9 @@ export async function sendEmailMessage({
 
 export async function sendVerificationEmail(email: string, userId: string, token: string) {
   try {
-    const actionUrl = `${getBaseUrl()}/api/auth/verify?id=${userId}&token=${token}`;
+    // The signed token is the whole credential; the user id is not in the URL.
+    void userId;
+    const actionUrl = `${getBaseUrl()}/api/auth/verify?token=${token}`;
     const html = await renderTemplate(VerifyEmail({ actionUrl, logoUrl: getLogoUrl() }));
     const result = await deliverEmail({
       to: email,
@@ -164,7 +166,7 @@ export async function sendVerificationEmail(email: string, userId: string, token
   } catch (err) {
     console.error("[EMAIL EXCEPTION]", err);
     if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Verification Link: ${getBaseUrl()}/api/auth/verify?id=${userId}&token=${token}`);
+      console.log(`[EMAIL DEV MODE] Verification Link: ${getBaseUrl()}/api/auth/verify?token=${token}`);
       return { success: true };
     }
     throw err;

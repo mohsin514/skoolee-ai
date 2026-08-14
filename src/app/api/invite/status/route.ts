@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
 
 export async function GET(request: Request) {
   try {
@@ -10,10 +11,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Invite token is required." }, { status: 400 });
     }
 
-    const invite = await prisma.staffInvitation.findUnique({
-      where: { token },
-      select: { status: true, expiresAt: true },
-    });
+    // Pre-auth lookup by a secret, single-use token before the invitee has a
+    // session. It spans schools by necessity and returns only status/expiry —
+    // no personal data — so it is safe to run outside a tenant scope.
+    const invite = await runUnscoped(
+      "invite status: resolve single-use invite token before sign-in",
+      () =>
+        prisma.staffInvitation.findUnique({
+          where: { token },
+          select: { status: true, expiresAt: true },
+        })
+    );
 
     if (!invite) {
       return NextResponse.json({

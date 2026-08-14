@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { headers } from "next/headers";
 import { createHash } from "crypto";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 
 export async function createAuditLog(params: {
   tableName: string;
@@ -8,6 +9,7 @@ export async function createAuditLog(params: {
   oldValue?: any;
   newValue?: any;
   userId: string;
+  schoolId: string;
 }) {
   await prisma.auditLog.create({ data: params });
 }
@@ -61,6 +63,7 @@ export function hashToken(token: string): string {
 
 export async function recordLoginSession(params: {
   userId: string;
+  schoolId: string;
   tokenHash: string;
   expiresAt: Date;
   ipAddress?: string;
@@ -77,13 +80,18 @@ export async function recordLoginSession(params: {
     } catch {}
   }
 
-  await prisma.loginSession.create({
-    data: {
-      userId: params.userId,
-      tokenHash: params.tokenHash,
-      ipAddress: ip,
-      userAgent: ua,
-      expiresAt: params.expiresAt,
-    },
-  });
+  // Called from the login handler, which runs unscoped because the school
+  // is not known until the account is found. Bind it explicitly here.
+  await runWithTenantContext({ schoolId: params.schoolId, userId: params.userId }, () =>
+    prisma.loginSession.create({
+      data: {
+        userId: params.userId,
+        schoolId: params.schoolId,
+        tokenHash: params.tokenHash,
+        ipAddress: ip,
+        userAgent: ua,
+        expiresAt: params.expiresAt,
+      },
+    })
+  );
 }

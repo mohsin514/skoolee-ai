@@ -1,14 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId") || "";
@@ -45,8 +44,7 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await requireAuthUser({ allowSuspended: true });
-    if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+    const user = await requirePlatformOwner();
 
     const { sessionId } = await req.json();
     if (!sessionId) throw new ApiError("sessionId required", 400);

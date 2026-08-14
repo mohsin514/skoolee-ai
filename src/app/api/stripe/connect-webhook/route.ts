@@ -1,12 +1,22 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
 import { stripe } from "@/lib/stripe/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  // Gateway callbacks carry no session; the signature check inside is
+  // what authenticates them, and the school is resolved from the
+  // gateway's own identifiers rather than from a logged-in user.
+  return runUnscoped("stripe connect webhook: no session, school resolved from connected account id", () =>
+    handleWebhook(req)
+  );
+}
+
+async function handleWebhook(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
   const signature = req.headers.get("stripe-signature");
   if (!webhookSecret || !signature) {

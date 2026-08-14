@@ -7,9 +7,15 @@ import { prisma } from "@/lib/db/prisma";
 import { createTenantSchema } from "@/lib/db/tenant";
 import bcrypt from "bcryptjs";
 import { rateLimit } from "@/lib/rate-limit";
+import { enterUnscoped } from "@/lib/db/tenant-context";
 
 export async function POST(req: NextRequest) {
   try {
+    // Self-serve registration runs before any school exists and checks
+    // slug/email uniqueness across every school, so it legitimately operates
+    // outside a single tenant. Each row it creates sets schoolId explicitly.
+    enterUnscoped("self-serve registration: creates a new school and its owner");
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const { ok } = rateLimit(`register:${ip}`, { limit: 5, windowMs: 300_000 });
     if (!ok) {

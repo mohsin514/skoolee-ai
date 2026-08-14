@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { enterTenantContext } from "@/lib/db/tenant-context";
 import { verifyParentToken } from "../token/route";
 
 export const runtime = "nodejs";
@@ -9,7 +10,10 @@ async function resolveStudentId(req: NextRequest): Promise<string | null> {
   const token = req.nextUrl.searchParams.get("token");
   if (token) {
     const result = await verifyParentToken(token);
-    return result?.studentId || null;
+    if (!result) return null;
+    // No session on the parent portal — the token supplies the tenant.
+    enterTenantContext({ schoolId: result.schoolId });
+    return result.studentId;
   }
 
   const user = await getAuthUser();

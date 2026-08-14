@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
+import { enterTenantContext } from "@/lib/db/tenant-context";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
@@ -15,7 +16,10 @@ export async function getOnboardingSession() {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
-    
+
+    // Decodes the JWT directly, so bind tenant context before any query.
+    enterTenantContext({ schoolId: String(payload.schoolId), userId: String(payload.userId || "") });
+
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
       include: { school: true }
@@ -35,6 +39,8 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
   const { payload } = await jwtVerify(token, JWT_SECRET);
   const userId = String(payload.userId);
   const schoolId = String(payload.schoolId);
+  // Decodes the JWT directly, so bind tenant context before any query.
+  enterTenantContext({ schoolId, userId });
   await assertPlanCapacity({ schoolId, metric: "campuses", increment: campuses.length });
 
   // ── Basic validation ─────────────────────────────
