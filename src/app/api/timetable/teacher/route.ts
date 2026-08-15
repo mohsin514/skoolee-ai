@@ -1,16 +1,25 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageOperations, requireAuthUser, errorResponse, resolveCampusId } from "@/lib/api/scope";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // A staff member's weekly whereabouts. Families get their own class
+    // timetable through /api/parent/timetable and the student portal.
+    assertStaffRole(user);
     const campusId = await resolveCampusId(user);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
 
-    const teacherId = req.nextUrl.searchParams.get("teacherId") || user.userId;
+    // Reading someone else's schedule is an administrative act: a teacher may
+    // only ever ask for their own, whatever the query string says.
+    const requested = req.nextUrl.searchParams.get("teacherId");
+    if (requested && requested !== user.userId && !canManageOperations(user)) {
+      throw new ApiError("Forbidden", 403);
+    }
+    const teacherId = requested || user.userId;
 
     const slots = await prisma.timetableSlot.findMany({
       where: {

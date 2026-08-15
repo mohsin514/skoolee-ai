@@ -23,7 +23,11 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 
 export function classLabel(item: any) {
   if (!item) return "Unassigned";
-  return [item.name, item.section].filter(Boolean).join(" ");
+  const base = [item.name, item.section].filter(Boolean).join(" ");
+  // A class name/section is reused every academic year (e.g. two distinct
+  // "QA Grade 5 A" classes, one per year) — without the year, teacher-facing
+  // dropdowns show duplicate, indistinguishable options for different classes.
+  return item.academicYear ? `${base} - ${item.academicYear}` : base;
 }
 
 export function formatStatus(status?: string) {

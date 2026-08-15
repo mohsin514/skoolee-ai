@@ -13,6 +13,7 @@ interface GradeConfig {
   midTermWeight: number;
   finalWeight: number;
   passingPercentage: number;
+  weightMode: "NORMALIZED" | "ABSOLUTE";
   gradeAplus: number;
   gradeA: number;
   gradeB: number;
@@ -26,6 +27,7 @@ const EMPTY: GradeConfig = {
   midTermWeight: 30,
   finalWeight: 40,
   passingPercentage: 50,
+  weightMode: "NORMALIZED",
   gradeAplus: 90,
   gradeA: 80,
   gradeB: 70,
@@ -33,12 +35,29 @@ const EMPTY: GradeConfig = {
   gradeD: 50,
 };
 
-const THRESHOLDS: { key: keyof GradeConfig; label: string }[] = [
+type NumericConfigKey = {
+  [K in keyof GradeConfig]: GradeConfig[K] extends number ? K : never;
+}[keyof GradeConfig];
+
+const THRESHOLDS: { key: NumericConfigKey; label: string }[] = [
   { key: "gradeAplus", label: "A+" },
   { key: "gradeA", label: "A" },
   { key: "gradeB", label: "B" },
   { key: "gradeC", label: "C" },
   { key: "gradeD", label: "D" },
+];
+
+const MODES: { key: GradeConfig["weightMode"]; label: string; help: string }[] = [
+  {
+    key: "NORMALIZED",
+    label: "Rescale to exams held",
+    help: "Repeated exams of the same type are averaged, then the weights of the exam types that have actually happened are rescaled to 100%. Full marks in the only exam so far reads as 100%.",
+  },
+  {
+    key: "ABSOLUTE",
+    label: "Score against the full year",
+    help: "Every exam scores against the whole 100-point year, so exam types that have not happened yet count as zero. Percentages stay low until the year is complete.",
+  },
 ];
 
 export function GradeConfigInline({
@@ -120,6 +139,7 @@ export function GradeConfigInline({
           midTermWeight: cfg.midTermWeight,
           finalWeight,
           passingPercentage: cfg.passingPercentage,
+          weightMode: cfg.weightMode,
           gradeAplus: cfg.gradeAplus,
           gradeA: cfg.gradeA,
           gradeB: cfg.gradeB,
@@ -130,6 +150,9 @@ export function GradeConfigInline({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
       toast.success("Grade configuration saved");
+      // The live preview below is computed from these rules, so recompute it —
+      // otherwise the admin changes the mode and sees the old percentages.
+      loadPreview();
     } catch (e: any) {
       toast.error(e?.message || "Save failed");
     } finally {
@@ -220,6 +243,35 @@ export function GradeConfigInline({
               onChange={(e) => setCfg({ ...cfg, passingPercentage: Number(e.target.value) })}
               className="w-full accent-[#d97706]"
             />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-bold text-[#4d4354]/70">Overall percentage</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {MODES.map((m) => {
+                const active = cfg.weightMode === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setCfg({ ...cfg, weightMode: m.key })}
+                    aria-pressed={active}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-[#7c3aed]/40 bg-[#7c3aed]/5"
+                        : "border-[#cfc2d6]/25 bg-white hover:border-[#cfc2d6]/50"
+                    }`}
+                  >
+                    <span className="block text-xs font-black text-[#1d1b20]">{m.label}</span>
+                    <span className="mt-1 block text-[10px] font-semibold leading-relaxed text-[#4d4354]/50">
+                      {m.help}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

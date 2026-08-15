@@ -2826,7 +2826,7 @@ const STUDENT_STATUS_CHANGES = {
 type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
 
 export function StudentDetailModal({
-  student,
+  student: summary,
   busy,
   onClose,
   onMove,
@@ -2840,6 +2840,14 @@ export function StudentDetailModal({
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  // The roster carries a summary; address, medical notes, allergies,
+  // medications and special needs live only on the full record and are fetched
+  // when a profile is actually opened. Render the summary immediately and merge
+  // the rest in when it lands, so the modal never shows a spinner for fields it
+  // already has.
+  const [full, setFull] = useState<any>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const student = full ?? summary;
   const report = student.reportCards?.[0];
   const avatar = student.profileImageUrl;
   const [editing, setEditing] = useState(false);
@@ -2855,6 +2863,25 @@ export function StudentDetailModal({
   const [statusBusy, setStatusBusy] = useState(false);
   const currentStatus = (student.status || "active").toLowerCase();
   const isActive = currentStatus === "active";
+
+  useEffect(() => {
+    let active = true;
+    setFull(null);
+    setDetailError(null);
+    fetch(`/api/students/${summary.id}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!active) return;
+        if (json.success) setFull(json.data);
+        else setDetailError(json.error || "Could not load the full profile");
+      })
+      .catch(() => {
+        if (active) setDetailError("Could not load the full profile");
+      });
+    return () => {
+      active = false;
+    };
+  }, [summary.id]);
 
   useEffect(() => {
     let active = true;
@@ -2876,7 +2903,7 @@ export function StudentDetailModal({
     return () => {
       active = false;
     };
-  }, [student.id]);
+  }, [summary.id]);
 
   const generateParentLink = async () => {
     setGeneratingLink(true);
@@ -2936,7 +2963,10 @@ export function StudentDetailModal({
       categoryId: student.category?.id || "",
       groupId: student.group?.id || "",
     });
-  }, [student.id]);
+    // Reseeds when the full record lands. saveEdits writes every string field
+    // as `edits[f] || null`, so seeding once from the summary and saving would
+    // erase address, medical notes, allergies and medications outright.
+  }, [student.id, full]);
 
   const ed = (field: string) => edits[field] || "";
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
@@ -3054,6 +3084,11 @@ export function StudentDetailModal({
             undifferentiated wall of buttons. */}
         <button
           type="button"
+          // Editing is held back until the full record is in hand. A save
+          // writes every field it holds, so editing a half-loaded profile
+          // would blank the ones that had not arrived.
+          disabled={!editing && !full}
+          title={!full ? "Loading the full profile…" : undefined}
           onClick={() => {
             // The editable fields only exist on Overview. Turning on edit mode
             // from Siblings/Documents/Timeline otherwise showed the Cancel and
@@ -3062,13 +3097,22 @@ export function StudentDetailModal({
             setEditing(!editing);
           }}
           className={cn(
-            "ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+            "ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
             editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
           )}
         >
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
+      {detailError ? (
+        <p
+          role="alert"
+          className="mx-6 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-[10px] font-bold text-rose-600"
+        >
+          {detailError} — address, medical and guardian detail may be missing, so editing is
+          disabled. Close and reopen the profile to retry.
+        </p>
+      ) : null}
 
       {parentLink && (
         <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">

@@ -85,12 +85,19 @@ export interface ParentData {
   fees: FeeItem[];
 }
 
+export type ParentChild = { id: string; fullName: string; rollNo: string | null };
+
 type ParentDataContextType = {
   data: ParentData | null;
   loading: boolean;
   error: string | null;
   refetch: () => void;
   token: string | null;
+  /** Every child this guardian has at the school. */
+  children: ParentChild[];
+  /** The child currently being viewed, or null on a single-child account. */
+  selectedStudentId: string | null;
+  selectChild: (studentId: string) => void;
 }
 
 const ParentDataContext = createContext<ParentDataContextType>({
@@ -99,6 +106,9 @@ const ParentDataContext = createContext<ParentDataContextType>({
   error: null,
   refetch: () => {},
   token: null,
+  children: [],
+  selectedStudentId: null,
+  selectChild: () => {},
 });
 
 const parentCache = new Map<string, { data: ParentData; ts: number }>();
@@ -107,7 +117,10 @@ const CACHE_TTL = 60_000;
 export function ParentDataProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const cacheKey = `parent-${token || "session"}`;
+  // A guardian with siblings switches between them, and each child's payload
+  // has to cache separately or the switch would serve the previous child.
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const cacheKey = `parent-${token || "session"}-${selectedStudentId || "default"}`;
 
   const [data, setData] = useState<ParentData | null>(() => {
     const cached = parentCache.get(cacheKey);
@@ -122,6 +135,7 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
     try {
       const params = new URLSearchParams();
       if (token) params.set("token", token);
+      if (selectedStudentId) params.set("studentId", selectedStudentId);
       const res = await fetch(`/api/parent/data?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -136,7 +150,7 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [token, cacheKey, data]);
+  }, [token, cacheKey, data, selectedStudentId]);
 
   useEffect(() => {
     const cached = parentCache.get(cacheKey);
@@ -148,8 +162,29 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
     loadData();
   }, [loadData, cacheKey]);
 
+  const selectChild = useCallback((studentId: string) => {
+    setSelectedStudentId(studentId);
+  }, []);
+
+  const childList = (data as unknown as { children?: ParentChild[] })?.children ?? [];
+  const activeId =
+    selectedStudentId ??
+    (data as unknown as { selectedStudentId?: string })?.selectedStudentId ??
+    null;
+
   return (
-    <ParentDataContext.Provider value={{ data, loading, error, refetch: loadData, token }}>
+    <ParentDataContext.Provider
+      value={{
+        data,
+        loading,
+        error,
+        refetch: loadData,
+        token,
+        children: childList,
+        selectedStudentId: activeId,
+        selectChild,
+      }}
+    >
       {children}
     </ParentDataContext.Provider>
   );

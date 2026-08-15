@@ -24,6 +24,8 @@ interface ScheduleRow {
   subject: { id: string; name: string; totalMarks: number };
   periodDefinition?: { id: string; periodNumber: number; startTime: string; endTime: string } | null;
   room?: { id: string; roomNumber: string; capacity: number } | null;
+  /** §58: every room hosting this paper, primary first. */
+  rooms?: { id: string; isPrimary: boolean; room: { id: string; roomNumber: string; capacity: number } }[];
   exam?: any;
 }
 
@@ -100,6 +102,7 @@ export function DatesheetBuilder({
           subject: s.subject,
           periodDefinition: s.periodDefinition || null,
           room: s.room || null,
+          rooms: s.rooms || [],
           exam: s.exam,
         };
       });
@@ -321,7 +324,12 @@ export function DatesheetBuilder({
                             <p className="pr-4 text-[11px] font-black text-[#1d1b20]">
                               {sched.subject.name}
                             </p>
-                            {sched.room ? (
+                            {sched.rooms && sched.rooms.length > 1 ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[10px] font-black text-[#8127cf]">
+                                <DoorOpen className="h-3 w-3" />
+                                {sched.rooms.map((r: any) => r.room.roomNumber).join(" + ")}
+                              </span>
+                            ) : sched.room ? (
                               <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-[#0d9488]">
                                 <DoorOpen className="h-3 w-3" />
                                 {sched.room.roomNumber}
@@ -388,9 +396,31 @@ function AssignmentPopover({
   onScheduled: () => void;
 }) {
   const [rooms, setRooms] = useState<any[]>([]);
-  const [roomId, setRoomId] = useState<string>("");
+  // §58: a paper can be split across rooms, so this is a set rather than one
+  // id. Order matters — it is the order students are seated in, and the first
+  // room is the primary one the date sheet shows.
+  const [roomIds, setRoomIds] = useState<string[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomsError, setRoomsError] = useState<string | null>(null);
+
+  const selectedRooms = roomIds
+    .map((id) => rooms.find((r: any) => r.id === id))
+    .filter(Boolean) as any[];
+  const seatsAvailable = selectedRooms.reduce((n, r) => n + (r.capacity || 0), 0);
+
+  // capacity 0 means the school has not recorded it, which is not a violation
+  // on the single-room path — but a room of unknown size cannot be part of a
+  // split, so a multi-room selection requires every room to be sized.
+  const unsized = selectedRooms.filter((r) => !r.capacity);
+  const shortBy =
+    selectedRooms.length > 0 && unsized.length === 0 && studentsCount > seatsAvailable
+      ? studentsCount - seatsAvailable
+      : 0;
+  const multiRoom = roomIds.length > 1;
+  const blocked = shortBy > 0 || (multiRoom && unsized.length > 0);
+
+  const toggleRoom = (id: string) =>
+    setRoomIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
   const [reloadTick, setReloadTick] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -411,15 +441,33 @@ function AssignmentPopover({
         if (!d?.success) throw new Error(d?.error || "Could not load free rooms");
         const free = d.data?.rooms || [];
         setRooms(free);
-        // Auto-assign the smallest free room whose capacity fits the class
-        // (manual override still possible via the dropdown).
+        // Auto-assign the smallest free room that fits the whole class. If no
+        // single room does, fall back to filling the largest rooms until the
+        // class is covered — that is the case multi-room exists for, and the
+        // admin arrives at a workable plan instead of a dead end.
         const best =
           studentsCount > 0
             ? free
                 .filter((r: any) => !r.capacity || r.capacity >= studentsCount)
                 .sort((a: any, b: any) => (a.capacity || 0) - (b.capacity || 0))[0]
             : null;
-        setRoomId(best?.id || "");
+        if (best) {
+          setRoomIds([best.id]);
+        } else if (studentsCount > 0) {
+          const sized = free
+            .filter((r: any) => r.capacity > 0)
+            .sort((a: any, b: any) => b.capacity - a.capacity);
+          const picked: string[] = [];
+          let seats = 0;
+          for (const r of sized) {
+            if (seats >= studentsCount) break;
+            picked.push(r.id);
+            seats += r.capacity;
+          }
+          setRoomIds(seats >= studentsCount ? picked : []);
+        } else {
+          setRoomIds([]);
+        }
       })
       .catch((e: any) => {
         if (e?.name === "AbortError") return;
@@ -443,12 +491,37 @@ function AssignmentPopover({
           subjectId: subject?.id,
           date,
           periodDefinitionId: periodId || undefined,
-          roomId: roomId || undefined,
+          // A split paper is created without a room and then allocated, so the
+          // single-room capacity rule doesn't reject a plan that is only valid
+          // once all its rooms are counted together.
+          roomId: multiRoom ? undefined : roomIds[0] || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Scheduling failed");
-      toast.success(`${subject?.name} scheduled`);
+
+      if (multiRoom) {
+        const alloc = await fetch(`/api/academic/exam-schedule/rooms?${sp.toString()}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scheduleId: data.data.id, roomIds }),
+        });
+        const allocData = await alloc.json();
+        if (!alloc.ok) {
+          // Don't leave a roomless paper on the date sheet because the seating
+          // step failed — take the entry back out and report the real reason.
+          await fetch(
+            `/api/academic/exam-schedule?id=${data.data.id}&${sp.toString()}`,
+            { method: "DELETE" },
+          );
+          throw new Error(allocData.error || "Room allocation failed");
+        }
+        toast.success(
+          `${subject?.name} scheduled across ${roomIds.length} rooms — ${allocData.data.totalStudents} students seated`,
+        );
+      } else {
+        toast.success(`${subject?.name} scheduled`);
+      }
       onScheduled();
     } catch (e: any) {
       toast.error(e?.message || "Scheduling failed");
@@ -485,24 +558,46 @@ function AssignmentPopover({
           </div>
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
-              Room (free rooms only)
+              Rooms (free rooms only) — pick more than one to split the paper
             </span>
-            <div className="relative">
-              <select
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                className="w-full appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 pr-9 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
-              >
-                <option value="">No room assigned</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.roomNumber}
-                    {r.capacity ? ` (cap ${r.capacity})` : ""}
-                  </option>
-                ))}
-              </select>
-              <DoorOpen className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8127cf]" />
+            <div className="max-h-52 space-y-1 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-white p-1.5">
+              {rooms.map((r) => {
+                const order = roomIds.indexOf(r.id);
+                const checked = order !== -1;
+                return (
+                  <label
+                    key={r.id}
+                    className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                      checked ? "bg-[#fbf0fe] text-[#1d1b20]" : "text-[#4d4354]/70 hover:bg-[#4d4354]/5"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleRoom(r.id)}
+                      className="h-4 w-4 shrink-0 accent-[#8127cf]"
+                    />
+                    <DoorOpen className="h-4 w-4 shrink-0 text-[#8127cf]" />
+                    <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                      {r.capacity ? `cap ${r.capacity}` : "no capacity set"}
+                    </span>
+                    {checked && roomIds.length > 1 ? (
+                      <span className="shrink-0 rounded-md bg-[#8127cf] px-1.5 py-0.5 text-[9px] font-black text-white">
+                        {order === 0 ? "MAIN" : `#${order + 1}`}
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
             </div>
+            {selectedRooms.length > 0 ? (
+              <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">
+                {selectedRooms.length} room{selectedRooms.length === 1 ? "" : "s"} selected ·{" "}
+                {seatsAvailable} seats for {studentsCount} students
+                {multiRoom ? " · students are seated in roll-number order" : ""}
+              </p>
+            ) : null}
             {roomsLoading ? (
               <p className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#4d4354]/40">
                 <Loader2 className="h-3 w-3 animate-spin" /> Checking room availability…
@@ -527,9 +622,38 @@ function AssignmentPopover({
               <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">
                 No free rooms for this slot.
               </p>
+            ) : shortBy > 0 ? (
+              <p
+                role="alert"
+                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] font-bold leading-relaxed text-rose-600"
+              >
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                <span>
+                  Capacity conflict — {studentsCount} students sit this paper but the selected
+                  room{selectedRooms.length === 1 ? "" : "s"} hold {seatsAvailable} ({shortBy} short).
+                  Tick another room to seat the rest.
+                </span>
+              </p>
+            ) : multiRoom && unsized.length > 0 ? (
+              <p
+                role="alert"
+                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] font-bold leading-relaxed text-rose-600"
+              >
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                <span>
+                  Room {unsized.map((r) => r.roomNumber).join(", ")} has no recorded capacity, so it
+                  cannot be part of a split. Set its capacity or pick another room.
+                </span>
+              </p>
+            ) : multiRoom ? (
+              <p className="mt-1 text-[10px] font-semibold text-[#0d9488]">
+                Split across {roomIds.length} rooms — {studentsCount} students seated in roll-number
+                order, {selectedRooms[0]?.roomNumber} first.
+              </p>
             ) : (
               <p className="mt-1 text-[10px] font-semibold text-[#0d9488]">
-                Auto-picked the smallest free room fitting {studentsCount || "the class"} — you can change it above.
+                Auto-picked the smallest free room fitting {studentsCount || "the class"} — tick more
+                rooms above to split the paper.
               </p>
             )}
           </label>
@@ -542,7 +666,12 @@ function AssignmentPopover({
           >
             Cancel
           </button>
-          <BrandButton variant="gradient" onClick={submit} disabled={busy}>
+          <BrandButton
+            variant="gradient"
+            onClick={submit}
+            disabled={busy || blocked}
+            title={blocked ? "Seat the whole class before scheduling" : undefined}
+          >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Schedule
           </BrandButton>

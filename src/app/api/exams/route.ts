@@ -42,6 +42,11 @@ export async function GET(req: NextRequest) {
     const campusId = searchParams.get("campusId") || user.campusId;
     const classId = searchParams.get("classId");
     const status = searchParams.get("status");
+    // Without this the year selector is decorative: every caller asking for
+    // one year got every year's exams back, mixing a closed year's papers
+    // into the active one.
+    const rawYear = searchParams.get("academicYear");
+    const academicYear = rawYear !== null && /^\d{4}$/.test(rawYear) ? Number(rawYear) : null;
 
     if (!campusId && user.role !== "SUPER_ADMIN") {
       return Response.json({ error: "campusId required" }, { status: 400 });
@@ -99,6 +104,7 @@ export async function GET(req: NextRequest) {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
         ...(classId ? { classId } : {}),
         ...(status ? { status } : {}),
+        ...(academicYear !== null ? { academicYear } : {}),
         ...audienceScope,
       },
       include: {

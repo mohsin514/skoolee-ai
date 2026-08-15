@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // Sibling lookup.
 // GET /api/students/siblings?studentId= — returns every student sharing the
@@ -11,6 +11,8 @@ import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // School-wide sibling groups — staff only.
+    assertStaffRole(user);
     const studentId = req.nextUrl.searchParams.get("studentId");
     const search = req.nextUrl.searchParams.get("search")?.trim();
 

@@ -1,6 +1,17 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Info, Lightbulb, UserX } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  Lightbulb,
+  Loader2,
+  RefreshCw,
+  UserX,
+  Wand2,
+} from "lucide-react";
+import { toast } from "sonner";
 import type { GridDay, SlotChange, StudioSlot, SubjectOption, TimetableData } from "./TimetableStudio";
 
 function effectiveSlots(slots: StudioSlot[], pending: Map<string, SlotChange>): StudioSlot[] {
@@ -18,6 +29,181 @@ function effectiveSlots(slots: StudioSlot[], pending: Map<string, SlotChange>): 
   });
 }
 
+interface ServerSuggestion {
+  id: string;
+  conflictType: string;
+  severity: "CRITICAL" | "WARNING";
+  dayOfWeek: number;
+  periodNumber: number;
+  description: string;
+  action: Record<string, unknown>;
+}
+
+interface SuggestionReport {
+  validation: { counts: { critical: number; warning: number } };
+  suggestions: ServerSuggestion[];
+  unresolvable: { message: string }[];
+}
+
+/**
+ * Server-backed conflict resolution (§66–69).
+ *
+ * The panel's own analysis below is drafting aid computed from what is on
+ * screen. This section is different: it asks the server what is actually
+ * wrong with the *saved* board and what it proposes to do about it, and each
+ * proposal can be applied in one click. After applying, the server re-validates
+ * and hands back the new state — which may contain a conflict the fix caused.
+ */
+function ResolutionSection({
+  timetableId,
+  campusId,
+  onApplied,
+}: {
+  timetableId: string | null;
+  campusId?: string;
+  onApplied?: () => void;
+}) {
+  const [report, setReport] = useState<SuggestionReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!timetableId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/timetable/${timetableId}/suggestions`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load conflicts");
+      setReport(data.data);
+    } catch (e: any) {
+      setError(e?.message || "Could not load conflicts");
+      setReport(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [timetableId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const apply = async (s: ServerSuggestion) => {
+    if (!timetableId) return;
+    setApplying(s.id);
+    try {
+      const res = await fetch(`/api/timetable/${timetableId}/suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: s.action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not apply the fix");
+
+      const next: SuggestionReport = data.data.report;
+      setReport(next);
+      // Say what the re-validation found, including when the fix caused a new
+      // problem — reporting plain success there would be a lie.
+      if (next.validation.counts.critical === 0) {
+        toast.success("Applied — no blocking conflicts remain");
+      } else {
+        const n = next.validation.counts.critical;
+        toast.warning(
+          `Applied, but ${n} blocking conflict${n === 1 ? " remains" : "s remain"} on the board`,
+        );
+      }
+      onApplied?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not apply the fix");
+      load();
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  if (!timetableId) return null;
+
+  const critical = report?.validation?.counts?.critical ?? 0;
+  const warning = report?.validation?.counts?.warning ?? 0;
+
+  return (
+    <div className="rounded-xl border border-[#cfc2d6]/15 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+          <Wand2 className="h-3 w-3" />
+          Fix conflicts
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#fdf0fe] disabled:opacity-50"
+        >
+          <RefreshCw className={`h-2.5 w-2.5 ${loading ? "animate-spin" : ""}`} />
+          Recheck
+        </button>
+      </div>
+
+      {error ? (
+        <p className="mt-1.5 text-[10px] font-bold text-rose-500">{error}</p>
+      ) : loading && !report ? (
+        <p className="mt-1.5 text-[10px] font-semibold text-[#4d4354]/40">Checking the saved board…</p>
+      ) : critical === 0 && warning === 0 ? (
+        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+          <CheckCircle2 className="h-3 w-3" />
+          The saved board has no conflicts.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[10px] font-bold text-[#4d4354]/60">
+            {critical} blocking · {warning} advisory on the saved board
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {(report?.suggestions ?? []).map((s) => (
+              <li
+                key={s.id}
+                className="rounded-lg border border-[#cfc2d6]/20 bg-[#faf7fc] p-2"
+              >
+                <div className="flex items-start gap-1.5">
+                  <AlertTriangle
+                    className={`mt-0.5 h-3 w-3 shrink-0 ${
+                      s.severity === "CRITICAL" ? "text-rose-500" : "text-amber-500"
+                    }`}
+                  />
+                  <p className="text-[10px] font-semibold leading-relaxed text-[#4d4354]/80">
+                    {s.description}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => apply(s)}
+                  disabled={applying !== null}
+                  className="mt-1.5 flex cursor-pointer items-center gap-1 rounded-lg bg-[#8127cf] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#6f1fb3] disabled:opacity-50"
+                >
+                  {applying === s.id ? (
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-2.5 w-2.5" />
+                  )}
+                  Apply this fix
+                </button>
+              </li>
+            ))}
+          </ul>
+          {(report?.unresolvable?.length ?? 0) > 0 && (
+            <p className="mt-2 text-[9px] font-bold text-[#4d4354]/45">
+              {report!.unresolvable.length} conflict
+              {report!.unresolvable.length === 1 ? "" : "s"} need a manual decision — no free
+              teacher, room or period was available to propose.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function ConflictPanel({
   timetables,
   activeTimetable,
@@ -26,6 +212,8 @@ export function ConflictPanel({
   targetDays,
   visibleDays,
   pendingChanges,
+  campusId,
+  onApplied,
 }: {
   timetables: TimetableData[];
   activeTimetable: TimetableData | null;
@@ -34,6 +222,8 @@ export function ConflictPanel({
   targetDays: number;
   visibleDays: GridDay[];
   pendingChanges: Map<string, SlotChange>;
+  campusId?: string;
+  onApplied?: () => void;
 }) {
   const slots = activeTimetable ? effectiveSlots(activeTimetable.slots, pendingChanges) : [];
 
@@ -59,26 +249,27 @@ export function ConflictPanel({
 
   // Cross-timetable double-bookings: same teacher, same day+period, >1 class
   const clashes = new Map<string, { teacher: string; label: string; classes: string[] }>();
+  // The map has to span every timetable: a teacher standing in two places at
+  // once is by definition two different classes, so building it per-timetable
+  // (as this did) put exactly one class label in each entry and the
+  // `size > 1` test could never fire — the section always read "None detected"
+  // no matter what was on the board.
+  const byKey = new Map<string, { teacher: string; classes: Set<string> }>();
   for (const tt of timetables) {
     const clsLabel = `${tt.class.name}${tt.class.section ? ` ${tt.class.section}` : ""}`;
-    const byKey = new Map<string, { teacher: string; classes: Set<string> }>();
     for (const s of tt.slots) {
       if (s.slotType !== "CLASS" || !s.teacherId) continue;
       const key = `${s.teacherId}__${s.dayOfWeek}-${s.periodNumber}`;
       if (!byKey.has(key)) byKey.set(key, { teacher: s.teacher?.fullName || "Teacher", classes: new Set() });
       byKey.get(key)!.classes.add(clsLabel);
     }
-    for (const [, v] of byKey) {
-      if (v.classes.size > 1) {
-        const sorted = [...v.classes];
-        const clsKey = sorted.join("|");
-        if (!clashes.has(clsKey)) {
-          clashes.set(clsKey, {
-            teacher: v.teacher,
-            label: "",
-            classes: sorted,
-          });
-        }
+  }
+  for (const [, v] of byKey) {
+    if (v.classes.size > 1) {
+      const sorted = [...v.classes];
+      const clsKey = `${v.teacher}|${sorted.join("|")}`;
+      if (!clashes.has(clsKey)) {
+        clashes.set(clsKey, { teacher: v.teacher, label: "", classes: sorted });
       }
     }
   }
@@ -194,10 +385,17 @@ export function ConflictPanel({
         )}
       </div>
 
-      {/* Suggestions */}
+      {/* §66-69: server-checked conflicts with one-click fixes */}
+      <ResolutionSection
+        timetableId={activeTimetable?.id ?? null}
+        campusId={campusId}
+        onApplied={onApplied}
+      />
+
+      {/* Drafting hints, computed from what is on screen right now */}
       <div className="mt-auto rounded-xl bg-gradient-to-br from-[#8127cf]/5 to-[#fbf0fe] p-3">
         <p className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-          <Lightbulb className="h-3 w-3" />Suggestions
+          <Lightbulb className="h-3 w-3" />Drafting hints
         </p>
         <ul className="space-y-1">
           {suggestions.map((sug, i) => (

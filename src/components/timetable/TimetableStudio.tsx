@@ -1189,6 +1189,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     targetDays={targetDays}
                     visibleDays={visibleDays}
                     pendingChanges={pendingChanges}
+                    campusId={campusId}
+                    onApplied={loadData}
                   />
                 </div>
               </div>

@@ -221,8 +221,11 @@ export const attendanceSchema = z.object({
 });
 
 export const examSchema = z.object({
-  title: z.string().min(1, "Exam title required"),
-  term: z.string().min(1, "Term required"),
+  // The column is unbounded text, but the title is rendered onto report-card
+  // PDFs and into notification messages, so an unbounded value breaks layout
+  // downstream rather than failing here where it can be reported.
+  title: z.string().min(1, "Exam title required").max(200, "Exam title is too long (max 200 characters)"),
+  term: z.string().min(1, "Term required").max(100, "Term is too long (max 100 characters)"),
   classId: z.string().min(1, "Class required"),
   academicYear: z.coerce.number().int().min(2000).max(2100),
   examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL", "CUSTOM"]).optional().default("CLASS_TEST"),

@@ -131,8 +131,56 @@ export function defaultWeightConfig(): WeightConfig {
     midTermWeight: 30,
     finalWeight: 40,
     passingPercentage: 50,
+    weightMode: "NORMALIZED",
     thresholds: { aplus: 90, a: 80, b: 70, c: 60, d: 50 },
   };
+}
+
+/**
+ * Turn per-exam results into the overall percentage.
+ *
+ * Two things were wrong with summing `contribution` directly:
+ *
+ *  1. The sum was never divided by the weight actually in play, so a class that
+ *     had only sat its mid-term (weight 30) capped every student at 30%. Full
+ *     marks read as a fail.
+ *  2. Weight was applied per *exam* rather than per exam *type*, so three
+ *     quizzes contributed 3 x 10 = 30 instead of the 10 the school configured.
+ *
+ * NORMALIZED fixes both: average within a type, weight the type once, and
+ * rescale by the weight of the types that actually happened. ABSOLUTE keeps the
+ * old arithmetic for schools that report cumulative year-to-date progress.
+ */
+export function overallFromExamResults(
+  examResults: WeightedExamResult[],
+  config: WeightConfig,
+): number {
+  if (config.weightMode === "ABSOLUTE") {
+    const totalWeight = examResults.reduce((sum, r) => sum + r.weight, 0);
+    if (totalWeight <= 0) return 0;
+    return Math.round(examResults.reduce((sum, r) => sum + r.contribution, 0));
+  }
+
+  // Average each exam type, then weight the type once.
+  const byType = new Map<string, { weight: number; percentages: number[] }>();
+  for (const r of examResults) {
+    if (r.weight <= 0) continue;
+    const bucket = byType.get(r.examType) ?? { weight: r.weight, percentages: [] };
+    bucket.percentages.push(r.percentage);
+    byType.set(r.examType, bucket);
+  }
+
+  let weightHeld = 0;
+  let earned = 0;
+  for (const { weight, percentages } of byType.values()) {
+    const avg = percentages.reduce((sum, p) => sum + p, 0) / percentages.length;
+    weightHeld += weight;
+    earned += (avg * weight) / 100;
+  }
+
+  if (weightHeld <= 0) return 0;
+  // Rescale the weight that actually happened back up to 100.
+  return Math.round((earned / weightHeld) * 100);
 }
 
 function getWeightForExamType(examType: string, config: WeightConfig): number {
@@ -215,10 +263,7 @@ export async function calculateWeightedGrade(
     };
   });
 
-  const totalWeight = examResults.reduce((sum, r) => sum + r.weight, 0);
-  const overallPercentage = totalWeight > 0
-    ? Math.round(examResults.reduce((sum, r) => sum + r.contribution, 0))
-    : 0;
+  const overallPercentage = overallFromExamResults(examResults, config);
 
   const subjectBreakdown: SubjectBreakdown[] = subjects.map((subject) => {
     const subjectMarks = marks.filter((m) => m.subjectId === subject.id);

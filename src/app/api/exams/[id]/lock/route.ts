@@ -74,6 +74,11 @@ export async function POST(
         status: "LOCKED",
         lockedBy: user.userId,
         lockedAt: new Date(),
+        // Resubmission clears the previous rejection note; rejectionCount is
+        // kept as the audit trail of how many rounds this exam took.
+        rejectionReason: null,
+        rejectedBy: null,
+        rejectedAt: null,
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },

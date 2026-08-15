@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertStaffRole, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { getYearClosureReport, getUnclosedPriorCycles } from "@/lib/academic/year-closure";
 
 /**
@@ -13,6 +13,8 @@ import { getYearClosureReport, getUnclosedPriorCycles } from "@/lib/academic/yea
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Administrative year-closure state — staff only.
+    assertStaffRole(user);
     const sp = req.nextUrl.searchParams;
 
     if (!user.campusId && user.role !== "SUPER_ADMIN") {

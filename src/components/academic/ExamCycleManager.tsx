@@ -15,6 +15,7 @@ import {
   GraduationCap,
   AlertCircle,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard";
@@ -53,6 +54,8 @@ export interface ExamItem {
   isLocked?: boolean;
   class?: { id?: string; name: string; section?: string | null; academicYear?: number } | null;
   locker?: { fullName?: string } | null;
+  rejectionReason?: string | null;
+  rejectionCount?: number;
   subject?: { id: string; name: string; totalMarks: number } | null;
   _count: { marks: number; reportCards: number };
 }
@@ -268,6 +271,34 @@ export function ExamCycleManager({
     [load]
   );
 
+  // Sending marks back is the reject arm of the review step. It needs a reason,
+  // so it opens a small dialog rather than firing straight from the card.
+  const [rejecting, setRejecting] = useState<ExamItem | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectBusy, setRejectBusy] = useState(false);
+
+  const submitReject = useCallback(async () => {
+    if (!rejecting) return;
+    setRejectBusy(true);
+    try {
+      const res = await fetch(`/api/exams/${rejecting.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not send the marks back");
+      toast.success("Marks sent back to the teacher");
+      setRejecting(null);
+      setRejectReason("");
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not send the marks back");
+    } finally {
+      setRejectBusy(false);
+    }
+  }, [rejecting, rejectReason, load]);
+
   const termOptions = useMemo(() => {
     const set = new Set<string>();
     exams.forEach((e) => set.add(`${e.academicYear} · ${e.term}`));
@@ -408,6 +439,10 @@ export function ExamCycleManager({
                     role={role}
                     onOpen={() => setSelectedId(exam.id)}
                     onAdvance={(a) => advance(exam, a)}
+                    onReject={() => {
+                      setRejecting(exam);
+                      setRejectReason("");
+                    }}
                   />
                 ))}
                 {byColumn[col.key].length === 0 ? (
@@ -420,6 +455,17 @@ export function ExamCycleManager({
           ))}
         </div>
       )}
+
+      {rejecting ? (
+        <RejectMarksModal
+          exam={rejecting}
+          reason={rejectReason}
+          setReason={setRejectReason}
+          busy={rejectBusy}
+          onClose={() => setRejecting(null)}
+          onSubmit={submitReject}
+        />
+      ) : null}
 
       {creating ? (
         <CreateExamModal
@@ -446,6 +492,97 @@ export function ExamCycleManager({
   );
 }
 
+/**
+ * Reject dialog. The reason is mandatory — the teacher has to know what to
+ * change — and the destructive consequence (withdrawing the report cards that
+ * locking generated) is stated before the admin commits.
+ */
+function RejectMarksModal({
+  exam,
+  reason,
+  setReason,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  exam: ExamItem;
+  reason: string;
+  setReason: (v: string) => void;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const tooShort = reason.trim().length < 5;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reject-marks-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between">
+          <h3 id="reject-marks-title" className="text-base font-black text-[#1d1b20]">
+            Send marks back
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full p-1 text-[#4d4354]/50 transition hover:bg-[#f3f4f9] cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="mb-4 text-[11px] font-semibold leading-relaxed text-[#4d4354]/60">
+          {exam.title}
+          {exam.class ? ` · ${classLabel(exam.class)}` : ""}. The teacher will be able to edit
+          the marks again, and the {exam._count?.reportCards ?? 0} report card
+          {(exam._count?.reportCards ?? 0) === 1 ? "" : "s"} generated when this exam was locked
+          will be withdrawn until it is re-locked.
+        </p>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            Reason for the teacher
+          </span>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={4}
+            autoFocus
+            maxLength={2000}
+            placeholder="e.g. Mathematics totals need re-checking against the answer sheets."
+            className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/50"
+          />
+        </label>
+
+        <div className="mt-5 flex gap-2">
+          <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
+            Cancel
+          </BrandButton>
+          <BrandButton
+            variant="gradient"
+            onClick={onSubmit}
+            disabled={busy || tooShort}
+            className="flex-1"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            Send back
+          </BrandButton>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ExamCard({
   exam,
   hasSchedule,
@@ -453,6 +590,7 @@ function ExamCard({
   role,
   onOpen,
   onAdvance,
+  onReject,
 }: {
   exam: ExamItem;
   hasSchedule: boolean;
@@ -460,7 +598,12 @@ function ExamCard({
   role: ExamCycleRole;
   onOpen: () => void;
   onAdvance: (a: NextAction) => void;
+  onReject: () => void;
 }) {
+  // Only the office can send marks back, and only while the results are still
+  // being reviewed — once published, the exam must be unpublished first.
+  const canReject =
+    role !== "TEACHER" && (exam.status === "LOCKED" || exam.status === "PRINCIPAL_REVIEWED");
   const action = nextAction(exam, hasSchedule, role);
   const subjCount = exam.subject ? 1 : (meta?.subjectsCount ?? 0);
   const marked = meta?.markedSubjects ?? 0;
@@ -522,6 +665,17 @@ function ExamCard({
         </div>
       ) : null}
 
+      {exam.rejectionReason ? (
+        <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-wider text-rose-600">
+            Sent back{exam.rejectionCount && exam.rejectionCount > 1 ? ` · ${exam.rejectionCount} times` : ""}
+          </p>
+          <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-rose-700">
+            {exam.rejectionReason}
+          </p>
+        </div>
+      ) : null}
+
       {action ? (
         <button
           type="button"
@@ -537,6 +691,16 @@ function ExamCard({
           <CheckCircle2 className="h-3.5 w-3.5" /> Complete
         </div>
       )}
+
+      {canReject ? (
+        <button
+          type="button"
+          onClick={onReject}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white py-2 text-[11px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-50 cursor-pointer"
+        >
+          <RotateCcw className="h-3.5 w-3.5" /> Send Back
+        </button>
+      ) : null}
     </div>
   );
 }

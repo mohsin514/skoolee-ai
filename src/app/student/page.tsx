@@ -164,14 +164,17 @@ export default function StudentDashboard() {
         <div className="relative p-7 px-9">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="flex gap-6 items-start group">
-              <div className="h-24 w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
+              <div className="h-16 w-16 sm:h-24 sm:w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
                 <AvatarImage src={user.profileImageUrl} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
               </div>
-              <div className="pt-1">
+              <div className="pt-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf]/70">
                   {greeting()}
                 </p>
-                <h2 className="text-4xl font-bold tracking-tight text-[#1d1b20] leading-none mt-1 mb-2 transition-colors group-hover:text-[#8127cf]">
+                {/* Fixed at text-4xl this wrapped a three-word name onto three
+                    lines on a phone; type and avatar both step down so a
+                    longer real name still fits. */}
+                <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight text-[#1d1b20] leading-tight sm:leading-none mt-1 mb-2 transition-colors group-hover:text-[#8127cf]">
                   {user.fullName}
                 </h2>
                 <p className="text-sm font-semibold text-[#4d4354]/60 uppercase tracking-wider">

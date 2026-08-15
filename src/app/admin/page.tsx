@@ -362,6 +362,10 @@ export default function CampusAdminDashboard() {
         } catch {
           toast.error("Student created, but could not mark the query as converted");
         }
+        // loadData() refreshes campus-wide counts but not the enquiries
+        // panel's own list — that only re-fetches when this version bumps,
+        // which is why the query kept showing ACTIVE until a manual reload.
+        setAdmissionQueriesVersion((v) => v + 1);
         loadData();
       })();
     } else {

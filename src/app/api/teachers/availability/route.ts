@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { assertStaffRole, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 const DAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,12 +26,17 @@ export interface TeacherAvailability {
  * Per-teacher load and clash data for the campus.
  *
  * Powers the teacher picker's "already committed" / "clashes with…" states and
- * the admin-facing conflict list. Read-only, so any authenticated campus user
- * may call it.
+ * the admin-facing conflict list.
+ *
+ * Staff-only. Being read-only is not on its own a reason to let families in:
+ * the payload carries every teacher's email address, specialisms and full
+ * weekly whereabouts, which is staff PII and campus-wide scheduling data that
+ * no student or guardian account has any reason to hold.
  */
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const campusId =

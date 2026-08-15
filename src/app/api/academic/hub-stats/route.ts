@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertStaffRole, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // GET /api/academic/hub-stats?campusId=
 // Aggregated dashboard data for the Academic Hub: phase progress, quick stats,
@@ -9,6 +9,8 @@ import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Campus-wide academic statistics — staff only.
+    assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 

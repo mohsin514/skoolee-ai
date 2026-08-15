@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { type WeightConfig } from "@/lib/academic/grade-calculator";
+import { normalizeWeightMode, type WeightConfig } from "@/lib/academic/grade-calculator";
+import { assertPermission, canManageOperations } from "@/lib/api/scope";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
           midTermWeight: 30,
           finalWeight: 40,
           passingPercentage: 50,
+          weightMode: "NORMALIZED",
           gradeAplus: 90,
           gradeA: 80,
           gradeB: 70,
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
         midTermWeight: config.midTermWeight,
         finalWeight: config.finalWeight,
         passingPercentage: config.passingPercentage,
+        weightMode: normalizeWeightMode(config.weightMode),
         gradeAplus: config.gradeAplus,
         gradeA: config.gradeA,
         gradeB: config.gradeB,
@@ -72,8 +75,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Grading weights and the passing bar decide who passes the year, so only
+    // the office may touch them. This route previously accepted any signed-in
+    // user, which let a teacher — or a student — rewrite their own pass mark.
+    if (!canManageOperations(session)) {
+      return NextResponse.json({ error: "Only admins and principals can change grading rules" }, { status: 403 });
+    }
+    await assertPermission(session, "exams", "edit");
+
     const body = await request.json();
-    const { classId, academicYear, quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, gradeAplus, gradeA, gradeB, gradeC, gradeD } = body;
+    const { classId, academicYear, quizWeight, classTestWeight, midTermWeight, finalWeight, passingPercentage, weightMode, gradeAplus, gradeA, gradeB, gradeC, gradeD } = body;
 
     if (!classId || !academicYear) {
       return NextResponse.json({ error: "classId and academicYear are required" }, { status: 400 });
@@ -101,6 +112,7 @@ export async function POST(request: NextRequest) {
         midTermWeight: midTermWeight ?? 30,
         finalWeight: finalWeight ?? 40,
         passingPercentage: passingPercentage ?? 50,
+        weightMode: normalizeWeightMode(weightMode),
         gradeAplus: gradeAplus ?? 90,
         gradeA: gradeA ?? 80,
         gradeB: gradeB ?? 70,
@@ -116,6 +128,7 @@ export async function POST(request: NextRequest) {
         midTermWeight: midTermWeight ?? 30,
         finalWeight: finalWeight ?? 40,
         passingPercentage: passingPercentage ?? 50,
+        weightMode: normalizeWeightMode(weightMode),
         gradeAplus: gradeAplus ?? 90,
         gradeA: gradeA ?? 80,
         gradeB: gradeB ?? 70,

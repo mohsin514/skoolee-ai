@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { Award, ChevronDown, ChevronUp, Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { downloadPdfFile } from "@/lib/download";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentResultsPage() {
-  const { data, loading } = useParentData();
+  const { data, loading, error, refetch } = useParentData();
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -26,6 +26,9 @@ export default function ParentResultsPage() {
     }
   };
 
+  // Without this an expired session leaves the page on a skeleton
+  // forever, because `data` never arrives and `loading` is already false.
+  if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const { reportCards, marksByExam } = data;
 

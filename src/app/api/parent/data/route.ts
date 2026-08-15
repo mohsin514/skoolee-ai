@@ -2,38 +2,14 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { summarizeAttendance } from "@/lib/attendance";
-import { verifyParentToken } from "../token/route";
+import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
+import { resolveParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
-async function resolveStudentId(req: NextRequest): Promise<string | null> {
-  const token = req.nextUrl.searchParams.get("token");
-  if (token) {
-    const result = await verifyParentToken(token);
-    if (!result) return null;
-    // No session on the parent portal — the token supplies the tenant.
-    enterTenantContext({ schoolId: result.schoolId });
-    return result.studentId;
-  }
-
-  const user = await getAuthUser();
-  if (!user) return null;
-
-  if (user.role === "PARENT") {
-    const student = await prisma.student.findFirst({
-      where: { parentUserId: user.userId },
-      select: { id: true },
-    });
-    return student?.id || null;
-  }
-
-  return null;
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const studentId = await resolveStudentId(req);
+    const { studentId, children } = await resolveParentScope(req);
     if (!studentId) {
       return Response.json({ error: "Invalid or expired access" }, { status: 401 });
     }
@@ -61,8 +37,11 @@ export async function GET(req: NextRequest) {
           },
         },
         attendance: {
+          // The class tells us which academic year a day belongs to; without
+          // it a promoted child's old year pools into this year's percentage.
+          include: { class: { select: { academicYear: true } } },
           orderBy: { date: "desc" },
-          take: 90,
+          take: 200,
         },
         invoices: {
           orderBy: { dueDate: "desc" },
@@ -75,7 +54,11 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
-    const attendanceSummary = summarizeAttendance(student.attendance);
+    const currentYearAttendance = attendanceForYear(
+      student.attendance,
+      student.class?.academicYear
+    );
+    const attendanceSummary = summarizeAttendance(currentYearAttendance);
     const totalAttendance = attendanceSummary.total;
     const presentCount = attendanceSummary.present;
     const attendanceRate = attendanceSummary.rate;
@@ -92,6 +75,10 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data: {
+        // Every child this guardian has at the school, so the portal can offer
+        // a switcher instead of stranding siblings behind the default pick.
+        children,
+        selectedStudentId: studentId,
         student: {
           fullName: student.fullName,
           rollNo: student.rollNo,
@@ -131,7 +118,7 @@ export async function GET(req: NextRequest) {
           rate: attendanceRate,
           total: totalAttendance,
           present: presentCount,
-          recent: student.attendance.slice(0, 30).map((a) => ({
+          recent: currentYearAttendance.slice(0, 30).map((a) => ({
             date: a.date.toISOString().split("T")[0],
             status: a.status,
           })),

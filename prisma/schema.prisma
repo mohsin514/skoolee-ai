@@ -77,6 +77,8 @@ model School {
   syllabusTopics          SyllabusTopic[]
   exams                   Exam[]
   examSchedules           ExamSchedule[]
+  examRooms               ExamRoom[]
+  examSeats               ExamSeat[]
   weekends                Weekend[]
   holidays                Holiday[]
   gradeWeightConfigs      GradeWeightConfig[]
@@ -227,6 +229,8 @@ model Campus {
   ledgerEntries         LedgerEntry[]
   admissionQueries      AdmissionQuery[]
   examSchedules         ExamSchedule[]
+  examRooms             ExamRoom[]
+  examSeats             ExamSeat[]
   weekends              Weekend[]
   holidays              Holiday[]
   transportRoutes       TransportRoute[]
@@ -586,6 +590,7 @@ model Student {
   marks                  Mark[]
   attendance             Attendance[]
   reportCards            ReportCard[]
+  examSeats              ExamSeat[]
   invoices               Invoice[]
   payments               Payment[]
   paymentPlans           PaymentPlan[]
@@ -779,30 +784,37 @@ model SyllabusTopic {
 
 // ─── 7. EXAMS ─────────────────────────────────────────────
 model Exam {
-  id           String    @id @default(uuid())
-  schoolId     String    @default("") @map("school_id")
-  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  campusId     String    @map("campus_id")
-  campus       Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  classId      String    @map("class_id")
-  class        Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  title        String
-  term         String
-  academicYear Int       @map("academic_year")
-  examType     String    @default("CLASS_TEST") @map("exam_type") // QUIZ, CLASS_TEST, MID_TERM, FINAL, CUSTOM
-  subjectId    String?   @map("subject_id") // if set, exam covers only this subject; null = all class subjects
-  subject      Subject?  @relation(fields: [subjectId], references: [id])
-  totalMarks   Int       @default(0) @map("total_marks") // computed sum of subject totalMarks
-  status       String    @default("DRAFT") // DRAFT, ACTIVE, MARKS_ENTRY, LOCKED, PRINCIPAL_REVIEWED, PUBLISHED
-  isLocked     Boolean   @default(false) @map("is_locked")
-  lockedBy     String?   @map("locked_by")
-  locker       User?     @relation("LockedBy", fields: [lockedBy], references: [id])
-  lockedAt     DateTime? @map("locked_at")
-  activatedAt  DateTime? @map("activated_at")
-  marksEntryAt DateTime? @map("marks_entry_at")
-  reviewedBy   String?   @map("reviewed_by")
-  reviewedAt   DateTime? @map("reviewed_at")
-  publishedAt  DateTime? @map("published_at")
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  campus          Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId         String    @map("class_id")
+  class           Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title           String
+  term            String
+  academicYear    Int       @map("academic_year")
+  examType        String    @default("CLASS_TEST") @map("exam_type") // QUIZ, CLASS_TEST, MID_TERM, FINAL, CUSTOM
+  subjectId       String?   @map("subject_id") // if set, exam covers only this subject; null = all class subjects
+  subject         Subject?  @relation(fields: [subjectId], references: [id])
+  totalMarks      Int       @default(0) @map("total_marks") // computed sum of subject totalMarks
+  status          String    @default("DRAFT") // DRAFT, ACTIVE, MARKS_ENTRY, LOCKED, PRINCIPAL_REVIEWED, PUBLISHED
+  isLocked        Boolean   @default(false) @map("is_locked")
+  lockedBy        String?   @map("locked_by")
+  locker          User?     @relation("LockedBy", fields: [lockedBy], references: [id])
+  lockedAt        DateTime? @map("locked_at")
+  activatedAt     DateTime? @map("activated_at")
+  marksEntryAt    DateTime? @map("marks_entry_at")
+  reviewedBy      String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  publishedAt     DateTime? @map("published_at")
+  // Marks sent back to the teacher for correction. Kept on the exam (rather
+  // than only in the audit log) so the teacher sees why on the marks screen,
+  // and so a resubmitted exam can be told apart from one never reviewed.
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  rejectedBy      String?   @map("rejected_by")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionCount  Int       @default(0) @map("rejection_count")
 
   // Relations
   marks       Mark[]
@@ -823,12 +835,20 @@ model ExamSchedule {
   examId             String            @map("exam_id")
   exam               Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
   subjectId          String            @map("subject_id")
-  subject            Subject           @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  // Was declared SetNull on a required column, which Prisma cannot honour.
+  // Removing a subject should take its paper off the date sheet with it.
+  subject            Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   date               DateTime          @db.Date
   periodDefinitionId String?           @map("period_definition_id")
   periodDefinition   PeriodDefinition? @relation(fields: [periodDefinitionId], references: [id], onDelete: SetNull)
   roomId             String?           @map("room_id")
   room               ClassRoom?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  // §58 multi-room. `roomId` above stays as the primary room so every existing
+  // reader (date sheet, report cards, the admin table) keeps working unchanged;
+  // `rooms` is the authoritative set and always contains the primary as well.
+  rooms ExamRoom[]
+  seats ExamSeat[]
 
   @@unique([examId, subjectId])
   @@index([campusId, date])
@@ -1635,6 +1655,7 @@ model ClassRoom {
   campus        Campus          @relation(fields: [campusId], references: [id], onDelete: Cascade)
   slots         TimetableSlot[]
   examSchedules ExamSchedule[]
+  examRooms     ExamRoom[]
 
   @@unique([campusId, roomNumber])
   @@index([schoolId])
@@ -1971,11 +1992,11 @@ model Notification {
 
 // Transport
 model TransportRoute {
-  id        String   @id @default(uuid())
-  schoolId  String   @default("") @map("school_id")
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  campusId  String   @map("campus_id")
-  campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  schoolId    String   @default("") @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String   @map("campus_id")
+  campus      Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
   title       String
   description String?
   fare        Int      @default(0)
@@ -2025,14 +2046,16 @@ model RouteVehicle {
 
 // Dormitory
 model DormRoomType {
-  id        String   @id @default(uuid())
-  schoolId  String   @default("") @map("school_id")
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  campusId  String   @map("campus_id")
-  campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  schoolId    String   @default("") @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String   @map("campus_id")
+  campus      Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  /** Charge per term, in paisa — same unit as every other money column. */
+  /**
+   * Charge per term, in paisa — same unit as every other money column.
+   */
   costPerTerm Int      @default(0) @map("cost_per_term")
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -2340,4 +2363,56 @@ model CertificateTemplate {
 
   @@index([schoolId])
   @@map("certificate_templates")
+}
+
+/// A room hosting one paper of one exam (§58).
+///
+/// A paper that does not fit in a single room is split across several; each
+/// row here is one of those rooms. The row flagged `isPrimary` mirrors
+/// `ExamSchedule.roomId`, which is kept in step so the older single-room
+/// readers do not have to know multi-room exists.
+model ExamRoom {
+  id             String       @id @default(uuid())
+  schoolId       String       @default("") @map("school_id")
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String       @map("campus_id")
+  campus         Campus       @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  examScheduleId String       @map("exam_schedule_id")
+  examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  roomId         String       @map("room_id")
+  room           ClassRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  isPrimary      Boolean      @default(false) @map("is_primary")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  seats ExamSeat[]
+
+  @@unique([examScheduleId, roomId])
+  @@index([schoolId])
+  @@map("exam_rooms")
+}
+
+/// One student's seat for one paper (§58).
+///
+/// The unique key on (examScheduleId, studentId) is the rule "no student is
+/// seated twice" expressed where it cannot be bypassed — allocation code can
+/// be rewritten, a database constraint cannot be forgotten.
+model ExamSeat {
+  id             String       @id @default(uuid())
+  schoolId       String       @default("") @map("school_id")
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String       @map("campus_id")
+  campus         Campus       @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  examScheduleId String       @map("exam_schedule_id")
+  examSchedule   ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  examRoomId     String       @map("exam_room_id")
+  examRoom       ExamRoom     @relation(fields: [examRoomId], references: [id], onDelete: Cascade)
+  studentId      String       @map("student_id")
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  seatNumber     Int          @map("seat_number")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@unique([examScheduleId, studentId])
+  @@index([examRoomId])
+  @@index([schoolId])
+  @@map("exam_seats")
 }

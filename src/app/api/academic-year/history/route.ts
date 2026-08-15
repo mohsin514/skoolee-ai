@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
+  assertStaffRole,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -9,6 +10,8 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Campus-wide academic history — staff only.
+    assertStaffRole(user);
     const sp = req.nextUrl.searchParams;
     const campusId = await resolveCampusId(user, sp.get("campusId"));
     const academicYear = Number(sp.get("academicYear"));

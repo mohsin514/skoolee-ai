@@ -114,6 +114,42 @@ function validationErrorResponse(error: { flatten: () => { fieldErrors: Record<s
   );
 }
 
+/**
+ * The statuses a student record may hold. Single source of truth for the
+ * single-record edit path and the bulk path, which previously each carried
+ * their own copy of the list.
+ */
+const STUDENT_STATUSES = ["active", "archived", "transferred", "graduated"];
+
+/**
+ * Roster ordering.
+ *
+ * Only a fixed set of columns is sortable, and anything unrecognised falls back
+ * to the default rather than erroring — a bad `sortBy` in a bookmarked URL
+ * should show the roster, not a 400. Class + roll is always the tiebreak so the
+ * order is total: without it, paging through equal values can show the same
+ * student twice and skip another.
+ */
+function rosterOrderBy(sortBy: string | null, sortDir: string | null) {
+  const dir = sortDir === "desc" ? ("desc" as const) : ("asc" as const);
+  const tiebreak = [{ rollNo: "asc" as const }, { id: "asc" as const }];
+
+  switch (sortBy) {
+    case "name":
+      return [{ fullName: dir }, ...tiebreak];
+    case "rollNo":
+      return [{ rollNo: dir }, { id: "asc" as const }];
+    case "status":
+      return [{ status: dir }, ...tiebreak];
+    case "guardian":
+      return [{ guardianName: dir }, ...tiebreak];
+    case "class":
+      return [{ class: { name: dir } }, ...tiebreak];
+    default:
+      return [{ class: { name: "asc" as const } }, { rollNo: "asc" as const }, { fullName: "asc" as const }];
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -181,14 +217,18 @@ export async function GET(req: NextRequest) {
           documents: { select: { id: true, kind: true, fileName: true } },
           _count: { select: { attendance: true, invoices: true, timelineEvents: true } },
         },
-        orderBy: [{ class: { name: "asc" } }, { rollNo: "asc" }, { fullName: "asc" }],
+        orderBy: rosterOrderBy(searchParams.get("sortBy"), searchParams.get("sortDir")),
         skip: (page - 1) * limit,
         take: limit,
       }),
       prisma.student.count({ where }),
     ]);
 
-    return Response.json({ success: true, data: students, pagination: { page, limit, total } });
+    return Response.json({
+      success: true,
+      data: students,
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
   } catch (error) {
     return errorResponse(error, "[students] GET failed");
   }
@@ -641,6 +681,37 @@ export async function PATCH(req: NextRequest) {
     await assertPermission(user, "students", "edit");
 
     const body = await req.json();
+
+    // Bulk status change from the roster's multi-select (§22). Deliberately
+    // narrow: status only. A bulk editor that could rewrite names, guardians or
+    // medical notes across a selection is a much bigger blast radius than the
+    // roster screen warrants, and archive/restore is the action that actually
+    // gets done in bulk.
+    if (Array.isArray(body.ids)) {
+      const ids: string[] = [...new Set<string>(body.ids.map((v: unknown) => String(v)))];
+      const status = String(body.status ?? "");
+      if (ids.length === 0) throw new ApiError("Select at least one student", 400);
+      if (!STUDENT_STATUSES.includes(status)) {
+        throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
+      }
+
+      // Scope first, then update only what came back — an id from another
+      // campus is silently absent rather than quietly updated.
+      const owned = await prisma.student.findMany({
+        where: { id: { in: ids }, ...scopedCampusWhere(user, user.campusId) },
+        select: { id: true },
+      });
+      if (owned.length !== ids.length) {
+        throw new ApiError("One or more students are not in this campus", 404);
+      }
+
+      const result = await prisma.student.updateMany({
+        where: { id: { in: owned.map((s) => s.id) } },
+        data: { status },
+      });
+      return Response.json({ success: true, updated: result.count, status });
+    }
+
     const { id, ...updates } = body;
     if (!id) throw new ApiError("Student id is required", 400);
 
@@ -682,7 +753,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (["MALE", "FEMALE", "OTHER"].includes(updates.gender)) data.gender = updates.gender;
     if (["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
-    if (["active", "archived", "transferred", "graduated"].includes(updates.status)) data.status = updates.status;
+    if (STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {

@@ -16,7 +16,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { AlertCircle, CalendarCheck, Loader2, Plus, Search, Upload, Users } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  Plus,
+  Search,
+  Upload,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
@@ -91,6 +105,43 @@ function statusBadgeVariant(status?: string): "success" | "secondary" | "warning
   return "success";
 }
 
+/**
+ * A sortable column header.
+ *
+ * Defined at module scope rather than inside the page: a component declared in
+ * the render body is a new type on every pass, so React unmounts and remounts
+ * the entire header row each time the roster reloads.
+ */
+function SortHeader({
+  column,
+  sortBy,
+  sortDir,
+  onSort,
+  children,
+}: {
+  column: string;
+  sortBy: string;
+  sortDir: "asc" | "desc";
+  onSort: (column: string) => void;
+  children: React.ReactNode;
+}) {
+  const active = sortBy === column;
+  const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        aria-label={`Sort by ${column}${active ? `, currently ${sortDir}ending` : ""}`}
+        className="flex cursor-pointer items-center gap-1 hover:text-primary"
+      >
+        {children}
+        <Icon className={`h-3 w-3 ${active ? "text-primary" : "opacity-40"}`} />
+      </button>
+    </TableHead>
+  );
+}
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -98,6 +149,13 @@ export default function StudentsPage() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "archived">("active");
+  const [sortBy, setSortBy] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
   const [attendanceClassId, setAttendanceClassId] = useState("");
@@ -112,6 +170,12 @@ export default function StudentsPage() {
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (classFilter) params.set("classId", classFilter);
+      if (statusFilter === "archived") params.set("status", "archived");
+      if (sortBy) {
+        params.set("sortBy", sortBy);
+        params.set("sortDir", sortDir);
+      }
+      params.set("page", String(page));
 
       const [studentsRes, classesRes] = await Promise.all([
         fetch(`/api/students?${params.toString()}`),
@@ -124,6 +188,9 @@ export default function StudentsPage() {
 
       const loadedClasses = classesData.data || [];
       setStudents(studentsData.data || []);
+      setPagination(studentsData.pagination || { page: 1, limit: 50, total: 0, pages: 1 });
+      // A selection is only meaningful for rows that are still on screen.
+      setSelected(new Set());
       setClasses(loadedClasses);
       setAttendanceClassId((current) => current || loadedClasses[0]?.id || "");
     } catch (error) {
@@ -131,7 +198,61 @@ export default function StudentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [classFilter, searchQuery]);
+  }, [classFilter, searchQuery, statusFilter, sortBy, sortDir, page]);
+
+  // Any change to what is being listed resets to page 1 — otherwise filtering a
+  // 200-student roster down to 3 while sitting on page 4 shows an empty table.
+  const resetPage = () => setPage(1);
+
+  const toggleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+    resetPage();
+  };
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allOnPageSelected = students.length > 0 && students.every((s) => selected.has(s.id));
+
+  const bulkSetStatus = async (status: string) => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selected], status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Bulk update failed");
+      toast.success(`${data.updated} student${data.updated === 1 ? "" : "s"} set to ${status}`);
+      await loadStudents();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk update failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const exportCsv = () => {
+    // Export exactly what the filters currently describe, not the page — an
+    // export that silently gave you 50 of 300 rows would be worse than none.
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    if (classFilter) params.set("classId", classFilter);
+    if (statusFilter === "archived") params.set("status", "archived");
+    window.location.href = `/api/students/export?${params.toString()}`;
+  };
 
   const loadAttendance = useCallback(async () => {
     if (!attendanceClassId) {
@@ -250,17 +371,64 @@ export default function StudentsPage() {
                 <Input
                   placeholder="Search name, roll, guardian..."
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    resetPage();
+                  }}
                   className="pl-9"
                 />
               </div>
-              <Select className="w-full md:w-56" value={classFilter} onChange={(event) => setClassFilter(event.target.value)}>
+              <Select
+                className="w-full md:w-56"
+                value={classFilter}
+                onChange={(event) => {
+                  setClassFilter(event.target.value);
+                  resetPage();
+                }}
+              >
                 <option value="">All Classes</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
                 ))}
               </Select>
+              <Select
+                className="w-full md:w-44"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as "active" | "archived");
+                  resetPage();
+                }}
+                aria-label="Filter by status"
+              >
+                <option value="active">On roll</option>
+                <option value="archived">Archived / left</option>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={students.length === 0}>
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
             </div>
+
+            {selected.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                <span className="text-sm font-semibold">
+                  {selected.size} selected
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={bulkBusy}
+                  onClick={() => bulkSetStatus(statusFilter === "archived" ? "active" : "archived")}
+                >
+                  {bulkBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {statusFilter === "archived" ? "Restore to roll" : "Archive"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+                  Clear selection
+                </Button>
+              </div>
+            )}
 
             {isLoading ? (
               <SkeletonList rows={4} label="Loading classes" />
@@ -281,19 +449,39 @@ export default function StudentsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Roll No</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Class</TableHead>
+                      <TableHead className="w-8">
+                        <input
+                          type="checkbox"
+                          checked={allOnPageSelected}
+                          onChange={() =>
+                            setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
+                          }
+                          aria-label="Select all students on this page"
+                          className="h-4 w-4 accent-[#8127cf]"
+                        />
+                      </TableHead>
+                      <SortHeader column="rollNo" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Roll No</SortHeader>
+                      <SortHeader column="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Name</SortHeader>
+                      <SortHeader column="class" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Class</SortHeader>
                       <TableHead>Login</TableHead>
-                      <TableHead>Guardian</TableHead>
+                      <SortHeader column="guardian" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Guardian</SortHeader>
                       <TableHead>Phone</TableHead>
                       <TableHead>Gender</TableHead>
-                      <TableHead>Status</TableHead>
+                      <SortHeader column="status" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Status</SortHeader>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {students.map((student) => (
                       <TableRow key={student.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(student.id)}
+                            onChange={() => toggleRow(student.id)}
+                            aria-label={`Select ${student.fullName}`}
+                            className="h-4 w-4 accent-[#8127cf]"
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-xs">{student.rollNo}</TableCell>
                         <TableCell>
                           <div className="font-medium">{student.fullName}</div>
@@ -320,6 +508,47 @@ export default function StudentsPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination. The API has always capped the roster at 50 rows and
+                returned a total; without these controls every student past the
+                50th was simply unreachable from this screen. */}
+            {!isLoading && pagination.total > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                <p className="text-sm text-muted-foreground">
+                  Showing{" "}
+                  <span className="font-semibold text-foreground">
+                    {(pagination.page - 1) * pagination.limit + 1}–
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span>{" "}
+                  of <span className="font-semibold text-foreground">{pagination.total}</span> students
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={pagination.page <= 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm font-semibold">
+                    Page {pagination.page} of {pagination.pages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+                    disabled={pagination.page >= pagination.pages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

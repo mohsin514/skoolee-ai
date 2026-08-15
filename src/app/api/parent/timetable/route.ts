@@ -1,37 +1,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
-import { enterTenantContext } from "@/lib/db/tenant-context";
-import { verifyParentToken } from "../token/route";
+import { resolveParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
 async function resolveClassId(req: NextRequest): Promise<string | null> {
-  const token = req.nextUrl.searchParams.get("token");
-  if (token) {
-    const result = await verifyParentToken(token);
-    if (!result?.studentId) return null;
-    // No session on the parent portal — the token supplies the tenant.
-    enterTenantContext({ schoolId: result.schoolId });
-    const student = await prisma.student.findUnique({
-      where: { id: result.studentId },
-      select: { classId: true },
-    });
-    return student?.classId || null;
-  }
+  const { studentId } = await resolveParentScope(req);
+  if (!studentId) return null;
 
-  const user = await getAuthUser();
-  if (!user) return null;
-
-  if (user.role === "PARENT") {
-    const student = await prisma.student.findFirst({
-      where: { parentUserId: user.userId },
-      select: { classId: true },
-    });
-    return student?.classId || null;
-  }
-
-  return null;
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { classId: true },
+  });
+  return student?.classId || null;
 }
 
 export async function GET(req: NextRequest) {

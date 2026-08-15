@@ -237,6 +237,10 @@ export default function PrincipalDashboard() {
         toast.error("Student created, but could not mark the query as converted");
       }
       setConvertingQuery(null);
+      // refetch() refreshes campus-wide counts but not the enquiries panel's
+      // own list — that only re-fetches when this version bumps, which is
+      // why a just-converted query kept showing ACTIVE until manual reload.
+      setAdmissionQueriesVersion((v) => v + 1);
     }
     setShowAdmissionForm(false);
     refetch();

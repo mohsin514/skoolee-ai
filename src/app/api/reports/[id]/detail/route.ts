@@ -47,7 +47,11 @@ export async function GET(
         },
       },
       exam: {
-        select: { id: true, title: true, term: true, status: true, examType: true, subjectId: true, academicYear: true },
+        select: {
+          id: true, title: true, term: true, status: true, examType: true, subjectId: true, academicYear: true,
+          classId: true,
+          class: { select: { id: true, name: true, section: true } },
+        },
       },
     },
   });
@@ -69,7 +73,11 @@ export async function GET(
   let weightConfig: WeightConfig | null = null;
   let overall: { overallPercentage: number; overallGrade: string; passed: boolean } | null = null;
 
-  const studentClassId = reportCard.student.class?.id;
+  // A promoted student's *current* class is the wrong context for a past
+  // exam's report card — it silently breaks the weight-config lookup and
+  // marks-distribution query (both keyed on classId+academicYear), and the
+  // exam's own class is the historically-correct one to show regardless.
+  const studentClassId = reportCard.exam.classId;
   const isAggregateFinal = reportCard.exam.subjectId === null && reportCard.exam.examType === "FINAL";
   if (studentClassId) {
     try {
@@ -117,6 +125,9 @@ export async function GET(
     success: true,
     reportCard: {
       ...reportCard,
+      // Show the class this exam actually belonged to, not wherever the
+      // student has since been promoted to.
+      student: { ...reportCard.student, class: reportCard.exam.class },
       ...(isAggregateFinal && overall
         ? { percentage: overall.overallPercentage, grade: overall.overallGrade }
         : {}),

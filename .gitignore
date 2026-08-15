@@ -62,3 +62,6 @@ next-env.d.ts
 /src-tauri/target/
 /src-tauri/gen/
 /src-tauri/Cargo.lock
+
+# runtime-generated report card PDFs (contain student PII)
+/public/generated/

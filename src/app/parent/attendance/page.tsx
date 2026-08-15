@@ -1,14 +1,17 @@
 "use client";
 
 import { CalendarCheck, CheckCircle2, Clock, X } from "lucide-react";
-import { ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentAttendancePage() {
-  const { data, loading } = useParentData();
+  const { data, loading, error, refetch } = useParentData();
 
+  // Without this an expired session leaves the page on a skeleton
+  // forever, because `data` never arrives and `loading` is already false.
+  if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const { attendance, student } = data;
 

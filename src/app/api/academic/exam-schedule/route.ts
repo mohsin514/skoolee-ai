@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertPermission, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { findTimetableRoomClashes, syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -30,6 +31,19 @@ const scheduleInclude = {
   subject: { select: { id: true, name: true, totalMarks: true } },
   periodDefinition: { select: { id: true, periodNumber: true, startTime: true, endTime: true } },
   room: { select: { id: true, roomNumber: true, capacity: true } },
+  // §58: the full room set, so the date sheet can show "QA-A + QA-B" rather
+  // than only the primary room of a split paper.
+  rooms: {
+    // The primary room is always created first, so creation order is also
+    // invigilation order — no second sort key needed.
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      isPrimary: true,
+      room: { select: { id: true, roomNumber: true, capacity: true } },
+      _count: { select: { seats: true } },
+    },
+  },
   exam: {
     select: {
       id: true,
@@ -80,7 +94,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN" && user.role !== "PRINCIPAL" && !["CAMPUS_ADMIN", "CAMPUS_MANAGER", "ACCOUNTANT"].includes(user.role)) {
+    if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "exams", "add");
@@ -126,7 +140,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN" && user.role !== "PRINCIPAL" && !["CAMPUS_ADMIN", "CAMPUS_MANAGER", "ACCOUNTANT"].includes(user.role)) {
+    if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "exams", "edit");
@@ -181,15 +195,33 @@ async function createOrUpdate(
   campusId: string,
   excludeId?: string
 ) {
+  let periodTimes: { startTime: string; endTime: string } | null = null;
   if (periodDefinitionId) {
     const periodDef = await prisma.periodDefinition.findFirst({
       where: { id: periodDefinitionId, campusId, timeType: "EXAM" },
     });
     if (!periodDef) return Response.json({ error: "Period definition not found or not an EXAM period" }, { status: 400 });
+    periodTimes = { startTime: periodDef.startTime, endTime: periodDef.endTime };
   }
   if (roomId) {
     const room = await prisma.classRoom.findFirst({ where: { id: roomId, campusId } });
     if (!room) return Response.json({ error: "Room not found" }, { status: 400 });
+
+    // Seating an exam in a room that cannot hold the class is an operational
+    // failure on the day, so it is blocked rather than warned about. capacity 0
+    // means "not recorded" and is left alone.
+    if (room.capacity > 0) {
+      const seated = await prisma.student.count({ where: { classId: exam.classId, campusId } });
+      if (seated > room.capacity) {
+        return Response.json(
+          {
+            error: `Capacity conflict: ${seated} students are sitting this paper but Room ${room.roomNumber} holds only ${room.capacity}. Pick a larger room, or split the paper across several rooms.`,
+            conflict: { type: "ROOM_CAPACITY", seated, capacity: room.capacity, roomNumber: room.roomNumber, shortBy: seated - room.capacity },
+          },
+          { status: 409 }
+        );
+      }
+    }
   }
 
   const weekends = await prisma.weekend.findMany({
@@ -221,24 +253,44 @@ async function createOrUpdate(
     );
   }
 
-  // A room can't host two papers at the same time.
+  // A room can't host two papers at the same time. Since §58 a paper can hold
+  // several rooms, so the search has to go through ExamRoom — checking only the
+  // primary `roomId` would miss every overflow room of a split paper.
   if (roomId && periodDefinitionId) {
-    const roomClash = await prisma.examSchedule.findFirst({
+    const roomClash = await prisma.examRoom.findFirst({
       where: {
         campusId,
         roomId,
-        date: new Date(`${date}T00:00:00.000Z`),
-        periodDefinitionId,
-        id: { not: excludeId || "____" },
+        examScheduleId: { not: excludeId || "____" },
+        examSchedule: { date: new Date(`${date}T00:00:00.000Z`), periodDefinitionId },
       },
-      include: { subject: { select: { name: true } }, exam: { select: { title: true } } },
+      include: {
+        room: { select: { roomNumber: true } },
+        examSchedule: {
+          include: { subject: { select: { name: true } }, exam: { select: { title: true } } },
+        },
+      },
     });
     if (roomClash) {
-      const r = await prisma.classRoom.findUnique({ where: { id: roomId }, select: { roomNumber: true } });
       return Response.json(
-        { error: `Room ${r?.roomNumber} is already hosting ${roomClash.exam.title} (${roomClash.subject.name}) in that time slot` },
+        { error: `Room ${roomClash.room.roomNumber} is already hosting ${roomClash.examSchedule.exam.title} (${roomClash.examSchedule.subject.name}) in that time slot` },
         { status: 409 }
       );
+    }
+  }
+
+  // §72: the room may be free of other papers and still be occupied by a
+  // timetabled lesson at that hour.
+  if (roomId && periodTimes) {
+    const lessonClashes = await findTimetableRoomClashes({
+      campusId,
+      roomIds: [roomId],
+      date,
+      startTime: periodTimes.startTime,
+      endTime: periodTimes.endTime,
+    });
+    if (lessonClashes.length) {
+      return Response.json({ error: lessonClashes[0] }, { status: 409 });
     }
   }
 
@@ -254,6 +306,7 @@ async function createOrUpdate(
       data,
       include: scheduleInclude,
     });
+    await syncPrimaryExamRoom({ campusId, scheduleId: updated.id, roomId });
     return Response.json({ success: true, data: updated });
   }
 
@@ -261,13 +314,14 @@ async function createOrUpdate(
     data: { ...data, campusId, examId: exam.id, subjectId },
     include: scheduleInclude,
   });
+  await syncPrimaryExamRoom({ campusId, scheduleId: created.id, roomId });
   return Response.json({ success: true, data: created }, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN" && user.role !== "PRINCIPAL" && !["CAMPUS_ADMIN", "CAMPUS_MANAGER", "ACCOUNTANT"].includes(user.role)) {
+    if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "exams", "delete");

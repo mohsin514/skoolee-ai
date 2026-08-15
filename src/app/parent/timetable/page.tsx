@@ -26,7 +26,7 @@ const COLORS = [
 ];
 
 export default function ParentTimetablePage() {
-  const { token } = useParentData();
+  const { token, selectedStudentId } = useParentData();
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,9 @@ export default function ParentTimetablePage() {
     try {
       const params = new URLSearchParams();
       if (token) params.set("token", token);
+      // Follow the child switcher, or a sibling's timetable would keep
+      // showing the default child's schedule.
+      if (selectedStudentId) params.set("studentId", selectedStudentId);
       const res = await fetch(`/api/parent/timetable?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -44,7 +47,7 @@ export default function ParentTimetablePage() {
       }
     } catch { toast.error("Failed to load timetable"); }
     setLoading(false);
-  }, [token]);
+  }, [token, selectedStudentId]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));

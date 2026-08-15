@@ -39,3 +39,27 @@ export function summarizeAttendance(records: AttendanceLike[]): AttendanceSummar
 
 /** Below this, the family sees an "attendance at risk" warning. */
 export const ATTENDANCE_RISK_THRESHOLD = 75;
+
+/**
+ * Attendance rows carry no academic year of their own — they are tied to a
+ * class, and it is the *class* that belongs to a year. So a promoted student
+ * accumulates rows under both their old and new class, and any screen that
+ * reads `student.attendance` unfiltered pools every year the child has ever
+ * attended into one percentage. A pupil with a perfect record last year and a
+ * single absence this year then shows 50% on both portals.
+ *
+ * Scope by the class's year rather than by the current classId, so a student
+ * who moves section mid-year keeps the days they earned in the old section.
+ */
+export type YearScopedAttendance = {
+  status: AttendanceStatus | string;
+  class?: { academicYear: number | null } | null;
+};
+
+export function attendanceForYear<T extends YearScopedAttendance>(
+  records: T[],
+  academicYear: number | null | undefined
+): T[] {
+  if (academicYear === null || academicYear === undefined) return records;
+  return records.filter((r) => r.class?.academicYear === academicYear);
+}

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // Existing-parent lookup for the admissions "pick a guardian" step.
 // GET /api/students/parents?search= — PARENT users (campus-scoped) whose name,
@@ -10,6 +10,9 @@ import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Staff-only guardian lookup: campus-wide parent contact details and their
+    // children. Families must never enumerate other families.
+    assertStaffRole(user);
     const search = req.nextUrl.searchParams.get("search")?.trim();
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     if (!search || search.length < 2) return Response.json({ success: true, data: [] });

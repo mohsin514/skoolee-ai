@@ -282,7 +282,13 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     where: { id: reportCardId },
     include: {
       campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
-      exam: { select: { id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true } },
+      exam: {
+        select: {
+          id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true,
+          classId: true,
+          class: { select: { id: true, name: true, section: true, academicYear: true } },
+        },
+      },
       student: {
         include: {
           class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -292,6 +298,14 @@ export async function getReportCardPdfPayload(reportCardId: string) {
   });
 
   if (!reportCard) throw new Error("Report card not found");
+
+  // The exam's class is the historically-correct one for this PDF — a
+  // promoted student's *current* class both breaks the weight-config lookup
+  // below (wrong classId+academicYear finds no marks) and, uncaught, would
+  // print the wrong class on a document families keep as a permanent record.
+  if (reportCard.exam.class) {
+    reportCard.student.class = reportCard.exam.class;
+  }
 
   const marks = await prisma.mark.findMany({
     where: { examId: reportCard.examId, studentId: reportCard.studentId },
@@ -303,7 +317,7 @@ export async function getReportCardPdfPayload(reportCardId: string) {
   let subjectDistribution: any[] = [];
   let overall: { overallPercentage: number; overallGrade: string; passed: boolean } | null = null;
 
-  const classId = reportCard.student.class?.id;
+  const classId = reportCard.exam.classId;
   if (classId) {
     try {
       weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear);

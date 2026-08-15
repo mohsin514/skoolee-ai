@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
-import { ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { toast } from "sonner";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentFeesPage() {
-  const { data, loading } = useParentData();
+  const { data, loading, error, refetch } = useParentData();
   const [payingId, setPayingId] = useState<string | null>(null);
 
   const handlePayNow = async (invoiceId: string) => {
@@ -33,6 +33,9 @@ export default function ParentFeesPage() {
     }
   };
 
+  // Without this an expired session leaves the page on a skeleton
+  // forever, because `data` never arrives and `loading` is already false.
+  if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const { fees, student } = data;
 

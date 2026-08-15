@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
-import { summarizeAttendance } from "@/lib/attendance";
+import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 
 function requireCampusId(session: AuthUser): string {
   if (!session.campusId) {
@@ -45,6 +45,17 @@ function formatPendingInvite(invite: { id: string; email: string; status: string
     expiresAt: invite.expiresAt,
   };
 }
+
+/**
+ * Students who are actually on roll.
+ *
+ * Archived, transferred and graduated pupils stay in the database on purpose —
+ * closing a year archives rather than destroys. But a headline "Students"
+ * figure that counts them disagrees with the roster it sits next to and links
+ * to, and grows every year the school operates. Same predicate the roster
+ * endpoint uses, so the tile and the list can never drift apart.
+ */
+const ON_ROLL = { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } } as const;
 
 export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
   const session = await getAuthUser();
@@ -95,38 +106,34 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
           },
           orderBy: [{ academicYear: "desc" }, { name: "asc" }],
         },
+        // Summary only. This is the whole campus roster on every dashboard
+        // load, so it carries what a list card, the filters and the CSV export
+        // actually render — and nothing else. Home address, medical notes,
+        // allergies, medications and special needs are read by exactly one
+        // screen, for one child at a time, and are fetched by
+        // GET /api/students/<id> when that profile is opened.
         students: {
           select: {
             id: true,
             fullName: true,
-            nameUr: true,
             rollNo: true,
             dateOfBirth: true,
             gender: true,
-            bloodType: true,
-            nationality: true,
             phone: true,
             guardianName: true,
-            guardianNameUr: true,
             guardianPhone: true,
-            guardianWhatsapp: true,
             guardianEmail: true,
-            guardianRelationship: true,
-            guardianOccupation: true,
             city: true,
-            province: true,
-            postalCode: true,
-            address: true,
-            medicalNotes: true,
-            specialNeeds: true,
-            allergies: true,
-            medications: true,
-            previousSchool: true,
             enrollmentDate: true,
             status: true,
             profileImageUrl: true,
             studentUser: { select: { email: true, isActive: true } },
             class: { select: { id: true, name: true, section: true, academicYear: true } },
+            // The roster's Category and Group filters build their options from
+            // these, and the CSV export has columns for them. Never selected,
+            // so both filters were permanently absent and both columns blank.
+            category: { select: { id: true, name: true } },
+            group: { select: { id: true, name: true } },
             reportCards: {
               select: {
                 id: true,
@@ -577,7 +584,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
       },
       orderBy: { generatedAt: "desc" },
     }),
-    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
+    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }),
     prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId },
       select: aiInsightSelect(),
@@ -931,7 +938,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     campusCount,
   ] = await Promise.all([
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }),
-    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
+    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }),
     prisma.user.count({ where: { campusId, schoolId: session.schoolId, role: "TEACHER", isActive: true } }),
     prisma.class.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
     prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
@@ -1339,9 +1346,13 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         },
       },
       attendance: {
-        include: { marker: { select: { fullName: true } } },
+        include: {
+          marker: { select: { fullName: true } },
+          // Needed to tell this year's days from a previous year's.
+          class: { select: { academicYear: true } },
+        },
         orderBy: { date: "desc" },
-        take: 60,
+        take: 200,
       },
       reportCards: {
         where: RELEASED_REPORT_CARD,
@@ -1376,7 +1387,13 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     include: studentInclude,
   });
 
-  const attendanceSummary = summarizeAttendance(student?.attendance || []);
+  // Only the current year's days belong on the student's own dashboard;
+  // previous years stay available as history elsewhere.
+  const currentYearAttendance = attendanceForYear(
+    student?.attendance || [],
+    student?.class?.academicYear
+  );
+  const attendanceSummary = summarizeAttendance(currentYearAttendance);
   const attendanceRate = attendanceSummary.rate;
   // Read the ledger column rather than re-summing payments, so the dashboard,
   // the student fees page, and the parent portal all quote the same number.
@@ -1413,7 +1430,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       classTeacher: student?.class?.classTeacher || null,
       subjects: student?.class?.subjects || [],
       marks: student?.marks || [],
-      attendance: student?.attendance || [],
+      attendance: currentYearAttendance,
       reportCards: student?.reportCards || [],
       invoices: student?.invoices || [],
       attendanceRate,

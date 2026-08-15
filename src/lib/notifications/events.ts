@@ -242,6 +242,19 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     },
   },
 
+  MARKS_REJECTED: {
+    title: (c) => "Marks sent back for correction",
+    message: (c) =>
+      `${s(c.actorName)} returned the marks for "${s(c.examTitle)}" — ${s(c.className)}. Reason: ${s(c.reason)}`,
+    icon: "AlertTriangle",
+    link: "/teacher/marks",
+    recipients: async (c) => {
+      const managers = await getAdminsAndPrincipal(c.schoolId, c.campusId);
+      const teachers = c.classId ? await getTeachersOfClass(c.classId as string) : [];
+      return [...new Set([...managers, ...teachers])];
+    },
+  },
+
   // ── Report Cards ───────────────────────────────────────
   REPORT_CARDS_GENERATED: {
     title: (c) => "Report cards generated",
