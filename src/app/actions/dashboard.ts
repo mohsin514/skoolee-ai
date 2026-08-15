@@ -1,6 +1,7 @@
 'use server'
 
 import { cache } from "react";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
@@ -55,7 +56,7 @@ function formatPendingInvite(invite: { id: string; email: string; status: string
  * to, and grows every year the school operates. Same predicate the roster
  * endpoint uses, so the tile and the list can never drift apart.
  */
-const ON_ROLL = { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } } as const;
+const ON_ROLL = { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } } satisfies Prisma.StudentWhereInput;
 
 export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
   const session = await getAuthUser();
