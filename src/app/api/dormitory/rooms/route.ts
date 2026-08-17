@@ -1,10 +1,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "dormitory");
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
 
     const data = await prisma.dormRoom.findMany({

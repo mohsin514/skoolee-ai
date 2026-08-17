@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leave";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { notify } from "@/lib/notifications/in-app";
@@ -14,6 +21,11 @@ import { notify } from "@/lib/notifications/in-app";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Staff leave, including the campus's leave-type list. "my" mode is scoped
+    // to the caller so nothing leaked, but a student or guardian has no leave
+    // record and no reason to be on this module — the matrix says so, and now
+    // this route asks it.
+    await assertModuleRead(user, "leave");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const mode = searchParams.get("mode") || "my";

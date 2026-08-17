@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
-import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
 import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 
 export class ApiError extends Error {
@@ -18,7 +18,19 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
   const user = await getAuthUser();
   if (!user) throw new ApiError("Unauthorized", 401);
   if (!options.allowSuspended) {
-    await assertSchoolOperational(user.schoolId);
+    try {
+      await assertSchoolOperational(user.schoolId);
+    } catch (error) {
+      // A cookie naming a school that no longer exists is an invalid *session*,
+      // not a billing state. Reported as 404 "School not found" it left the
+      // user on the "Operations Locked" screen indefinitely, with no sign-out
+      // path — the only escape was clearing cookies by hand. 401 lets the
+      // client tear the session down and send them back to sign in.
+      if (error instanceof BillingAccessError && error.status === 404) {
+        throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
+      }
+      throw error;
+    }
   }
   return user;
 }
@@ -71,6 +83,43 @@ export function assertStaffRole(user: AuthUser) {
   if (isFamilyRole(user)) {
     throw new ApiError("This data is not available to student or guardian accounts", 403);
   }
+}
+
+/**
+ * Guard for campus-wide financial reads.
+ *
+ * The fee ledger names children and what their families owe. Several of these
+ * routes carried no role gate at all — a student could read another family's
+ * invoice, and the campus revenue summary, straight from the API.
+ *
+ * Families are excluded outright: they reach their own fees through
+ * /api/fees/student/<id>, the invoice PDF and the parent portal. Staff are then
+ * checked against the fees module in the permission matrix, which already had
+ * the right answers — a librarian has no fees access, an accountant does — and
+ * was simply never consulted here.
+ */
+export async function assertFeesRead(user: AuthUser) {
+  return assertModuleRead(user, "fees");
+}
+
+/**
+ * Guard for reading an operational module.
+ *
+ * Across library, dormitory, transport, inventory, accounts, front-desk, leave
+ * and payroll, the write methods were gated but the GET handlers stopped at
+ * requireAuthUser(). The effect was that any signed-in account — including
+ * every student and guardian — could read the general ledger, the school's bank
+ * accounts, the visitor and complaints log, who had borrowed which library book
+ * and the staff leave register.
+ *
+ * The permission matrix already held the correct answer for every one of these
+ * (families are denied all of them; a teacher may see leave and nothing else;
+ * admins and principals get the default full matrix). It was simply never
+ * consulted on the read path.
+ */
+export async function assertModuleRead(user: AuthUser, module: PermissionModule) {
+  assertStaffRole(user);
+  await assertPermissionImpl(user, module, "view");
 }
 
 export function canManageOperations(user: AuthUser) {

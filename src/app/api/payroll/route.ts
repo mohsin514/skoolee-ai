@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertPermission,
+  assertStaffRole,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 
 // GET /api/payroll?campusId=&month=&year=
 // Returns the run (if any) with its lines + payment methods for the UI.
@@ -8,7 +16,12 @@ import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveC
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // Reading the payroll run is a permission, not a rank: the accountant's
+    // matrix grants payroll.view, and the coarse canManageOperations gate that
+    // used to sit here refused them their own portal's main screen. Writes
+    // below still require operations management.
+    assertStaffRole(user);
+    await assertPermission(user, "payroll", "view");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const month = parseInt(searchParams.get("month") ?? "", 10);

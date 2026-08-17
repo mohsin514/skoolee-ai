@@ -1,10 +1,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageLibrary, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  canManageLibrary,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "library");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const status = searchParams.get("status");

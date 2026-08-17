@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { BrainCircuit, FileText, Loader2 } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
@@ -10,11 +10,13 @@ import {
   classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
+import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 export default function ReportsPage() {
   const { data, loading, error, loadData } = useTeacherData();
   const academicYear = useAcademicYear();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedReportExamId, setSelectedReportExamId] = useState("");
   const [remarkBusy, setRemarkBusy] = useState(false);
@@ -64,7 +66,7 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to generate remarks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
       toast.success("Remarks drafted for all students");
       await loadData();
     } catch (error: any) { toast.error(error.message); }
@@ -80,7 +82,7 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to generate remarks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
       toast.success("Remarks generated");
       setSelectedReportCard(null);
     } catch (error: any) { toast.error(error.message); }
@@ -93,7 +95,7 @@ export default function ReportsPage() {
       const res = await fetch(`/api/reports/${reportId}/send`, { method: "POST" });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to send");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to send"));
       toast.success("Report card sent");
       await loadData();
     } catch (error: any) { toast.error(error.message); }
@@ -114,7 +116,7 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Could not save remarks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not save remarks"));
       toast.success("Remarks saved");
       setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
       await loadData();
@@ -134,7 +136,7 @@ export default function ReportsPage() {
             <FileText className="w-4 h-4" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">{data.recentReportCards?.length || 0} recent report cards</span>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards & Remarks</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards & Remarks</h1>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Generate report cards, draft remarks, and send results to guardians.</p>
         </div>
       </header>
@@ -186,8 +188,22 @@ export default function ReportsPage() {
               );
             })}
             {!data.lockedExams?.length && (
-              <div className="col-span-full">
-                <EmptyInline text="Locked exams will appear here for remarks and report-card work." />
+              <div className="col-span-full rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                  <FileText className="h-7 w-7" />
+                </div>
+                <h3 className="mt-4 text-base font-bold text-[#1d1b20]">No locked exams yet</h3>
+                {/* Teachers cannot lock an exam themselves — only a principal or
+                    campus admin can — so saying "locked exams will appear here"
+                    left them with no idea what to actually do next. */}
+                <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-[#4d4354]/55">
+                  Finish entering marks for an assessment, then your principal or campus admin locks
+                  it. Once locked it appears here, ready for remarks and report cards.
+                </p>
+                <button type="button" onClick={() => router.push("/teacher/marks")}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                  Go to Marks &amp; Tests
+                </button>
               </div>
             )}
           </div>

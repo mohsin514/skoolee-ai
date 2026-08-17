@@ -92,7 +92,13 @@ export function AiActionPanel({
       </div>
 
       <div className="space-y-3">
-        <Select value={feature} onChange={(event) => setFeature(event.target.value)}>
+        {/* The visible caption sits outside this control, so screen-reader
+            users would otherwise hear only "combo box". */}
+        <Select
+          value={feature}
+          aria-label="AI action"
+          onChange={(event) => setFeature(event.target.value)}
+        >
           {options.map((option) => (
             <option key={option.feature} value={option.feature}>
               {option.label}

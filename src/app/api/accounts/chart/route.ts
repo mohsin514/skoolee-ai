@@ -1,6 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  assertPermission,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
 // Chart of Accounts CRUD
 // GET /api/accounts/chart?campusId=        → list (campus-scoped)
@@ -13,6 +22,7 @@ const TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "accounts");
     const campusId = req.nextUrl.searchParams.get("campusId");
     const resolved = await resolveCampusId(user, campusId);
 

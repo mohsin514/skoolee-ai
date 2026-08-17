@@ -8,6 +8,7 @@ import {
   AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Languages, Loader2, Loader, LogOut, Mail, RefreshCw, Save, School, Send, Star, Trash2, Users, X, Zap,
 } from "lucide-react";
 import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
+import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +36,10 @@ export function formatStatus(status?: string) {
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  // Local calendar date, not UTC. toISOString() rolls the day over for any
+  // timezone ahead of UTC, which silently pointed attendance marking at
+  // tomorrow. "en-CA" is the locale that formats as YYYY-MM-DD.
+  return new Date().toLocaleDateString("en-CA");
 }
 
 export function formatDate(value?: string | Date | null) {
@@ -221,6 +225,9 @@ export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
 }
 
 export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handleKeyDown);
@@ -229,7 +236,7 @@ export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: 
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" role="presentation" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={title}
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter`}>
         <div className="flex justify-between items-start gap-5 mb-8">
@@ -257,20 +264,24 @@ export function DetailRow({ label, value }: { label: string; value: ReactNode })
   );
 }
 
-export function FormInput({ label, value, placeholder, type = "text", onChange }: { label: string; value: string; placeholder: string; type?: string; onChange: (value: string) => void }) {
+export function FormInput({ label, value, placeholder, type = "text", required, onChange }: { label: string; value: string; placeholder: string; type?: string; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
+      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+        {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
+      </span>
       <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
     </label>
   );
 }
 
-export function FormSelect({ label, value, children, onChange }: { label: string; value: string; children: ReactNode; onChange: (value: string) => void }) {
+export function FormSelect({ label, value, children, required, onChange }: { label: string; value: string; children: ReactNode; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
+      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+        {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
+      </span>
       <select value={value} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20">
         {children}
@@ -332,7 +343,7 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
   return (
     <ModalFrame title="Create Assessment" eyebrow="Exam / Test setup" onClose={onClose}>
       <div className="space-y-4">
-        <FormInput label="Assessment Title" value={examForm.title} placeholder="e.g. Week 3 Quiz, First Mid Term" onChange={(v) => onFormChange("title", v)} />
+        <FormInput label="Assessment Title" required value={examForm.title} placeholder="e.g. Week 3 Quiz, First Mid Term" onChange={(v) => onFormChange("title", v)} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormSelect label="Type" value={examForm.examType} onChange={(v) => onFormChange("examType", v)}>
             <option value="CLASS_TEST">Class Test</option>
@@ -341,12 +352,16 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
             <option value="FINAL">Final Exam</option>
             <option value="CUSTOM">Custom</option>
           </FormSelect>
-          <FormSelect label="Class" value={examForm.classId} onChange={(v) => onFormChange("classId", v)}>
+          <FormSelect label="Class" required value={examForm.classId} onChange={(v) => onFormChange("classId", v)}>
             <option value="">Select class</option>
-            {classHubs.map((cls: any) => <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>)}
+            {classHubs.map((cls: any) => (
+              <option key={cls.id} value={cls.id}>
+                {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
+              </option>
+            ))}
           </FormSelect>
         </div>
-        <FormInput label="Term" value={examForm.term} placeholder="e.g. First Term, Annual" onChange={(v) => onFormChange("term", v)} />
+        <FormInput label="Term" required value={examForm.term} placeholder="e.g. First Term, Annual" onChange={(v) => onFormChange("term", v)} />
         <FormSelect label="Subject (optional)" value={examForm.subjectId} onChange={(v) => onFormChange("subjectId", v)}>
           <option value="">All Subjects</option>
           {classHubs.find((c: any) => c.id === examForm.classId)?.subjects?.map((s: any) => (

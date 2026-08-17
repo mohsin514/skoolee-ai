@@ -1,6 +1,11 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertFeesRead,
+  errorResponse,
+  requireAuthUser,
+} from "@/lib/api/scope";
 import { resolveStudentFees } from "@/lib/fees/compute";
 
 // GET /api/fees/statement?studentId=&academicYear=
@@ -10,6 +15,7 @@ import { resolveStudentFees } from "@/lib/fees/compute";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
     const year = Number(searchParams.get("academicYear") ?? new Date().getFullYear());

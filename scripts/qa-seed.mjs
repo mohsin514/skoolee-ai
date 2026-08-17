@@ -129,6 +129,13 @@ async function main() {
     );
   }
 
+  // The three operations roles. Each has its own portal and its own permission
+  // matrix, and none of them had an account to test with — so none of those
+  // matrices had ever been exercised in either direction.
+  const accountant = await mkUser("qa+accountant@example.invalid", "QA Accountant", "ACCOUNTANT");
+  const librarian = await mkUser("qa+librarian@example.invalid", "QA Librarian", "LIBRARIAN");
+  const receptionist = await mkUser("qa+receptionist@example.invalid", "QA Receptionist", "RECEPTIONIST");
+
   const parents = [];
   for (let i = 1; i <= 3; i++) {
     parents.push(
@@ -301,6 +308,9 @@ async function main() {
       admin: admin.email,
       principal: principal.email,
       teachers: teachers.map((t) => ({ id: t.id, email: t.email })),
+      accountant: { id: accountant.id, email: accountant.email },
+      librarian: { id: librarian.id, email: librarian.email },
+      receptionist: { id: receptionist.id, email: receptionist.email },
       parents: parents.map((p) => ({ id: p.id, email: p.email })),
       students: studentUsers.map((s) => ({ id: s.id, email: s.email })),
     },
@@ -322,7 +332,8 @@ async function main() {
 
   log(`school   ${school.id}`);
   log(`campus   ${campus.id}`);
-  log(`users    1 admin, 1 principal, 3 teachers, 3 parents, 6 students`);
+  log(`users    1 admin, 1 principal, 3 teachers, 3 parents, 6 students,`);
+  log(`         1 accountant, 1 librarian, 1 receptionist`);
   log(`classes  4 (5A/5B in ${YEAR_1}; 6A/5A in ${YEAR_2})`);
   log(`subjects ${SUBJECTS.length} per class`);
   log(`rooms    QA-A(20) QA-B(30) QA-C(40) QA-TINY(2)`);

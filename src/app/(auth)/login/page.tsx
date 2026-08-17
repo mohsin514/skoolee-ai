@@ -77,12 +77,17 @@ export default function LoginPage() {
   useEffect(() => {
     const verified = searchParams.get("verified") === "true";
     const invited = searchParams.get("invite") === "accepted";
+    // Set by signOutInvalidSession() when the server stopped accepting the
+    // session. Without a word here the redirect looks like a random logout.
+    const expired = searchParams.get("reason") === "session-expired";
     if (verified) {
       toast.success("Account verified. Please log in.", { duration: 8000 });
     } else if (invited) {
       toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
+    } else if (expired) {
+      toast.info("Your session has ended. Please sign in again.", { duration: 8000 });
     }
-    if (verified || invited) window.history.replaceState(null, "", "/login");
+    if (verified || invited || expired) window.history.replaceState(null, "", "/login");
   }, [searchParams]);
 
   // Rotate the proof panel; pause on hover and honour reduced motion.

@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -44,6 +45,8 @@ export default function LeavePage() {
   const [applyForm, setApplyForm] = useState({ leaveTypeId: "", fromDate: "", toDate: "", reason: "" });
   const [applying, setApplying] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const applyDialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(applyDialogRef, showApply);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,19 +145,30 @@ export default function LeavePage() {
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-[#1f1a23]">My Leave</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/55">
+    /* Every other teacher page is a rounded card with a gradient header band;
+       this one was a bare div, so it read as a different product. */
+    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
+      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between shrink-0">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative">
+          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
+            <Plane className="w-4 h-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Time off</span>
+          </div>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Leave</h1>
+          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
             Academic year {academicYear} · {daysLabel(totalRemaining)} remaining across {balances.length} leave type{balances.length === 1 ? "" : "s"}
           </p>
         </div>
-        <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowApply(true)} disabled={types.length === 0}>
-          Apply for Leave
-        </BrandButton>
-      </div>
+        <div className="relative flex flex-wrap gap-2">
+          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowApply(true)} disabled={types.length === 0}
+            title={types.length === 0 ? "No leave types have been configured for your campus yet" : "Submit a new leave request"}>
+            Apply for Leave
+          </BrandButton>
+        </div>
+      </header>
 
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
       {loading ? (
         <SkeletonList rows={4} label="Loading leave requests" />
       ) : (
@@ -181,9 +195,15 @@ export default function LeavePage() {
               );
             })}
             {balances.length === 0 ? (
+              /* Two different situations used to share one message, which
+                 contradicted the UI: with no leave *types* configured at all
+                 the Apply button is disabled, yet the text promised requests
+                 would still be submitted. Only the second case can apply. */
               <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 sm:col-span-2 lg:col-span-3">
                 <p className="text-sm font-bold text-[#4d4354]/55">
-                  No leave allocations have been set for your role yet — your requests will still be submitted for approval.
+                  {types.length === 0
+                    ? "Your campus admin has not set up any leave types yet, so leave cannot be requested here for now."
+                    : "No leave allocations have been set for your role yet — your requests will still be submitted for approval."}
                 </p>
               </div>
             ) : null}
@@ -246,11 +266,12 @@ export default function LeavePage() {
           </div>
         </>
       )}
+      </div>
 
       {showApply ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" onClick={() => setShowApply(false)} />
-          <div role="dialog" aria-modal="true" className="relative z-[121] w-full max-w-xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter" onClick={(e) => e.stopPropagation()}>
+          <div ref={applyDialogRef} role="dialog" aria-modal="true" aria-label="Apply for Leave" className="relative z-[121] w-full max-w-xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-7 py-5">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Leave Management</p>
@@ -333,6 +354,6 @@ export default function LeavePage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

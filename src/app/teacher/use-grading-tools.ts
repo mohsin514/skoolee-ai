@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
+import { apiErrorMessage } from "@/lib/errors";
 
 /**
  * The "assessment + grading" toolbar shared by the teacher dashboard and the
@@ -47,6 +48,7 @@ async function readJson(res: Response) {
   }
 }
 
+
 export function useGradingTools({ onChanged }: { onChanged?: () => void | Promise<void> } = {}) {
   const academicYear = useAcademicYear();
 
@@ -67,8 +69,10 @@ export function useGradingTools({ onChanged }: { onChanged?: () => void | Promis
   const [reportCardsGenerated, setReportCardsGenerated] = useState(false);
 
   const createExam = useCallback(async () => {
-    if (!examForm.title || !examForm.classId) {
-      toast.error("Title and class are required");
+    // The API rejects a blank term too, so check it here rather than letting
+    // the teacher discover it from a failed round-trip.
+    if (!examForm.title.trim() || !examForm.classId || !examForm.term.trim()) {
+      toast.error("Title, class and term are all required");
       return;
     }
     setCreatingExam(true);
@@ -79,7 +83,7 @@ export function useGradingTools({ onChanged }: { onChanged?: () => void | Promis
         body: JSON.stringify({ ...examForm, academicYear }),
       });
       const result = await readJson(res);
-      if (!res.ok) throw new Error(result.error || "Failed to create assessment");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to create assessment"));
       toast.success(`Assessment "${examForm.title}" created`);
       setShowExamModal(false);
       setExamForm({ ...EMPTY_EXAM_FORM });
@@ -133,7 +137,7 @@ export function useGradingTools({ onChanged }: { onChanged?: () => void | Promis
         body: JSON.stringify({ classId: selectedGradeClassId, academicYear, ...gradeConfig }),
       });
       const result = await readJson(res);
-      if (!res.ok) throw new Error(result.error || "Failed to save");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save"));
       toast.success("Grade configuration saved");
       setShowGradeConfigModal(false);
     } catch (error: any) {
@@ -153,7 +157,7 @@ export function useGradingTools({ onChanged }: { onChanged?: () => void | Promis
           `/api/grade-config/weighted-result?classId=${classId}&academicYear=${academicYear}`,
         );
         const result = await readJson(res);
-        if (!res.ok) throw new Error(result.error || "No grades available");
+        if (!res.ok) throw new Error(apiErrorMessage(result.error, "No grades available"));
         setWeightedGradeResult(result.grades || []);
       } catch (error: any) {
         toast.error(error.message);
@@ -174,7 +178,7 @@ export function useGradingTools({ onChanged }: { onChanged?: () => void | Promis
         body: JSON.stringify({ classId: selectedGradeClassId, academicYear }),
       });
       const result = await readJson(res);
-      if (!res.ok) throw new Error(result.error || "Report card generation failed");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Report card generation failed"));
       toast.success(`Generated ${result.count || 0} report cards`);
       setReportCardsGenerated(true);
       await onChanged?.();

@@ -301,7 +301,10 @@ async function run() {
     await api("admin", "PUT", `/api/timetable/${tt.id}`, {
       slots: [{ ...lessonSlot, subjectId: maths5a.id, teacherId: users.teachers[1].id, roomId: rooms["QA-C"].id }],
     });
-    await api("admin", "PUT", `/api/timetable/${tt.id}`, { action: "publish" });
+
+    const pub = await api("admin", "PUT", `/api/timetable/${tt.id}`, { action: "publish" });
+    check("§72: the board carrying that lesson is published",
+      pub.ok, "200", `${pub.status} ${brief(pub.json)}`, "High");
 
     const tuesday = nextWeekday(2);
     const res = await api("admin", "POST", "/api/academic/exam-schedule", {
@@ -484,12 +487,21 @@ async function run() {
   report();
 }
 
-/** A date in the next 7 days falling on the given weekday (1 = Monday). */
+/**
+ * A date in the next 7 days falling on the given weekday (1 = Monday).
+ *
+ * Formatted from the *local* calendar fields rather than toISOString(), which
+ * converts to UTC first and so returns the following day for much of the clock.
+ * That made this helper return a Wednesday when asked for a Tuesday, and the
+ * §72 checks that depend on the weekday passed or failed according to the hour
+ * the suite happened to run.
+ */
 function nextWeekday(target) {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   while (d.getDay() !== target) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function report() {
@@ -516,7 +528,9 @@ function report() {
   }
   fs.writeFileSync("/tmp/qa-results8.json", JSON.stringify(results, null, 2));
   prisma.$disconnect();
-  process.exit(fail > 0 ? 1 : 0);
+  // A harness that crashed before asserting anything reports
+  // "0 passed, 0 failed" — which reads as success. It is not.
+  process.exit(fail > 0 || results.length === 0 ? 1 : 0);
 }
 
 run().catch((e) => {

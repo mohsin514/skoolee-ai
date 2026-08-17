@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
+import { isInvalidSessionResponse, signOutInvalidSession } from "@/lib/auth/invalid-session";
 
 interface CycleContextValue {
   hasActiveCycle: boolean;
@@ -54,6 +55,13 @@ export function CycleProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const res = await fetch("/api/academic-cycle");
+        // A dead session must not be dressed up as "no active cycle" — that is
+        // the screen users got stuck on, since it reads as an admin problem
+        // they can only wait out.
+        if (isInvalidSessionResponse(res)) {
+          await signOutInvalidSession();
+          return;
+        }
         const json = await res.json();
         if (!cancelled) {
           const active = json.active;

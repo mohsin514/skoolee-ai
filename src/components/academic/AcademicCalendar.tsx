@@ -236,7 +236,7 @@ export function AcademicCalendar({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+          <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
@@ -245,7 +245,7 @@ export function AcademicCalendar({
           >
             Today
           </button>
-          <button onClick={nextMonth} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+          <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>

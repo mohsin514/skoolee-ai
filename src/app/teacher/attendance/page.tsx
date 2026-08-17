@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import {
   AttendanceSkeleton, classLabel, EmptyInline, StudentMini, TeacherErrorState, todayIso, useTeacherData,
 } from "@/components/teacher/teacher-components";
+import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
@@ -102,7 +103,7 @@ export default function AttendancePage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to save");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save"));
       toast.success("Attendance saved");
       await loadAttendance(attendanceClassId, attendanceDate);
       await loadAttendanceHistory(attendanceClassId);
@@ -129,7 +130,7 @@ export default function AttendancePage() {
         body: JSON.stringify({ classId: attendanceClassId, fromDate, toDate: attendanceDate }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to copy");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to copy"));
       toast.success(`Copied ${result.copiedRecords} records from ${fromDate}`);
       await loadAttendance(attendanceClassId, attendanceDate);
       await loadAttendanceHistory(attendanceClassId);
@@ -143,7 +144,7 @@ export default function AttendancePage() {
     try {
       const res = await fetch(`/api/attendance/monthly?classId=${classId}&month=${month}`);
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to load monthly report");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to load monthly report"));
       setMonthlyData(result);
     } catch { setMonthlyData(null); }
     finally { setMonthlyLoading(false); }
@@ -176,7 +177,7 @@ export default function AttendancePage() {
             <CalendarCheck className="w-4 h-4" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">Attendance Management</span>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Daily Attendance</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Daily Attendance</h1>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Mark student attendance per class and date.</p>
           <div className="flex gap-2 mt-4">
             {([
@@ -226,7 +227,11 @@ export default function AttendancePage() {
             <div>
               <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Class</label>
               <Select value={attendanceClassId} onChange={(e) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
-                {classHubs.map((cls: any) => <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>)}
+                {classHubs.map((cls: any) => (
+                  <option key={cls.id} value={cls.id}>
+                    {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
+                  </option>
+                ))}
                 {!classHubs.length ? <option value="">No classes</option> : null}
               </Select>
             </div>
@@ -241,10 +246,12 @@ export default function AttendancePage() {
               </button>
             </div>
           </div>
-          <button type="button" onClick={() => setAttendanceDate(todayIso())} title="Reset to today's date"
-            className="text-xs font-semibold text-[#8127cf] hover:underline cursor-pointer active:text-[#6a1fa8]">
-            Back to today
-          </button>
+          {attendanceDate !== todayIso() ? (
+            <button type="button" onClick={() => setAttendanceDate(todayIso())} title="Reset to today's date"
+              className="text-xs font-semibold text-[#8127cf] hover:underline cursor-pointer active:text-[#6a1fa8]">
+              Back to today
+            </button>
+          ) : null}
         </div>
 
         {/* Stats row */}
@@ -435,7 +442,11 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           <div>
             <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Class</label>
             <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
-              {classHubs.map((cls: any) => <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>)}
+              {classHubs.map((cls: any) => (
+                <option key={cls.id} value={cls.id}>
+                  {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
+                </option>
+              ))}
               {!classHubs.length ? <option value="">No classes</option> : null}
             </Select>
           </div>

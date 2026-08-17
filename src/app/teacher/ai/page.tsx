@@ -40,7 +40,7 @@ export default function AIPage() {
               {data.aiInsights?.length ? `${data.aiInsights.length} AI insights available` : "AI-Powered Teaching Assistant"}
             </span>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">AI Insights & Tools</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">AI Insights & Tools</h1>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Weak topics, homework suggestions, lesson plans, and remark generation.</p>
         </div>
       </div>

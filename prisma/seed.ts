@@ -1,7 +1,39 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { TENANT_MODELS } from "../src/lib/db/tenant-models";
 
-const prisma = new PrismaClient();
+/** Set once the demo school exists, then stamped onto every tenant-scoped row
+ *  the seed writes. The seed predates the school_id migration and threads only
+ *  campusId through its helpers, so injecting here beats touching every call. */
+let DEMO_SCHOOL_ID: string | null = null;
+
+const prisma = new PrismaClient().$extends({
+  query: {
+    $allModels: {
+      async $allOperations({ model, operation, args, query }) {
+        const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
+        if (DEMO_SCHOOL_ID && TENANT_MODELS.has(modelKey)) {
+          const a = args as Record<string, unknown>;
+          if (operation === "create" || operation === "update") {
+            const data = a.data as Record<string, unknown> | undefined;
+            if (data && operation === "create" && data.schoolId === undefined) {
+              data.schoolId = DEMO_SCHOOL_ID;
+            }
+          } else if (operation === "upsert") {
+            const create = a.create as Record<string, unknown> | undefined;
+            if (create && create.schoolId === undefined) create.schoolId = DEMO_SCHOOL_ID;
+          } else if (operation === "createMany") {
+            const data = a.data as Record<string, unknown>[] | Record<string, unknown>;
+            for (const row of Array.isArray(data) ? data : [data]) {
+              if (row.schoolId === undefined) row.schoolId = DEMO_SCHOOL_ID;
+            }
+          }
+        }
+        return query(args);
+      },
+    },
+  },
+}) as unknown as PrismaClient;
 
 const ACADEMIC_YEAR = 2026;
 
@@ -78,6 +110,7 @@ async function seedSchool() {
     },
   });
   console.log(`  ✓ School: ${school.name} (${school.id})`);
+  DEMO_SCHOOL_ID = school.id;
 
   const campus = await prisma.campus.upsert({
     where: { regId: "CAM-DEMO-001" },

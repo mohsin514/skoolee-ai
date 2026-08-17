@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
 // Payment method references CRUD
 // GET /api/accounts/payment-methods?campusId=
@@ -11,6 +19,7 @@ import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveC
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "accounts");
     const campusId = req.nextUrl.searchParams.get("campusId");
     const resolved = await resolveCampusId(user, campusId);
 

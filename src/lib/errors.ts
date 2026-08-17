@@ -47,3 +47,34 @@ export function userMessage(error: unknown, fallback = "Something went wrong. Pl
 
   return raw;
 }
+
+/**
+ * Turns an API route's `error` field into a readable sentence.
+ *
+ * `errorResponse` returns a plain string, but a *validation* failure returns a
+ * field map instead — `{ term: ["Term required"] }`. Both land in the same
+ * `result.error` slot, and `new Error(result.error)` stringified the object
+ * form to the literal text "[object Object]", which is what teachers saw
+ * whenever a form field was rejected.
+ */
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) return error;
+
+  if (Array.isArray(error)) {
+    const joined = error.map((item) => apiErrorMessage(item, "")).filter(Boolean).join(", ");
+    return joined || fallback;
+  }
+
+  if (error && typeof error === "object") {
+    const joined = Object.entries(error as Record<string, unknown>)
+      .map(([field, messages]) => {
+        const text = apiErrorMessage(messages, "");
+        return text ? `${field}: ${text}` : "";
+      })
+      .filter(Boolean)
+      .join(" · ");
+    return joined || fallback;
+  }
+
+  return fallback;
+}

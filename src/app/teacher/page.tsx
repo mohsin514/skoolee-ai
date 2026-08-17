@@ -19,6 +19,7 @@ import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts
 import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
+import { apiErrorMessage } from "@/lib/errors";
 
 interface TimetableSlot {
   id: string;
@@ -150,7 +151,7 @@ export default function TeacherDashboardHub() {
       const res = await fetch(`/api/reports/${reportId}/send`, { method: "POST" });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to send");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to send"));
       toast.success("Report card sent");
       await refetch();
     } catch (error: any) { toast.error(error.message); }
@@ -166,7 +167,7 @@ export default function TeacherDashboardHub() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to generate remarks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
       toast.success("Remarks generated");
       setSelectedReportCard(null);
     } catch (error: any) { toast.error(error.message); }
@@ -182,7 +183,7 @@ export default function TeacherDashboardHub() {
         body: JSON.stringify({ remarksEn: remarks.en, remarksUr: remarks.ur }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to save remarks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save remarks"));
       toast.success("Remarks saved");
       setSelectedReportCard((c: any) => c ? { ...c, remarksEn: remarks.en, remarksUr: remarks.ur } : c);
     } catch (error: any) { toast.error(error.message); }
@@ -204,10 +205,11 @@ export default function TeacherDashboardHub() {
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-[12px] font-bold uppercase tracking-wider text-[#8127cf]">
+                {/* Viewer-clock values — see the note in RoleHeader. */}
+                <p suppressHydrationWarning className="text-[12px] font-bold uppercase tracking-wider text-[#8127cf]">
                   {greeting}, {data.teacherName?.split(" ")[0] || "Teacher"}
                 </p>
-                <p className="text-[10px] font-semibold text-[#4d4354]/50">
+                <p suppressHydrationWarning className="text-[10px] font-semibold text-[#4d4354]/50">
                   {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 </p>
               </div>
@@ -225,7 +227,7 @@ export default function TeacherDashboardHub() {
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 xl:justify-end">
             <GradingToolbar grading={grading} classHubs={classHubs} />
           </div>
         </div>

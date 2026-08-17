@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertPermission,
+  assertStaffRole,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
 import { notify } from "@/lib/notifications/in-app";
 
@@ -13,7 +21,11 @@ import { notify } from "@/lib/notifications/in-app";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // Taking a fee payment is the accountant's job and the receptionist's desk
+    // duty, and the matrix grants fees.add to both. The canManageOperations
+    // gate that used to sit in front of this check refused them, leaving the
+    // permission below unreachable for the only two roles that need it.
+    assertStaffRole(user);
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();

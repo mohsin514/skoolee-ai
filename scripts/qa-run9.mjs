@@ -325,7 +325,9 @@ function report() {
   }
   fs.writeFileSync("/tmp/qa-results9.json", JSON.stringify(results, null, 2));
   prisma.$disconnect();
-  process.exit(fail > 0 ? 1 : 0);
+  // A harness that crashed before asserting anything reports
+  // "0 passed, 0 failed" — which reads as success. It is not.
+  process.exit(fail > 0 || results.length === 0 ? 1 : 0);
 }
 
 run().catch((e) => {

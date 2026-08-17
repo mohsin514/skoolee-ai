@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
+import { formatPKR } from "@/components/fees/fee-utils";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
 export const dynamic = "force-dynamic";
@@ -128,7 +129,7 @@ export default function ParentOverviewPage() {
               <QuickLink href={`/parent/results${q}`} icon={FileText} label="Results" sub={`${data.marksByExam.length} exams`} />
               <QuickLink href={`/parent/attendance${q}`} icon={CalendarCheck} label="Attendance" sub={`${data.attendance.total} days recorded`} />
               <QuickLink href={`/parent/timetable${q}`} icon={Clock} label="Timetable" sub="Weekly class schedule" />
-              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `Rs ${feeOutstanding.toLocaleString()} outstanding` : "All cleared"} />
+              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `${formatPKR(feeOutstanding)} outstanding` : "All cleared"} />
             </div>
           </div>
         </div>

@@ -1,6 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  assertPermission,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
 // Ledger entries
 // GET /api/accounts/ledger?campusId=&kind=INCOME|EXPENSE&from=YYYY-MM-DD&to=YYYY-MM-DD&accountId=&page=&pageSize=
@@ -10,6 +19,7 @@ import { ApiError, assertPermission, canManageOperations, errorResponse, require
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "accounts");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 

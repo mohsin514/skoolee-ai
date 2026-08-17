@@ -30,7 +30,7 @@ function check(scenario, condition, expected, actual, severity = "High") {
 }
 
 const cookies = {};
-async function login(key, email) {
+async function login(key, email, attempt = 0) {
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -39,6 +39,13 @@ async function login(key, email) {
   const token = (res.headers.getSetCookie?.() || [])
     .map((c) => c.split(";")[0])
     .find((c) => c.startsWith("skoolee_token="));
+  // Running the whole suite back to back trips the login rate limiter. That is
+  // the limiter working correctly, not a defect — back off and retry rather
+  // than reporting a wall of false failures.
+  if (!token && (res.status === 429 || res.status >= 500) && attempt < 6) {
+    await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+    return login(key, email, attempt + 1);
+  }
   if (!token) throw new Error(`login failed for ${email}: ${res.status}`);
   cookies[key] = token;
   return token;
@@ -257,7 +264,9 @@ function report() {
   }
   fs.writeFileSync("/tmp/qa-results4.json", JSON.stringify(results, null, 2));
   prisma.$disconnect();
-  process.exit(fail > 0 ? 1 : 0);
+  // A harness that crashed before asserting anything reports
+  // "0 passed, 0 failed" — which reads as success. It is not.
+  process.exit(fail > 0 || results.length === 0 ? 1 : 0);
 }
 
 run().catch((e) => {

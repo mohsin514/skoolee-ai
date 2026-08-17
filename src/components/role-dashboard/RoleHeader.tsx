@@ -197,9 +197,15 @@ export function RoleHeader({
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
           </div>
+          {/* Both lines come from the *viewer's* clock and timezone, which the
+              server cannot know, so its guess and the browser's routinely
+              disagree ("Good evening" vs "Good morning", and the date itself
+              either side of midnight). That mismatch was throwing a hydration
+              error on every dashboard load. The client value is the correct
+              one; suppress the diff rather than degrade to a server guess. */}
           <div className="hidden sm:block">
-            <p className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
-            <p className="text-[9px] font-semibold text-[#4d4354]/50 leading-tight mt-px">{today}</p>
+            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
+            <p suppressHydrationWarning className="text-[9px] font-semibold text-[#4d4354]/50 leading-tight mt-px">{today}</p>
           </div>
         </div>
 

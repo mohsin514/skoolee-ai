@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  assertPermission,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
 
 // Leave types per campus.
@@ -12,6 +20,7 @@ import { daysToTenths, tenthsToDays } from "@/lib/leave";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "leave");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 

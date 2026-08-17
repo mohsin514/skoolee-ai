@@ -63,12 +63,32 @@ function matchApprovedFaq(
   return bestScore >= Math.min(2, Math.max(words.length, 1)) ? best : null;
 }
 
+/**
+ * Only *deliberate* errors carry their message to the caller.
+ *
+ * This used to echo `error.message` for anything at all, which meant an
+ * upstream failure was handed to the teacher verbatim — including the AI
+ * provider's own text ("openai: 429 You exceeded your current quota, check
+ * your plan and billing details… https://platform.openai.com/…"), and the
+ * same would apply to a raw Prisma blob. An authored error sets a status;
+ * everything else is unexpected, so it is logged here and reported as a
+ * neutral sentence, matching errorResponse() in @/lib/api/scope.
+ */
 function errorResponse(error: unknown, fallback = "AI request failed") {
   if (error instanceof AICreditError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
-  const status = (error as Error & { status?: number }).status || 500;
-  return Response.json({ error: error instanceof Error ? error.message : fallback }, { status });
+
+  const status = (error as Error & { status?: number }).status;
+  if (typeof status === "number") {
+    return Response.json({ error: error instanceof Error ? error.message : fallback }, { status });
+  }
+
+  console.error("[ai/insights]", error);
+  return Response.json(
+    { error: "The AI service is unavailable right now. Please try again shortly." },
+    { status: 503 }
+  );
 }
 
 function scopedCampusWhere(schoolId: string, campusId: string | null) {

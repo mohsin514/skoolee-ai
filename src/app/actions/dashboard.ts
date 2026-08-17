@@ -7,6 +7,7 @@ import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
+import { getActiveAcademicYear } from "@/lib/academic/cycle";
 
 function requireCampusId(session: AuthUser): string {
   if (!session.campusId) {
@@ -747,7 +748,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
             status: true,
             studentUser: { select: { email: true, isActive: true } },
             classId: true,
-            class: { select: { id: true, name: true, section: true } },
+            class: { select: { id: true, name: true, section: true, academicYear: true } },
             reportCards: {
               select: {
                 id: true,
@@ -776,6 +777,10 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
                 id: true,
                 name: true,
                 section: true,
+                // classLabel() appends the year to keep same-named classes from
+                // different sessions apart; without it selected here, exam cards
+                // and the assessment picker rendered a bare, ambiguous name.
+                academicYear: true,
                 _count: { select: { students: true } },
                 subjects: {
                   select: { id: true, name: true, totalMarks: true, teacherId: true },
@@ -796,7 +801,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
         prisma.reportCard.findMany({
           where: { campusId, student: { classId: { in: classIds } }, campus: { schoolId: session.schoolId } },
           include: {
-            student: { select: { id: true, fullName: true, rollNo: true, class: { select: { id: true, name: true, section: true } } } },
+            student: { select: { id: true, fullName: true, rollNo: true, class: { select: { id: true, name: true, section: true, academicYear: true } } } },
             exam: { select: { id: true, title: true, term: true, status: true } },
           },
           orderBy: { generatedAt: "desc" },
@@ -831,12 +836,21 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
     classHubsMap.set(cls.id, existing);
   }
 
-  const classHubs = [...classHubsMap.values()].sort(
-    (a, b) =>
-      (Number(b.academicYear) || 0) - (Number(a.academicYear) || 0) ||
-      String(a.name || "").localeCompare(String(b.name || "")) ||
-      String(a.section || "").localeCompare(String(b.section || ""))
-  );
+  // Every teacher page defaults its class picker to classHubs[0], so the order
+  // here decides which roster a teacher lands on. Plain year-descending put the
+  // *newest* class first, which is typically a future year the admin has not
+  // activated yet — an empty roster with no explanation. Classes in the admin's
+  // ACTIVE cycle come first instead; the rest keep year-descending order.
+  const activeAcademicYear = await getActiveAcademicYear(campusId);
+  const classHubs = [...classHubsMap.values()]
+    .map((cls) => ({ ...cls, inActiveCycle: Number(cls.academicYear) === activeAcademicYear }))
+    .sort(
+      (a, b) =>
+        Number(b.inActiveCycle) - Number(a.inActiveCycle) ||
+        (Number(b.academicYear) || 0) - (Number(a.academicYear) || 0) ||
+        String(a.name || "").localeCompare(String(b.name || "")) ||
+        String(a.section || "").localeCompare(String(b.section || ""))
+    );
 
   const studentsByClass = students.reduce<Record<string, number>>((acc, student) => {
     const key = student.class?.id || "";

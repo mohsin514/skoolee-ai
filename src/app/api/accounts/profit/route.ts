@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
 // Profit report
 // GET /api/accounts/profit?campusId=&from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -10,6 +17,7 @@ import { ApiError, errorResponse, requireAuthUser, resolveCampusId, scopedCampus
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "accounts");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 

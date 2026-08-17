@@ -10,6 +10,7 @@ import {
 } from "@/components/teacher/teacher-components";
 import { useGradingTools } from "../use-grading-tools";
 import { GradingModals, GradingToolbar } from "../grading-tools";
+import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 export default function MarksPage() {
@@ -85,7 +86,7 @@ export default function MarksPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(result.error || "Failed to save marks");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save marks"));
       toast.success("Marks saved");
       await loadMarks(selectedExamId);
       await loadData();
@@ -104,7 +105,10 @@ export default function MarksPage() {
       }
       rows.push(row);
     }
-    const csv = rows.map((r) => r.join(",")).join("\n");
+    // Student names routinely contain commas ("Khan, Ayesha"); unquoted they
+    // shift every following column into the wrong subject.
+    const escape = (cell: string) => `"${String(cell ?? "").replaceAll('"', '""')}"`;
+    const csv = rows.map((r) => r.map(escape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `marks-${selectedExamId}.csv`; a.click();
@@ -118,6 +122,22 @@ export default function MarksPage() {
   const filledCells = Object.values(marksByKey).filter((v) => v !== "" && v !== undefined).length;
   const completion = totalCells > 0 ? Math.round((filledCells / totalCells) * 100) : 0;
 
+  // The server rejects the whole batch if any one mark exceeds its subject's
+  // total, so a single mistyped cell used to discard an entire sheet of work.
+  // The cells are already flagged in red here — hold the save until they're
+  // fixed instead of letting the round-trip throw it all away.
+  const invalidCells = markSheet
+    ? (markSheet.students || []).flatMap((student: any) =>
+        (markSheet.subjects || []).flatMap((subject: any) => {
+          const value = marksByKey[`${student.id}:${subject.id}`];
+          if (value === "" || value === undefined) return [];
+          const num = Number(value);
+          const max = subject.totalMarks || 100;
+          return Number.isFinite(num) && num >= 0 && num <= max ? [] : [{ student, subject }];
+        })
+      )
+    : [];
+
   return (
     <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
       <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between shrink-0">
@@ -127,15 +147,49 @@ export default function MarksPage() {
             <FileText className="w-4 h-4" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">{data.exams?.length || 0} exam cycles</span>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Tests, Exams & Marks</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Tests, Exams & Marks</h1>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Enter marks, create assessments, and manage grade configurations.</p>
         </div>
-        <div className="relative flex flex-wrap gap-2">
+        {/* justify-end so a wrapped third button lines up with the header's
+            right edge instead of stranding itself under the first one. */}
+        <div className="relative flex flex-wrap gap-2 xl:justify-end">
           <GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+
+        {/* Zero state — with no assessments the selector, sheet and save bar are
+            all inert, so show the way forward instead of three dead controls. */}
+        {!data.exams?.length ? (
+          <div className="sk-rise flex flex-col items-center justify-center rounded-[28px] border border-[#cfc2d6]/25 bg-white px-8 py-14 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
+              <Star className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="mt-5 text-xl font-bold text-[#1d1b20]">No assessments yet</h3>
+            <p className="mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-[#4d4354]/55">
+              Create a test or exam for one of your classes, and its mark sheet will open up here for
+              you to fill in.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />}
+                onClick={() => grading.setShowExamModal(true)}>
+                Create Assessment
+              </BrandButton>
+              {classHubs.length ? (
+                <BrandButton variant="soft" icon={<FileText className="h-4 w-4" />}
+                  onClick={() => grading.openGradeConfig(classHubs[0]?.id)}>
+                  Set Grade Config
+                </BrandButton>
+              ) : null}
+            </div>
+            {!classHubs.length ? (
+              <p className="mt-5 rounded-full bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-700">
+                You have no classes assigned yet — ask your campus admin to assign one.
+              </p>
+            ) : null}
+          </div>
+        ) : (<>
 
         {/* Exam selector */}
         <div className="w-full max-w-md">
@@ -244,7 +298,9 @@ export default function MarksPage() {
                         const value = marksByKey[key] || "";
                         const max = subject.totalMarks || 100;
                         const numVal = Number(value);
-                        const isOverLimit = value && numVal > max;
+                        // Matches the save guard exactly, so every cell that
+                        // blocks the save is the one highlighted.
+                        const isOverLimit = value !== "" && (!Number.isFinite(numVal) || numVal < 0 || numVal > max);
                         return (
                           <td key={subject.id} className="px-3 py-3">
                             <input type="number" min={0} max={max} value={value} disabled={isLocked}
@@ -273,21 +329,34 @@ export default function MarksPage() {
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-[#4d4354]/50">
-            {activeExam ? `${activeExam.enteredMarks || 0}/${activeExam.expectedMarks || 0} marks entered` : "Select an exam to enter marks."}
-          </p>
+          {invalidCells.length ? (
+            <p className="inline-flex items-center gap-2 rounded-xl bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-700">
+              <BarChart3 className="h-4 w-4 shrink-0" />
+              {invalidCells.length} mark{invalidCells.length !== 1 ? "s are" : " is"} outside the allowed
+              range — fix the highlighted cell{invalidCells.length !== 1 ? "s" : ""} to save.
+            </p>
+          ) : activeExam ? (
+            <p className="text-sm font-semibold text-[#4d4354]/50">
+              {activeExam.enteredMarks || 0}/{activeExam.expectedMarks || 0} marks entered
+            </p>
+          ) : (
+            /* The empty sheet above already says "Select an exam to enter
+               marks."; repeating it here printed the same line twice. */
+            <span />
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {markSheet?.students?.length ? (
               <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportMarksCSV}><span title="Download marks as CSV file">Export CSV</span></BrandButton>
             ) : null}
             <BrandButton variant="dark" icon={marksSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               onClick={saveMarks}
-              disabled={marksSaving || !markSheet?.subjects?.length || isLocked}
-              title={isLocked ? "This exam is locked" : !markSheet?.subjects?.length ? "No subjects to save" : "Save all entered marks"}>
+              disabled={marksSaving || !markSheet?.subjects?.length || isLocked || invalidCells.length > 0}
+              title={isLocked ? "This exam is locked" : !markSheet?.subjects?.length ? "No subjects to save" : invalidCells.length ? "Some marks are outside the allowed range" : "Save all entered marks"}>
               {marksSaving ? "Saving..." : "Save Marks"}
             </BrandButton>
           </div>
         </div>
+        </>)}
       </div>
 
       <GradingModals grading={grading} classHubs={classHubs} />

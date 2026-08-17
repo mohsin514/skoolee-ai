@@ -1,6 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertPermission,
+  assertStaffRole,
+  canManageOperations,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+  scopedCampusWhere,
+} from "@/lib/api/scope";
 
 // Admission Query (Lead CRM).
 // GET    /api/admission-queries?status=&source=&search=&overdue=true
@@ -72,7 +81,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("You don't have permission to create admission queries", 403);
+    // The matrix is the authority here. A receptionist is granted
+    // admissions.add — taking enquiries at the front desk is the job — but the
+    // canManageOperations gate in front of this check refused them.
+    assertStaffRole(user);
     await assertPermission(user, "admissions", "add");
 
     const body = await req.json();

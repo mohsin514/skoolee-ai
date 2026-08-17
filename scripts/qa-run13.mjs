@@ -117,21 +117,20 @@ async function run() {
       rosterTotal === truth.onRoll,
       `${truth.onRoll}`, `${rosterTotal}`, "High");
 
-    record(
-      truth.everEnrolled === truth.onRoll ? "PASS" : "FAIL",
-      "§27: the principal's Students tile agrees with the roster it links to",
-      `${truth.onRoll} (students on roll)`,
-      `${truth.everEnrolled} — the tile counts every student ever enrolled, archived and transferred included`,
-      truth.everEnrolled === truth.onRoll ? "" : "High",
-    );
+    // The Students tile itself comes from a server action, not a route, so it
+    // cannot be read over HTTP — it is verified in the browser and recorded in
+    // the audit. What is assertable here is the thing that made the tile wrong:
+    // whether an archived student is still counted as being on roll. If this
+    // predicate ever changes, the tile silently disagrees with its roster again.
+    check("§27: the on-roll predicate excludes archived, transferred and graduated students",
+      truth.onRoll === truth.everEnrolled - 1,
+      `${truth.everEnrolled - 1} on roll of ${truth.everEnrolled} enrolled`,
+      `${truth.onRoll} of ${truth.everEnrolled}`, "High");
 
-    record(
-      truth.allTeachers === truth.activeTeachers ? "PASS" : "PASS",
-      "§27: the Teachers tile counts active staff only",
-      `${truth.activeTeachers}`,
-      `${truth.activeTeachers} — deactivated staff correctly excluded`,
-      "",
-    );
+    check("§27: the Teachers tile's source excludes deactivated staff",
+      truth.activeTeachers === truth.allTeachers - 1,
+      `${truth.allTeachers - 1} active of ${truth.allTeachers}`,
+      `${truth.activeTeachers} of ${truth.allTeachers}`, "Medium");
   }
 
   // ── Teacher dashboard ─────────────────────────────────────────
@@ -280,7 +279,9 @@ function report() {
   }
   fs.writeFileSync("/tmp/qa-results13.json", JSON.stringify(results, null, 2));
   prisma.$disconnect();
-  process.exit(fail > 0 ? 1 : 0);
+  // A harness that crashed before asserting anything reports
+  // "0 passed, 0 failed" — which reads as success. It is not.
+  process.exit(fail > 0 || results.length === 0 ? 1 : 0);
 }
 
 run().catch((e) => {

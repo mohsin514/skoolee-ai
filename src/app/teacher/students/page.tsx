@@ -2,17 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { useRouter } from "next/navigation";
-import {
-  CalendarCheck, FileText, GraduationCap, Mail, Phone, Search, Star, Users, X,
-} from "lucide-react";
+import { Phone, Search, Users, X } from "lucide-react";
 import { useTeacherData } from "../teacher-data-context";
 import {
   classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 
 export default function TeacherStudentsPage() {
-  const router = useRouter();
   const { data, loading, error, refetch } = useTeacherData();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -20,6 +16,7 @@ export default function TeacherStudentsPage() {
 
   const classHubs = data?.classHubs || [];
   const allStudents: any[] = data?.students || [];
+  const outOfCycleCount = classHubs.filter((cls: any) => cls.inActiveCycle === false).length;
 
   const filtered = useMemo(() => {
     let list = allStudents;
@@ -50,9 +47,14 @@ export default function TeacherStudentsPage() {
             <Users className="w-4 h-4" />
             <p className="text-[10px] font-semibold uppercase tracking-wider">Student Directory</p>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Students</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Students</h1>
+          {/* The filter list marks out-of-cycle classes, so a bare "across N
+              classes" total silently disagreed with it. Call the split out. */}
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
-            {allStudents.length} students across {classHubs.length} class{classHubs.length !== 1 ? "es" : ""}
+            {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class{classHubs.length !== 1 ? "es" : ""}
+            {outOfCycleCount > 0
+              ? ` · ${outOfCycleCount} outside the active cycle`
+              : ""}
           </p>
         </div>
       </div>
@@ -85,7 +87,9 @@ export default function TeacherStudentsPage() {
           >
             <option value="">All Classes</option>
             {classHubs.map((cls: any) => (
-              <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
+              <option key={cls.id} value={cls.id}>
+                {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
+              </option>
             ))}
           </select>
           <span className="text-[11px] font-bold text-[#4d4354]/40 uppercase tracking-wider">
@@ -137,8 +141,10 @@ export default function TeacherStudentsPage() {
                     </div>
                     <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
                       <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Status</p>
-                      <p className={`text-sm font-bold ${student.status === "ACTIVE" ? "text-emerald-600" : "text-[#4d4354]/40"}`}>
-                        {student.status || "Active"}
+                      {/* Stored casing varies ("active" / "ACTIVE"), which
+                          rendered raw as lowercase text among title-cased UI. */}
+                      <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-[#4d4354]/40"}`}>
+                        {(student.status || "Active").toLowerCase()}
                       </p>
                     </div>
                   </div>
@@ -168,6 +174,14 @@ export default function TeacherStudentsPage() {
             <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
               {search || classFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
             </p>
+            {/* Telling someone to adjust a filter without giving them a way to
+                clear it leaves them to hunt for the two controls themselves. */}
+            {search || classFilter ? (
+              <button type="button" onClick={() => { setSearch(""); setClassFilter(""); }}
+                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </button>
+            ) : null}
           </div>
         )}
       </div>

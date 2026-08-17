@@ -64,7 +64,7 @@ export default function TeacherTimetablePage() {
             <Calendar className="w-4 h-4" />
             <p className="text-[10px] font-semibold uppercase tracking-wider">My Schedule</p>
           </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h2>
+          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h1>
           <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your published class schedule across all assigned classes</p>
         </div>
       </div>
