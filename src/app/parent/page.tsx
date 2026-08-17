@@ -18,7 +18,7 @@ export default function ParentOverviewPage() {
   if (loading && !data) return <ParentOverviewSkeleton />;
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
-
+//test
   const { student, campus } = data;
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const profileImage = student.profileImageUrl;
