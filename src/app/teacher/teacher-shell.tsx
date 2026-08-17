@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BookOpen, Calendar, CalendarCheck, FileText, HelpCircle, LogOut, Plane, Star, Users, Zap } from "lucide-react";
+import { BarChart3, BookOpen, Calendar, CalendarCheck, CalendarDays, ClipboardList, FileText, GraduationCap, LogOut, Plane, Star, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
@@ -19,11 +19,15 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
 
   const navItems: RoleNavItem[] = [
     { icon: BookOpen, label: "Dashboard", href: "/teacher" },
+    { icon: GraduationCap, label: "My Classes", href: "/teacher/classes" },
     { icon: CalendarCheck, label: "Attendance", href: "/teacher/attendance" },
     { icon: Star, label: "Marks & Tests", href: "/teacher/marks" },
+    { icon: ClipboardList, label: "Assessments", href: "/teacher/tests" },
     { icon: Users, label: "My Students", href: "/teacher/students" },
     { icon: FileText, label: "Reports", href: "/teacher/reports" },
     { icon: Calendar, label: "Timetable", href: "/teacher/timetable" },
+    { icon: CalendarDays, label: "Calendar", href: "/teacher/calendar" },
+    { icon: BarChart3, label: "Insights", href: "/teacher/insights" },
     { icon: Plane, label: "Leave", href: "/teacher/leave" },
     { icon: Zap, label: "AI Insights", href: "/teacher/ai" },
   ];
