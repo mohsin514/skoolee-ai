@@ -162,7 +162,12 @@ export function Header({ title, description, actions }: HeaderProps) {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   };
-  const billingHref = user?.dashboardPath === "/super" ? "/super?view=billing" : "/dashboard/billing";
+  const billingHref =
+    user?.dashboardPath === "/super"
+      ? "/super?view=billing"
+      : user?.dashboardPath === "/admin"
+        ? "/admin?view=billing"
+        : "/dashboard/billing";
   const avatarSrc = user?.profileImageUrl;
 
   return (

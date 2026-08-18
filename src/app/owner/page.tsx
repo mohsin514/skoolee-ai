@@ -51,6 +51,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AddUserModal } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { getPlanLimits } from "@/config/plans";
 import {
   BrandButton,
   EmptyState,
@@ -60,6 +61,10 @@ import {
 } from "@/components/role-dashboard";
 
 type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
+
+function planLabel(plan: string) {
+  return getPlanLimits(plan).name;
+}
 
 interface SchoolRow {
   id: string;
@@ -400,7 +405,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
             <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60">Schools by Plan</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {Object.entries(stats.schoolsByPlan).map(([p, count]) => (
-                <span key={p} className="text-xs font-black text-amber-800">{p}: {count}</span>
+                <span key={p} className="text-xs font-black text-amber-800">{planLabel(p)}: {count}</span>
               ))}
               {Object.keys(stats.schoolsByPlan).length === 0 && (
                 <span className="text-xs font-semibold text-[#4d4354]/40">No data</span>
@@ -438,10 +443,10 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
           >
             <option value="">All Plans</option>
-            <option value="FREE">Free</option>
-            <option value="STARTER">Starter</option>
-            <option value="PRO">Pro</option>
-            <option value="ENTERPRISE">Enterprise</option>
+            <option value="FREE">Basic</option>
+            <option value="BASIC">Pro</option>
+            <option value="PRO">Enterprise</option>
+            <option value="ENTERPRISE">Custom</option>
           </select>
         </div>
 
@@ -485,7 +490,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                               school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
                               "bg-[#f3f4f9] text-[#4d4354]/60"
                             }`}>
-                              {school.plan}
+                              {planLabel(school.plan)}
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-4 mt-1.5">
@@ -536,7 +541,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                               school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
                               "bg-[#f3f4f9] text-[#4d4354]/60"
                             }`}>
-                              {school.plan}
+                              {planLabel(school.plan)}
                             </span>
                           </div>
                         </div>
@@ -1225,7 +1230,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
                         <div key={plan}>
                           <div className="flex items-center justify-between mb-1">
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
-                              {plan}
+                              {planLabel(plan)}
                             </span>
                             <span className="text-sm font-black text-[#1f1a23]">{count}</span>
                           </div>
@@ -1300,8 +1305,8 @@ function PricingView({ stats }: { stats: Stats | null }) {
   const [pricingSchoolId, setPricingSchoolId] = useState("");
   const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>({
     FREE: { price: "0" },
-    BASIC: { price: "29" },
-    PRO: { price: "79" },
+    BASIC: { price: "4000" },
+    PRO: { price: "7000" },
     ENTERPRISE: { price: "" },
   });
   const [savingPricing, setSavingPricing] = useState(false);
@@ -1309,8 +1314,8 @@ function PricingView({ stats }: { stats: Stats | null }) {
 
   const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>({
     FREE: { price: "0" },
-    BASIC: { price: "29" },
-    PRO: { price: "79" },
+    BASIC: { price: "4000" },
+    PRO: { price: "7000" },
     ENTERPRISE: { price: "" },
   });
   const [savingDefaults, setSavingDefaults] = useState(false);
@@ -1323,8 +1328,8 @@ function PricingView({ stats }: { stats: Stats | null }) {
         const d = json.data as Record<string, { price?: number | null }>;
         setDefaultPricing({
           FREE: { price: String(d.FREE?.price ?? 0) },
-          BASIC: { price: String(d.BASIC?.price ?? 29) },
-          PRO: { price: String(d.PRO?.price ?? 79) },
+          BASIC: { price: String(d.BASIC?.price ?? 4000) },
+          PRO: { price: String(d.PRO?.price ?? 7000) },
           ENTERPRISE: { price: d.ENTERPRISE?.price != null ? String(d.ENTERPRISE.price) : "" },
         });
       }
@@ -1372,15 +1377,15 @@ function PricingView({ stats }: { stats: Stats | null }) {
         const p = json.data.planPricing as Record<string, { price?: number }>;
         setPricingValues({
           FREE: { price: String(p.FREE?.price ?? 0) },
-          BASIC: { price: String(p.BASIC?.price ?? 29) },
-          PRO: { price: String(p.PRO?.price ?? 79) },
+          BASIC: { price: String(p.BASIC?.price ?? 4000) },
+          PRO: { price: String(p.PRO?.price ?? 7000) },
           ENTERPRISE: { price: p.ENTERPRISE?.price != null ? String(p.ENTERPRISE.price) : "" },
         });
       } else {
         setPricingValues({
           FREE: { price: "0" },
-          BASIC: { price: "29" },
-          PRO: { price: "79" },
+          BASIC: { price: "4000" },
+          PRO: { price: "7000" },
           ENTERPRISE: { price: "" },
         });
       }
@@ -1442,7 +1447,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
           {Object.entries(defaultPricing).map(([plan, vals]) => (
             <div key={plan} className="flex items-center gap-4">
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
-                {plan}
+                {planLabel(plan)}
               </span>
               <div className="relative flex-1 max-w-[200px]">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#4d4354]/40">PKR</span>
@@ -1500,7 +1505,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
             {Object.entries(pricingValues).map(([plan, vals]) => (
               <div key={plan} className="flex items-center gap-4">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
-                  {plan}
+                  {planLabel(plan)}
                 </span>
                 <div className="relative flex-1 max-w-[200px]">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#4d4354]/40">PKR</span>
@@ -1819,7 +1824,7 @@ function SchoolDetailModal({
               <div className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 p-4">
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Plan</p>
-                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{school.plan}</p>
+                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{planLabel(school.plan)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Since</p>
@@ -1900,7 +1905,7 @@ function SchoolDetailModal({
                       <div className="flex items-center gap-3">
                         <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-[#8127cf]/30 ring-offset-2" : ""}`} />
                         <div>
-                          <p className={`text-sm font-black ${isCurrent ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{plan}</p>
+                          <p className={`text-sm font-black ${isCurrent ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{planLabel(plan)}</p>
                           <p className="text-[10px] font-bold text-[#4d4354]/50 mt-0.5">
                             {plan === "FREE" ? "50 students, 2 teachers, 1 campus" :
                              plan === "BASIC" ? "500 students, 10 teachers, 1 campus" :

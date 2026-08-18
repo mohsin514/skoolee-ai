@@ -34,6 +34,9 @@ model School {
   slug                 String   @unique // subdomain routing
   status               String   @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED
   plan                 String   @default("FREE") // FREE, BASIC, PRO
+  planStartedAt        DateTime? @map("plan_started_at") // first paid activation
+  planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
+  lastPaymentAt        DateTime? @map("last_payment_at") // last successful SafePay charge
   aiCreditsUsed        Int      @default(0) @map("ai_credits_used")
   aiCreditsLimit       Int      @default(100) @map("ai_credits_limit")
   stripeCustomerId     String?  @unique @map("stripe_customer_id")

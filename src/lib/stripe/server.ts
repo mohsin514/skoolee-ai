@@ -88,9 +88,17 @@ export async function createPortalSession(
 
 /**
  * Get Stripe price ID for a plan type.
+ * For annual billing, prefers the plan's annual price ID env and falls back
+ * to the monthly one, so checkout still works before annual prices exist.
  */
-export function getPriceId(plan: PlanType): string {
+export function getPriceId(
+  plan: PlanType,
+  billingPeriod: "monthly" | "annual" = "monthly"
+): string {
   const limits = getPlanLimits(plan);
+  if (billingPeriod === "annual" && limits.stripeAnnualPriceEnv && process.env[limits.stripeAnnualPriceEnv]) {
+    return process.env[limits.stripeAnnualPriceEnv] || "";
+  }
   return limits.stripePriceEnv ? process.env[limits.stripePriceEnv] || "" : "";
 }
 

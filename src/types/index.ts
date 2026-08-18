@@ -334,6 +334,7 @@ export interface PlanDetails {
   price: number | null;
   priceLabel: string;
   stripePriceEnv?: string;
+  stripeAnnualPriceEnv?: string;
   isCustom?: boolean;
   features: string[];
   aiCredits: number;

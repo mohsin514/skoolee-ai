@@ -9,6 +9,11 @@ type LimitMetric = "students" | "teachers" | "campuses";
 
 const ACTIVE_SCHOOL_STATUSES = new Set(["ACTIVE", "TRIAL"]);
 
+/** Billing period granted by one successful payment. */
+export const PLAN_PERIOD_DAYS = 30;
+/** Days a school keeps working after its paid-through date before suspension. */
+export const GRACE_PERIOD_DAYS = 3;
+
 export class BillingAccessError extends Error {
   status: number;
 
@@ -138,6 +143,9 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       name: true,
       plan: true,
       status: true,
+      planStartedAt: true,
+      planEndsAt: true,
+      lastPaymentAt: true,
       aiCreditsUsed: true,
       aiCreditsLimit: true,
       stripeCustomerId: true,
@@ -204,6 +212,9 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
     },
     plans,
     isOperational: isSchoolOperational(school.status),
+    planEndsAt: school.planEndsAt?.toISOString() ?? null,
+    planStartedAt: school.planStartedAt?.toISOString() ?? null,
+    lastPaymentAt: school.lastPaymentAt?.toISOString() ?? null,
     defaultPlanPricing: Object.keys(globalDefaults).length > 0 ? globalDefaults : null,
     defaultPricingUpdatedAt: platformConfig?.updatedAt?.toISOString() ?? null,
   };
@@ -231,6 +242,38 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
       status,
       aiCreditsLimit: limits.aiCredits,
       ...(stripeSubscriptionId !== undefined ? { stripeSubscriptionId } : {}),
+    },
+  });
+}
+
+/**
+ * Record a verified plan purchase. A renewal extends the account from the
+ * later of (today, current paid-through date), so upgrading or renewing early
+ * never shortens the period the customer has already paid for. Idempotent by
+ * design — safe to call from webhooks and the sandbox simulator.
+ */
+export async function activatePlan(schoolId: string, plan: PlanType, client: DbClient = prisma, periodDays: number = PLAN_PERIOD_DAYS) {
+  const school = await client.school.findUnique({
+    where: { id: schoolId },
+    select: { planEndsAt: true, planStartedAt: true, plan: true, status: true },
+  });
+
+  if (!school) throw new BillingAccessError("School not found", 404);
+
+  const now = new Date();
+  const base = school.planEndsAt && school.planEndsAt > now ? school.planEndsAt : now;
+  const planEndsAt = new Date(base.getTime() + periodDays * 86_400_000);
+  const limits = getPlanLimits(plan);
+
+  return client.school.update({
+    where: { id: schoolId },
+    data: {
+      plan,
+      status: "ACTIVE",
+      planStartedAt: school.planStartedAt ?? now,
+      planEndsAt,
+      lastPaymentAt: now,
+      aiCreditsLimit: limits.aiCredits,
     },
   });
 }

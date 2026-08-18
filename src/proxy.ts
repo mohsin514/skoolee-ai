@@ -28,6 +28,18 @@ const PUBLIC_PATHS = [
   "/api/parent/data",
   "/api/parent/timetable",
   "/api/parent/exam-datesheet",
+
+  // Gateway webhooks — no session cookie by design; each route authenticates
+  // itself via the provider's signature/secret before mutating anything.
+  "/api/safepay/notification",
+  "/api/safepay/simulate",
+  "/api/stripe/webhook",
+  "/api/stripe/connect-webhook",
+  "/api/whatsapp/webhook",
+
+  // Cron endpoints — the routes themselves require the CRON_SECRET bearer
+  // token (and refuse to run in production without one).
+  "/api/cron",
 ];
 
 // ─────────────────────────────────────────────────────────────────

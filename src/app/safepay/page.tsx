@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
 
@@ -13,6 +13,7 @@ function SafePayForm() {
   const plan = params.get("plan") || "";
   const kind = params.get("kind") || "";
   const invoiceId = params.get("invoiceId") || "";
+  const billingPeriod = params.get("billingPeriod") || "monthly";
   const amountLabel = params.get("amountLabel") || "PKR 0/mo";
 
   const [cardNumber, setCardNumber] = useState("");
@@ -21,6 +22,23 @@ function SafePayForm() {
   const [cardName, setCardName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [landingPath, setLandingPath] = useState<string | null>(null);
+
+  // Plan buyers live on different dashboards depending on their role; land
+  // them back where they started — the campus Plans & Billing view for
+  // standalone campus admins, the super view for school owners, and the
+  // legacy dashboard billing hub for everyone else.
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((json) => {
+        const path = json?.user?.dashboardPath;
+        setLandingPath(
+          path === "/super" ? "/super?view=billing" : path === "/admin" ? "/admin?view=billing" : "/dashboard/billing"
+        );
+      })
+      .catch(() => setLandingPath("/dashboard/billing"));
+  }, []);
 
   const formatCard = (v: string) => {
     const digits = v.replace(/\D/g, "").slice(0, 16);
@@ -42,7 +60,7 @@ function SafePayForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan }
+          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan, billingPeriod }
         ),
       });
       const data = await res.json();
@@ -51,7 +69,9 @@ function SafePayForm() {
       setTimeout(
         () =>
           router.push(
-            kind === "FEE" ? "/dashboard/fees?safepay_status=completed" : "/dashboard/billing?safepay_status=completed"
+            kind === "FEE"
+              ? "/dashboard/fees?safepay_status=completed"
+              : `${landingPath || "/dashboard/billing"}?safepay_status=completed`
           ),
         1500
       );
@@ -95,8 +115,13 @@ function SafePayForm() {
           <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#cfc2d6]/20">
             <p className="text-sm font-semibold text-[#4d4354]/60">
               {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
-              <span className="text-[#1f1a23]">{kind === "FEE" ? "Fee Payment" : plan}</span>
+              <span className="text-[#1f1a23]">
+                {kind === "FEE" ? "Fee Payment" : `${plan} · ${billingPeriod === "annual" ? "Annual" : "Monthly"}`}
+              </span>
             </p>
+            {billingPeriod === "annual" && (
+              <p className="text-[10px] font-bold text-emerald-600 mt-0.5">20% annual discount applied</p>
+            )}
             <p className="text-lg font-black text-[#8127cf]">{amountLabel}</p>
           </div>
         </div>

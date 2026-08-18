@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { canUseFeature } from "@/config/plans";
 import { isCampusAdminRole } from "@/lib/roles";
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { assertFeatureEnabled } from "@/lib/billing/entitlements";
 import {
   DEFAULT_NOTIFICATION_TEMPLATES,
   type NotificationTemplateKey,
@@ -47,12 +47,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    const school = await prisma.school.findUnique({ where: { id: user.schoolId } });
-    if (!school || !canUseFeature(school.plan, "whatsappEnabled")) {
-      return Response.json(
-        { error: "WhatsApp notifications require Basic or Pro plan" },
-        { status: 403 }
-      );
+    // Plan gate: WhatsApp requires Basic or higher, and the school must be
+    // operational (ACTIVE/TRIAL) — both checked server-side.
+    try {
+      await assertFeatureEnabled(user.schoolId, "whatsappEnabled");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "WhatsApp notifications require Basic or Pro plan";
+      const status = error instanceof Error && "status" in error ? (error as { status: number }).status : 403;
+      return Response.json({ error: message }, { status });
     }
 
     const body = await req.json();

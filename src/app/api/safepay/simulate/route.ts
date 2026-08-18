@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
-import { applySchoolPlan } from "@/lib/billing/entitlements";
+import { activatePlan } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,14 +20,18 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleWebhook(req: NextRequest) {
-  if (process.env.NODE_ENV === "production" && !process.env.SAFEPAY_SANDBOX) {
+  // The sandbox simulator must NEVER be reachable in production — it activates
+  // paid plans (and settles fee payments) without a real charge. In production
+  // the only path into the license record is the SafePay webhook, which is
+  // authenticated by SafePay's signature.
+  if (process.env.NODE_ENV === "production") {
     return Response.json({ error: "Not available in production" }, { status: 403 });
   }
 
   try {
-    const { orderRef, schoolId, plan } = await req.json();
+    const { orderRef, schoolId, plan, billingPeriod } = await req.json();
     if (orderRef && schoolId && plan) {
-      await applySchoolPlan(schoolId, plan as any, "ACTIVE");
+      await activatePlan(schoolId, plan as any, prisma, billingPeriod === "annual" ? 365 : undefined);
       return Response.json({ success: true });
     }
 
@@ -84,6 +88,7 @@ export async function GET(req: NextRequest) {
   const amountLabel = searchParams.get("amountLabel");
   const kind = searchParams.get("kind");
   const invoiceId = searchParams.get("invoiceId");
+  const billingPeriod = searchParams.get("billingPeriod");
 
   const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const payUrl = new URL("/safepay", req.url);
@@ -93,6 +98,7 @@ export async function GET(req: NextRequest) {
   if (amountLabel) payUrl.searchParams.set("amountLabel", amountLabel);
   if (kind) payUrl.searchParams.set("kind", kind);
   if (invoiceId) payUrl.searchParams.set("invoiceId", invoiceId);
+  if (billingPeriod) payUrl.searchParams.set("billingPeriod", billingPeriod);
 
   return NextResponse.redirect(payUrl);
 }

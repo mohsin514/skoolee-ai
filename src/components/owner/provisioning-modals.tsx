@@ -19,7 +19,7 @@ import {
   AlertCircle, ShieldCheck, KeyRound, ArrowRight, Eye, EyeOff, Users,
   GraduationCap, Layers, Zap,
 } from "lucide-react";
-import { PLANS, PLAN_ORDER } from "@/config/plans";
+import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 
 // ─── shared bits ─────────────────────────────────────────
@@ -277,7 +277,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           { label: "School", value: d.schoolName },
           { label: "Subdomain", value: d.slug },
           { label: "First campus", value: d.campusName },
-          { label: "Plan", value: `${d.plan} · ${d.status}` },
+          { label: "Plan", value: `${getPlanLimits(d.plan).name} · ${d.status}` },
           { label: "Limits", value: `${d.limits.maxStudents < 0 ? "∞" : d.limits.maxStudents} students · ${d.limits.maxTeachers < 0 ? "∞" : d.limits.maxTeachers} teachers` },
         ],
       });
@@ -546,7 +546,7 @@ export function AddUserModal({
             onChange={(e) => set("schoolId", e.target.value)}>
             <option value="">Select a school…</option>
             {schools.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}{s.plan ? ` · ${s.plan}` : ""}</option>
+              <option key={s.id} value={s.id}>{s.name}{s.plan ? ` · ${getPlanLimits(s.plan).name}` : ""}</option>
             ))}
           </select>
         </Field>

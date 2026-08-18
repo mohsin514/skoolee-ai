@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import BillingPage from "@/app/dashboard/billing/page";
+import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
+import { PlansPanel } from "@/components/billing/PlansPanel";
 import { addCampus } from "@/app/actions/addCampus";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -47,6 +48,7 @@ import {
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { getPlanLimits } from "@/config/plans";
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 
@@ -82,7 +84,7 @@ function hasActiveSlot(slot: any) {
 
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-type SuperView = "schools" | "billing";
+type SuperView = "schools" | "billing" | "fees";
 export default function SuperAdminDashboard() {
   const router = useRouter();
   const { data, loading, refetch } = useSuperAdminData();
@@ -120,6 +122,10 @@ export default function SuperAdminDashboard() {
       setActiveView("billing");
       setSelectedCampus(null);
     }
+    if (params.get("view") === "fees") {
+      setActiveView("fees");
+      setSelectedCampus(null);
+    }
   }, []);
 
   const handleLogout = async () => {
@@ -128,7 +134,8 @@ export default function SuperAdminDashboard() {
   };
 
   const syncSuperUrl = (view: SuperView) => {
-    window.history.replaceState(null, "", view === "billing" ? "/super?view=billing" : "/super");
+    const query = view === "billing" ? "?view=billing" : view === "fees" ? "?view=fees" : "";
+    window.history.replaceState(null, "", `/super${query}`);
   };
   const openSchools = () => {
     setActiveView("schools");
@@ -139,6 +146,11 @@ export default function SuperAdminDashboard() {
     setActiveView("billing");
     setSelectedCampus(null);
     syncSuperUrl("billing");
+  };
+  const openFees = () => {
+    setActiveView("fees");
+    setSelectedCampus(null);
+    syncSuperUrl("fees");
   };
   const openCampus = (campus: any) => {
     setActiveView("schools");
@@ -246,6 +258,7 @@ export default function SuperAdminDashboard() {
 
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
   ];
@@ -272,21 +285,58 @@ const bottomItems: RoleNavItem[] = [];
       avatarSeed={data.user.email || data.user.fullName}
       dashboardHref="/super"
       headerActions={
-        <BrandButton
-          variant="soft"
-          icon={<CreditCard className="w-4 h-4" />}
-          onClick={openBilling}
-          className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
-          title="Plans & Billing"
-        >
-          <span className="hidden lg:inline">Plans & Billing</span>
-        </BrandButton>
+        <div className="flex items-center gap-2">
+          <BrandButton
+            variant="soft"
+            icon={<Receipt className="w-4 h-4" />}
+            onClick={openFees}
+            className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
+            title="Fee Management"
+          >
+            <span className="hidden lg:inline">Fees</span>
+          </BrandButton>
+          <BrandButton
+            variant="soft"
+            icon={<CreditCard className="w-4 h-4" />}
+            onClick={openBilling}
+            className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
+            title="Plans & Billing"
+          >
+            <span className="hidden lg:inline">Plans & Billing</span>
+          </BrandButton>
+        </div>
       }
     >
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 overflow-hidden flex flex-col">
         {activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <BillingPage embedded />
+            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
+                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Plans & Billing</h2>
+                <p className="mt-2 text-sm font-semibold text-[#4d4354]/60">
+                  SaaS plan, upgrades, and AI credit control.
+                </p>
+              </div>
+            </div>
+            <div className="p-6">
+              <PlansPanel />
+            </div>
+          </div>
+        ) : activeView === "fees" ? (
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Network fee control</p>
+                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Fee Management</h2>
+                <p className="mt-2 text-sm font-semibold text-[#4d4354]/60">
+                  Fee structures, invoices, challans, and payment recording across the network.
+                </p>
+              </div>
+            </div>
+            <div className="p-6">
+              <FeeManagementPanel />
+            </div>
           </div>
         ) : !selectedCampus ? (
           <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
@@ -298,6 +348,9 @@ const bottomItems: RoleNavItem[] = [];
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
+                <BrandButton variant="soft" icon={<Receipt className="w-5 h-5" />} onClick={openFees}>
+                  Fees
+                </BrandButton>
                 <BrandButton variant="soft" icon={<CreditCard className="w-5 h-5" />} onClick={openBilling}>
                   Plans & Billing
                 </BrandButton>
@@ -315,7 +368,7 @@ const bottomItems: RoleNavItem[] = [];
               <StatCard
                 icon={CreditCard}
                 label="Plan"
-                value={data.billing?.plan || "FREE"}
+                value={getPlanLimits(data.billing?.plan || "FREE").name}
                 sub={data.billing?.status || "TRIAL"}
                 tone={data.billing?.status === "SUSPENDED" ? "rose" : "purple"}
                 entranceDelay={160}
@@ -349,6 +402,7 @@ const bottomItems: RoleNavItem[] = [];
                 data={data}
                 onSelectCampus={openCampus}
                 onOpenBilling={openBilling}
+                onOpenFees={openFees}
               />
             </div>
 
@@ -665,10 +719,12 @@ function NetworkCommandPanel({
   data,
   onSelectCampus,
   onOpenBilling,
+  onOpenFees,
 }: {
   data: any;
   onSelectCampus: (campus: any) => void;
   onOpenBilling: () => void;
+  onOpenFees: () => void;
 }) {
   const leadershipGaps = data.campuses.filter((campus: any) => !hasActiveSlot(campus.admin) || !hasActiveSlot(campus.principal));
   const pendingInviteCampuses = data.campuses.filter((campus: any) => campus.pendingInvitations.length > 0);
@@ -707,6 +763,7 @@ function NetworkCommandPanel({
             label="Fee Follow-up"
             value={data.networkSummary.pendingInvoices + data.networkSummary.partialInvoices}
             tone="amber"
+            onClick={onOpenFees}
           />
         </div>
       </div>
@@ -845,11 +902,13 @@ function SummaryBucket({
   label,
   value,
   tone,
+  onClick,
 }: {
   icon: LucideIcon;
   label: string;
   value: number;
   tone: "green" | "rose" | "purple" | "amber";
+  onClick?: () => void;
 }) {
   const toneClass = {
     green: "bg-emerald-50 text-emerald-600",
@@ -859,7 +918,14 @@ function SummaryBucket({
   }[tone];
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex items-center justify-between gap-3 rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 ${
+        onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5" : "cursor-default"
+      }`}
+    >
       <div className="flex items-center gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${toneClass} shadow-sm`}>
           <Icon className="h-4 w-4" />
@@ -867,7 +933,7 @@ function SummaryBucket({
         <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">{label}</p>
       </div>
       <p className="text-xl font-black text-[#1f1a23]">{value}</p>
-    </div>
+    </button>
   );
 }
 
@@ -883,7 +949,7 @@ function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) 
 }
 
 function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }) {
-  const plan = billing?.plan || "FREE";
+  const plan = getPlanLimits(billing?.plan || "FREE").name;
   const status = billing?.status || "TRIAL";
   const creditsUsed = Number(billing?.aiCreditsUsed || 0);
   const creditsLimit = Number(billing?.aiCreditsLimit || 100);

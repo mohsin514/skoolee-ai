@@ -43,13 +43,13 @@ import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
-import BillingPage from "@/app/dashboard/billing/page";
+import { PlansPanel } from "@/components/billing/PlansPanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
-import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
+import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetableStudio } from "@/components/timetable/TimetableStudio";
 import { AcademicHub } from "@/components/academic/AcademicHub";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
@@ -818,9 +818,14 @@ export default function CampusAdminDashboard() {
     { icon: LayoutGrid, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
   ];
 
-  if (data?.role === "ADMIN") {
+  // A standalone campus (single-campus school) has no separate school owner —
+  // its top admin IS the school's super admin, so plan buying belongs here too.
+  // In a school group, plan management stays with the owner at /dashboard/billing.
+  const canManagePlans =
+    data?.role === "ADMIN" || (data?.role === "CAMPUS_ADMIN" && data?.isStandaloneCampus);
+  if (canManagePlans) {
     navItems.push(
-      { icon: CreditCard, label: "Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
+      { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
     );
   }
   const VIEW_MODULE: Record<string, string> = {
@@ -847,7 +852,7 @@ export default function CampusAdminDashboard() {
     "AI Assistant": "ai",
     "Admins & Access": "staff",
     // Was unmapped and silently fell back to the students module.
-    Billing: "accounts",
+    "Plans & Billing": "accounts",
     Transport: "staff",
     Hostel: "staff",
     Inventory: "staff",
@@ -1032,7 +1037,7 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "fees" ? (
-            <FeeOverviewTab campusId={data.campusId} />
+            <FeesPanel campusId={data.campusId} />
           ) : null}
 
           {activeView === "academic-hub" ? (
@@ -1088,12 +1093,14 @@ export default function CampusAdminDashboard() {
           {activeView === "dormitory" ? <DormitoryPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "library" ? <LibraryPanel /> : null}
-          {/* Billing is only in the sidebar for ADMIN, but the section also
-              lives at ?view=billing, so a campus admin could reach it by URL.
-              Gate the view on the same condition as the nav entry. */}
+          {/* Plan buying is only in the sidebar for standalone top admins, but
+              the section also lives at ?view=billing, so a campus admin could
+              reach it by URL. Gate the view on the same condition as the nav
+              entry. Fee management lives under the Fees view, so this view is
+              plan buying only — the two never mix. */}
           {activeView === "billing"
-            ? data?.role === "ADMIN"
-              ? <BillingPage embedded hideHeader />
+            ? canManagePlans
+              ? <PlansPanel />
               : <RestrictedView onBack={() => setActiveView(DEFAULT_VIEW)} />
             : null}
         </div>

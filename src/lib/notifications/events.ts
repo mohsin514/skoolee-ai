@@ -412,4 +412,22 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
       return [...new Set([...managers, ...teacherIds])];
     },
   },
+
+  // ── Licensing / Subscription ───────────────────────────
+  SUBSCRIPTION_EXPIRING: {
+    title: (c) => "Subscription expiring",
+    message: (c) =>
+      `${s(c.plan)} plan paid period ended on ${s(c.planEndsAt)}. Renew within the grace period to keep the system running.`,
+    icon: "CreditCard",
+    link: "/dashboard/billing",
+    recipients: (c) => getAdminsAndPrincipal(c.schoolId),
+  },
+  SUBSCRIPTION_SUSPENDED: {
+    title: (c) => "Subscription suspended",
+    message: (c) =>
+      `Your ${s(c.plan)} subscription was suspended — the paid period ended on ${s(c.planEndsAt)}. Renew in billing to restore access.`,
+    icon: "Lock",
+    link: "/dashboard/billing",
+    recipients: (c) => getAdminsAndPrincipal(c.schoolId),
+  },
 };

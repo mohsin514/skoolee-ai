@@ -1,17 +1,32 @@
 // ===========================================
 // SkooleeAI - Subscription Plan Configuration
 // ===========================================
+//
+// Tier names and prices mirror the marketing site (skoolee-ai-marketing):
+//   Basic ("FREE" tier id)  -> PKR 0/mo
+//   Pro    ("BASIC" tier id) -> PKR 4,000/mo
+//   Enterprise ("PRO" tier id) -> PKR 7,000/mo
+//   Custom ("ENTERPRISE" tier id) -> quoted, contact sales
+//
+// Tier IDs are stable so existing accounts keep their recorded plan; only the
+// display name and price changed.
 
 import { PlanDetails, PlanType } from "@/types";
 
 export type PlanFeature = "whatsappEnabled" | "pdfExportEnabled" | "pdfBulkExport" | "analyticsEnabled";
+
+/** Discount applied when billing annually (matches marketing pricing). */
+export const ANNUAL_DISCOUNT = 0.2;
+
+/** Billing cycles offered at checkout. */
+export type BillingPeriod = "monthly" | "annual";
 
 export const PLAN_ORDER: PlanType[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 
 export const PLANS: Record<PlanType, PlanDetails> = {
   FREE: {
     type: "FREE",
-    name: "Free",
+    name: "Basic",
     price: 0,
     priceLabel: "PKR 0/mo",
     features: [
@@ -19,7 +34,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
       "2 teacher accounts",
       "1 campus",
       "100 AI credits/month",
-      "Basic report cards",
+      "Standard report cards",
       "Email support",
     ],
     aiCredits: 100,
@@ -33,10 +48,11 @@ export const PLANS: Record<PlanType, PlanDetails> = {
   },
   BASIC: {
     type: "BASIC",
-    name: "Basic",
-    price: 29,
-    priceLabel: "PKR 29/mo",
+    name: "Pro",
+    price: 4000,
+    priceLabel: "PKR 4,000/mo",
     stripePriceEnv: "STRIPE_BASIC_PRICE_ID",
+    stripeAnnualPriceEnv: "STRIPE_BASIC_ANNUAL_PRICE_ID",
     features: [
       "Up to 500 students",
       "10 teacher accounts",
@@ -58,10 +74,11 @@ export const PLANS: Record<PlanType, PlanDetails> = {
   },
   PRO: {
     type: "PRO",
-    name: "Pro",
-    price: 79,
-    priceLabel: "PKR 79/mo",
+    name: "Enterprise",
+    price: 7000,
+    priceLabel: "PKR 7,000/mo",
     stripePriceEnv: "STRIPE_PRO_PRICE_ID",
+    stripeAnnualPriceEnv: "STRIPE_PRO_ANNUAL_PRICE_ID",
     features: [
       "Up to 2,500 students",
       "50 teacher accounts",
@@ -85,7 +102,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
   },
   ENTERPRISE: {
     type: "ENTERPRISE",
-    name: "Enterprise",
+    name: "Custom",
     price: null,
     priceLabel: "Custom",
     isCustom: true,
@@ -110,6 +127,12 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     analyticsEnabled: true,
   },
 };
+
+/** Monthly-equivalent price after the annual discount, or null for custom tiers. */
+export function annualMonthlyPrice(price: number | null | undefined) {
+  if (price == null) return null;
+  return Math.round(price * (1 - ANNUAL_DISCOUNT));
+}
 
 export function normalizePlan(plan: unknown): PlanType {
   return typeof plan === "string" && plan in PLANS ? (plan as PlanType) : "FREE";

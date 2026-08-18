@@ -23,7 +23,7 @@ export default function Page() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "PKR",
-      description: "Free plan for small schools; paid plans billed monthly.",
+      description: "Free Basic plan for small schools; paid plans billed monthly or annually with 20% off.",
     },
   };
 
@@ -39,7 +39,7 @@ export default function Page() {
           title: "Run academic, fee, and parent workflows from one AI-ready school platform.",
           description:
             "SkooleeAI brings student records, classes, marks, report cards, fee invoices, WhatsApp updates, and human-reviewed AI drafts into a single school operating system.",
-          highlights: ["Free plan for small schools", "Stripe upgrades built in", "Human review before AI output is shared", "Pakistan-ready academic workflows"],
+          highlights: ["Free Basic plan for small schools", "Stripe upgrades built in, 20% off with annual billing", "Human review before AI output is shared", "Pakistan-ready academic workflows"],
           sections: [
             { icon: School, title: "Academic operations", body: "Create campuses, classes, subjects, students, exams, marks, and report cards with role-based access for owners, admins, principals, and teachers." },
             { icon: Brain, title: "AI assistance", body: "Generate draft remarks, performance summaries, intervention ideas, and review queues while keeping school leaders in control." },

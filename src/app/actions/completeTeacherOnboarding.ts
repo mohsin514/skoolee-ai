@@ -6,6 +6,7 @@ import { SignJWT, jwtVerify } from "jose";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { enterTenantContext } from "@/lib/db/tenant-context";
+import { assertSchoolOperational } from "@/lib/billing/entitlements";
 
 export async function getTeacherOnboardingSession() {
   const cookieStore = await cookies();
@@ -62,6 +63,7 @@ export async function completeTeacherOnboarding(data: {
 
   const userId = String(payload.userId);
   enterTenantContext({ schoolId: String(payload.schoolId), userId });
+  await assertSchoolOperational(String(payload.schoolId));
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },

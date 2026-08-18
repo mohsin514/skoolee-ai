@@ -12,8 +12,8 @@ export async function GET() {
     const config = await prisma.platformConfig.findUnique({ where: { key: CONFIG_KEY } });
     const defaults = (config?.value as Record<string, { price?: number | null }> | null) ?? {
       FREE: { price: 0 },
-      BASIC: { price: 29 },
-      PRO: { price: 79 },
+      BASIC: { price: 4000 },
+      PRO: { price: 7000 },
       ENTERPRISE: { price: null },
     };
 

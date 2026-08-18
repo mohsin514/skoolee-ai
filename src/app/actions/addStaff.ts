@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
+import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import bcrypt from "bcryptjs";
 
 export async function addStaff(data: {
@@ -24,6 +25,7 @@ export async function addStaff(data: {
   if (!session || (!isCampusAdminRole(session.role) && session.role !== "SUPER_ADMIN")) {
     throw new Error("Permission Denied");
   }
+  await assertSchoolOperational(session.schoolId);
 
   if (!session.campusId) throw new Error("Campus ID is required");
 

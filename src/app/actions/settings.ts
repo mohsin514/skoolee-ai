@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { assertSchoolOperational } from "@/lib/billing/entitlements";
 
 export async function updateSchoolSettings(data: { name: string; slug: string }) {
   const cookieStore = await cookies();
@@ -15,6 +16,7 @@ export async function updateSchoolSettings(data: { name: string; slug: string })
   if (payload.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
 
   const schoolId = String(payload.schoolId);
+  await assertSchoolOperational(schoolId);
 
   // Validate slug uniqueness if changed
   if (data.slug !== payload.schoolSlug) {
