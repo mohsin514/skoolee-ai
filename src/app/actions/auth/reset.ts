@@ -20,25 +20,27 @@ export async function requestPasswordReset(email: string) {
   // that maps to exactly one account across all schools.
   enterUnscoped("password reset request: look up account by email before sign-in");
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  // FINDING-D: identity is tenant-scoped, so one address may hold accounts at
+  // several schools. Issue a token PER ACCOUNT, each bound to its user, rather
+  // than one token keyed on the email — which would be ambiguous at redemption
+  // and could reset the wrong account.
+  const users = await prisma.user.findMany({ where: { email }, select: { id: true } });
 
-  // Security best practice: Always return success even if user doesn't exist to prevent email enumeration
-  if (!user) {
+  // Always return success even when nothing matched, so the endpoint cannot be
+  // used to test whether an address exists.
+  if (users.length === 0) {
     return { success: true };
   }
 
-  const token = randomUUID();
   const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-  await prisma.passwordReset.create({
-    data: {
-      email,
-      token,
-      expiresAt
-    }
-  });
-
-  await sendPasswordResetEmail(email, token);
+  for (const user of users) {
+    const token = randomUUID();
+    await prisma.passwordReset.create({
+      data: { email, userId: user.id, token, expiresAt },
+    });
+    await sendPasswordResetEmail(email, token);
+  }
 
   return { success: true };
 }
@@ -64,10 +66,16 @@ export async function resetPassword(token: string, newPassword: string) {
     throw new Error("Invalid or expired token");
   }
 
+  // The token names exactly one account. Older tokens predate userId and have
+  // no unambiguous target, so they are refused rather than guessed at.
+  if (!resetRequest.userId) {
+    throw new Error("This reset link is no longer valid. Please request a new one.");
+  }
+
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
   await prisma.user.update({
-    where: { email: resetRequest.email },
+    where: { id: resetRequest.userId },
     data: { password: hashedPassword }
   });
 

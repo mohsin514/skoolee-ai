@@ -69,13 +69,16 @@ export function isValidEmail(email: unknown): boolean {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-/** Rejects an email that already belongs to a user or is a school contact. */
+/**
+ * Rejects an email already used as a SCHOOL CONTACT address.
+ *
+ * FINDING-D: this used to reject any email that had a user account anywhere.
+ * Identity is tenant-scoped now, and this runs while provisioning a NEW school,
+ * so a person who already works at one institution must be able to own another.
+ * Per-tenant collisions are caught by @@unique([schoolId, email]).
+ */
 export async function assertEmailAvailable(email: string) {
-  const [userExists, schoolExists] = await Promise.all([
-    prisma.user.findUnique({ where: { email }, select: { id: true } }),
-    prisma.school.findUnique({ where: { contactEmail: email }, select: { id: true } }),
-  ]);
-  if (userExists) throw new ApiError("That email already has an account", 409);
+  const schoolExists = await prisma.school.findUnique({ where: { contactEmail: email }, select: { id: true } });
   if (schoolExists) throw new ApiError("That email is already a school contact address", 409);
 }
 

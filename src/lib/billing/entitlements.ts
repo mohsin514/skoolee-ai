@@ -72,6 +72,17 @@ export async function assertSchoolOperational(schoolId: string, client: DbClient
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
+
+  // A soft-deleted tenant must look exactly like a missing one to its former
+  // users. Without this it falls through to the 402 below and they are told
+  // their subscription lapsed and invited to pay for a school that no longer
+  // exists. 404 is what requireAuthUser() converts to a 401, which is what
+  // lets the client tear the session down and return to sign-in — the same
+  // escape hatch a hard-deleted school already gets (see auth/invalid-session).
+  if (String(school.status || "").toUpperCase() === "DELETED") {
+    throw new BillingAccessError("School not found", 404);
+  }
+
   if (!isSchoolOperational(school.status)) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }

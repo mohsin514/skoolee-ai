@@ -42,26 +42,41 @@ async function handleLogin(req: NextRequest) {
     const { email, password } = parsed.data;
     const ua = req.headers.get("user-agent") || undefined;
 
-    // 1. Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // 1. Find every account on this address.
+    //
+    // FINDING-D: identity is tenant-scoped, so one address can hold an account
+    // at more than one school — a parent with children at two institutions, or
+    // a teacher working across two groups. The email alone no longer names a
+    // single user.
+    const requestedSchoolId = typeof (body as { schoolId?: unknown })?.schoolId === "string"
+      ? (body as { schoolId: string }).schoolId
+      : null;
+
+    const candidates = await prisma.user.findMany({
+      where: {
+        email,
+        ...(requestedSchoolId ? { schoolId: requestedSchoolId } : {}),
+      },
       include: { school: true, campus: true },
     });
 
-    if (!user || !user.password) {
-      return Response.json({ error: "Invalid email or password" }, { status: 401 });
+    // 2. Verify the password against each candidate BEFORE revealing anything.
+    //
+    // The disambiguation prompt below names the schools this address belongs
+    // to, which would be an enumeration oracle if it were shown to someone who
+    // only guessed the address. Checking the password first means the prompt is
+    // only ever seen by whoever already holds the credentials (AUTH-1.2).
+    const matched = [];
+    for (const candidate of candidates) {
+      if (!candidate.password) continue;
+      if (await bcrypt.compare(password, candidate.password)) matched.push(candidate);
     }
 
-    if (!user.isActive) {
-      return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
-    }
-
-    // 2. Verify password
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
-      if (user.role === "SUPER_ADMIN") {
+    if (matched.length === 0) {
+      const known = candidates.find((c) => c.role === "SUPER_ADMIN");
+      if (known) {
         logSuperAdminAction({
-          userId: user.id,
+          userId: known.id,
           action: "login",
           status: "failed",
           errorMessage: "Invalid password",
@@ -72,6 +87,31 @@ async function handleLogin(req: NextRequest) {
         }).catch(() => {});
       }
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    // A soft-deleted tenant is not a place anyone can sign in to.
+    const usable = matched.filter((c) => String(c.school?.status || "").toUpperCase() !== "DELETED");
+    if (usable.length === 0) {
+      return Response.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    // 3. One address, several schools — ask which. Password is already verified.
+    if (usable.length > 1) {
+      return Response.json({
+        needsSchoolSelection: true,
+        message: "This email is registered at more than one school. Choose which to sign in to.",
+        schools: usable.map((c) => ({
+          schoolId: c.schoolId,
+          schoolName: c.school?.name ?? "",
+          role: c.role,
+        })),
+      });
+    }
+
+    const user = usable[0];
+
+    if (!user.isActive) {
+      return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
     }
 
     // 3. Create JWT token

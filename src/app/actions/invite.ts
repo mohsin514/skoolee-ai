@@ -166,8 +166,11 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
     }
   }
 
-  const existingUserByEmail = await prisma.user.findUnique({
-    where: { email: valid.email },
+  // FINDING-D: identity is tenant-scoped, so an invite only cares whether this
+  // address already has an account AT THIS SCHOOL. Globally, the same person may
+  // legitimately hold an account elsewhere.
+  const existingUserByEmail = await prisma.user.findFirst({
+    where: { email: valid.email, schoolId: session.schoolId },
     select: { id: true, role: true, schoolId: true, campusId: true, isActive: true },
   });
 
@@ -387,7 +390,8 @@ export async function acceptInvite(token: string, password: string) {
     await assertPlanCapacity({ schoolId: campus.schoolId, metric: "teachers", increment: 0 });
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: invite.email } });
+  // FINDING-D: scoped to the inviting school (see above).
+  const existingUser = await prisma.user.findFirst({ where: { email: invite.email, schoolId: campus.schoolId } });
   if (
     existingUser &&
     (existingUser.isActive ||

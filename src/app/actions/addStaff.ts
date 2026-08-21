@@ -32,7 +32,8 @@ export async function addStaff(data: {
   const campusId = session.campusId;
   const schoolId = session.schoolId;
 
-  const existing = await prisma.user.findUnique({ where: { email: data.email.trim().toLowerCase() } });
+  // FINDING-D: identity is tenant-scoped — this asks about THIS school only.
+  const existing = await prisma.user.findFirst({ where: { email: data.email.trim().toLowerCase(), schoolId } });
   if (existing) throw new Error("Email already registered");
 
   if (data.role === "PRINCIPAL") {

@@ -96,13 +96,12 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
     return { success: false, error: "Step 1 not completed. Please restart registration." };
   }
 
-  const [existingUser, existingSchoolByRegId, existingSchoolByEmail] = await Promise.all([
-    prisma.user.findUnique({ where: { email: valid.email } }),
+  // FINDING-D: no global account check — identity is tenant-scoped and the
+  // school being registered does not exist yet.
+  const [existingSchoolByRegId, existingSchoolByEmail] = await Promise.all([
     prisma.school.findUnique({ where: { regId: valid.regId } }),
     prisma.school.findUnique({ where: { contactEmail: valid.email } }),
   ]);
-
-  if (existingUser) return { success: false, error: "User already exists" };
   if (existingSchoolByRegId) return { success: false, error: "This Identity Code (Reg ID) is already registered." };
   if (existingSchoolByEmail) return { success: false, error: "This email is already registered to a school." };
 

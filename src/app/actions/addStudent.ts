@@ -31,7 +31,8 @@ export async function addStudent(data: {
   if (!targetClass) throw new Error("Create a class before adding students");
 
   // Check if student email already exists
-  const existing = data.email ? await prisma.user.findUnique({ where: { email: data.email } }) : null;
+  // FINDING-D: identity is tenant-scoped — this asks about THIS school only.
+  const existing = data.email ? await prisma.user.findFirst({ where: { email: data.email, schoolId } }) : null;
   if (existing) throw new Error("Email already registered");
 
   // Default password for students (they can change it)

@@ -37,7 +37,8 @@ export async function addTeacher(data: {
   const schoolId = session.schoolId;
   await assertPlanCapacity({ schoolId, metric: "teachers" });
 
-  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  // FINDING-D: identity is tenant-scoped — this asks about THIS school only.
+  const existing = await prisma.user.findFirst({ where: { email: data.email, schoolId } });
   if (existing) throw new Error("Email already registered");
 
   const defaultPassword = await bcrypt.hash("skoolee123", 10);

@@ -32,6 +32,27 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
       throw error;
     }
   }
+
+  // The JWT is a 7-day bearer credential, so nothing in it can be trusted to
+  // still be true. Deactivating an account or changing its role only altered
+  // the database — the holder of an already-issued token kept full access until
+  // it expired (AUTH-1.8/AUTH-1.9). Re-check the account on every request.
+  const account = await prisma.user.findUnique({
+    where: { id: user.userId },
+    select: { isActive: true, role: true },
+  });
+
+  if (!account || !account.isActive) {
+    throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
+  }
+
+  // A role change must never take effect from a stale claim — in either
+  // direction. Ending the session forces a re-issue, so a privilege can never
+  // be exercised from a token minted before it was granted or revoked.
+  if (account.role !== user.role) {
+    throw new ApiError("Your access has changed. Please sign in again.", 401);
+  }
+
   return user;
 }
 
@@ -119,6 +140,25 @@ export async function assertFeesRead(user: AuthUser) {
  */
 export async function assertModuleRead(user: AuthUser, module: PermissionModule) {
   assertStaffRole(user);
+  await assertPermissionImpl(user, module, "view");
+}
+
+/**
+ * Guard for reading a module that BOTH staff and families use.
+ *
+ * fees, timetable, exams and ai are shared surfaces: a parent reads their own
+ * child's fee schedule and timetable through the same endpoint an administrator
+ * uses. assertModuleRead() is staff-only, so applying it here would cut families
+ * off from their own records — a worse bug than the one it fixes.
+ *
+ * The permission matrix describes what STAFF may see; it says nothing about a
+ * family's access to their own data, which each route scopes for itself
+ * (ai/insights has ownOnly, exams hides DRAFT from families, the rest are
+ * campus-scoped). So the bit is enforced for staff and skipped for families,
+ * rather than leaving it unenforced for everyone — which is what it was.
+ */
+export async function assertSharedModuleRead(user: AuthUser, module: PermissionModule) {
+  if (isFamilyRole(user)) return;
   await assertPermissionImpl(user, module, "view");
 }
 

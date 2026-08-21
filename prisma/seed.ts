@@ -86,7 +86,8 @@ async function upsertUser(opts: {
   phone?: string;
 }) {
   return prisma.user.upsert({
-    where: { email: opts.email },
+    // FINDING-D: email is unique per school now, not globally.
+    where: { schoolId_email: { schoolId: opts.schoolId, email: opts.email } },
     update: {
       password: opts.password,
       role: opts.role,
