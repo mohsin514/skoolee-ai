@@ -129,7 +129,7 @@ export default function AcceptInvitePage() {
           <h1 className="mb-4 text-3xl font-extrabold leading-tight text-[#1f1a23]">
             Create your profile and step into your Skoolee workspace.
           </h1>
-          <p className="text-sm font-medium text-[#4d4354]">
+          <p className="text-sm font-medium text-ink">
             Your campus role is already prepared. Complete this setup to activate your protected account.
           </p>
         </div>
@@ -151,7 +151,7 @@ export default function AcceptInvitePage() {
                 Invitation link
               </div>
               <h1 className="text-2xl font-black tracking-normal text-[#1f1a23]">Accept Invitation</h1>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/65">
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 Set your password to activate your campus account.
               </p>
             </div>
@@ -174,11 +174,11 @@ export default function AcceptInvitePage() {
                 ) : null}
                 <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
+                  <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Password
                   </Label>
                   <div className="relative flex items-center">
-                    <Lock className="pointer-events-none absolute left-4 h-5 w-5 text-[#4d4354]" />
+                    <Lock className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -190,7 +190,7 @@ export default function AcceptInvitePage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
-                      className="absolute right-4 cursor-pointer text-[#4d4354] transition-colors hover:text-[#8127cf]"
+                      className="absolute right-4 cursor-pointer text-ink transition-colors hover:text-[#8127cf]"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -199,11 +199,11 @@ export default function AcceptInvitePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
+                  <Label htmlFor="confirmPassword" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Confirm Password
                   </Label>
                   <div className="relative flex items-center">
-                    <ShieldCheck className="pointer-events-none absolute left-4 h-5 w-5 text-[#4d4354]" />
+                    <ShieldCheck className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
@@ -220,7 +220,7 @@ export default function AcceptInvitePage() {
                     <div
                       key={item.label}
                       className={`flex items-center gap-2 text-[10px] font-black ${
-                        item.met ? "text-emerald-600" : "text-[#4d4354]/40"
+                        item.met ? "text-emerald-600" : "text-ink-subtle"
                       }`}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />

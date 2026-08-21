@@ -76,9 +76,9 @@ export default function LibrarianPage() {
             <div className="space-y-6">
               <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">{data.campusName}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{data.campusName}</p>
                   <h2 className="text-2xl font-black text-[#1f1a23]">Welcome, {data.userName}</h2>
-                  <p className="text-sm text-[#4d4354]/60">Manage books, members, issue/return, and inventory for {data.schoolName}.</p>
+                  <p className="text-sm text-ink-muted">Manage books, members, issue/return, and inventory for {data.schoolName}.</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -96,7 +96,7 @@ export default function LibrarianPage() {
                       <card.icon className="h-5 w-5" />
                     </div>
                     <p className="text-sm font-bold text-[#1f1a23]">{card.label}</p>
-                    <p className="mt-1 text-xs text-[#4d4354]/50">{card.desc}</p>
+                    <p className="mt-1 text-xs text-ink-muted">{card.desc}</p>
                   </button>
                 ))}
               </div>

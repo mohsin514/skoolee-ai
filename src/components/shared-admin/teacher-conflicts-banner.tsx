@@ -40,7 +40,7 @@ export function TeacherConflictsBanner() {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-black text-[#1f1a23]">Teacher scheduling conflicts</p>
-            <p className="mt-0.5 text-[10px] font-bold text-[#4d4354]/60">
+            <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
               {doubleBooked.length > 0
                 ? `${doubleBooked.length} teacher${doubleBooked.length !== 1 ? "s" : ""} double-booked across ${totalClashes} period${totalClashes !== 1 ? "s" : ""}`
                 : null}
@@ -65,7 +65,7 @@ export function TeacherConflictsBanner() {
                   Over-committed
                 </span>
               </div>
-              <p className="mt-1 pl-5 text-[10px] font-bold leading-relaxed text-[#4d4354]/60">
+              <p className="mt-1 pl-5 text-[10px] font-bold leading-relaxed text-ink-muted">
                 Takes every period of {t.wholeSectionClasses.map((c) => c.label).join(", ")} — only one is possible.
               </p>
             </div>
@@ -91,12 +91,12 @@ export function TeacherConflictsBanner() {
                   </span>
                 ))}
                 {t.conflicts.length > 8 ? (
-                  <span className="rounded-lg bg-[#f3f4f9] px-2 py-1 text-[9px] font-black text-[#4d4354]/60">
+                  <span className="rounded-lg bg-[#f3f4f9] px-2 py-1 text-[9px] font-black text-ink-muted">
                     +{t.conflicts.length - 8} more
                   </span>
                 ) : null}
               </div>
-              <p className="mt-2 pl-5 text-[9px] font-bold text-[#4d4354]/50">
+              <p className="mt-2 pl-5 text-[9px] font-bold text-ink-muted">
                 Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.
               </p>
             </div>

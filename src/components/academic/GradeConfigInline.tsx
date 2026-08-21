@@ -199,7 +199,7 @@ export function GradeConfigInline({
           {sliders.map((s) => (
             <div key={s.key}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs font-bold text-[#4d4354]/70">{s.label}</span>
+                <span className="text-xs font-bold text-ink">{s.label}</span>
                 <span className="text-xs font-black text-[#8127cf]">{cfg[s.key]}%</span>
               </div>
               <input
@@ -214,7 +214,7 @@ export function GradeConfigInline({
           ))}
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-bold text-[#4d4354]/70">Final (auto)</span>
+              <span className="text-xs font-bold text-ink">Final (auto)</span>
               <span className="text-xs font-black text-[#0d9488]">{finalWeight}%</span>
             </div>
             <input
@@ -225,14 +225,14 @@ export function GradeConfigInline({
               disabled
               className="w-full accent-[#0d9488] opacity-70"
             />
-            <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">
+            <p className="mt-1 text-[10px] font-semibold text-ink-subtle">
               Final weight auto-adjusts so the four sum to 100%.
             </p>
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-bold text-[#4d4354]/70">Passing %</span>
+              <span className="text-xs font-bold text-ink">Passing %</span>
               <span className="text-xs font-black text-[#d97706]">{cfg.passingPercentage}%</span>
             </div>
             <input
@@ -247,7 +247,7 @@ export function GradeConfigInline({
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-bold text-[#4d4354]/70">Overall percentage</span>
+              <span className="text-xs font-bold text-ink">Overall percentage</span>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {MODES.map((m) => {
@@ -265,7 +265,7 @@ export function GradeConfigInline({
                     }`}
                   >
                     <span className="block text-xs font-black text-[#1d1b20]">{m.label}</span>
-                    <span className="mt-1 block text-[10px] font-semibold leading-relaxed text-[#4d4354]/50">
+                    <span className="mt-1 block text-[10px] font-semibold leading-relaxed text-ink-muted">
                       {m.help}
                     </span>
                   </button>
@@ -289,7 +289,7 @@ export function GradeConfigInline({
           <div className="overflow-hidden rounded-2xl border border-[#cfc2d6]/10">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-[#fbf0fe]/40 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                <tr className="bg-[#fbf0fe]/40 text-[9px] font-black uppercase tracking-wider text-ink-muted">
                   <th className="px-3 py-2">Grade</th>
                   <th className="px-3 py-2 text-right">Min %</th>
                 </tr>
@@ -337,7 +337,7 @@ export function GradeConfigInline({
                     <p className="truncate text-sm font-bold text-[#1d1b20]">
                       {g.studentName || g.name || `Student ${i + 1}`}
                     </p>
-                    <p className="text-[10px] font-semibold text-[#4d4354]/40">
+                    <p className="text-[10px] font-semibold text-ink-subtle">
                       Roll {g.rollNo ?? "—"}
                     </p>
                   </div>
@@ -351,7 +351,7 @@ export function GradeConfigInline({
               ))}
             </div>
           ) : (
-            <div className="py-6 text-center text-[11px] font-semibold text-[#4d4354]/40">
+            <div className="py-6 text-center text-[11px] font-semibold text-ink-subtle">
               No sample students available
             </div>
           )}

@@ -177,7 +177,7 @@ export default function StudentDashboard() {
                 <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight text-[#1d1b20] leading-tight sm:leading-none mt-1 mb-2 transition-colors group-hover:text-[#8127cf]">
                   {user.fullName}
                 </h2>
-                <p className="text-sm font-semibold text-[#4d4354]/60 uppercase tracking-wider">
+                <p className="text-sm font-semibold text-ink-muted uppercase tracking-wider">
                   {user.rollNo || "No roll number"} · {user.className}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
@@ -199,13 +199,13 @@ export default function StudentDashboard() {
                     <Clock className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                       {upNext.current ? "In class now" : "Up next"}
                     </p>
                     <p className="text-sm font-bold text-[#1d1b20] truncate max-w-[160px]">
                       {upNext.subject?.name || upNext.slotType || "Class"}
                     </p>
-                    <p className="text-[10px] font-semibold text-[#4d4354]/45">
+                    <p className="text-[10px] font-semibold text-ink-subtle">
                       {upNext.startTime}–{upNext.endTime}
                     </p>
                   </div>
@@ -315,7 +315,7 @@ export default function StudentDashboard() {
                         <p className="truncate text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
                           {s.subject?.name || s.slotType || "Class"}
                         </p>
-                        <p className="truncate text-[10px] font-semibold text-[#4d4354]/45">
+                        <p className="truncate text-[10px] font-semibold text-ink-subtle">
                           {s.startTime}–{s.endTime}
                           {s.teacher?.fullName ? ` · ${s.teacher.fullName}` : ""}
                           {s.roomNumber ? ` · Room ${s.roomNumber}` : ""}
@@ -337,9 +337,9 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 py-12 text-center">
-                  <Clock className="mb-3 h-8 w-8 text-[#4d4354]/20" />
+                  <Clock className="mb-3 h-8 w-8 text-ink-subtle" />
                   <p className="text-sm font-bold text-[#1d1b20]">No classes scheduled today</p>
-                  <p className="mt-1 text-xs font-semibold text-[#4d4354]/50">
+                  <p className="mt-1 text-xs font-semibold text-ink-muted">
                     {slots.length ? "Enjoy the day off." : "Your timetable will appear once the school publishes it."}
                   </p>
                 </div>
@@ -351,19 +351,19 @@ export default function StudentDashboard() {
               {nextPaper ? (
                 <div className="space-y-4">
                   <div className="rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white p-5 border border-[#cfc2d6]/15">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                       {nextPaper.exam?.title || "Exam"}
                     </p>
                     <p className="mt-1 text-xl font-bold tracking-tight text-[#1d1b20]">
                       {nextPaper.subject?.name || "Class-wide paper"}
                     </p>
-                    <p className="mt-2 text-xs font-semibold text-[#4d4354]/55">
+                    <p className="mt-2 text-xs font-semibold text-ink-muted">
                       {new Date(nextPaper.date + "T00:00:00").toLocaleDateString("en-US", {
                         weekday: "long", month: "long", day: "numeric",
                       })}
                     </p>
                     {nextPaper.periodDefinition && (
-                      <p className="text-xs font-semibold text-[#4d4354]/45">
+                      <p className="text-xs font-semibold text-ink-subtle">
                         {nextPaper.periodDefinition.startTime}–{nextPaper.periodDefinition.endTime}
                       </p>
                     )}
@@ -396,9 +396,9 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 py-12 text-center">
-                  <CalendarClock className="mb-3 h-8 w-8 text-[#4d4354]/20" />
+                  <CalendarClock className="mb-3 h-8 w-8 text-ink-subtle" />
                   <p className="text-sm font-bold text-[#1d1b20]">No papers scheduled</p>
-                  <p className="mt-1 text-xs font-semibold text-[#4d4354]/50">
+                  <p className="mt-1 text-xs font-semibold text-ink-muted">
                     Exam date sheets appear here once published.
                   </p>
                 </div>

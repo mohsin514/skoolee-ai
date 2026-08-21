@@ -37,14 +37,17 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Missing required registration fields" }, { status: 400 });
       }
 
-      const [slugExists, emailExists, userExists] = await Promise.all([
+      // FINDING-D: no global "this email already has an account" check any more.
+      // Identity is scoped to the tenant, and the school being registered does
+      // not exist yet, so there is nothing for the owner's address to collide
+      // with. Blocking here is what stopped one person from running, or working
+      // at, two institutions.
+      const [slugExists, emailExists] = await Promise.all([
         prisma.school.findUnique({ where: { slug } }),
         prisma.school.findUnique({ where: { contactEmail } }),
-        prisma.user.findUnique({ where: { email: ownerEmail } }),
       ]);
       if (slugExists) return Response.json({ error: "Subdomain slug already taken" }, { status: 409 });
       if (emailExists) return Response.json({ error: "Email already registered" }, { status: 409 });
-      if (userExists) return Response.json({ error: "Owner email already has an account" }, { status: 409 });
 
       const hashed = await bcrypt.hash(password, 12);
 
@@ -106,14 +109,13 @@ export async function POST(req: NextRequest) {
       }
 
       const slug = campusName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const [slugExists, emailExists, userExists] = await Promise.all([
+      // FINDING-D: see above — no global account check on a new tenant.
+      const [slugExists, emailExists] = await Promise.all([
         prisma.school.findFirst({ where: { slug } }),
         prisma.school.findFirst({ where: { contactEmail: finalEmail } }),
-        prisma.user.findUnique({ where: { email: finalEmail } }),
       ]);
 
       if (emailExists) return Response.json({ error: "This email is already registered to a school" }, { status: 409 });
-      if (userExists) return Response.json({ error: "This email already has an account" }, { status: 409 });
       const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
       const hashed = await bcrypt.hash(password, 12);

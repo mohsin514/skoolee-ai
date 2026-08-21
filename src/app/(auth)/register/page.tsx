@@ -302,7 +302,7 @@ export default function RegisterPage() {
                   <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
                     How is your school set up?
                   </h2>
-                  <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                  <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
                     Choose the option that best describes your institution.
                   </p>
                 </div>
@@ -323,7 +323,7 @@ export default function RegisterPage() {
                 </button>
 
                 <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
-                  <p className="text-sm font-semibold text-[#4d4354]/55">
+                  <p className="text-sm font-semibold text-ink-muted">
                     Already have an account?{" "}
                     <Link href="/login" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
                       Log in
@@ -371,8 +371,8 @@ export default function RegisterPage() {
                           />
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => handleAutoId(true)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Auto</button>
-                          <button type="button" onClick={() => handleAutoId(false)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-[#4d4354]/40'}`}>Manual</button>
+                          <button type="button" onClick={() => handleAutoId(true)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-ink-subtle'}`}>Auto</button>
+                          <button type="button" onClick={() => handleAutoId(false)} className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-[#cfc2d6]/20 text-ink-subtle'}`}>Manual</button>
                         </div>
                       </div>
                     </div>
@@ -383,7 +383,7 @@ export default function RegisterPage() {
                       <ShieldCheck className="h-7 w-7 text-emerald-500" />
                       <div>
                         <p className="text-xs font-black text-[#1f1a23]">Quick Setup Mode</p>
-                        <p className="text-[10px] font-semibold text-[#4d4354]/60">Your school will be created automatically with a single campus.</p>
+                        <p className="text-[10px] font-semibold text-ink-muted">Your school will be created automatically with a single campus.</p>
                       </div>
                     </div>
                   )}
@@ -396,14 +396,14 @@ export default function RegisterPage() {
                   <div className="grid grid-cols-2 gap-y-1.5 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
                     <p className="col-span-2 mb-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Password checklist</p>
                     {passwordRequirements.map((r, i) => (
-                      <div key={i} className={`flex items-center gap-1.5 text-[11px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+                      <div key={i} className={`flex items-center gap-1.5 text-[11px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                         {r.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />} {r.label}
                       </div>
                     ))}
                   </div>
 
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => setStep(1)} className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-[#4d4354]/60 transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"><ChevronLeft className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => setStep(1)} className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-ink-muted transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"><ChevronLeft className="h-4 w-4" /></button>
                     <button type="submit" disabled={loading} className="group relative mt-0 flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60">
                       {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
                       <span className="relative z-10 flex items-center gap-2">
@@ -422,7 +422,7 @@ export default function RegisterPage() {
                   <CheckCircle className="h-8 w-8" />
                 </div>
                 <h2 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Account created!</h2>
-                <p className="mb-8 px-4 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+                <p className="mb-8 px-4 text-sm font-semibold leading-relaxed text-ink-muted">
                   We&apos;ve sent a verification email to your inbox. Please check your email and click the link to activate your account, then log in to start setting up your school.
                 </p>
                 <Link href="/login" className="inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 font-black text-white shadow-lg shadow-emerald-200/30 transition-all hover:shadow-xl hover:shadow-emerald-200/50">
@@ -443,12 +443,12 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
       onClick={onClick}
       className={`relative group flex cursor-pointer items-center gap-5 overflow-hidden rounded-2xl border-2 p-5 transition-all ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-[#cfc2d6]/20 bg-[#f3f4f9] hover:border-[#8127cf]/20 hover:bg-white'}`}
     >
-      <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-[#4d4354]/40 group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
+      <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-ink-subtle group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
         <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1">
         <h3 className="text-left text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-        <p className="mt-1 text-left text-[11px] font-semibold leading-tight text-[#4d4354]/60">{desc}</p>
+        <p className="mt-1 text-left text-[11px] font-semibold leading-tight text-ink-muted">{desc}</p>
       </div>
       {active && (
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#8127cf] p-1 text-white shadow-md">
@@ -462,15 +462,15 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
 function InputField({ label, placeholder, value, onChange, icon: Icon, type = "text", className = "" }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">{label}</Label>
+      <Label className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">{label}</Label>
       <div className="group relative flex items-center">
-        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
         <Input
           type={type}
           placeholder={placeholder}
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={`h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25 ${className}`}
+          className={`h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25 ${className}`}
         />
       </div>
     </div>

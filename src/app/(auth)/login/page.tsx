@@ -328,7 +328,7 @@ export default function LoginPage() {
             <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
               Welcome back
             </h2>
-            <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+            <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
               Sign in to your campus dashboard.
             </p>
           </div>
@@ -349,11 +349,11 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                   Work Email
                 </Label>
                 <div className="group relative flex items-center">
-                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="email"
                     type="email"
@@ -361,7 +361,7 @@ export default function LoginPage() {
                     autoFocus
                     aria-invalid={!!errors.email}
                     placeholder="principal@institution.edu.pk"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
                       errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
                     }`}
                     {...register("email")}
@@ -372,7 +372,7 @@ export default function LoginPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between px-1">
-                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-ink">
                     Password
                   </Label>
                   <Link
@@ -383,14 +383,14 @@ export default function LoginPage() {
                   </Link>
                 </div>
                 <div className="group relative flex items-center">
-                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
                     autoComplete="current-password"
                     aria-invalid={!!errors.password}
                     placeholder="••••••••"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
                       errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
                     }`}
                     {...passwordField}
@@ -402,7 +402,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
                     aria-label={showPass ? "Hide password" : "Show password"}
-                    className="absolute right-4 cursor-pointer text-[#4d4354]/30 transition-colors hover:text-[#8127cf]"
+                    className="absolute right-4 cursor-pointer text-ink-subtle transition-colors hover:text-[#8127cf]"
                   >
                     {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -449,7 +449,7 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
-              <p className="text-center text-[12.5px] font-semibold leading-relaxed text-[#4d4354]/55">
+              <p className="text-center text-[12.5px] font-semibold leading-relaxed text-ink-muted">
                 Don&apos;t have an account?{" "}
                 <Link href="/register" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
                   Create New Account
@@ -458,7 +458,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-[#4d4354]/45">
+          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">
             <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
             <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>

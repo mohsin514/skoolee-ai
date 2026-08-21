@@ -251,7 +251,7 @@ export default function OnboardingWizard() {
   if (!session) return (
     <div className="h-screen w-full flex flex-col items-center justify-center bg-[#fff7fe] gap-4">
       <Loader2 className="h-8 w-8 text-[#8127cf] animate-spin" />
-      <p className="text-xs font-bold text-[#4d4354]">Loading your setup...</p>
+      <p className="text-xs font-bold text-ink">Loading your setup...</p>
     </div>
   );
 
@@ -264,7 +264,7 @@ export default function OnboardingWizard() {
           <div className="flex items-center gap-3 mb-1">
             <SkooleeLogo size="1.4rem" />
           </div>
-          <p className="text-[10px] font-bold text-[#4d4354]/50 uppercase tracking-normal leading-none">Setup Wizard</p>
+          <p className="text-[10px] font-bold text-ink-muted uppercase tracking-normal leading-none">Setup Wizard</p>
         </div>
 
         <nav className="flex-1 space-y-3">
@@ -318,7 +318,7 @@ export default function OnboardingWizard() {
                       ? "bg-[#8127cf] text-white shadow-md"
                       : isDone
                       ? "bg-[#e8d5f5] text-[#8127cf] cursor-pointer"
-                      : "bg-[#f3f4f9] text-[#4d4354]/40"
+                      : "bg-[#f3f4f9] text-ink-subtle"
                   }`}
                 >
                   {isDone ? <CheckCircle2 className="h-3 w-3" /> : null}
@@ -336,7 +336,7 @@ export default function OnboardingWizard() {
           </div>
           <div className="flex items-center gap-3">
             {step > 1 && (
-              <button onClick={() => setStep(prev => prev === 3 && isStandalone ? 1 : prev - 1)} className="text-[10px] font-black uppercase text-[#4d4354]/40 hover:text-[#8127cf] transition-all cursor-pointer">Go Back</button>
+              <button onClick={() => setStep(prev => prev === 3 && isStandalone ? 1 : prev - 1)} className="text-[10px] font-black uppercase text-ink-subtle hover:text-[#8127cf] transition-all cursor-pointer">Go Back</button>
             )}
             <button onClick={handleLogout} className="lg:hidden text-[10px] font-black uppercase text-rose-400 hover:text-rose-600 transition-all cursor-pointer">Sign Out</button>
           </div>
@@ -359,7 +359,7 @@ export default function OnboardingWizard() {
                         <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal leading-none">
                           {isStandalone ? "Your School" : "School Group Details"}
                         </h2>
-                        <p className="text-[#4d4354]/60 font-semibold text-sm mt-1.5">
+                        <p className="text-ink-muted font-semibold text-sm mt-1.5">
                           {isStandalone ? "Enter your school's name and location to get started." : "Set up your school group's identity. You'll add campuses next."}
                         </p>
                       </div>
@@ -376,15 +376,15 @@ export default function OnboardingWizard() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black text-[#4d4354]/60 uppercase tracking-normal mb-1">Institution Logo</p>
-                            <p className="text-[9px] font-bold text-[#4d4354]/40 mb-3">PNG or JPG under 1.5 MB. Shown on report cards, emails and receipts.</p>
+                            <p className="text-[10px] font-black text-ink-muted uppercase tracking-normal mb-1">Institution Logo</p>
+                            <p className="text-[9px] font-bold text-ink-subtle mb-3">PNG or JPG under 1.5 MB. Shown on report cards, emails and receipts.</p>
                             <div className="flex items-center gap-2">
                               <label className="h-10 px-4 bg-[#8127cf] text-white rounded-xl font-black text-[10px] uppercase tracking-normal flex items-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
                                 <Upload className="w-4 h-4" /> Choose Logo
                                 <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} />
                               </label>
                               {schoolData.logoUrl && (
-                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-[#4d4354]/60 rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer">Remove</button>
+                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-ink-muted rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer">Remove</button>
                               )}
                             </div>
                           </div>
@@ -417,7 +417,7 @@ export default function OnboardingWizard() {
                             readOnly={isStandalone ? newCampus.autoId : schoolData.autoId}
                             className="h-14 bg-white rounded-xl font-black text-lg tracking-normal border-0 text-center shadow-sm"
                           />
-                          <p className="text-[10px] text-[#4d4354]/40 mt-4 pl-1 font-bold">A unique identifier for your {isStandalone ? 'campus' : 'school group'}.</p>
+                          <p className="text-[10px] text-ink-subtle mt-4 pl-1 font-bold">A unique identifier for your {isStandalone ? 'campus' : 'school group'}.</p>
                         </div>
 
                         <div className="p-5 bg-emerald-50 rounded-[24px] border border-emerald-100 flex items-center gap-4">
@@ -450,7 +450,7 @@ export default function OnboardingWizard() {
                         </div>
                         <div>
                           <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Add Your Campuses</h2>
-                          <p className="text-xs font-semibold text-[#4d4354]/50 mt-0.5">Add each branch or campus of your school group.</p>
+                          <p className="text-xs font-semibold text-ink-muted mt-0.5">Add each branch or campus of your school group.</p>
                         </div>
                       </div>
                       <div className="space-y-5">
@@ -467,9 +467,9 @@ export default function OnboardingWizard() {
                         <div className="grid grid-cols-2 gap-5">
                           <InputField label="Head of Campus" value={newCampus.principalName} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
                           <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal ml-1">Board</Label>
+                            <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
                             <div className="relative group flex items-center">
-                              <GraduationCap className="absolute left-4 w-4 h-4 text-[#4d4354]/20 group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                              <GraduationCap className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <select
                                 value={newCampus.board || BOARDS[0]}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
@@ -489,14 +489,14 @@ export default function OnboardingWizard() {
                                 <button
                                   onClick={() => handleCampusIdToggle(true)}
                                   type="button"
-                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-[#4d4354]/40'}`}
+                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-ink-subtle'}`}
                                 >
                                   Auto
                                 </button>
                                 <button
                                   onClick={() => handleCampusIdToggle(false)}
                                   type="button"
-                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${!newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-[#4d4354]/40'}`}
+                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${!newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-ink-subtle'}`}
                                 >
                                   Edit
                                 </button>
@@ -540,9 +540,9 @@ export default function OnboardingWizard() {
                               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#8127cf] font-black text-[10px] shadow-sm">{i + 1}</div>
                               <div>
                                 <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">{c.name}</p>
-                                <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
+                                <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
                                 {(c.phone || c.email || c.principalName) && (
-                                  <p className="text-[9px] font-bold text-[#4d4354]/35 uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
+                                  <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
                                 )}
                               </div>
                             </div>
@@ -555,7 +555,7 @@ export default function OnboardingWizard() {
                           <div className="h-full flex flex-col items-center justify-center text-center opacity-30 pt-16">
                             <Building className="w-12 h-12 mb-3" />
                             <p className="text-[9px] font-black uppercase tracking-normal">No campuses added yet</p>
-                            <p className="text-[8px] font-bold text-[#4d4354]/40 mt-1">Fill in the form and click "Add Campus"</p>
+                            <p className="text-[8px] font-bold text-ink-subtle mt-1">Fill in the form and click "Add Campus"</p>
                           </div>
                         )}
                       </div>
@@ -573,7 +573,7 @@ export default function OnboardingWizard() {
 
                   <div className="space-y-3">
                     <h2 className="text-4xl font-black text-[#1f1a23] tracking-normal">All Set!</h2>
-                    <p className="text-base font-semibold text-[#4d4354]/60 max-w-sm mx-auto">Review your details below and launch your dashboard.</p>
+                    <p className="text-base font-semibold text-ink-muted max-w-sm mx-auto">Review your details below and launch your dashboard.</p>
                   </div>
 
                   <div className="sk-rise bg-white p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden" style={{ animationDelay: "0ms" }}>
@@ -586,7 +586,7 @@ export default function OnboardingWizard() {
                           </div>
                         )}
                         {schoolData.tagline && (
-                          <p className="text-[11px] font-bold text-[#4d4354]/50 italic">"{schoolData.tagline}"</p>
+                          <p className="text-[11px] font-bold text-ink-muted italic">"{schoolData.tagline}"</p>
                         )}
                       </div>
                     )}
@@ -610,9 +610,9 @@ export default function OnboardingWizard() {
                               <div className="w-6 h-6 rounded-md bg-[#8127cf]/10 flex items-center justify-center text-[#8127cf] font-black text-[9px]">{i + 1}</div>
                               <div className="flex-1">
                                 <p className="text-xs font-black text-[#1f1a23] leading-none">{c.name}</p>
-                                <p className="text-[8px] font-bold text-[#4d4354]/40 mt-0.5">{c.city} &middot; {c.regId}</p>
+                                <p className="text-[8px] font-bold text-ink-subtle mt-0.5">{c.city} &middot; {c.regId}</p>
                                 {(c.phone || c.email) && (
-                                  <p className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{c.phone}{c.phone && c.email ? " · " : ""}{c.email}</p>
+                                  <p className="text-[8px] font-bold text-ink-subtle mt-0.5">{c.phone}{c.phone && c.email ? " · " : ""}{c.email}</p>
                                 )}
                               </div>
                             </div>
@@ -651,12 +651,12 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: StepNavP
       onClick={onClick}
       className={`w-full text-left p-5 rounded-[24px] transition-all duration-300 flex items-center gap-5 border ${active ? 'bg-[#fbf0fe] border-[#8127cf]/10 shadow-xl shadow-[#8127cf]/5' : 'border-transparent hover:bg-white/65 hover:border-[#cfc2d6]/20'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:-translate-y-0.5'}`}
     >
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500 shadow-md ${active ? 'bg-[#8127cf] text-white scale-110' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-[#4d4354]/30'}`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500 shadow-md ${active ? 'bg-[#8127cf] text-white scale-110' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-ink-subtle'}`}>
         {done ? <CheckCircle2 className="w-5 h-5" /> : num}
       </div>
       <div className="overflow-hidden">
         <h4 className={`text-sm font-black text-[#1f1a23] leading-none mb-1.5 truncate ${!active && !done && 'opacity-40'}`}>{title}</h4>
-        <p className={`text-[10px] font-bold text-[#4d4354]/60 tracking-normal truncate ${!active && 'opacity-40'}`}>{desc}</p>
+        <p className={`text-[10px] font-bold text-ink-muted tracking-normal truncate ${!active && 'opacity-40'}`}>{desc}</p>
       </div>
     </button>
   );
@@ -665,17 +665,17 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: StepNavP
 function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal ml-1">
+      <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
       <div className="relative group flex items-center">
-        <Icon className="absolute left-4 w-4 h-4 text-[#4d4354]/20 group-focus-within:text-[#8127cf] transition-colors" />
+        <Icon className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors" />
         {isArea ? (
           <textarea
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none resize-none placeholder:text-[#4d4354]/20"
+            className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
           />
         ) : (
           <Input
@@ -683,7 +683,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             readOnly={readonly}
-            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-[#4d4354]/20 text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
+            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
       </div>
@@ -698,7 +698,7 @@ function SummaryItem({ icon: Icon, label, value }: SummaryItemProps) {
         <Icon className="w-5 h-5" />
       </div>
       <div className="overflow-hidden">
-        <p className="text-[9px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-1">{label}</p>
+        <p className="text-[9px] font-black text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
         <p className="text-xs font-black text-[#1f1a23] truncate pr-2">{value || '...'}</p>
       </div>
     </div>

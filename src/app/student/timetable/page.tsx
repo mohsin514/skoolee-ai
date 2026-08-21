@@ -67,7 +67,7 @@ export default function StudentTimetablePage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             {data ? `${data.className}${data.classSection ? ` - ${data.classSection}` : ""}` : "Your class timetable"}
           </p>
         </div>
@@ -82,7 +82,7 @@ export default function StudentTimetablePage() {
               <Calendar className="w-8 h-8 text-[#8127cf]/40" />
             </div>
             <h3 className="text-xl font-bold text-[#1d1b20] tracking-tight">No Timetable Published</h3>
-            <p className="mt-2 text-sm font-semibold text-[#4d4354]/55 max-w-sm">
+            <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">
               Your class timetable will appear here once it has been published by the administration.
             </p>
           </div>

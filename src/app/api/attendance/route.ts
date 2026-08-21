@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/scope";
 import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
 import { notify } from "@/lib/notifications/in-app";
+import { schoolToday } from "@/lib/datetime";
 
 function dateOnly(value: string) {
   const date = new Date(value);
@@ -47,7 +48,10 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const classId = searchParams.get("classId");
-    const dateParam = searchParams.get("date") || new Date().toISOString().slice(0, 10);
+    // Default to TODAY IN THE SCHOOL'S TIMEZONE, not UTC. For a UTC+5 tenant the
+    // two disagree between 00:00 and 05:00 local, so the old UTC default dated
+    // early-morning attendance to the previous day.
+    const dateParam = searchParams.get("date") || (await schoolToday(user.schoolId));
     const requestedCampusId = searchParams.get("campusId");
     const campusId = user.role === "SUPER_ADMIN"
       ? await resolveCampusId(user, requestedCampusId)

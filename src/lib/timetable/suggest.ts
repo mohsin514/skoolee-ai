@@ -284,6 +284,20 @@ export async function applySuggestion(opts: {
 }): Promise<{ applied: SuggestionAction; report: SuggestionReport }> {
   const { campusId, timetableId, action } = opts;
 
+  // The timetable must belong to the caller's campus before anything is
+  // written. TimetableSlot carries school_id but no campus_id, so the Prisma
+  // guard can only scope it to the school — it cannot see the campus boundary.
+  // Without this check a campus admin could reassign teachers and rooms on, and
+  // move lessons around in, another campus's timetable (ISO-6.1). loadContext()
+  // already scopes the read path this way; the write path was missing it.
+  const timetable = await prisma.timetable.findFirst({
+    where: { id: timetableId, campusId },
+    select: { id: true },
+  });
+  if (!timetable) {
+    throw new ApiErrorLike("That timetable does not belong to this campus", 403);
+  }
+
   const slot = await prisma.timetableSlot.findFirst({
     where: { id: action.slotId, timetableId },
     select: {

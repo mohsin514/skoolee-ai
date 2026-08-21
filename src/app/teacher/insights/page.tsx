@@ -50,7 +50,7 @@ export default function TeacherInsightsPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider">My Performance</p>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Insights</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Attendance, marks progress and quick metrics across your work</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Attendance, marks progress and quick metrics across your work</p>
         </div>
       </div>
 
@@ -90,7 +90,7 @@ export default function TeacherInsightsPage() {
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                        <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
                       </div>
                       <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
                     </div>
@@ -99,7 +99,7 @@ export default function TeacherInsightsPage() {
               </div>
             ) : (
               <div className="flex items-center justify-center h-[140px] rounded-2xl bg-[#fbf0fe]/40">
-                <p className="text-xs font-bold text-[#4d4354]/40">No attendance data yet</p>
+                <p className="text-xs font-bold text-ink-subtle">No attendance data yet</p>
               </div>
             )}
           </div>
@@ -127,7 +127,7 @@ export default function TeacherInsightsPage() {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[160px] rounded-2xl bg-[#fbf0fe]/40">
-                <p className="text-xs font-bold text-[#4d4354]/40">No exam data yet</p>
+                <p className="text-xs font-bold text-ink-subtle">No exam data yet</p>
               </div>
             )}
           </div>
@@ -161,13 +161,13 @@ export default function TeacherInsightsPage() {
               ].map((item) => (
                 <div key={item.label}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                    <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
                     <span className="text-sm font-bold text-[#1d1b20]">{item.value}</span>
                   </div>
                   <div className="h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-700 ${item.color}`} style={{ width: `${item.progress}%` }} />
                   </div>
-                  {item.sub ? <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45 uppercase tracking-wider">{item.sub}</p> : null}
+                  {item.sub ? <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle uppercase tracking-wider">{item.sub}</p> : null}
                 </div>
               ))}
             </div>

@@ -20,7 +20,7 @@ export function ParentErrorState({ error, onRetry }: { error?: string | null; on
         </div>
         <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
         <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
           {error || "This link may have expired. Please contact the school for a new access link."}
         </p>
         <div className="mt-6 inline-block">
@@ -142,7 +142,7 @@ export function ParentEmptyState({ icon: Icon, title, description }: { icon: any
         <Icon className="w-7 h-7 text-[#8127cf]/40" />
       </div>
       <h3 className="text-base font-bold text-[#1d1b20]">{title}</h3>
-      <p className="mt-1 text-xs font-semibold text-[#4d4354]/55 max-w-xs">{description}</p>
+      <p className="mt-1 text-xs font-semibold text-ink-muted max-w-xs">{description}</p>
     </div>
   );
 }

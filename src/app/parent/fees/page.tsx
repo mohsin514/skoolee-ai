@@ -87,7 +87,7 @@ export default function ParentFeesPage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Fee Status</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             Invoices and payment progress for {student.fullName}.
           </p>
         </div>
@@ -113,7 +113,7 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{fee.invoiceNumber || "Invoice"}</p>
-            <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">Due: {fee.dueDate}</p>
+            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Due: {fee.dueDate}</p>
           </div>
           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusColors[fee.status] || "bg-gray-50 text-gray-500"}`}>
             {fee.status}
@@ -127,15 +127,15 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
         </div>
         <div className="grid grid-cols-3 gap-3 mt-4">
           <div>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Total</p>
+            <p className="text-[9px] font-bold text-ink-subtle uppercase">Total</p>
             <p className="text-sm font-black text-[#1d1b20]">Rs {Math.round(fee.totalAmount / 100).toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Paid</p>
+            <p className="text-[9px] font-bold text-ink-subtle uppercase">Paid</p>
             <p className="text-sm font-black text-emerald-600">Rs {Math.round(fee.paid / 100).toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase">Balance</p>
+            <p className="text-[9px] font-bold text-ink-subtle uppercase">Balance</p>
             <p className="text-sm font-black text-rose-600">Rs {Math.round(fee.balance / 100).toLocaleString()}</p>
           </div>
         </div>
@@ -171,7 +171,7 @@ function MiniStat({ icon: Icon, label, value, tone = "dark" }: { icon: any; labe
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
           <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>

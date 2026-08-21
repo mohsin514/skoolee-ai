@@ -9,7 +9,7 @@ export default function NotFound() {
           <Search className="w-8 h-8" />
         </div>
         <h1 className="text-2xl font-black tracking-normal mb-2">Page not found</h1>
-        <p className="text-sm font-semibold text-[#4d4354]/60 leading-relaxed mb-6">
+        <p className="text-sm font-semibold text-ink-muted leading-relaxed mb-6">
           The page you're looking for doesn't exist or has been moved.
         </p>
         <Link

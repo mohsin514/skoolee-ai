@@ -163,7 +163,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-[#4d4354]/40">{total} payment{total !== 1 ? "s" : ""}</p>
+      <p className="text-[9px] font-bold text-ink-subtle">{total} payment{total !== 1 ? "s" : ""}</p>
 
       {loading ? (
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
@@ -193,7 +193,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <span>Student</span>
               <span>Receipt</span>
               <span>Amount</span>
@@ -209,16 +209,16 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-black text-[#1f1a23] truncate">{p.student.fullName}</p>
-                    <p className="text-[9px] font-bold text-[#4d4354]/45">
+                    <p className="text-[9px] font-bold text-ink-subtle">
                       {classLabel(p.student.class.name, p.student.class.section)}
                     </p>
                   </div>
-                  <p className="text-[10px] font-black text-[#4d4354]/70 truncate">{p.receiptNo ?? "—"}</p>
+                  <p className="text-[10px] font-black text-ink truncate">{p.receiptNo ?? "—"}</p>
                   <p className="text-xs font-black text-emerald-600">{formatPKR(p.amount)}</p>
-                  <p className="text-[10px] font-bold text-[#4d4354]/60">{paymentMethodLabel(p.paymentMethod)}</p>
-                  <p className="text-[10px] font-bold text-[#4d4354]/60">{formatDate(p.paymentDate)}</p>
+                  <p className="text-[10px] font-bold text-ink-muted">{paymentMethodLabel(p.paymentMethod)}</p>
+                  <p className="text-[10px] font-bold text-ink-muted">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black text-[#4d4354]/70 truncate">{p.invoice.invoiceNumber}</p>
+                    <p className="text-[10px] font-black text-ink truncate">{p.invoice.invoiceNumber}</p>
                     <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(p.invoice.status)}`}>
                       {p.invoice.status}
                     </span>
@@ -234,19 +234,19 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                 type="button"
                 onClick={() => setPage((pg) => Math.max(1, pg - 1))}
                 disabled={page <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft className="w-3 h-3" />
                 Prev
               </button>
-              <span className="text-[9px] font-black uppercase text-[#4d4354]/50">
+              <span className="text-[9px] font-black uppercase text-ink-muted">
                 Page {page} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setPage((pg) => Math.min(totalPages, pg + 1))}
                 disabled={page >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 Next
                 <ChevronRight className="w-3 h-3" />
@@ -433,51 +433,51 @@ function PaymentModal({
                 <Banknote className="h-7 w-7 text-green-600" />
               </div>
               <h3 className="text-lg font-black text-[#1f1a23]">Payment Successful</h3>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">Receipt #{receipt.receiptNumber}</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Receipt #{receipt.receiptNumber}</p>
             </div>
             <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-4 border border-[#cfc2d6]/10 space-y-3">
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Student</span>
+                <span className="text-[9px] font-black uppercase text-ink-subtle">Student</span>
                 <span className="text-sm font-black text-[#1f1a23]">{receipt.studentName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Invoice</span>
+                <span className="text-[9px] font-black uppercase text-ink-subtle">Invoice</span>
                 <span className="text-sm font-black text-[#1f1a23]">{receipt.invoiceNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Amount</span>
+                <span className="text-[9px] font-black uppercase text-ink-subtle">Amount</span>
                 <span className="text-sm font-black text-[#1f1a23]">{formatPKR(receipt.amount)}</span>
               </div>
               {receipt.discountAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Discount</span>
+                  <span className="text-[9px] font-black uppercase text-ink-subtle">Discount</span>
                   <span className="text-sm font-black text-emerald-600">−{formatPKR(receipt.discountAmount)}</span>
                 </div>
               )}
               {receipt.fineAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Fine</span>
+                  <span className="text-[9px] font-black uppercase text-ink-subtle">Fine</span>
                   <span className="text-sm font-black text-rose-600">{formatPKR(receipt.fineAmount)}</span>
                 </div>
               )}
               {receipt.creditAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Carried Credit</span>
+                  <span className="text-[9px] font-black uppercase text-ink-subtle">Carried Credit</span>
                   <span className="text-sm font-black text-[#8127cf]">{formatPKR(receipt.creditAmount)}</span>
                 </div>
               )}
               {receipt.note ? (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Note</span>
+                  <span className="text-[9px] font-black uppercase text-ink-subtle">Note</span>
                   <span className="text-sm font-bold text-[#1f1a23] text-right max-w-[60%]">{receipt.note}</span>
                 </div>
               ) : null}
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Date</span>
+                <span className="text-[9px] font-black uppercase text-ink-subtle">Date</span>
                 <span className="text-sm font-black text-[#1f1a23]">{receipt.paymentDate}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-[#4d4354]/40">Method</span>
+                <span className="text-[9px] font-black uppercase text-ink-subtle">Method</span>
                 <span className="text-sm font-black text-[#1f1a23] capitalize">{paymentMethodLabel(receipt.paymentMethod)}</span>
               </div>
             </div>
@@ -494,7 +494,7 @@ function PaymentModal({
         ) : step === "search" ? (
           <div className="space-y-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Find Student</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Find Student</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -518,7 +518,7 @@ function PaymentModal({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-black text-[#1f1a23] truncate">{s.fullName}</p>
-                      <p className="text-[9px] font-bold text-[#4d4354]/45">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
+                      <p className="text-[9px] font-bold text-ink-subtle">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
                     </div>
                     <Users className="w-4 h-4 text-[#8127cf]" />
                   </button>
@@ -550,14 +550,14 @@ function PaymentModal({
             )}
             {invoices.length > 0 && !loadingInvoices && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">Select Invoice</p>
+                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">Select Invoice</p>
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-[#8127cf]/30 bg-[#fbf0fe]" : "border-[#cfc2d6]/10 bg-[#f3f4f9]/50 hover:border-[#8127cf]/20"}`}>
                       <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String((inv.amountDue - inv.amountPaid) / 100)); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-[#8127cf]" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-black text-[#1f1a23]">{inv.invoiceNumber || "Invoice"}</p>
-                        <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {inv.dueDate} · {formatPKR(inv.amountDue)}</p>
+                        <p className="text-[9px] font-bold text-ink-subtle">Due: {inv.dueDate} · {formatPKR(inv.amountDue)}</p>
                       </div>
                       <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{inv.status}</span>
                     </label>
@@ -574,30 +574,30 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-3 border border-[#cfc2d6]/10">
                   <p className="text-xs font-black text-[#1f1a23]">{sel.invoiceNumber || "Invoice"}</p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45">Due: {sel.dueDate} · {formatPKR(sel.amountDue)}</p>
+                  <p className="text-[9px] font-bold text-ink-subtle">Due: {sel.dueDate} · {formatPKR(sel.amountDue)}</p>
                 </div>
               ) : null;
             })()}
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Amount (PKR)</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Amount (PKR)</label>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Fine (PKR)</label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Fine (PKR)</label>
                 <input type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
               <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Discount (PKR)</label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Discount (PKR)</label>
                 <input type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Payment Date</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Payment Date</label>
               <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Method</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Method</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="CASH">Cash</option>
                 <option value="BANK">Bank Transfer</option>
@@ -607,11 +607,11 @@ function PaymentModal({
               </select>
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Reference (optional)</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Reference (optional)</label>
               <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction ID / Cheque #" className={inputClass} />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Note (optional)</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Note (optional)</label>
               <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. late fee waived" className={inputClass} />
             </div>
             <div className="flex gap-3">
@@ -689,34 +689,34 @@ function BankImportModal({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Account Name</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Account Name</label>
             <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">From</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">From</label>
               <input type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">To</label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">To</label>
               <input type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">CSV File</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">CSV File</label>
             <label className="flex flex-col items-center justify-center h-28 rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20 cursor-pointer hover:bg-[#fbf0fe]/40 hover:border-[#8127cf]/30 transition-all">
               <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="hidden" />
               {file ? (
                 <div className="text-center">
                   <FileText className="w-6 h-6 text-[#8127cf] mx-auto mb-1" />
                   <p className="text-xs font-bold text-[#1f1a23]">{file.name}</p>
-                  <p className="text-[9px] text-[#4d4354]/45">{(file.size / 1024).toFixed(1)} KB</p>
+                  <p className="text-[9px] text-ink-subtle">{(file.size / 1024).toFixed(1)} KB</p>
                 </div>
               ) : (
                 <div className="text-center">
                   <Upload className="w-6 h-6 text-[#8127cf] mx-auto mb-1" />
-                  <p className="text-xs font-bold text-[#4d4354]/60">Click to upload CSV</p>
-                  <p className="text-[9px] text-[#4d4354]/40">transaction_date,amount,description</p>
+                  <p className="text-xs font-bold text-ink-muted">Click to upload CSV</p>
+                  <p className="text-[9px] text-ink-subtle">transaction_date,amount,description</p>
                 </div>
               )}
             </label>

@@ -1,3 +1,4 @@
+import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    await assertSharedModuleRead(user, "exams");
     const billingBlocked = await billingAccessResponse(user.schoolId);
     if (billingBlocked) return billingBlocked;
 

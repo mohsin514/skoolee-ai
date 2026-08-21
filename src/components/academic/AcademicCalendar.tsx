@@ -230,22 +230,22 @@ export function AcademicCalendar({
           </div>
           <div>
             <h3 className="text-lg font-black tracking-tight text-[#1d1b20]">Academic Calendar</h3>
-            <p className="text-[11px] font-semibold text-[#4d4354]/50">
+            <p className="text-[11px] font-semibold text-ink-muted">
               {MONTHS[viewMonth]} {viewYear}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+          <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
-            className="rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
           >
             Today
           </button>
-          <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#4d4354]/60 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+          <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -278,7 +278,7 @@ export function AcademicCalendar({
         <div className="p-5">
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAYS.map((d) => (
-              <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 {d}
               </div>
             ))}
@@ -306,7 +306,7 @@ export function AcademicCalendar({
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={cn("text-xs font-bold", holidayBg ? "text-[#0d9488]" : weekendBg ? "text-[#4d4354]/40" : "text-[#1d1b20]")}>
+                    <span className={cn("text-xs font-bold", holidayBg ? "text-[#0d9488]" : weekendBg ? "text-ink-subtle" : "text-[#1d1b20]")}>
                       {cell.dayNum}
                     </span>
                     {canEdit && (
@@ -367,7 +367,7 @@ function LayerChip({ label, color, active, onClick }: { label: string; color: st
       aria-pressed={active}
       className={cn(
         "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30",
-        active ? "border-[#cfc2d6]/30 bg-white text-[#1d1b20]" : "border-[#cfc2d6]/15 bg-[#faf7fc] text-[#4d4354]/40"
+        active ? "border-[#cfc2d6]/30 bg-white text-[#1d1b20]" : "border-[#cfc2d6]/15 bg-[#faf7fc] text-ink-subtle"
       )}
     >
       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: active ? color : "#cfc2d6" }} />
@@ -458,13 +458,13 @@ function DayPopover({
         <p className="text-sm font-black text-[#1d1b20]">
           {new Date(`${popover.iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
         </p>
-        <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500">
+        <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-subtle hover:bg-rose-50 hover:text-rose-500">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {events.length === 0 ? (
-        <p className="py-2 text-xs font-semibold text-[#4d4354]/40">No events scheduled.</p>
+        <p className="py-2 text-xs font-semibold text-ink-subtle">No events scheduled.</p>
       ) : (
         <ul className="max-h-44 space-y-2 overflow-y-auto custom-scrollbar">
           {events.map((ev, i) => (
@@ -483,11 +483,11 @@ function DayPopover({
         <div className="mt-3 space-y-3 border-t border-[#cfc2d6]/10 pt-3">
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/55">From</span>
+              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">From</span>
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/55">To</span>
+              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">To</span>
               <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
             </label>
           </div>

@@ -83,7 +83,7 @@ export function UnifiedAttendancePanel() {
     if (s === "PRESENT") return "bg-emerald-50 text-emerald-600";
     if (s === "ABSENT") return "bg-rose-50 text-rose-600";
     if (s === "LEAVE") return "bg-amber-50 text-amber-600";
-    return "bg-[#f3f4f9] text-[#4d4354]/40";
+    return "bg-[#f3f4f9] text-ink-subtle";
   };
 
   const tStatusIcon = (s: string) => {
@@ -119,7 +119,7 @@ export function UnifiedAttendancePanel() {
                 "rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
                 activeTab === tab
                   ? "bg-white text-[#8127cf] shadow-md"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
               {tab === "students" ? <GraduationCap className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />}
@@ -136,7 +136,7 @@ export function UnifiedAttendancePanel() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => shiftDate(-1)}
-                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
                 <ChevronDown className="h-4 w-4 rotate-90" />
               </button>
               <div className="flex items-center gap-2 rounded-xl border border-[#cfc2d6]/20 bg-white px-4 h-10">
@@ -145,7 +145,7 @@ export function UnifiedAttendancePanel() {
                 {isToday ? <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2 py-0.5">Today</span> : null}
               </div>
               <button type="button" onClick={() => shiftDate(1)}
-                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
                 <ChevronDown className="h-4 w-4 -rotate-90" />
               </button>
               {!isToday ? (
@@ -156,12 +156,12 @@ export function UnifiedAttendancePanel() {
               ) : null}
             </div>
             <div className="relative">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#4d4354]/30">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
-                className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-[#4d4354]/30 outline-none focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
+                className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
             </div>
           </div>
 
@@ -191,10 +191,10 @@ export function UnifiedAttendancePanel() {
                 <div key={stat.label} className="sk-rise group bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="relative flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">{stat.label}</p>
+                      <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{stat.label}</p>
                       <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">{stat.value}</p>
                       {typeof stat.value === "number" && teacherSummary.total > 0 && stat.label !== "Total Teachers" ? (
-                        <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mt-2">
+                        <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">
                           {Math.round((stat.value / teacherSummary.total) * 1000) / 10}%
                         </p>
                       ) : null}
@@ -214,7 +214,7 @@ export function UnifiedAttendancePanel() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="sk-rise lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
               <div className="flex items-center justify-between gap-4 mb-5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Daily Roster &mdash; {dateLabel}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Daily Roster &mdash; {dateLabel}</p>
                 <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? "s" : ""}</span>
               </div>
               {teacherLoading ? (
@@ -242,12 +242,12 @@ export function UnifiedAttendancePanel() {
                 </div>
               ) : filteredTeachers.length === 0 ? (
                 <div className="py-12 text-center">
-                  <Users className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                  <p className="text-sm font-bold text-[#4d4354]/40">{teacherSearch ? "No teachers match your search" : "No teachers found"}</p>
+                  <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                  <p className="text-sm font-bold text-ink-subtle">{teacherSearch ? "No teachers match your search" : "No teachers found"}</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     <span className="col-span-5">Teacher</span>
                     <span className="col-span-2 text-center">Check-in</span>
                     <span className="col-span-3 text-center">Status</span>
@@ -267,17 +267,17 @@ export function UnifiedAttendancePanel() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-[#1f1a23] truncate">{teacher.fullName}</p>
-                            <p className="text-[9px] font-semibold text-[#4d4354]/40 truncate">{teacher.email}</p>
+                            <p className="text-[9px] font-semibold text-ink-subtle truncate">{teacher.email}</p>
                           </div>
                         </div>
-                        <span className="col-span-2 text-xs font-bold text-[#4d4354]/50 text-center">{teacher.attendance?.checkInTime || "—"}</span>
+                        <span className="col-span-2 text-xs font-bold text-ink-muted text-center">{teacher.attendance?.checkInTime || "—"}</span>
                         <div className="col-span-3 flex justify-center">
                           <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-wider", tStatusColor(status))}>
                             {tStatusIcon(status)}
                             {status === "PRESENT" ? "Present" : status === "ABSENT" ? "Absent" : status === "LEAVE" ? "Leave" : "Unmarked"}
                           </span>
                         </div>
-                        <span className="col-span-2 text-right text-sm font-black text-[#4d4354]/50">{teacher.attendance?.checkInTime ? "On Time" : "—"}</span>
+                        <span className="col-span-2 text-right text-sm font-black text-ink-muted">{teacher.attendance?.checkInTime ? "On Time" : "—"}</span>
                       </div>
                     );
                   })}
@@ -289,18 +289,18 @@ export function UnifiedAttendancePanel() {
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center"><Award className="h-4 w-4 text-[#8127cf]" /></div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Monthly</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Monthly</p>
                   <p className="text-sm font-black text-[#1f1a23]">Teacher Records</p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2 mb-4">
                 <button type="button" onClick={() => shiftTeacherMonth(-1)}
-                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
                   <ChevronDown className="h-3.5 w-3.5 rotate-90" />
                 </button>
                 <span className="text-xs font-black text-[#1f1a23]">{formatMonthLbl(teacherSelectedMonth)}</span>
                 <button type="button" onClick={() => shiftTeacherMonth(1)}
-                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
                   <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
                 </button>
               </div>
@@ -322,9 +322,9 @@ export function UnifiedAttendancePanel() {
                 </div>
               ) : teacherMonthly.length === 0 ? (
                 <div className="py-10 text-center">
-                  <CalendarCheck className="mx-auto h-8 w-8 text-[#4d4354]/20 mb-3" />
-                  <p className="text-sm font-bold text-[#4d4354]/40">No records</p>
-                  <p className="text-xs font-semibold text-[#4d4354]/30 mt-1">No teacher attendance for {formatMonthLbl(teacherSelectedMonth)}</p>
+                  <CalendarCheck className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
+                  <p className="text-sm font-bold text-ink-subtle">No records</p>
+                  <p className="text-xs font-semibold text-ink-subtle mt-1">No teacher attendance for {formatMonthLbl(teacherSelectedMonth)}</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
@@ -340,7 +340,7 @@ export function UnifiedAttendancePanel() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-black text-[#1f1a23] truncate">{record.fullName || "Teacher"}</p>
-                            <p className="text-[8px] font-bold text-[#4d4354]/40 mt-0.5">
+                            <p className="text-[8px] font-bold text-ink-subtle mt-0.5">
                               {pCount}P · {record.absentDays ?? record.absent ?? 0}A · {record.leaveDays ?? record.leave ?? 0}L
                             </p>
                           </div>

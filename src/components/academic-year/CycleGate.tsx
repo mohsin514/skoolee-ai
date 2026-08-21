@@ -114,7 +114,7 @@ export function CycleGate({ children }: { children: ReactNode }) {
           <Lock className="h-10 w-10" />
         </div>
         <h2 className="text-2xl font-black text-[#1d1b20] tracking-tight mb-2">Operations Locked</h2>
-        <p className="text-sm font-semibold text-[#4d4354]/60 max-w-md leading-relaxed">
+        <p className="text-sm font-semibold text-ink-muted max-w-md leading-relaxed">
           No academic cycle is currently active. Your admin needs to create and activate a cycle
           before you can take attendance, enter marks, or generate reports.
         </p>

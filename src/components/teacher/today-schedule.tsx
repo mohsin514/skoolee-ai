@@ -139,7 +139,7 @@ export function TodaySchedule({
                   {clock}
                 </span>
               </h3>
-              <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45">
+              <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">
                 {doneCount} of {entries.length} periods done
                 {nextEntry && !liveEntry ? ` · next in ${minutesToNext}m` : liveEntry ? " · class in session" : " · all wrapped up"}
               </p>
@@ -149,7 +149,7 @@ export function TodaySchedule({
           <div className="flex items-center gap-3">
             <div className="hidden md:block w-28">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">Day progress</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
                 <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
@@ -173,7 +173,7 @@ export function TodaySchedule({
         {/* ── Day progress (mobile) ── */}
         <div className="md:hidden mb-5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">Day progress</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
             <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
@@ -218,7 +218,7 @@ export function TodaySchedule({
                         : clashing
                         ? "bg-rose-100 text-rose-700"
                         : past
-                        ? "bg-[#f3f4f9] text-[#4d4354]/40"
+                        ? "bg-[#f3f4f9] text-ink-subtle"
                         : "bg-[#fbf0fe] text-[#8127cf]"
                     )}
                   >
@@ -253,7 +253,7 @@ export function TodaySchedule({
                 <p
                   className={cn(
                     "relative z-10 mt-3 text-[10px] font-black tabular-nums tracking-wide",
-                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-[#4d4354]/35" : "text-[#8127cf]"
+                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-ink-subtle" : "text-[#8127cf]"
                   )}
                 >
                   {slot.startTime} — {slot.endTime}
@@ -262,18 +262,18 @@ export function TodaySchedule({
                 <p
                   className={cn(
                     "relative z-10 mt-1 truncate text-[15px] font-bold tracking-tight transition-colors",
-                    active ? "text-white" : past ? "text-[#4d4354]/40" : "text-[#1d1b20] group-hover:text-[#8127cf]"
+                    active ? "text-white" : past ? "text-ink-subtle" : "text-[#1d1b20] group-hover:text-[#8127cf]"
                   )}
                 >
                   {slot.subject?.name || "Free period"}
                 </p>
 
-                <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold", active ? "text-white/60" : "text-[#4d4354]/45")}>
+                <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold", active ? "text-white/60" : "text-ink-subtle")}>
                   {slot.className}
                   {slot.classSection ? ` - ${slot.classSection}` : ""}
                 </p>
                 {slot.roomNumber ? (
-                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-[9px] font-semibold", active ? "text-white/45" : "text-[#4d4354]/35")}>
+                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-[9px] font-semibold", active ? "text-white/45" : "text-ink-subtle")}>
                     <MapPin className="h-2.5 w-2.5" />
                     {slot.roomNumber}
                   </p>

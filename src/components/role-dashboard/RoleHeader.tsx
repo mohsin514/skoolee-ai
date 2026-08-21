@@ -120,7 +120,7 @@ export function RoleHeader({
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#1d1b20]">{newest.title}</p>
           {newest.message && (
-            <p className="mt-0.5 text-xs font-medium text-[#4d4354]/70 line-clamp-2">{newest.message}</p>
+            <p className="mt-0.5 text-xs font-medium text-ink line-clamp-2">{newest.message}</p>
           )}
         </div>
       ),
@@ -205,7 +205,7 @@ export function RoleHeader({
               one; suppress the diff rather than degrade to a server guess. */}
           <div className="hidden sm:block">
             <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
-            <p suppressHydrationWarning className="text-[9px] font-semibold text-[#4d4354]/50 leading-tight mt-px">{today}</p>
+            <p suppressHydrationWarning className="text-[9px] font-semibold text-ink-muted leading-tight mt-px">{today}</p>
           </div>
         </div>
 
@@ -217,7 +217,7 @@ export function RoleHeader({
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
-              "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-[#4d4354]/45 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
+              "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
               notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
               bellShake && "sk-shake"
             )}
@@ -240,9 +240,9 @@ export function RoleHeader({
               <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
                 {liveNotifications.length === 0 ? (
                   <div className="py-10 text-center">
-                    <Bell className="mx-auto h-8 w-8 text-[#4d4354]/15 mb-3" />
-                    <p className="text-sm font-bold text-[#4d4354]/40">No notifications yet</p>
-                    <p className="text-xs font-medium text-[#4d4354]/30 mt-1">You&#39;re all caught up</p>
+                    <Bell className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
+                    <p className="text-sm font-bold text-ink-subtle">No notifications yet</p>
+                    <p className="text-xs font-medium text-ink-subtle mt-1">You&#39;re all caught up</p>
                   </div>
                 ) : (
                   liveNotifications.map((n) => {
@@ -258,17 +258,17 @@ export function RoleHeader({
                       >
                         <div className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                          !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-[#4d4354]/50"
+                          !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-ink-muted"
                         )}>
                           <Icon className="w-[18px] h-[18px]" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className={cn("text-sm truncate", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-[#4d4354]/80")}>{n.title}</p>
+                            <p className={cn("text-sm truncate", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-ink")}>{n.title}</p>
                             {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
                           </div>
-                          <p className="text-xs font-medium text-[#4d4354]/50 mt-0.5 leading-snug line-clamp-2">{n.message}</p>
-                          <p className="text-[10px] font-semibold text-[#4d4354]/35 mt-1">{relativeTime(n.createdAt)}</p>
+                          <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
+                          <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt)}</p>
                         </div>
                       </div>
                     );
@@ -292,7 +292,7 @@ export function RoleHeader({
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-[#4d4354]/45 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
           title="Account settings"
         >
           <Settings className="w-[18px] h-[18px]" />
@@ -317,7 +317,7 @@ export function RoleHeader({
             <div className="hidden sm:block text-left">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-[#4d4354]/40 transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
           </button>
 
           {menuOpen && (
@@ -332,7 +332,7 @@ export function RoleHeader({
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
-                    <p className="truncate text-[11px] font-semibold text-[#4d4354]/60">{displayRole}</p>
+                    <p className="truncate text-[11px] font-semibold text-ink-muted">{displayRole}</p>
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
                       <UserRound className="h-3 w-3" />
                       Active account
@@ -349,7 +349,7 @@ export function RoleHeader({
                     setMenuOpen(false);
                     setSettingsOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
                   <Settings className="h-4 w-4" />
@@ -361,7 +361,7 @@ export function RoleHeader({
                     setMenuOpen(false);
                     setPasswordModalOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
                   <KeyRound className="h-4 w-4" />
@@ -393,13 +393,13 @@ export function RoleHeader({
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Account Settings</h2>
-                  <p className="text-xs font-semibold text-[#4d4354]/60">Manage your profile details</p>
+                  <p className="text-xs font-semibold text-ink-muted">Manage your profile details</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSettingsOpen(false)}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -481,13 +481,13 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Change Password</h2>
-              <p className="text-xs font-semibold text-[#4d4354]/60">Update your account password</p>
+              <p className="text-xs font-semibold text-ink-muted">Update your account password</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
           >
             <X className="h-4 w-4" />
           </button>
@@ -495,7 +495,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Current Password
             </label>
             <input
@@ -503,12 +503,12 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Enter current password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               New Password
             </label>
             <div className="relative">
@@ -517,12 +517,12 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
               <button
                 type="button"
                 onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#4d4354]/40 hover:text-[#8127cf] cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -551,7 +551,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Confirm New Password
             </label>
             <input
@@ -559,7 +559,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter new password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
@@ -570,12 +570,12 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
             {reqs.slice(0, 3).map((r, i) => (
-              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                 {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
               </div>
             ))}
             {reqs.slice(3).map((r, i) => (
-              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-[#4d4354]/30'}`}>
+              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                 {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
               </div>
             ))}
@@ -591,7 +591,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         <div className="flex gap-3 px-6 pb-6">
           <button
             onClick={onClose}
-            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-[#4d4354] hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -639,7 +639,7 @@ function MenuLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

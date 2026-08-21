@@ -59,7 +59,7 @@ export function ManagementCard({
           </div>
           <div>
             <h3 className="text-lg font-black text-[#1f1a23] tracking-wider transition-colors group-hover:text-[#8127cf]">{title}</h3>
-            <p className="text-[10px] font-semibold text-[#4d4354]/40 leading-relaxed italic mt-0.5">{description}</p>
+            <p className="text-[10px] font-semibold text-ink-subtle leading-relaxed italic mt-0.5">{description}</p>
           </div>
         </div>
 
@@ -92,9 +92,9 @@ export function ManagementCard({
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-wider truncate mt-0.5">{user.email}</p>
+                  <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider truncate mt-0.5">{user.email}</p>
                   {isPendingInvite && inviteExpiry ? (
-                    <p className="mt-1.5 flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">
+                    <p className="mt-1.5 flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
                       <Clock className="w-2.5 h-2.5" />
                       Expires {inviteExpiry}
                     </p>
@@ -141,7 +141,7 @@ export function ManagementCard({
         ) : (
           <button
             onClick={onAdd}
-            className="w-full h-16 bg-white border-2 border-dashed border-[#cfc2d6]/25 rounded-[22px] text-[#4d4354]/40 font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-3 transition-all hover:border-[#8127cf] hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 hover:shadow-md hover:-translate-y-0.5 cursor-pointer group/empty"
+            className="w-full h-16 bg-white border-2 border-dashed border-[#cfc2d6]/25 rounded-[22px] text-ink-subtle font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-3 transition-all hover:border-[#8127cf] hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 hover:shadow-md hover:-translate-y-0.5 cursor-pointer group/empty"
           >
             <div className="relative">
               <div className="absolute -inset-2 bg-[#8127cf]/8 rounded-full blur-md opacity-0 group-hover/empty:opacity-100 transition-opacity" />

@@ -482,7 +482,7 @@ export function StudentErrorState({ error, onRetry }: { error?: string | null; o
         </div>
         <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
         <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
           {error || "We couldn't load your student portal. This may be a permission or connectivity issue."}
         </p>
         <div className="mt-6 inline-block">

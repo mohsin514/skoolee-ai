@@ -134,7 +134,7 @@ export function FeeOverviewTab({
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div>
-            <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-3">
+            <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3">
               Collection by Class
             </h4>
             <div className="space-y-2">
@@ -155,17 +155,17 @@ export function FeeOverviewTab({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-xs font-black text-[#4d4354]/60">
+                    <p className="text-xs font-black text-ink-muted">
                       {cls.collectionRate}%
                     </p>
-                    <p className="text-[9px] font-bold text-[#4d4354]/35">
+                    <p className="text-[9px] font-bold text-ink-subtle">
                       {formatPKR(cls.totalPaid)} / {formatPKR(cls.totalDue)}
                     </p>
                   </div>
                 </div>
               ))}
               {(!summary?.byClass || summary.byClass.length === 0) && (
-                <p className="text-xs font-semibold text-[#4d4354]/40 italic">
+                <p className="text-xs font-semibold text-ink-subtle italic">
                   No fee data yet
                 </p>
               )}
@@ -174,7 +174,7 @@ export function FeeOverviewTab({
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 At-Risk Students
               </h4>
               {onNavigate && summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
@@ -197,7 +197,7 @@ export function FeeOverviewTab({
                     <p className="truncate text-sm font-black text-[#1f1a23]">
                       {s.studentName}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                       {s.className} · {s.daysOverdue}d overdue
                     </p>
                   </div>
@@ -207,7 +207,7 @@ export function FeeOverviewTab({
                         ? "text-rose-600"
                         : s.paymentStatus === "warning"
                         ? "text-amber-600"
-                        : "text-[#4d4354]/60"
+                        : "text-ink-muted"
                     }`}
                   >
                     {formatPKR(s.totalOverdue)}
@@ -216,7 +216,7 @@ export function FeeOverviewTab({
               ))}
               {(!summary?.atRiskStudents ||
                 summary.atRiskStudents.length === 0) && (
-                <p className="text-xs font-semibold text-[#4d4354]/40 italic">
+                <p className="text-xs font-semibold text-ink-subtle italic">
                   No at-risk students
                 </p>
               )}
@@ -254,7 +254,7 @@ export function FeeOverviewTab({
                   <p className="text-sm font-black text-[#1f1a23] truncate">
                     {p.studentName}
                   </p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45">
+                  <p className="text-[9px] font-bold text-ink-subtle">
                     {p.invoiceNumber} · {paymentMethodLabel(p.paymentMethod)}
                   </p>
                 </div>
@@ -262,7 +262,7 @@ export function FeeOverviewTab({
                   <p className="text-sm font-black text-emerald-600">
                     {formatPKR(p.amount)}
                   </p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/35">
+                  <p className="text-[9px] font-bold text-ink-subtle">
                     {p.receiptNo}
                   </p>
                 </div>

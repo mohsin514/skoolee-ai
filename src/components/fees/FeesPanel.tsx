@@ -44,7 +44,7 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
               className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                 active
                   ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />

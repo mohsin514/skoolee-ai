@@ -89,7 +89,7 @@ function SafePayForm() {
         <div className="sk-rise bg-white rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl" style={{ animationDelay: "0ms" }}>
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-[#1f1a23]">Payment Successful!</h2>
-          <p className="text-sm text-[#4d4354]/60 mt-2">Redirecting to billing...</p>
+          <p className="text-sm text-ink-muted mt-2">Redirecting to billing...</p>
         </div>
       </div>
     );
@@ -105,15 +105,15 @@ function SafePayForm() {
           </div>
           <div>
             <h1 className="text-xl font-black text-[#1f1a23]">SafePay</h1>
-            <p className="text-[10px] font-semibold text-[#4d4354]/40 uppercase tracking-wider">Secured by HBL</p>
+            <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider">Secured by HBL</p>
           </div>
         </div>
 
         <div className="rounded-xl bg-[#f3f4f9] p-4 mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Order Reference</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Order Reference</p>
           <p className="text-sm font-bold text-[#1f1a23]">{orderRef}</p>
           <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#cfc2d6]/20">
-            <p className="text-sm font-semibold text-[#4d4354]/60">
+            <p className="text-sm font-semibold text-ink-muted">
               {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
               <span className="text-[#1f1a23]">
                 {kind === "FEE" ? "Fee Payment" : `${plan} · ${billingPeriod === "annual" ? "Annual" : "Monthly"}`}
@@ -128,7 +128,7 @@ function SafePayForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Cardholder Name</label>
+            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Cardholder Name</label>
             <input
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
@@ -138,7 +138,7 @@ function SafePayForm() {
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Card Number</label>
+            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Card Number</label>
             <input
               value={cardNumber}
               onChange={(e) => setCardNumber(formatCard(e.target.value))}
@@ -149,7 +149,7 @@ function SafePayForm() {
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">Expiry</label>
+              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Expiry</label>
               <input
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
@@ -159,7 +159,7 @@ function SafePayForm() {
               />
             </div>
             <div className="flex-1">
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block mb-1">CVV</label>
+              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">CVV</label>
               <input
                 value={cvv}
                 onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
@@ -182,7 +182,7 @@ function SafePayForm() {
             )}
             {submitting ? "Processing..." : `Pay ${amountLabel}`}
           </button>
-          <p className="text-[10px] text-center text-[#4d4354]/30 font-semibold">
+          <p className="text-[10px] text-center text-ink-subtle font-semibold">
             This is a test payment page. No real payment will be charged.
           </p>
         </form>

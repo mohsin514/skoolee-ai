@@ -34,7 +34,7 @@ export default function ParentAttendancePage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Attendance</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             {student.className} · {student.fullName}
           </p>
         </div>
@@ -55,13 +55,13 @@ export default function ParentAttendancePage() {
             <div className="sk-rise rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Recent Attendance</h3>
-                <span className="text-[10px] font-semibold text-[#4d4354]/40">Last {attendance.recent.length} school days</span>
+                <span className="text-[10px] font-semibold text-ink-subtle">Last {attendance.recent.length} school days</span>
               </div>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
                 {attendance.recent.map((a, i) => (
                   <div key={i} className="flex flex-col items-center gap-1">
                     <div className={`w-6 h-6 rounded-lg ${statusColors[a.status] || "bg-gray-300"}`} title={`${a.date}: ${a.status}`} />
-                    <span className="text-[7px] font-semibold text-[#4d4354]/30">{new Date(a.date).getDate()}</span>
+                    <span className="text-[7px] font-semibold text-ink-subtle">{new Date(a.date).getDate()}</span>
                   </div>
                 ))}
               </div>
@@ -69,7 +69,7 @@ export default function ParentAttendancePage() {
                 {Object.entries(statusColors).map(([status, color]) => (
                   <div key={status} className="flex items-center gap-1.5">
                     <div className={`w-3 h-3 rounded-sm ${color}`} />
-                    <span className="text-[9px] font-semibold text-[#4d4354]/40 capitalize">{status.toLowerCase()}</span>
+                    <span className="text-[9px] font-semibold text-ink-subtle capitalize">{status.toLowerCase()}</span>
                   </div>
                 ))}
               </div>
@@ -97,7 +97,7 @@ function MiniStat({ icon: Icon, label, value, tone = "dark" }: { icon: any; labe
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
           <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>

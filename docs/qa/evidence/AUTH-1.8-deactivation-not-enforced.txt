@@ -1,0 +1,69 @@
+ID:            AUTH-1.8 / AUTH-1.9
+Title:         Deactivating a user does not revoke their access
+Section:       §3 Authentication, Session & Licence
+Severity:      P1 (Critical — access revocation does not revoke access)
+Status:        FIXED — VERIFIED
+Found:         2026-08-21 by scripts/qa/probe-auth-3.mjs
+
+DEFECT
+  requireAuthUser() trusted the JWT and never re-checked the account behind it.
+  getAuthUser() only verifies the signature and decodes claims — no DB read. The
+  only DB check was assertSchoolOperational(), which looks at the SCHOOL, never
+  the USER.
+
+  So setting is_active = false blocked the next LOGIN but did nothing to a token
+  already issued. Tokens are minted with .setExpirationTime("7d"), so a
+  dismissed teacher, a compromised account, or a staff member removed mid-term
+  kept full API access for up to SEVEN DAYS.
+
+PROOF (before fix)
+  T1-TEACHER-DISABLED has is_active = false in the database.
+  A validly-signed token for that user:
+      GET /api/students   ->  HTTP 200   (full roster returned)
+  Expected per §3: 401 on the next request, not merely blocked at login.
+
+  Note the login matrix passed all 32 personas — the disabled users were
+  correctly refused at /api/auth/login. The gap was only visible by minting a
+  token directly, which is exactly why AUTH-1.8 is written as "not just blocked
+  at login".
+
+RELATED — AUTH-1.9 (role change mid-session)
+  The same root cause: a stale `role` claim was trusted for 7 days. A user
+  demoted from CAMPUS_ADMIN to TEACHER kept admin access; a promotion likewise
+  took effect from a token minted before it was granted.
+
+FIX APPLIED  (src/lib/api/scope.ts, requireAuthUser)
+  Re-check the account on every authenticated request:
+
+      const account = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { isActive: true, role: true },
+      });
+      if (!account || !account.isActive) {
+        throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
+      }
+      if (account.role !== user.role) {
+        throw new ApiError("Your access has changed. Please sign in again.", 401);
+      }
+
+  401 (not 403) is deliberate: it is the status the existing client-side
+  recovery in src/lib/auth/invalid-session.ts already listens for, so a
+  deactivated user is signed out and returned to /login automatically instead of
+  being stranded on a failing screen.
+
+  The role comparison ends the session in EITHER direction. That satisfies §3's
+  "privileges never increase without re-auth" while also making a demotion take
+  effect immediately, rather than picking one and leaving the other broken.
+
+COST
+  One indexed primary-key lookup per authenticated request, alongside the
+  school lookup already being made. Measured in the sweep: 1074 assertions in
+  29.0s vs 15.3s before — still well inside budget, and this is `next dev`.
+  If it ever matters, this is the natural thing to fold into one query with
+  assertSchoolOperational, or to cache per request.
+
+VERIFICATION
+  probe-auth-3.mjs  13/13 PASS (was 12/13)
+    - deactivated user with a valid token -> 401
+    - forged key / tampered payload / alg=none / expired / schoolId swap -> all rejected
+  No regression: isolation sweep 1074/1074, all 7 suites green.

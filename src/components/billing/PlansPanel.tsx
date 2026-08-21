@@ -251,7 +251,7 @@ export function PlansPanel() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-1">
               <div>
                 <p className="text-sm font-bold text-[#1f1a23]">Choose your billing period</p>
-                <p className="text-xs font-semibold text-[#4d4354]/55">
+                <p className="text-xs font-semibold text-ink-muted">
                   Pay annually and save {Math.round(ANNUAL_DISCOUNT * 100)}% on every paid plan.
                 </p>
               </div>
@@ -267,7 +267,7 @@ export function PlansPanel() {
                       aria-pressed={active}
                       onClick={() => setBillingPeriod(period)}
                       className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider transition-all ${
-                        active ? "bg-[#8127cf] text-white shadow-sm" : "text-[#4d4354]/55 hover:text-[#8127cf]"
+                        active ? "bg-[#8127cf] text-white shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
                       }`}
                     >
                       {label}
@@ -308,20 +308,20 @@ export function PlansPanel() {
                       {plan.isCustom ? (
                         <>
                           <div className="text-2xl font-black text-[#1f1a23]">Custom</div>
-                          <p className="mt-1 text-xs font-bold text-[#4d4354]/55">Quoted for your group</p>
+                          <p className="mt-1 text-xs font-bold text-ink-muted">Quoted for your group</p>
                         </>
                       ) : plan.price === 0 ? (
                         <>
                           <div className="text-2xl font-black text-[#1f1a23]">Free</div>
-                          <p className="mt-1 text-xs font-bold text-[#4d4354]/55">Forever at this tier</p>
+                          <p className="mt-1 text-xs font-bold text-ink-muted">Forever at this tier</p>
                         </>
                       ) : (
                         <>
                           <div className="flex items-end gap-1.5">
                             <span className="text-2xl font-black text-[#1f1a23]">PKR {displayPrice?.toLocaleString()}</span>
-                            <span className="mb-1 text-xs font-bold text-[#4d4354]/55">/mo</span>
+                            <span className="mb-1 text-xs font-bold text-ink-muted">/mo</span>
                           </div>
-                          <p className="mt-1 text-xs font-bold text-[#4d4354]/55">
+                          <p className="mt-1 text-xs font-bold text-ink-muted">
                             {billingPeriod === "annual" ? (
                               <span className="text-emerald-600">Billed yearly · save {Math.round(ANNUAL_DISCOUNT * 100)}%</span>
                             ) : (
@@ -332,7 +332,7 @@ export function PlansPanel() {
                       )}
                     </div>
 
-                    <div className="mt-4 space-y-1.5 rounded-2xl bg-[#fbf0fe]/50 p-3 text-xs font-semibold text-[#4d4354]/70">
+                    <div className="mt-4 space-y-1.5 rounded-2xl bg-[#fbf0fe]/50 p-3 text-xs font-semibold text-ink">
                       <p>{formatLimit(plan.maxStudents)} students</p>
                       <p>{formatLimit(plan.maxTeachers)} teachers</p>
                       <p>{formatLimit(plan.maxCampuses)} campuses</p>
@@ -373,7 +373,7 @@ export function PlansPanel() {
               })}
             </div>
 
-            <p className="text-center text-xs font-semibold text-[#4d4354]/55">
+            <p className="text-center text-xs font-semibold text-ink-muted">
               Flat monthly pricing. Billing annually saves {Math.round(ANNUAL_DISCOUNT * 100)}% and final figures are confirmed on your demo call.
             </p>
           </CardContent>
@@ -387,20 +387,20 @@ export function PlansPanel() {
               <Building2 className="w-5 h-5 text-[#1f1a23]" />
               <h3 className="text-lg font-bold text-[#1f1a23]">Bank Transfer</h3>
             </div>
-            <p className="text-sm font-semibold text-[#4d4354]/60 mb-4">
+            <p className="text-sm font-semibold text-ink-muted mb-4">
               Transfer <strong>{bankInfo?.amountLabel}</strong> to the account below, then submit your payment reference.
             </p>
             {bankInfo ? (
               <div className="rounded-xl bg-[#f3f4f9] p-4 space-y-2 mb-4">
                 <p className="text-sm font-black text-[#1f1a23]">{bankInfo.bankName}</p>
-                <p className="text-xs font-semibold text-[#4d4354]/60">
+                <p className="text-xs font-semibold text-ink-muted">
                   Account Title: <span className="text-[#1f1a23]">{bankInfo.accountTitle}</span>
                 </p>
-                <p className="text-xs font-semibold text-[#4d4354]/60">
+                <p className="text-xs font-semibold text-ink-muted">
                   Account #: <span className="text-[#1f1a23]">{bankInfo.accountNumber}</span>
                 </p>
                 {bankInfo.iban && (
-                  <p className="text-xs font-semibold text-[#4d4354]/60">
+                  <p className="text-xs font-semibold text-ink-muted">
                     IBAN: <span className="text-[#1f1a23]">{bankInfo.iban}</span>
                   </p>
                 )}
@@ -411,7 +411,7 @@ export function PlansPanel() {
               </p>
             )}
             <div className="space-y-2 mb-4">
-              <label className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 block">Payment Reference (optional)</label>
+              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block">Payment Reference (optional)</label>
               <input
                 value={receiptRef}
                 onChange={(e) => setReceiptRef(e.target.value)}
@@ -423,7 +423,7 @@ export function PlansPanel() {
               <button
                 type="button"
                 onClick={() => setPaymentModalOpen(false)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-[#4d4354] hover:bg-[#f3f4f9] transition-colors"
+                className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-ink hover:bg-[#f3f4f9] transition-colors"
               >
                 Cancel
               </button>

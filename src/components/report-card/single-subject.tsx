@@ -125,12 +125,12 @@ export function SingleSubjectReportCard({
         <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe] to-white border border-[#8127cf]/10 p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Obtained</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Obtained</p>
               <p className="mt-1 text-3xl font-black text-[#1f1a23]">{obtainedMarks}</p>
-              <p className="text-[10px] font-bold text-[#4d4354]/45">out of {totalMarks}</p>
+              <p className="text-[10px] font-bold text-ink-subtle">out of {totalMarks}</p>
             </div>
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Percentage</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Percentage</p>
               <p className="mt-1 text-3xl font-black text-[#8127cf]">{percentage}%</p>
               {classAverage !== undefined ? (
                 <p className="mt-1 flex items-center justify-center gap-1 text-[10px] font-bold">
@@ -139,12 +139,12 @@ export function SingleSubjectReportCard({
                   ) : (
                     <><TrendingDown className="h-3 w-3 text-rose-500" /><span className="text-rose-600">Below avg</span></>
                   )}
-                  <span className="text-[#4d4354]/45">({classAverage}%)</span>
+                  <span className="text-ink-subtle">({classAverage}%)</span>
                 </p>
               ) : null}
             </div>
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Grade</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Grade</p>
               <p className={`mt-1 text-4xl font-black ${gradeColor(grade)}`}>{grade}</p>
               <span className={`inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-normal mt-1 ${status === "PASS" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                 {status}
@@ -168,13 +168,13 @@ export function SingleSubjectReportCard({
 
         {previousMarks && previousMarks.length > 0 ? (
           <div>
-            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Previous Assessments</p>
+            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-ink-subtle">Previous Assessments</p>
             <div className="space-y-2">
               {previousMarks.map((mark, i) => (
                 <div key={i} className="flex items-center justify-between gap-4 rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
                   <span className="text-sm font-bold text-[#1f1a23]">{mark.subject}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-black text-[#4d4354]">{mark.obtained}/{mark.total}</span>
+                    <span className="text-sm font-black text-ink">{mark.obtained}/{mark.total}</span>
                     <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase tracking-normal ${gradeBg(mark.grade)} ${gradeColor(mark.grade)}`}>
                       {mark.grade}
                     </span>
@@ -192,7 +192,7 @@ export function SingleSubjectReportCard({
 function MiniBox({ label, value, active }: { label: string; value: string; active?: boolean }) {
   return (
     <div className="rounded-2xl bg-[#fbf0fe]/70 px-4 py-3">
-      <p className="text-[7px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
+      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       <p className={`mt-1 truncate text-sm font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
   );

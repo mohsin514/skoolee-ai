@@ -50,7 +50,7 @@ export default function TeacherStudentsPage() {
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Students</h1>
           {/* The filter list marks out-of-cycle classes, so a bare "across N
               classes" total silently disagreed with it. Call the split out. */}
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class{classHubs.length !== 1 ? "es" : ""}
             {outOfCycleCount > 0
               ? ` · ${outOfCycleCount} outside the active cycle`
@@ -65,17 +65,17 @@ export default function TeacherStudentsPage() {
         {/* Filters */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/30" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
             <input
               type="text"
               placeholder="Search by name, roll no, or guardian..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white pl-11 pr-10 text-sm font-semibold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:shadow-md hover:border-[#8127cf]/20"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white pl-11 pr-10 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:shadow-md hover:border-[#8127cf]/20"
             />
             {search && (
               <button type="button" onClick={() => setSearch("")} aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4d4354]/30 hover:text-rose-500 cursor-pointer">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-rose-500 cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -92,7 +92,7 @@ export default function TeacherStudentsPage() {
               </option>
             ))}
           </select>
-          <span className="text-[11px] font-bold text-[#4d4354]/40 uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-ink-subtle uppercase tracking-wider">
             {filtered.length} student{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -120,10 +120,10 @@ export default function TeacherStudentsPage() {
                         {student.fullName}
                       </h4>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider">
+                        <span className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider">
                           {student.rollNo || "No roll"}
                         </span>
-                        <span className="text-[10px] text-[#4d4354]/20">|</span>
+                        <span className="text-[10px] text-ink-subtle">|</span>
                         <span className="text-[10px] font-semibold text-[#8127cf]">
                           {classLabel(student.class)}
                         </span>
@@ -134,16 +134,16 @@ export default function TeacherStudentsPage() {
                   {/* Performance Indicators */}
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Latest Grade</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Latest Grade</p>
                       <p className="text-sm font-bold text-[#8127cf]">
                         {report ? report.grade || `${Math.round(report.percentage || 0)}%` : "—"}
                       </p>
                     </div>
                     <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Status</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Status</p>
                       {/* Stored casing varies ("active" / "ACTIVE"), which
                           rendered raw as lowercase text among title-cased UI. */}
-                      <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-[#4d4354]/40"}`}>
+                      <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-ink-subtle"}`}>
                         {(student.status || "Active").toLowerCase()}
                       </p>
                     </div>
@@ -152,10 +152,10 @@ export default function TeacherStudentsPage() {
                   {/* Guardian Info */}
                   {student.guardianName && (
                     <div className="rounded-xl bg-[#f3f4f9]/50 px-3 py-2">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/35 mb-1">Guardian</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle mb-1">Guardian</p>
                       <p className="text-xs font-semibold text-[#1d1b20] truncate">{student.guardianName}</p>
                       {student.guardianPhone && (
-                        <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5 flex items-center gap-1">
+                        <p className="text-[10px] font-semibold text-ink-subtle mt-0.5 flex items-center gap-1">
                           <Phone className="h-3 w-3" /> {student.guardianPhone}
                         </p>
                       )}
@@ -171,7 +171,7 @@ export default function TeacherStudentsPage() {
               <Users className="h-8 w-8" />
             </div>
             <h3 className="text-lg font-bold text-[#1d1b20]">No students found</h3>
-            <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+            <p className="text-sm font-semibold text-ink-muted mt-1">
               {search || classFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
             </p>
             {/* Telling someone to adjust a filter without giving them a way to

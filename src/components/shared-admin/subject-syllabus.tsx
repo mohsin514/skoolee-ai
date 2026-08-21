@@ -148,12 +148,12 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BookMarked className="h-4 w-4 text-[#8127cf]" />
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
             Syllabus · {syllabusTopics.length} topic{syllabusTopics.length !== 1 ? "s" : ""}
           </p>
         </div>
         <ChevronDown
-          className={cn("h-4 w-4 cursor-pointer text-[#4d4354]/40 transition-transform", open && "rotate-180")}
+          className={cn("h-4 w-4 cursor-pointer text-ink-subtle transition-transform", open && "rotate-180")}
           onClick={() => setOpen(!open)}
         />
       </div>
@@ -161,7 +161,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
       {open ? (
         <div className="mt-4 space-y-3">
           {loading ? (
-            <div className="flex items-center gap-2 py-2 text-xs font-bold text-[#4d4354]/45">
+            <div className="flex items-center gap-2 py-2 text-xs font-bold text-ink-subtle">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Loading syllabus…
             </div>
@@ -175,7 +175,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                         type="button"
                         onClick={() => moveTopic(index, index > 0 ? -1 : 1)}
                         disabled={busy}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#4d4354]/35 transition-colors hover:bg-white hover:text-[#8127cf] disabled:opacity-30 cursor-pointer"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-white hover:text-[#8127cf] disabled:opacity-30 cursor-pointer"
                         title="Move up"
                       >
                         <ChevronDown className="h-3 w-3 rotate-180" />
@@ -183,7 +183,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-black text-[#1f1a23]">{topic.title}</p>
                         {topic.description ? (
-                          <p className="truncate text-[9px] font-bold text-[#4d4354]/40">{topic.description}</p>
+                          <p className="truncate text-[9px] font-bold text-ink-subtle">{topic.description}</p>
                         ) : null}
                       </div>
                       <button
@@ -206,7 +206,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                         type="button"
                         onClick={() => deleteTopic(topic.id)}
                         disabled={busy}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#4d4354]/25 transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
                         title="Delete topic"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -223,7 +223,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                   onChange={(e) => setTopicTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }}
                   placeholder="Add a syllabus topic (e.g. Chapter 1: Algebra)"
-                  className="h-10 flex-1 rounded-xl border border-[#8127cf]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-[#4d4354]/30"
+                  className="h-10 flex-1 rounded-xl border border-[#8127cf]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
                 />
                 <button
                   type="button"

@@ -197,7 +197,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                             className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
                               form.gender === g
                                 ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                                : "bg-[#f3f4f9] text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                                : "bg-[#f3f4f9] text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                             }`}
                             onClick={() => update("gender", g)}
                           >

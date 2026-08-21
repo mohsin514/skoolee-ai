@@ -71,6 +71,7 @@ export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-confli
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { csvCell } from "@/lib/csv";
 
 export type ClassFormState = {
   name: string;
@@ -111,7 +112,7 @@ export function statusTone(status?: string) {
   if (["Expired", "FAILED", "BLOCKED", "SUSPENDED", "NO_REPORT", "Unassigned"].includes(status || "")) {
     return "bg-rose-50 text-rose-600";
   }
-  return "bg-[#f3f4f9] text-[#4d4354]/70";
+  return "bg-[#f3f4f9] text-ink";
 }
 
 export function classLabel(item: any) {
@@ -188,12 +189,6 @@ export function groupClasses(classes: any[]) {
  * A leading =, +, - or @ is prefixed with a quote character so spreadsheets
  * treat the value as text instead of a formula.
  */
-function csvCell(value: unknown) {
-  const raw = value === null || value === undefined ? "" : String(value);
-  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
 const STUDENT_CSV_COLUMNS: [string, (s: any) => unknown][] = [
   ["Full Name", (s) => s.fullName],
   ["Roll No", (s) => s.rollNo],
@@ -298,7 +293,7 @@ export function LeadershipPanel({
                 Staff · {data.campusName}
               </p>
               <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admins &amp; Access</h2>
-              <p className="mt-0.5 max-w-xl text-xs font-semibold text-[#4d4354]/60">
+              <p className="mt-0.5 max-w-xl text-xs font-semibold text-ink-muted">
                 Who runs this campus: admin access, the principal, office staff, and invitations still outstanding.
               </p>
             </div>
@@ -363,7 +358,7 @@ export function LeadershipPanel({
                     <div key={item.label} className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="truncate text-[11px] font-semibold text-[#4d4354]/60 uppercase tracking-wider">{item.label}</span>
+                        <span className="truncate text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
                       </div>
                       <span className="shrink-0 text-xs font-bold text-[#1d1b20]">{item.value}</span>
                     </div>
@@ -372,7 +367,7 @@ export function LeadershipPanel({
               </div>
             ) : (
               <div className="flex items-center justify-center h-[130px] rounded-2xl bg-[#fbf0fe]/40">
-                <p className="text-xs font-bold text-[#4d4354]/40">No team data yet</p>
+                <p className="text-xs font-bold text-ink-subtle">No team data yet</p>
               </div>
             )}
           </div>
@@ -405,7 +400,7 @@ export function LeadershipPanel({
                     <f.icon className="w-3 h-3" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[7px] font-black uppercase tracking-wider text-[#4d4354]/40">{f.label}</p>
+                    <p className="text-[7px] font-black uppercase tracking-wider text-ink-subtle">{f.label}</p>
                     <p className="text-[11px] font-bold text-[#1f1a23] truncate">{f.value}</p>
                   </div>
                 </div>
@@ -447,7 +442,7 @@ export function LeadershipPanel({
               ))}
               {!data.campusAdmins?.length && !data.pendingAdminInvitations?.length ? (
                 <div className="flex items-center justify-center h-20 rounded-2xl bg-[#fbf0fe]/40">
-                  <p className="text-xs font-bold text-[#4d4354]/40">No admin access assigned yet.</p>
+                  <p className="text-xs font-bold text-ink-subtle">No admin access assigned yet.</p>
                 </div>
               ) : null}
             </div>
@@ -475,7 +470,7 @@ export function LeadershipPanel({
                 </div>
                 <div className="min-w-0 flex-1">
                   <h4 className="text-base font-black text-[#1f1a23] tracking-tight truncate">{data.principal.fullName}</h4>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
+                  <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-600">
                       <UserCheck className="w-2.5 h-2.5" />
@@ -497,7 +492,7 @@ export function LeadershipPanel({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-[#1f1a23]">No Principal Assigned</p>
-                    <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">Tap below to appoint a principal</p>
+                    <p className="text-[10px] font-semibold text-ink-muted mt-0.5">Tap below to appoint a principal</p>
                   </div>
                 </div>
                 <BrandButton variant="dark" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
@@ -532,7 +527,7 @@ export function LeadershipPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-sm font-bold text-[#1f1a23] truncate">{staff.fullName}</h4>
-                    <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider truncate">{staff.email}</p>
+                    <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider truncate">{staff.email}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-600">
                     {staff.role}
@@ -548,7 +543,7 @@ export function LeadershipPanel({
               ))}
               {!data.operationsStaff?.length && !data.pendingOperationsInvitations?.length ? (
                 <div className="flex items-center justify-center h-16 rounded-2xl bg-blue-50/30">
-                  <p className="text-xs font-bold text-[#4d4354]/40">No operations staff assigned yet</p>
+                  <p className="text-xs font-bold text-ink-subtle">No operations staff assigned yet</p>
                 </div>
               ) : null}
             </div>
@@ -605,14 +600,14 @@ export function CampusIdentityPanel({ data, onActivityLog }: { data: any; onActi
                 <f.icon className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">{f.label}</p>
+                <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">{f.label}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-sm font-black text-[#1f1a23] truncate">{f.value}</p>
                   {f.copyable && f.value && f.value !== "Not set" ? (
                     <button
                       type="button"
                       onClick={() => navigator.clipboard.writeText(f.value)}
-                      className="shrink-0 rounded-lg bg-white p-1 text-[#4d4354]/30 opacity-0 transition-all group-hover/row:opacity-100 hover:text-[#8127cf] hover:bg-[#8127cf]/10"
+                      className="shrink-0 rounded-lg bg-white p-1 text-ink-subtle opacity-0 transition-all group-hover/row:opacity-100 hover:text-[#8127cf] hover:bg-[#8127cf]/10"
                       title="Copy to clipboard"
                     >
                       <Copy className="w-3 h-3" />
@@ -891,7 +886,7 @@ export function ExamDetailModal({
               <StatusPill status={exam.status} />
             </div>
             <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">{exam.title}</h2>
-            <p className="text-xs font-semibold text-[#4d4354]/50 mt-1">{exam.term} — {classLabel(exam.class)} — Total: {exam.totalMarks} marks</p>
+            <p className="text-xs font-semibold text-ink-muted mt-1">{exam.term} — {classLabel(exam.class)} — Total: {exam.totalMarks} marks</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {canLock && (
@@ -913,7 +908,7 @@ export function ExamDetailModal({
               </button>
             )}
             <button type="button" onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
+              className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -923,7 +918,7 @@ export function ExamDetailModal({
           {(["marks", "reports", "analytics"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={cn("rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
-                tab === t ? "bg-white text-[#8127cf] shadow-md" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                tab === t ? "bg-white text-[#8127cf] shadow-md" : "text-ink-muted hover:text-[#8127cf]"
               )}>
               {t === "marks" ? "Marks Sheet" : t === "reports" ? `Report Cards (${reportCards.length})` : "Analytics"}
             </button>
@@ -959,21 +954,21 @@ export function ExamDetailModal({
               <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
                 {students.length === 0 ? (
                   <div className="py-16 text-center">
-                    <Users className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                    <p className="text-sm font-bold text-[#4d4354]/40">No students found for this exam</p>
+                    <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                    <p className="text-sm font-bold text-ink-subtle">No students found for this exam</p>
                   </div>
                 ) : (
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">#</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Student</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Roll No</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">#</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Student</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Roll No</th>
                         {subjects.map((s: any) => (
-                          <th key={s.id} className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">{s.name}<br /><span className="text-[8px] font-semibold">/ {s.totalMarks}</span></th>
+                          <th key={s.id} className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">{s.name}<br /><span className="text-[8px] font-semibold">/ {s.totalMarks}</span></th>
                         ))}
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">Total</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">%</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Total</th>
+                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">%</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -983,16 +978,16 @@ export function ExamDetailModal({
                         const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
                         return (
                           <tr key={student.id} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20 transition-colors">
-                            <td className="px-4 py-3 text-xs font-bold text-[#4d4354]/30">{idx + 1}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{idx + 1}</td>
                             <td className="px-4 py-3">
                               <p className="text-sm font-bold text-[#1f1a23] truncate max-w-[180px]">{student.fullName}</p>
                             </td>
-                            <td className="px-4 py-3 text-xs font-semibold text-[#4d4354]/50">{student.rollNo}</td>
+                            <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{student.rollNo}</td>
                             {subjects.map((sub: any) => {
                               const val = getMarkValue(student.id, sub.id);
                               return (
                                 <td key={sub.id} className="px-4 py-3 text-center">
-                                  <span className={cn("text-sm font-bold", val === null ? "text-[#4d4354]/20" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-[#1f1a23]")}>
+                                  <span className={cn("text-sm font-bold", val === null ? "text-ink-subtle" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-[#1f1a23]")}>
                                     {val ?? "—"}
                                   </span>
                                 </td>
@@ -1015,9 +1010,9 @@ export function ExamDetailModal({
               <div>
                 {reportCards.length === 0 ? (
                   <div className="py-16 text-center">
-                    <ClipboardList className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                    <p className="text-sm font-bold text-[#4d4354]/40">No report cards generated yet</p>
-                    <p className="text-xs font-semibold text-[#4d4354]/30 mt-1">Lock the exam to auto-generate report cards</p>
+                    <ClipboardList className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                    <p className="text-sm font-bold text-ink-subtle">No report cards generated yet</p>
+                    <p className="text-xs font-semibold text-ink-subtle mt-1">Lock the exam to auto-generate report cards</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -1027,14 +1022,14 @@ export function ExamDetailModal({
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-[#1f1a23] truncate">{rc.student?.fullName}</p>
-                            <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
+                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
                           </div>
                           <StatusPill status={rc.status} />
                         </div>
                         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[#cfc2d6]/10">
                           <span className="text-xl font-black text-[#8127cf]">{rc.grade || "—"}</span>
-                          <span className="text-sm font-bold text-[#4d4354]/50">{Math.round(rc.percentage || 0)}%</span>
-                          <span className="ml-auto text-[10px] font-bold text-[#4d4354]/40">Rank #{rc.rank || "—"}</span>
+                          <span className="text-sm font-bold text-ink-muted">{Math.round(rc.percentage || 0)}%</span>
+                          <span className="ml-auto text-[10px] font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
                         </div>
                       </button>
                     ))}
@@ -1047,8 +1042,8 @@ export function ExamDetailModal({
               <div>
                 {!analytics ? (
                   <div className="py-16 text-center">
-                    <Award className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                    <p className="text-sm font-bold text-[#4d4354]/40">Analytics available after report cards are generated</p>
+                    <Award className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                    <p className="text-sm font-bold text-ink-subtle">Analytics available after report cards are generated</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -1057,12 +1052,12 @@ export function ExamDetailModal({
                         { label: "Class Average", value: `${Math.round(analytics.classAverage || 0)}%`, icon: Award, tone: "bg-[#fbf0fe] text-[#8127cf]" },
                         { label: "Passed", value: analytics.passCount ?? 0, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
                         { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
-                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-[#4d4354]" },
+                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-ink" },
                       ].map((s) => (
                         <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">{s.label}</p>
+                              <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
                               <p className="text-2xl font-black text-[#1f1a23]">{s.value}</p>
                             </div>
                             <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", s.tone)}>
@@ -1075,7 +1070,7 @@ export function ExamDetailModal({
 
                     {analytics.subjectAverages?.length > 0 && (
                       <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Subject Performance</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
                         <div className="space-y-3">
                           {analytics.subjectAverages.map((sa: any) => {
                             const avg = Math.round(sa.average || 0);
@@ -1099,12 +1094,12 @@ export function ExamDetailModal({
 
                     {analytics.topStudents?.length > 0 && (
                       <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-4">Top Performers</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
                         <div className="space-y-2">
                           {analytics.topStudents.map((ts: any, idx: number) => (
                             <div key={ts.studentId || idx} className="flex items-center gap-3 p-3 rounded-2xl bg-[#fbf0fe]/30">
                               <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black shrink-0",
-                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-[#e8e0ec] text-[#4d4354]" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-[#f3f4f9] text-[#4d4354]/50"
+                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-[#e8e0ec] text-ink" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-[#f3f4f9] text-ink-muted"
                               )}>#{idx + 1}</span>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-bold text-[#1f1a23] truncate">{ts.name || ts.fullName}</p>
@@ -1318,13 +1313,13 @@ export function ExamCyclesPanel({
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] tracking-tight truncate">{exam.title}</p>
-                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">{exam.term} - {classLabel(exam.class)}</p>
+                <p className="mt-1 text-[10px] font-bold text-ink-muted">{exam.term} - {classLabel(exam.class)}</p>
               </div>
               <StatusPill status={exam.status} />
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#cfc2d6]/10">
-              <span className="text-[9px] font-semibold text-[#4d4354]/50">{exam.missingMarks ?? 0} missing marks</span>
-              <span className="text-[9px] font-semibold text-[#4d4354]/50">{exam._count?.reportCards || 0} reports</span>
+              <span className="text-[9px] font-semibold text-ink-muted">{exam.missingMarks ?? 0} missing marks</span>
+              <span className="text-[9px] font-semibold text-ink-muted">{exam._count?.reportCards || 0} reports</span>
               {exam.isLocked && exam._count?.reportCards === 0 ? (
                 <button type="button" onClick={(e) => { e.stopPropagation(); generateReportCards(exam.id); }} disabled={generatingExamId === exam.id}
                   className="ml-auto flex h-7 items-center gap-1 rounded-lg bg-[#8127cf] px-2.5 text-[8px] font-black uppercase tracking-wider text-white transition-all duration-200 hover:bg-[#6a1fad] active:scale-95 cursor-pointer disabled:opacity-50">
@@ -1337,7 +1332,7 @@ export function ExamCyclesPanel({
       </div>
       {allExams.length === 0 ? (
         <div className="sk-rise flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/25">
-          <p className="text-xs font-bold text-[#4d4354]/40">No exam cycles available yet.</p>
+          <p className="text-xs font-bold text-ink-subtle">No exam cycles available yet.</p>
         </div>
       ) : null}
       {createOpen && (
@@ -1386,17 +1381,17 @@ export function ReportCardsPanel({
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-sm font-black text-[#1f1a23] tracking-tight truncate">{report.student?.fullName || "Student"}</p>
-                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">{report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}</p>
+                <p className="mt-1 text-[10px] font-bold text-ink-muted">{report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}</p>
               </div>
               <StatusPill status={report.status} />
             </div>
-            <p className="text-[9px] font-semibold text-[#4d4354]/50">{report.student?.class ? classLabel(report.student.class) : "—"}</p>
+            <p className="text-[9px] font-semibold text-ink-muted">{report.student?.class ? classLabel(report.student.class) : "—"}</p>
           </div>
         ))}
       </div>
       {reports.length === 0 ? (
         <div className="sk-rise flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/25">
-          <p className="text-xs font-bold text-[#4d4354]/40">Report cards will appear after exams are processed.</p>
+          <p className="text-xs font-bold text-ink-subtle">Report cards will appear after exams are processed.</p>
         </div>
       ) : null}
     </div>
@@ -1535,21 +1530,21 @@ export function FacultyPanel({
       <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
+            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
             <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 type="text" placeholder="Name, email or phone…" value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
+                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
               />
               {searchQuery ? (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#4d4354]/35 transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
                   aria-label="Clear search"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1574,7 +1569,7 @@ export function FacultyPanel({
               <button
                 type="button"
                 onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
-                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
               >
                 <X className="h-3 w-3" /> Clear
               </button>
@@ -1589,7 +1584,7 @@ export function FacultyPanel({
 
           {filteredInvites.length ? (
             <>
-              <p className="pt-2 pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <p className="pt-2 pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 Invited, not signed up yet
               </p>
               {filteredInvites.map((invite: any) => (
@@ -1668,9 +1663,9 @@ function MetricCard({
         <Icon className="h-5 w-5" />
       </span>
       <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">{label}</p>
+      <p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p>
       {hint ? (
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">{hint}</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{hint}</p>
       ) : null}
     </Tag>
   );
@@ -1885,21 +1880,21 @@ export function StudentsPanel({
       <div className="mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
+            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
             <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 type="text" placeholder="Name, roll no, guardian, phone…" value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
+                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
               />
               {searchQuery ? (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#4d4354]/35 transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
                   aria-label="Clear search"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1960,7 +1955,7 @@ export function StudentsPanel({
             <button
               type="button"
               onClick={resetFilters}
-              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
             >
               <X className="h-3 w-3" /> Clear filters
             </button>
@@ -2014,7 +2009,7 @@ export function StudentsPanel({
                         <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
                           Roll {student.rollNo || "—"}
                         </span>
-                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/60">
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-ink-muted">
                           {classLabel(student.class)}
                         </span>
                         {student.category?.name ? (
@@ -2045,9 +2040,9 @@ export function StudentsPanel({
                   the line below it.
                 */}
                 <div className="mt-4 border-t border-[#f3f4f9] pt-3.5">
-                  <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/35">Guardian</p>
+                  <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">Guardian</p>
                   <p
-                    className="truncate text-xs font-bold text-[#4d4354]/70"
+                    className="truncate text-xs font-bold text-ink"
                     title={student.guardianName || undefined}
                   >
                     {student.guardianName || "Not linked"}
@@ -2057,7 +2052,7 @@ export function StudentsPanel({
                     <p
                       className={cn(
                         "min-w-0 flex-1 truncate text-[10px] font-bold",
-                        noContact ? "text-amber-600" : "text-[#4d4354]/45",
+                        noContact ? "text-amber-600" : "text-ink-subtle",
                       )}
                     >
                       {noContact ? "No phone or email" : student.guardianPhone || student.guardianEmail}
@@ -2084,11 +2079,11 @@ export function StudentsPanel({
       </div>
       {filteredStudents.length > 0 ? (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#f3f4f9] pt-5">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+          <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
             Showing {firstShown}–{lastShown} of {filteredStudents.length}
           </p>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
               Per page
               <select
                 value={perPage}
@@ -2106,18 +2101,18 @@ export function StudentsPanel({
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
-                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
                 >
                   Previous
                 </button>
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                <span className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
                   {safePage} / {totalPages}
                 </span>
                 <button
                   type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={safePage >= totalPages}
-                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
                 >
                   Next
                 </button>
@@ -2175,7 +2170,7 @@ export function AIPanel({
               <div key={insight.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
                 <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{insight.feature.replaceAll("_", " ")}</p>
                 <p className="mt-1 text-sm font-black text-[#1f1a23]">{insight.title}</p>
-                <p className="mt-1 text-xs font-semibold leading-relaxed text-[#4d4354]/60">{insight.summary}</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-ink-muted">{insight.summary}</p>
               </div>
             ))
           ) : (
@@ -2229,7 +2224,7 @@ export function MoveStudentModal({
     >
       <div className="rounded-3xl bg-[#fbf0fe]/65 p-5 mb-5">
         <p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
           Current: {classLabel(student.class)} · Roll: {student.rollNo}
         </p>
       </div>
@@ -2432,13 +2427,13 @@ export function ClassDetailModal({
               onClick={() => setTab(t.key)}
               className={cn(
                 "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-wider transition-all",
-                active ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                active ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.badge !== undefined ? (
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[8px]", active ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-white/70 text-[#4d4354]/45")}>
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[8px]", active ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-white/70 text-ink-subtle")}>
                   {t.badge}
                 </span>
               ) : null}
@@ -2459,7 +2454,7 @@ export function ClassDetailModal({
               so it leads and explains itself rather than sitting as an
               unexplained toggle next to the teacher field. */}
           <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">How is this section taught?</p>
+            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">How is this section taught?</p>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {([
                 { mode: "SINGLE" as const, title: "One teacher", copy: "The class teacher takes every subject in this section." },
@@ -2483,13 +2478,13 @@ export function ClassDetailModal({
                       <p className={cn("text-sm font-black", active ? "text-[#8127cf]" : "text-[#1f1a23]")}>{option.title}</p>
                       {active ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
                     </div>
-                    <p className="mt-1 text-[10px] font-bold leading-relaxed text-[#4d4354]/55">{option.copy}</p>
+                    <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">{option.copy}</p>
                   </button>
                 );
               })}
             </div>
             {teachingMode === "SINGLE" ? (
-              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-[10px] font-bold leading-relaxed text-[#4d4354]/55">
+              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-[10px] font-bold leading-relaxed text-ink-muted">
                 Every subject below follows the class teacher automatically — changing the class teacher updates them all.
               </p>
             ) : null}
@@ -2501,13 +2496,13 @@ export function ClassDetailModal({
           <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                   {teachingMode === "SINGLE" ? "Class Teacher" : "Homeroom Teacher (optional)"}
                 </p>
                 <p className="mt-1 truncate text-base font-black tracking-tight text-[#1f1a23]">
                   {cls.classTeacher?.fullName || "Unassigned"}
                 </p>
-                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                   {teachingMode === "SINGLE"
                     ? (cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard.")
                     : "Optional coordinator for this section. Subject teachers are assigned on the Subjects tab."}
@@ -2537,7 +2532,7 @@ export function ClassDetailModal({
                 showUnassignedHint={!cls.classTeacher?.id}
               />
               {teachingMode === "SUBJECT" ? (
-                <p className="mt-2 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                <p className="mt-2 text-[10px] font-bold leading-relaxed text-ink-muted">
                   This is the section coordinator, separate from the subject teachers listed on the Subjects tab.
                 </p>
               ) : null}
@@ -2556,7 +2551,7 @@ export function ClassDetailModal({
                 onClick={() => setEditingClass(!editingClass)}
                 className={cn(
                   "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
-                  editingClass ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+                  editingClass ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
                 )}
               >
                 {editingClass ? "Cancel" : "Edit"}
@@ -2577,7 +2572,7 @@ export function ClassDetailModal({
               </div>
             ) : (
               <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="text-xs font-bold text-[#4d4354]/55">
+                <p className="text-xs font-bold text-ink-muted">
                   {cls.name}{cls.section ? ` · Section ${cls.section}` : ""} · {cls.academicYear}
                 </p>
                 <button
@@ -2609,7 +2604,7 @@ export function ClassDetailModal({
           </div>
 
           {teachingMode === "SINGLE" ? (
-            <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-[11px] font-bold leading-relaxed text-[#4d4354]/60">
+            <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-[11px] font-bold leading-relaxed text-ink-muted">
               All subjects are taught by <span className="text-[#8127cf]">{cls.classTeacher?.fullName || "the class teacher (unassigned)"}</span>.
               Switch to “Teacher per subject” on the Overview tab to assign them individually.
             </p>
@@ -2638,7 +2633,7 @@ export function ClassDetailModal({
                         <button
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
-                          className="h-11 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] cursor-pointer"
+                          className="h-11 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] cursor-pointer"
                         >
                           Cancel
                         </button>
@@ -2649,7 +2644,7 @@ export function ClassDetailModal({
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                          <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                             {subject.teacher?.fullName || "Teacher unassigned"} {subject.totalMarks ? `- ${subject.totalMarks} marks` : ""}
                           </p>
                         </div>
@@ -2657,7 +2652,7 @@ export function ClassDetailModal({
                           <button
                             type="button"
                             onClick={() => startEditingSubject(subject)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
                             title="Edit subject"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -2665,7 +2660,7 @@ export function ClassDetailModal({
                           <button
                             type="button"
                             onClick={() => onDeleteSubject(subject)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
                             title="Delete subject"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -2733,7 +2728,7 @@ export function ClassDetailModal({
                   <span className="block text-[11px] font-black text-[#1f1a23]">
                     Add to all {siblingSections.length} sections of {cls.name}
                   </span>
-                  <span className="block text-[9px] font-bold text-[#4d4354]/50">
+                  <span className="block text-[9px] font-bold text-ink-muted">
                     Sections that already have this subject are skipped.
                   </span>
                 </span>
@@ -2773,7 +2768,7 @@ export function ClassDetailModal({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                     Roll {student.rollNo} - Guardian {student.guardianName || "N/A"}
                   </p>
                 </div>
@@ -3016,7 +3011,7 @@ export function StudentDetailModal({
       chips={
         <>
           {student.nameUr ? (
-            <span className="text-sm font-bold text-[#4d4354]/70" dir="rtl">{student.nameUr}</span>
+            <span className="text-sm font-bold text-ink" dir="rtl">{student.nameUr}</span>
           ) : null}
           {student.category?.name ? (
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
@@ -3074,7 +3069,7 @@ export function StudentDetailModal({
               </button>
             );
           })}
-          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 active:scale-95 cursor-pointer">
+          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 active:scale-95 cursor-pointer">
             <Trash2 className="h-3.5 w-3.5" />Delete
           </button>
         </div>
@@ -3098,7 +3093,7 @@ export function StudentDetailModal({
           }}
           className={cn(
             "ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
-            editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+            editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
           )}
         >
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
@@ -3140,7 +3135,7 @@ export function StudentDetailModal({
               "flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
               profileTab === key
                 ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                : "bg-[#fbf0fe]/70 text-[#4d4354]/60 hover:bg-[#f0e0f8] hover:text-[#8127cf]"
+                : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]"
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -3592,7 +3587,7 @@ export function StudentAdmissionsPanel({
                     <p className="text-sm font-black text-[#1f1a23]">
                       {s.id === student.id ? `${s.fullName} (this student)` : s.fullName}
                     </p>
-                    <p className="text-xs font-semibold text-[#4d4354]/55">
+                    <p className="text-xs font-semibold text-ink-muted">
                       {s.rollNo || "No roll"} · {classLabel(s.class)}
                     </p>
                   </div>
@@ -3633,7 +3628,7 @@ export function StudentAdmissionsPanel({
                   <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
                     <div>
                       <p className="text-sm font-bold text-[#1f1a23]">{s.fullName}</p>
-                      <p className="text-xs font-semibold text-[#4d4354]/55">{s.rollNo} · {classLabel(s.class)}</p>
+                      <p className="text-xs font-semibold text-ink-muted">{s.rollNo} · {classLabel(s.class)}</p>
                     </div>
                     <BrandButton variant="soft" className="h-8 px-3 text-[10px]" onClick={() => linkSiblings(s.id)} disabled={linkBusy}>
                       {linkBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Link"}
@@ -3642,7 +3637,7 @@ export function StudentAdmissionsPanel({
                 ))}
               </div>
             ) : (
-              <p className="text-xs font-semibold text-[#4d4354]/45">Type at least 2 characters to search.</p>
+              <p className="text-xs font-semibold text-ink-subtle">Type at least 2 characters to search.</p>
             )}
           </div>
         </div>
@@ -3693,7 +3688,7 @@ export function StudentAdmissionsPanel({
               <div key={doc.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-[#1f1a23]">{doc.fileName}</p>
-                  <p className="text-xs font-semibold text-[#4d4354]/55">
+                  <p className="text-xs font-semibold text-ink-muted">
                     {kindLabel(doc.kind)} · {formatDate(doc.uploadedAt)}
                   </p>
                 </div>
@@ -3748,8 +3743,8 @@ export function StudentAdmissionsPanel({
               <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#8127cf] bg-white" />
               <div className="pb-4">
                 <p className="text-sm font-bold text-[#1f1a23]">{ev.title}</p>
-                {ev.detail ? <p className="text-xs font-semibold text-[#4d4354]/55">{ev.detail}</p> : null}
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">
+                {ev.detail ? <p className="text-xs font-semibold text-ink-muted">{ev.detail}</p> : null}
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                   {ev.kind} · {formatDate(ev.createdAt)}
                 </p>
               </div>
@@ -4068,7 +4063,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                 "flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
                 teacherTab === key
                   ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                  : "bg-[#fbf0fe]/70 text-[#4d4354]/60 hover:bg-[#f0e0f8] hover:text-[#8127cf]",
+                  : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -4082,7 +4077,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
             onClick={() => setEditing(!editing)}
             className={cn(
               "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
-              editing ? "bg-[#f3f4f9] text-[#4d4354]/60" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+              editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
             )}
           >
             <Pencil className="h-3 w-3" />
@@ -4123,12 +4118,12 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                 editable, accepted nothing, and gave no reason why.
               */}
               <div>
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Email</span>
-                <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-[#4d4354]/55">
-                  <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-[#4d4354]/35" />
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Email</span>
+                <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-ink-muted">
+                  <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
                   <span className="truncate">{teacher.email || "No email"}</span>
                 </div>
-                <p className="mt-1.5 pl-2 text-[10px] font-semibold text-[#4d4354]/45">
+                <p className="mt-1.5 pl-2 text-[10px] font-semibold text-ink-subtle">
                   This is the teacher&apos;s sign-in address and cannot be changed here.
                 </p>
               </div>
@@ -4277,7 +4272,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
             {ledClasses.map((cls: any) => (
               <div key={cls.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                 <p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                   {cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects
                 </p>
               </div>
@@ -4295,7 +4290,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
             {taughtSubjects.map((subject: any) => (
               <div key={subject.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
                 <p className="text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                   {classLabel(subject.class)} - {subject.totalMarks || 100} marks
                 </p>
               </div>
@@ -4315,7 +4310,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
               </div>
               <div>
                 <h3 className="text-base font-black tracking-tight text-[#1f1a23]">Staff Records</h3>
-                <p className="text-[11px] font-bold text-[#4d4354]/55">Payroll · Bank · Documents · Timeline</p>
+                <p className="text-[11px] font-bold text-ink-muted">Payroll · Bank · Documents · Timeline</p>
               </div>
             </div>
             <BrandButton
@@ -4346,7 +4341,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
               </div>
               <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/45">Sensitive — only visible to administrators</p>
+                <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
                   <FormInput label="Account Holder Name" value={staffForm.bankAccountName || ""} placeholder="Name on account" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountName: v }))} />
                   <FormInput label="Account Number" value={staffForm.bankAccountNumber || ""} placeholder="IBAN / account number" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountNumber: v }))} />
@@ -4386,7 +4381,7 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
               </div>
               <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
                 <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-[10px] font-bold text-[#4d4354]/45">Sensitive — only visible to administrators</p>
+                <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
                   <DetailRow label="Account Holder" value={staff?.staffProfile?.bankAccountName || "Not set"} />
                   <DetailRow label="Account Number" value={staff?.staffProfile?.bankAccountNumber ? maskAccount(staff.staffProfile.bankAccountNumber) : "Not set"} />
@@ -4418,14 +4413,14 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-black text-[#1f1a23]">{doc.fileName}</p>
-                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                           {doc.kind} · {formatStaffDate(doc.uploadedAt)}
                         </p>
                       </div>
-                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-[#4d4354]/45 transition-colors hover:bg-white hover:text-[#8127cf]">
+                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-[#8127cf]">
                         <Download className="h-4 w-4" />
                       </a>
-                      <button type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex h-8 w-8 items-center justify-center rounded-xl text-[#4d4354]/45 transition-colors hover:bg-white hover:text-rose-500 cursor-pointer">
+                      <button type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-rose-500 cursor-pointer">
                         {docBusy === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       </button>
                     </div>
@@ -4470,8 +4465,8 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-black text-[#1f1a23]">{event.title}</p>
-                        {event.detail ? <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/55">{event.detail}</p> : null}
-                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">{formatStaffDate(event.createdAt)}</p>
+                        {event.detail ? <p className="mt-0.5 text-[10px] font-semibold text-ink-muted">{event.detail}</p> : null}
+                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
                       </div>
                     </div>
                   ))
@@ -4499,7 +4494,7 @@ function AmountRowsEditor({
   };
   return (
     <div>
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">{title}</span>
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{title}</span>
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div key={index} className="flex items-center gap-2">
@@ -4519,7 +4514,7 @@ function AmountRowsEditor({
             <button
               type="button"
               onClick={() => onChange(rows.filter((_, i) => i !== index))}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#4d4354]/45 transition-colors hover:bg-white hover:text-rose-500 cursor-pointer"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-rose-500 cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -4744,7 +4739,7 @@ export function ModalFrame({
                 ) : null}
                 <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">{title}</h3>
                 {subtitle ? (
-                  <p className="mt-1 text-xs font-semibold leading-snug text-[#4d4354]/60">{subtitle}</p>
+                  <p className="mt-1 text-xs font-semibold leading-snug text-ink-muted">{subtitle}</p>
                 ) : null}
                 {chips ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{chips}</div> : null}
               </div>
@@ -4754,7 +4749,7 @@ export function ModalFrame({
               <button
                 type="button"
                 onClick={onClose}
-                className="group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+                className="group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
               >
                 <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
                 <span className="sr-only">Close</span>
@@ -4796,7 +4791,7 @@ export function ModalActions({
 }) {
   return (
     <div className="mt-8 border-t border-[#cfc2d6]/15 pt-6">
-      {hint ? <p className="mb-3 text-xs font-semibold text-[#4d4354]/55">{hint}</p> : null}
+      {hint ? <p className="mb-3 text-xs font-semibold text-ink-muted">{hint}</p> : null}
       <div className="flex gap-3">
         <BrandButton variant="soft" className="flex-1 h-13" onClick={onClose}>
           Cancel
@@ -4836,13 +4831,13 @@ export function FormInput({
 }) {
   return (
     <label className="block group/input">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 transition-colors duration-200 group-focus-within/input:text-[#8127cf]">{label}</span>
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/input:text-[#8127cf]">{label}</span>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
       />
     </label>
   );
@@ -4861,7 +4856,7 @@ export function FormSelect({
 }) {
   return (
     <label className="block group/select">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 transition-colors duration-200 group-focus-within/select:text-[#8127cf]">{label}</span>
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/select:text-[#8127cf]">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -4973,7 +4968,7 @@ export function ClassGroupCard({
               {group.name}
             </p>
             {open ? (
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 {group.academicYear} - {sectionless
                   ? "No sections"
                   : `${group.sections.length} section${group.sections.length === 1 ? "" : "s"}`} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}
@@ -4993,13 +4988,13 @@ export function ClassGroupCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
               aria-label={`Delete ${group.name}`}
-              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40 opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
+              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-ink-subtle opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
             >
               <Trash2 className="h-3 w-3" />
               Delete
             </button>
           ) : null}
-          <span className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">
+          <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
             {group.sections.length} section{group.sections.length === 1 ? "" : "s"}
           </span>
           <ChevronDown
@@ -5042,7 +5037,7 @@ export function ClassGroupCard({
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                   placeholder={sectionless ? "First section name (e.g. A)" : "Section name (e.g. C)"}
-                  className="h-10 flex-1 rounded-xl bg-white border border-[#8127cf]/20 px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-[#4d4354]/30"
+                  className="h-10 flex-1 rounded-xl bg-white border border-[#8127cf]/20 px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
                 />
@@ -5057,7 +5052,7 @@ export function ClassGroupCard({
                 <button
                   type="button"
                   onClick={() => { setAddingSection(false); setNewSectionName(""); }}
-                  className="flex h-10 items-center gap-1 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] cursor-pointer"
+                  className="flex h-10 items-center gap-1 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -5066,14 +5061,14 @@ export function ClassGroupCard({
               <button
                 type="button"
                 onClick={() => setAddingSection(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 transition-all duration-200 hover:border-[#8127cf]/30 hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 cursor-pointer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle transition-all duration-200 hover:border-[#8127cf]/30 hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 {sectionless ? "Split into sections" : "Add Section"}
               </button>
             )}
             {sectionless && addingSection ? (
-              <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-[#4d4354]/50">
+              <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-ink-muted">
                 This class currently has no sections. Naming one moves the existing
                 students and subjects into it — nothing is lost.
               </p>
@@ -5127,20 +5122,20 @@ export function SectionCard({
           <p className="text-sm font-black text-[#1f1a23]">{cls.section ? `Section ${cls.section}` : "Whole class"}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {isSubjectMode ? (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {subjectCount ? `${assignedSubjectTeachers}/${subjectCount} teachers` : "No subjects yet"}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {cls.classTeacher?.fullName || "No class teacher"}
               </span>
             )}
-            <span className="text-[#4d4354]/20">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
-            <span className="text-[#4d4354]/20">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
+            <span className="text-ink-subtle">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
+            <span className="text-ink-subtle">|</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
             <span
               className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]"
               title={cls.teachingMode === "SUBJECT" ? "Each subject has its own teacher" : "The class teacher takes every subject"}
@@ -5163,7 +5158,7 @@ export function SectionCard({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
               title="Delete section"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -5194,7 +5189,7 @@ export function SectionCard({
         <div className="border-t border-[#cfc2d6]/10">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 flex items-center gap-1">
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />
                 Subjects ({subjectCount})
               </p>
@@ -5205,7 +5200,7 @@ export function SectionCard({
                   <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
-                      <p className="text-[8px] font-bold uppercase tracking-wider text-[#4d4354]/40 mt-0.5">
+                      <p className="text-[8px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
                         {subject.teacher?.fullName || "No teacher"} · {subject.totalMarks || 100} marks
                       </p>
                     </div>
@@ -5222,7 +5217,7 @@ export function SectionCard({
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
                 No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.
               </p>
             )}
@@ -5230,7 +5225,7 @@ export function SectionCard({
 
           <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 flex items-center gap-1">
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <GraduationCap className="h-3 w-3" />
                 Students ({studentCount})
               </p>
@@ -5257,13 +5252,13 @@ export function SectionCard({
                     </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-black text-[#1f1a23] truncate">{student.fullName}</p>
-                      <p className="text-[7px] font-bold uppercase tracking-wider text-[#4d4354]/35">Roll {student.rollNo || "—"}</p>
+                      <p className="text-[7px] font-bold uppercase tracking-wider text-ink-subtle">Roll {student.rollNo || "—"}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-[#4d4354]/45">
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
                 No students enrolled yet. Click + Student to add.
               </p>
             )}
@@ -5298,7 +5293,7 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
                 </span>
               )}
             </div>
-            <p className="text-[9px] font-bold text-[#4d4354]/45 uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
+            <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
             <div className="flex items-center gap-2 mt-2">
               <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]/60">
                 <Shield className="w-2.5 h-2.5" />
@@ -5329,11 +5324,11 @@ export function CompactRoleRow({ icon: Icon, label, name, email }: { icon: any; 
         <Icon className="w-4 h-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[7px] font-black uppercase tracking-wider text-[#4d4354]/40">{label}</p>
+        <p className="text-[7px] font-black uppercase tracking-wider text-ink-subtle">{label}</p>
         <p className="text-xs font-bold text-[#1f1a23] truncate">{name}</p>
       </div>
       {email ? (
-        <p className="text-[9px] font-medium text-[#4d4354]/50 truncate hidden sm:block">{email}</p>
+        <p className="text-[9px] font-medium text-ink-muted truncate hidden sm:block">{email}</p>
       ) : null}
     </div>
   );
@@ -5363,7 +5358,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
               <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
               <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
             </div>
-            <p className="text-[9px] font-bold text-[#4d4354]/50 uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
             {expiryLabel ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />
@@ -5407,7 +5402,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           </div>
           <div className="min-w-0">
             <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none mb-1 truncate">{teacher.fullName}</h4>
-            <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider leading-none truncate">{teacher.email}</p>
+            <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider leading-none truncate">{teacher.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {classes > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-sky-600">
@@ -5451,7 +5446,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
             type="button"
             onClick={onRemove}
             aria-label={`Revoke access for ${teacher.fullName}`}
-            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
+            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Revoke
@@ -5520,7 +5515,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
               {title}
             </p>
             {open ? (
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 {childCount} item{childCount === 1 ? "" : "s"}
               </p>
             ) : null}
@@ -5528,7 +5523,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {open ? null : (
-            <span className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
               {childCount} items
             </span>
           )}
@@ -5556,7 +5551,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
 export function IdentityRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3 transition-colors duration-200 hover:bg-[#fbf0fe]">
-      <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">{label}</span>
+      <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</span>
       <span className="truncate text-sm font-black text-[#1f1a23]">{value}</span>
     </div>
   );
@@ -5565,7 +5560,7 @@ export function IdentityRow({ label, value }: { label: string; value: string }) 
 export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors duration-200 hover:bg-white">
-      <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 shrink-0">{label}</span>
+      <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle shrink-0">{label}</span>
       <span className="min-w-0 truncate text-right text-sm font-bold text-[#1f1a23]">{value}</span>
     </div>
   );
@@ -5577,7 +5572,7 @@ export function MiniMetric({ label, value, active }: { label: string; value: any
       "rounded-2xl px-4 py-3.5 transition-all duration-200",
       active ? "bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] shadow-sm" : "bg-[#fbf0fe]/60"
     )}>
-      <p className="text-[8px] font-black uppercase tracking-wider text-[#4d4354]/40 leading-none">{label}</p>
+      <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle leading-none">{label}</p>
       <p className={cn("mt-1.5 truncate text-base font-black leading-none", active ? "text-[#8127cf]" : "text-[#1f1a23]")}>{value}</p>
     </div>
   );
@@ -5597,7 +5592,7 @@ export function StatusPill({ status }: { status?: string }) {
 export function EmptyInline({ text }: { text: string }) {
   return (
     <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-[#f3eeff]/40 border border-[#cfc2d6]/8 p-5 text-center">
-      <p className="text-sm font-semibold text-[#4d4354]/50 leading-relaxed">{text}</p>
+      <p className="text-sm font-semibold text-ink-muted leading-relaxed">{text}</p>
     </div>
   );
 }
@@ -5701,14 +5696,14 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
               onClick={() => setFilter(opt.value)}
               className={cn(
                 "rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer",
-                filter === opt.value ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                filter === opt.value ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <span className="text-[9px] font-bold text-[#4d4354]/40">{filtered.length} entries</span>
+        <span className="text-[9px] font-bold text-ink-subtle">{filtered.length} entries</span>
       </div>
 
       {loading ? (
@@ -5727,7 +5722,7 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       ) : pagedLogs.length === 0 ? (
-        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>
+        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-ink-muted">No activity recorded yet.</p>
       ) : (
         <>
           <div className="max-h-80 overflow-y-auto custom-scrollbar space-y-2">
@@ -5739,15 +5734,15 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
                     <div className="min-w-0">
                       <p className="text-xs font-black text-[#1f1a23]">{label}</p>
                       {detail ? (
-                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                           {detail}
                         </p>
                       ) : null}
-                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/35">
+                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                         by {userName}
                       </p>
                     </div>
-                    <span className="shrink-0 whitespace-nowrap text-[9px] font-bold text-[#4d4354]/40">
+                    <span className="shrink-0 whitespace-nowrap text-[9px] font-bold text-ink-subtle">
                       {new Date(log.createdAt).toLocaleString()}
                     </span>
                   </div>
@@ -5761,18 +5756,18 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
               >
                 Previous
               </button>
-              <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">
                 Page {safePage} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
               >
                 Next
               </button>
@@ -5790,31 +5785,31 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       <div className="space-y-5">
         <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
           <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Getting Started</p>
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/70">
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-ink">
             This is your campus admin workspace. From here you can manage classes, teachers, students, exams, and AI-powered insights.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Classes</p>
-            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
           </div>
           <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Teachers</p>
-            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
           </div>
           <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
-            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
           </div>
           <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Exams & Reports</p>
-            <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
           </div>
         </div>
         <div className="rounded-3xl bg-[#fbf0fe]/50 p-5">
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Need more help?</p>
-          <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Need more help?</p>
+          <p className="mt-1 text-xs font-semibold text-ink-muted">
             Contact your school administration for advanced support. Additional documentation and FAQs are available through your school&apos;s IT department.
           </p>
         </div>
@@ -5850,7 +5845,7 @@ export function SpecialtyEditor({
 }) {
   return (
     <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/40 p-4">
-      <p className="mb-2 pl-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+      <p className="mb-2 pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
         Teaching specialities
       </p>
 
@@ -5869,7 +5864,7 @@ export function SpecialtyEditor({
         </span>
         <span className="min-w-0">
           <span className="block text-[11px] font-black text-[#1f1a23]">Can teach all subjects</span>
-          <span className="block text-[9px] font-bold text-[#4d4354]/50">
+          <span className="block text-[9px] font-bold text-ink-muted">
             Generalist — never warned about subject mismatch.
           </span>
         </span>
@@ -5895,7 +5890,7 @@ export function SpecialtyEditor({
               </span>
             ))}
             {specialties.length === 0 ? (
-              <span className="text-[9px] font-bold text-[#4d4354]/40">
+              <span className="text-[9px] font-bold text-ink-subtle">
                 No specialities yet — add the subjects this teacher is qualified for.
               </span>
             ) : null}
@@ -5912,7 +5907,7 @@ export function SpecialtyEditor({
                 }
               }}
               placeholder="e.g. Mathematics"
-              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40"
+              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40"
             />
             <button
               type="button"
@@ -6034,7 +6029,7 @@ export function StudentSetupPanel() {
             {categories.length + groups.length} tag{categories.length + groups.length === 1 ? "" : "s"} defined
           </span>
         </div>
-        <p className="mt-4 max-w-2xl text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+        <p className="mt-4 max-w-2xl text-xs font-semibold leading-relaxed text-ink-muted">
           Categories tag a student's fee or scholarship eligibility (General, Scholarship, Orphan, Staff Child…) and
           drive fee discounts. Groups tag logistics and cohorts (Transport users, Hostel residents, House A…). Both are
           optional per student and can be assigned during admission or from a student's profile.
@@ -6125,7 +6120,7 @@ function TagListCard({
           </div>
           <div>
             <h4 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h4>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
               {items.length} {items.length === 1 ? "tag" : "tags"}
             </p>
           </div>
@@ -6168,7 +6163,7 @@ function TagListCard({
                       <StatusPill status={item.isActive === false ? "Inactive" : "Active"} />
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-[10px] font-semibold text-[#4d4354]/55">
+                  <p className="mt-0.5 truncate text-[10px] font-semibold text-ink-muted">
                     {item.description || "No description"}
                   </p>
                 </div>
@@ -6179,7 +6174,7 @@ function TagListCard({
                   <button
                     type="button"
                     onClick={() => onEdit(item)}
-                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                     title={`Rename ${kind}`}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -6187,7 +6182,7 @@ function TagListCard({
                   <button
                     type="button"
                     onClick={() => onDelete(item)}
-                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/45 transition-all hover:bg-rose-50 hover:text-rose-500"
+                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
                     title={`Delete ${kind}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -6252,13 +6247,13 @@ function TagFormModal({
         />
         {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Description</span>
+          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
             rows={3}
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
           />
         </label>
         {kind === "category" ? (
@@ -6277,7 +6272,7 @@ function TagFormModal({
             </span>
             <span className="min-w-0">
               <span className="block text-[11px] font-black text-[#1f1a23]">Active</span>
-              <span className="block text-[9px] font-bold text-[#4d4354]/50">
+              <span className="block text-[9px] font-bold text-ink-muted">
                 Inactive categories stay on existing students but can't be chosen for new admissions.
               </span>
             </span>
@@ -6397,7 +6392,7 @@ export function AdmissionQueriesPanel({
         "h-9 rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
         value === key
           ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-          : "bg-white text-[#4d4354]/60 border border-[#cfc2d6]/25 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+          : "bg-white text-ink-muted border border-[#cfc2d6]/25 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
       )}
     >
       {label}
@@ -6417,7 +6412,7 @@ export function AdmissionQueriesPanel({
             <div>
               <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
               <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admission Enquiries</h2>
-              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                 Families who have asked about a place. Follow them up, then convert the ones who enrol.
               </p>
             </div>
@@ -6461,15 +6456,15 @@ export function AdmissionQueriesPanel({
 
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
+            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
             <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 type="text" placeholder="Search by name, phone or email..." value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
+                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
               />
             </div>
           </div>
@@ -6531,7 +6526,7 @@ export function AdmissionQueriesPanel({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-[15px] font-black text-[#1f1a23] tracking-tight">{q.name}</p>
-                      <p className="mt-0.5 truncate text-xs font-bold text-[#4d4354]/55">
+                      <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
                         {q.phone}
                         {q.email ? ` · ${q.email}` : ""}
                         {q.classInterested ? ` · ${classLabel(q.classInterested)}` : " · Class not set"}
@@ -6540,7 +6535,7 @@ export function AdmissionQueriesPanel({
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <StatusPill status={q.status} />
-                    <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                       {QUERY_SOURCES_LABELS[q.source] || q.source}
                     </span>
                   </div>
@@ -6555,7 +6550,7 @@ export function AdmissionQueriesPanel({
                       {overdue ? "Overdue · " : "Next "}{formatDate(q.nextFollowUp)}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-ink-muted">
                       <Clock className="h-3 w-3" /> No follow-up set
                     </span>
                   )}
@@ -6679,12 +6674,12 @@ function NewQueryModal({
           </FormSelect>
         </div>
         <label className="block">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Note</span>
+          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</span>
           <textarea
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="What is this enquiry about?"
-            className="min-h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="min-h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
           />
         </label>
       </div>
@@ -6831,7 +6826,7 @@ function QueryDetailModal({
               </div>
               {query.note ? (
                 <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
-                  <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Note</p>
+                  <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</p>
                   <p className="whitespace-pre-wrap text-sm font-bold text-[#1f1a23]/80">{query.note}</p>
                 </div>
               ) : null}
@@ -6861,7 +6856,7 @@ function QueryDetailModal({
           )}
 
           <div className="flex items-center justify-between border-t border-[#cfc2d6]/10 pt-4">
-            <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               {query._count?.followUps ?? followUps.length} follow-ups
             </span>
             {!deleteConfirm ? (
@@ -6899,7 +6894,7 @@ function QueryDetailModal({
                       {formatDate(fu.date)}
                     </span>
                     {fu.actor?.fullName ? (
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                         by {fu.actor.fullName}
                       </span>
                     ) : null}
@@ -6915,16 +6910,16 @@ function QueryDetailModal({
             )}
           </div>
           <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
-            <p className="mb-2.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Log a follow-up</p>
+            <p className="mb-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
             <textarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What happened on this call / visit?"
-              className="min-h-20 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+              className="min-h-20 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
-                <span className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Next follow-up</span>
+                <span className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Next follow-up</span>
                 <input
                   type="date"
                   value={nextDate}
@@ -7011,7 +7006,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
           <StatusPill status={`${filtered.length} records`} />
         </div>
       </div>
-      <p className="mb-5 max-w-2xl text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+      <p className="mb-5 max-w-2xl text-xs font-semibold leading-relaxed text-ink-muted">
         Students who have left the active roll. Their results and history stay on file. Restore anyone who
         was taken off by mistake, or mark a leaver as graduated so the record shows why they left. Take a
         student off the roll from their profile in the Student Directory.
@@ -7034,7 +7029,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               "h-9 cursor-pointer rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
               statusFilter === chip.key
                 ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "border border-[#cfc2d6]/25 bg-white text-[#4d4354]/60 hover:border-[#8127cf]/30 hover:text-[#8127cf]",
+                : "border border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
             )}
           >
             {chip.label}
@@ -7043,15 +7038,15 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       </div>
 
       <div className="mb-4 max-w-xs">
-        <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Search</span>
+        <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
         <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-[#4d4354]/40 transition-colors group-focus-within/search:text-[#8127cf]">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
           <input
             type="text" placeholder="Search archived students..." value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-[#4d4354]/35 tracking-wide"
+            className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
           />
         </div>
       </div>
@@ -7068,12 +7063,12 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4 transition-all duration-300 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f9] text-[#4d4354]/50">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f9] text-ink-muted">
                 <Archive className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-black text-[#1f1a23] tracking-tight">{s.fullName}</p>
-                <p className="mt-0.5 truncate text-xs font-bold text-[#4d4354]/55">
+                <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
                   {s.rollNo}
                   {s.class ? ` · ${classLabel(s.class)}` : " · No class"}
                   {s.guardianPhone ? ` · ${s.guardianPhone}` : ""}
@@ -7123,7 +7118,7 @@ const LEAVE_STATUS_STYLES: Record<string, string> = {
   PENDING: "border-amber-200 bg-amber-50 text-amber-700",
   APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
   REJECTED: "border-rose-200 bg-rose-50 text-rose-600",
-  CANCELLED: "border-[#cfc2d6]/20 bg-[#f3f4f9] text-[#4d4354]/55",
+  CANCELLED: "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted",
 };
 
 function leaveDaysLabel(tenths: number) {
@@ -7322,13 +7317,13 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <div>
               <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
               <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Leave Management</h2>
-              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                 Approve requests, set leave types and allowances, and see what each member of staff has left.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
               Year
               <input
                 type="number"
@@ -7372,7 +7367,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               onClick={() => setTab(t.id)}
               className={cn(
                 "flex h-10 items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer",
-                tab === t.id ? "bg-[#8127cf] text-white shadow-md" : "bg-[#fbf0fe]/60 text-[#4d4354]/60 hover:bg-[#f0e0f8]"
+                tab === t.id ? "bg-[#8127cf] text-white shadow-md" : "bg-[#fbf0fe]/60 text-ink-muted hover:bg-[#f0e0f8]"
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {t.label}
@@ -7406,14 +7401,14 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-black text-[#1f1a23]">
-                    {r.user?.fullName || "Unknown"} <span className="text-[#4d4354]/45">({r.user?.role || "—"})</span>
+                    {r.user?.fullName || "Unknown"} <span className="text-ink-subtle">({r.user?.role || "—"})</span>
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/55">
+                  <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                     {r.leaveType?.name || "Leave"} · {leaveDaysLabel(r.days)} · {leaveDateLabel(r.fromDate)} → {leaveDateLabel(r.toDate)}
                   </p>
-                  {r.reason ? <p className="mt-1 text-[11px] font-semibold text-[#4d4354]/45">{r.reason}</p> : null}
+                  {r.reason ? <p className="mt-1 text-[11px] font-semibold text-ink-subtle">{r.reason}</p> : null}
                   {r.reviewedBy ? (
-                    <p className="mt-1 text-[10px] font-bold text-[#4d4354]/40">
+                    <p className="mt-1 text-[10px] font-bold text-ink-subtle">
                       Reviewed by {r.reviewedBy.fullName}{r.reviewNote ? ` — ${r.reviewNote}` : ""}
                     </p>
                   ) : null}
@@ -7430,7 +7425,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       placeholder="Review note"
                       className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40"
                     />
-                    <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 cursor-pointer">
+                    <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
                       <input
                         type="checkbox"
                         checked={overrideBalance}
@@ -7468,13 +7463,13 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/55">
+                  <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                     {t._count?.allocations || 0} allocation{(t._count?.allocations || 0) === 1 ? "" : "s"} ·{" "}
                     {t._count?.requests || 0} request{(t._count?.requests || 0) === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
                     Default
                     <input
                       type="number"
@@ -7489,7 +7484,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                   <button
                     type="button"
                     onClick={() => deleteType(t)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-[#4d4354]/40 transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -7517,14 +7512,14 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                   <p className="text-sm font-black text-[#1f1a23]">
                     {a.leaveType?.name || "Leave"} · {leaveDaysLabel(a.days)}
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/55">
+                  <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                     {a.userId ? `User: ${a.user?.fullName || "—"}` : `All ${a.role || "staff"} members`} · {a.academicYear}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => deleteAllocation(a.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-[#4d4354]/40 transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -7595,7 +7590,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#cfc2d6]/15 text-[#4d4354]/55 text-xs uppercase tracking-wider">
+                  <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
                     <th className="text-left py-2 px-3 font-medium">Staff Member</th>
                     <th className="text-left py-2 px-3 font-medium">Role</th>
                     {types.map((t: any) => (
@@ -7603,7 +7598,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                     ))}
                   </tr>
                   {types.length > 0 ? (
-                    <tr className="border-b border-[#cfc2d6]/10 text-[#4d4354]/40 text-[10px] uppercase">
+                    <tr className="border-b border-[#cfc2d6]/10 text-ink-subtle text-[10px] uppercase">
                       <th />
                       <th />
                       {types.map((t: any) => (
@@ -7619,8 +7614,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <tbody>
                   {staffBalances.map((row: any) => (
                     <tr key={row.user.id} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
-                      <td className="py-2 px-3 font-medium text-[#4d4354]">{row.user.fullName}</td>
-                      <td className="py-2 px-3 text-[#4d4354]/60 capitalize">{row.user.role.toLowerCase().replace("_", " ")}</td>
+                      <td className="py-2 px-3 font-medium text-ink">{row.user.fullName}</td>
+                      <td className="py-2 px-3 text-ink-muted capitalize">{row.user.role.toLowerCase().replace("_", " ")}</td>
                       {types.map((t: any) => {
                         const b = (row.balances as any[]).find((bl: any) => bl.leaveTypeId === t.id);
                         const alloc = b ? b.allocated / 10 : 0;
@@ -7633,8 +7628,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                         const overdrawn = left < 0;
                         return (
                           <React.Fragment key={t.id}>
-                            <td className="text-center py-2 px-1 text-[#4d4354]/70">{alloc}</td>
-                            <td className="text-center py-2 px-1 text-[#4d4354]/70">{used}</td>
+                            <td className="text-center py-2 px-1 text-ink">{alloc}</td>
+                            <td className="text-center py-2 px-1 text-ink">{used}</td>
                             <td
                               title={
                                 overdrawn
@@ -7845,7 +7840,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
 
       {run ? (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-[#f6f2fa] px-4 py-3">
-          <span className="text-sm font-bold text-[#4d4354]">
+          <span className="text-sm font-bold text-ink">
             {monthLabel} · {run.lines.length} staff · {run.status}
           </span>
           <span className="text-sm font-black text-[#8127cf]">{paisa(totals.net)} net</span>
@@ -7859,7 +7854,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 text-[#4d4354]/55 text-xs uppercase tracking-wider">
+              <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
                 <th className="text-left py-2 px-3 font-medium">Staff Member</th>
                 <th className="text-left py-2 px-3 font-medium">Role</th>
                 <th className="text-right py-2 px-3 font-medium">Basic</th>
@@ -7874,8 +7869,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
             <tbody>
               {run.lines.map((line: any) => (
                 <tr key={line.id} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
-                  <td className="py-2 px-3 font-medium text-[#4d4354]">{line.user?.fullName}</td>
-                  <td className="py-2 px-3 text-[#4d4354]/60 capitalize">{(line.user?.role || "").toLowerCase().replace("_", " ")}</td>
+                  <td className="py-2 px-3 font-medium text-ink">{line.user?.fullName}</td>
+                  <td className="py-2 px-3 text-ink-muted capitalize">{(line.user?.role || "").toLowerCase().replace("_", " ")}</td>
                   <EditableAmountCell
                     value={line.basic}
                     disabled={line.status === "PAID" || savingId === line.id}
@@ -7910,7 +7905,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                   </td>
                   <td className="text-right py-2 px-3">
                     {line.status === "PAID" ? (
-                      <span className="text-xs font-semibold text-[#4d4354]/45">{line.paidAt ? new Date(line.paidAt).toLocaleDateString() : ""}</span>
+                      <span className="text-xs font-semibold text-ink-subtle">{line.paidAt ? new Date(line.paidAt).toLocaleDateString() : ""}</span>
                     ) : (
                       <BrandButton variant="soft" icon={<Check className="h-3.5 w-3.5" />} onClick={() => markPaid(line)} disabled={savingId === line.id}>
                         {savingId === line.id ? "Saving…" : "Mark Paid"}
@@ -7928,7 +7923,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 <td className="text-right py-2.5 px-3">{paisa(totals.deductions)}</td>
                 <td className="text-right py-2.5 px-3">{paisa(totals.bonus)}</td>
                 <td className="text-right py-2.5 px-3">{paisa(totals.net)}</td>
-                <td className="text-center py-2.5 px-3 text-[#4d4354]/60">
+                <td className="text-center py-2.5 px-3 text-ink-muted">
                   {run.lines.filter((l: any) => l.status === "PAID").length}/{run.lines.length} paid
                 </td>
                 <td />
@@ -7943,7 +7938,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#cfc2d6]/15 pt-5">
         <div>
           <h4 className="text-sm font-black tracking-tight text-[#1f1a23]">Payroll Report</h4>
-          <p className="text-xs font-bold text-[#4d4354]/55">Summary for {monthLabel} — totals per run and per staff</p>
+          <p className="text-xs font-bold text-ink-muted">Summary for {monthLabel} — totals per run and per staff</p>
         </div>
         <div className="flex gap-2">
           <BrandButton variant="soft" icon={<Download className="h-4 w-4" />} onClick={loadReport} disabled={reportLoading}>
@@ -7959,7 +7954,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
         <div className="mt-4 overflow-x-auto rounded-2xl border border-[#cfc2d6]/15">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 bg-[#f6f2fa] text-[#4d4354]/55 text-xs uppercase tracking-wider">
+              <tr className="border-b border-[#cfc2d6]/15 bg-[#f6f2fa] text-ink-muted text-xs uppercase tracking-wider">
                 <th className="text-left py-2 px-3 font-medium">Run</th>
                 <th className="text-right py-2 px-3 font-medium">Basic</th>
                 <th className="text-right py-2 px-3 font-medium">Allowances</th>
@@ -7972,8 +7967,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
             <tbody>
               {report.runs.map((r: any) => (
                 <tr key={r.id} className="border-b border-[#cfc2d6]/8">
-                  <td className="py-2 px-3 font-medium text-[#4d4354]">
-                    {r.year}-{String(r.month).padStart(2, "0")} <span className="text-[#4d4354]/45 font-semibold">({r.lines.length} lines)</span>
+                  <td className="py-2 px-3 font-medium text-ink">
+                    {r.year}-{String(r.month).padStart(2, "0")} <span className="text-ink-subtle font-semibold">({r.lines.length} lines)</span>
                   </td>
                   <td className="text-right py-2 px-3">{paisa(r.totals.basic)}</td>
                   <td className="text-right py-2 px-3">{paisa(r.totals.allowances)}</td>
@@ -8007,12 +8002,12 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   }, [value]);
 
   if (disabled) {
-    return <td className="text-right py-2 px-3 text-[#4d4354]/60">{paisa(value)}</td>;
+    return <td className="text-right py-2 px-3 text-ink-muted">{paisa(value)}</td>;
   }
   return (
     <td className="py-1 px-3 text-right">
       <input
-        className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-[#4d4354] focus:border-[#8127cf] focus:outline-none"
+        className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink focus:border-[#8127cf] focus:outline-none"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -8128,7 +8123,7 @@ export function RolePermissionsPanel() {
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
             <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Permissions</h2>
-            <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+            <p className="mt-0.5 text-xs font-semibold text-ink-muted">
               Pick a role, then choose which parts of the system it can see and change.
             </p>
           </div>
@@ -8142,7 +8137,7 @@ export function RolePermissionsPanel() {
                 "cursor-pointer rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95",
                 activeRole === r.id
                   ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                  : "border border-[#cfc2d6]/25 bg-white text-[#4d4354]/70 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+                  : "border border-[#cfc2d6]/25 bg-white text-ink hover:border-[#8127cf]/30 hover:text-[#8127cf]"
               )}
             >
               {r.label}
@@ -8152,7 +8147,7 @@ export function RolePermissionsPanel() {
       </div>
 
       {isFixed ? (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-[#f6f2fa] px-4 py-3 text-sm font-bold text-[#4d4354]">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-[#f6f2fa] px-4 py-3 text-sm font-bold text-ink">
           <Lock className="h-4 w-4 text-[#8127cf]" />
           {roleRow?.label} has full access by default and cannot be edited — a school can never lock itself out.
         </div>
@@ -8166,7 +8161,7 @@ export function RolePermissionsPanel() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 text-[#4d4354]/55 text-xs uppercase tracking-wider">
+              <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
                 <th className="text-left py-2 px-3 font-medium">Module</th>
                 {PERM_ACTIONS.map((a) => (
                   <th key={a.key} className="text-center py-2 px-3 font-medium">
@@ -8180,7 +8175,7 @@ export function RolePermissionsPanel() {
                 const flags = matrix[activeRole][module] || {};
                 return (
                   <tr key={module} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
-                    <td className="py-2 px-3 font-semibold capitalize text-[#4d4354]">{module.replace("-", " ")}</td>
+                    <td className="py-2 px-3 font-semibold capitalize text-ink">{module.replace("-", " ")}</td>
                     {PERM_ACTIONS.map((a) => {
                       const on = Boolean(flags[a.key]);
                       // Without view, the write actions are meaningless — so
@@ -8222,7 +8217,7 @@ export function RolePermissionsPanel() {
               })}
             </tbody>
           </table>
-          <p className="mt-3 text-xs font-bold text-[#4d4354]/45">
+          <p className="mt-3 text-xs font-bold text-ink-subtle">
             Changes apply immediately to that role across all admins without re-login. Enforcement is server-side — the UI
             only mirrors what the API enforces.
           </p>
@@ -8356,7 +8351,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
       {showAdd ? (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Room Number</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Room Number</label>
             <input
               className="h-10 w-32 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.roomNumber}
@@ -8365,7 +8360,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Capacity</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Capacity</label>
             <input
               type="number"
               min={0}
@@ -8375,9 +8370,9 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div className="min-w-40 flex-1">
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Note</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Note</label>
             <input
-              className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-semibold text-[#4d4354] outline-none focus:border-[#8127cf]/40"
+              className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-semibold text-ink outline-none focus:border-[#8127cf]/40"
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               placeholder="Optional"
@@ -8409,7 +8404,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                     <button
                       type="button"
                       onClick={() => setEditId(null)}
-                      className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-[#4d4354]/5"
+                      className="rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-[#4d4354]/5"
                       aria-label="Cancel editing"
                     >
                       <X className="h-4 w-4" />
@@ -8418,7 +8413,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                     <button
                       type="button"
                       onClick={() => startEdit(room)}
-                      className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                      className="rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                       aria-label="Edit room"
                     >
                       <Pencil className="h-4 w-4" />
@@ -8427,7 +8422,7 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                   <button
                     onClick={() => deleteRoom(room.id)}
                     disabled={deleting === room.id}
-                    className="rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                    className="rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
                     aria-label="Delete room"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -8445,17 +8440,17 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                     <input
                       type="number"
                       min={0}
-                      className="h-9 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#4d4354] outline-none focus:border-[#8127cf]/40"
+                      className="h-9 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-ink outline-none focus:border-[#8127cf]/40"
                       value={draft.capacity}
                       onChange={(e) => setDraft((d) => ({ ...d, capacity: e.target.value }))}
                     />
-                    <span className="text-xs font-semibold text-[#4d4354]/40">seats</span>
+                    <span className="text-xs font-semibold text-ink-subtle">seats</span>
                     <div className="ml-auto flex gap-1.5">
                       <button
                         type="button"
                         onClick={() => setEditId(null)}
                         disabled={saving}
-                        className="rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 hover:bg-[#4d4354]/5 cursor-pointer"
+                        className="rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -8475,14 +8470,14 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                 <>
                   <p className="mt-3 text-lg font-black tracking-tight text-[#1f1a23]">{room.roomNumber}</p>
                   <div className="mt-2 flex items-center gap-2">
-                    <Users className="h-3.5 w-3.5 text-[#4d4354]/40" />
-                    <span className="text-sm font-bold text-[#4d4354]">{room.capacity ?? 0}</span>
-                    <span className="text-xs font-semibold text-[#4d4354]/40">seats</span>
+                    <Users className="h-3.5 w-3.5 text-ink-subtle" />
+                    <span className="text-sm font-bold text-ink">{room.capacity ?? 0}</span>
+                    <span className="text-xs font-semibold text-ink-subtle">seats</span>
                   </div>
                 </>
               )}
-              {room.note ? <p className="mt-2 text-xs font-semibold text-[#4d4354]/55">{room.note}</p> : null}
-              <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/35">
+              {room.note ? <p className="mt-2 text-xs font-semibold text-ink-muted">{room.note}</p> : null}
+              <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                 {room._count?.slots ?? 0} timetable slot{(room._count?.slots ?? 0) === 1 ? "" : "s"}
               </p>
             </div>
@@ -8592,7 +8587,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 onClick={() => setTimeType(t)}
                 className={cn(
                   "rounded-full px-4 py-1.5 text-xs font-bold transition-colors",
-                  timeType === t ? "bg-[#1f1a23] text-white" : "text-[#4d4354]/60 hover:text-[#4d4354]"
+                  timeType === t ? "bg-[#1f1a23] text-white" : "text-ink-muted hover:text-ink"
                 )}
               >
                 {t === "CLASS" ? "Class Periods" : "Exam Periods"}
@@ -8608,7 +8603,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
       {showAdd ? (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Period #</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Period #</label>
             <input
               type="number"
               min={1}
@@ -8618,7 +8613,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Start</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
             <input
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8627,7 +8622,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">End</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
             <input
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8660,7 +8655,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             {gapMinutes > 0 ? (
               <div className="flex items-center gap-3 px-4 py-1" aria-hidden="true">
                 <span className="h-px flex-1 bg-[#cfc2d6]/25" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/35">
+                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                   {gapMinutes} min break
                 </span>
                 <span className="h-px flex-1 bg-[#cfc2d6]/25" />
@@ -8672,7 +8667,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
                 {p.periodNumber}
               </span>
-              <span className="text-sm font-bold text-[#4d4354]/45">Period {p.periodNumber}</span>
+              <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
               <input
                 type="time"
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8682,7 +8677,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   if (e.target.value !== p.startTime && e.target.value < p.endTime) updatePeriod(p.id, "startTime", e.target.value);
                 }}
               />
-              <span className="text-xs font-bold text-[#4d4354]/40">to</span>
+              <span className="text-xs font-bold text-ink-subtle">to</span>
               <input
                 type="time"
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8692,12 +8687,12 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   if (e.target.value !== p.endTime && e.target.value > p.startTime) updatePeriod(p.id, "endTime", e.target.value);
                 }}
               />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                 {timeType === "CLASS" ? "Class" : "Exam"} period
               </span>
               <button
                 onClick={() => deletePeriod(p.id)}
-                className="ml-auto rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                className="ml-auto rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
                 aria-label="Delete period"
               >
                 <Trash2 className="h-4 w-4" />
@@ -8706,7 +8701,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             </React.Fragment>
             );
           })}
-          <p className="pt-2 text-xs font-bold text-[#4d4354]/45">
+          <p className="pt-2 text-xs font-bold text-ink-subtle">
             Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and
             leaves existing slots untouched.
           </p>
@@ -8884,7 +8879,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
       {!selectedExamId && (
         <div className="flex flex-col items-center justify-center py-12">
           <CalendarDays className="mb-4 h-12 w-12 text-[#8127cf]/25" />
-          <p className="text-sm font-bold text-[#4d4354]/50">
+          <p className="text-sm font-bold text-ink-muted">
             {exams.length === 0 ? "No exam cycles yet. Create one in Exam Cycles, then build its date sheet." : "Pick an exam cycle above to build its date sheet"}
           </p>
         </div>
@@ -8894,7 +8889,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-[#f6f2fa] p-3">
             <span className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{selectedExam?.title}</span>
-            <span className="text-[10px] font-bold text-[#4d4354]/50">
+            <span className="text-[10px] font-bold text-ink-muted">
               {selectedExam ? classLabel(selectedExam.class) : ""} · {selectedExam?.term} · {selectedExam?.academicYear}
             </span>
             {weekends.length > 0 && (
@@ -8911,11 +8906,11 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
               <table className="w-full min-w-[760px] text-left">
                 <thead>
                   <tr className="border-b border-[#cfc2d6]/15">
-                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">Subject</th>
-                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">Date</th>
-                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">Time (EXAM)</th>
-                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">Room</th>
-                    <th className="py-2.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45" />
+                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject</th>
+                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Date</th>
+                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Time (EXAM)</th>
+                    <th className="py-2.5 pr-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Room</th>
+                    <th className="py-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle" />
                   </tr>
                 </thead>
                 <tbody>
@@ -8930,7 +8925,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
                       <tr key={subject.id} className="border-b border-[#cfc2d6]/10 last:border-b-0">
                         <td className="py-2.5 pr-3">
                           <p className="text-sm font-bold text-[#1f1a23]">{subject.name}</p>
-                          <p className="text-[10px] font-semibold text-[#4d4354]/40">
+                          <p className="text-[10px] font-semibold text-ink-subtle">
                             {subject.totalMarks} marks{subject.teacher ? ` · ${subject.teacher.fullName}` : ""}
                           </p>
                         </td>
@@ -9015,7 +9010,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
 
           {grouped.length > 0 && (
             <div className="mt-8">
-              <h4 className="mb-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">Date Sheet — {selectedExam?.title}</h4>
+              <h4 className="mb-3 text-[10px] font-black uppercase tracking-wider text-ink-muted">Date Sheet — {selectedExam?.title}</h4>
               <div className="space-y-4">
                 {grouped.map(([date, rows]) => {
                   const weekday = WEEKDAY_LABELS[new Date(date + "T00:00:00").getDay() === 0 ? 7 : new Date(date + "T00:00:00").getDay()];
@@ -9023,7 +9018,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
                     <div key={date} className="rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/25 p-4">
                       <div className="mb-2 flex items-center justify-between">
                         <p className="text-xs font-black text-[#8127cf]">{date} · {weekday}</p>
-                        <span className="text-[9px] font-bold text-[#4d4354]/40">{rows.length} paper(s)</span>
+                        <span className="text-[9px] font-bold text-ink-subtle">{rows.length} paper(s)</span>
                       </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {rows.map((row) => (
@@ -9033,7 +9028,7 @@ export function ExamRoutinePanel({ campusId }: { campusId?: string }) {
                             </span>
                             <div className="min-w-0">
                               <p className="truncate text-xs font-black text-[#1f1a23]">{row.subject?.name}</p>
-                              <p className="text-[9px] font-semibold text-[#4d4354]/45">
+                              <p className="text-[9px] font-semibold text-ink-subtle">
                                 {row.periodDefinition ? `${row.periodDefinition.startTime}–${row.periodDefinition.endTime}` : "Any time"}
                                 {row.room ? ` · ${row.room.roomNumber}` : ""}
                               </p>
@@ -9220,7 +9215,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
       {showAdd ? (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">Name</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Name</label>
             <input
               className="h-10 w-48 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.name}
@@ -9229,7 +9224,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">From</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">From</label>
             <input
               type="date"
               className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9238,7 +9233,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45">To</label>
+            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">To</label>
             <input
               type="date"
               className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9280,7 +9275,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="mb-6">
-            <h4 className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">Weekly Off Days</h4>
+            <h4 className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">Weekly Off Days</h4>
             <div className="flex flex-wrap gap-2">
               {CALENDAR_DAYS.map((d) => {
                 const on = weekends.includes(d.num);
@@ -9295,7 +9290,7 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
                     className={`flex h-10 w-14 flex-col items-center justify-center rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-70 cursor-pointer ${
                       on
                         ? "border-[#8127cf]/30 bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-lg shadow-[#8127cf]/20"
-                        : "border-[#cfc2d6]/20 bg-white text-[#4d4354]/50 hover:border-[#8127cf]/30"
+                        : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:border-[#8127cf]/30"
                     }`}
                   >
                     {busy ? (
@@ -9307,13 +9302,13 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
                 );
               })}
             </div>
-            <p className="mt-2 text-[10px] font-semibold text-[#4d4354]/40">
+            <p className="mt-2 text-[10px] font-semibold text-ink-subtle">
               Off days are greyed out in the timetable grid; exam papers can't be scheduled on them.
             </p>
           </div>
 
           <div>
-            <h4 className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <h4 className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
               Holidays ({holidays.length})
             </h4>
             {holidays.length === 0 ? (
@@ -9327,13 +9322,13 @@ export function SchoolCalendarPanel({ campusId }: { campusId?: string }) {
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-black text-[#1f1a23]">{h.name}</p>
-                      <p className="text-[10px] font-semibold text-[#4d4354]/45">
+                      <p className="text-[10px] font-semibold text-ink-subtle">
                         {String(h.fromDate).slice(0, 10)} → {String(h.toDate).slice(0, 10)}
                       </p>
                     </div>
                     <button
                       onClick={() => deleteHoliday(h.id)}
-                      className="ml-auto rounded-lg p-1.5 text-[#4d4354]/35 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                      className="ml-auto rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
                       aria-label="Delete holiday"
                     >
                       <Trash2 className="h-4 w-4" />

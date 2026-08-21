@@ -65,7 +65,7 @@ export default function FeesPage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Fee Tokens</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Invoices, payment progress, and outstanding balances.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Invoices, payment progress, and outstanding balances.</p>
         </div>
       </div>
 
@@ -107,7 +107,7 @@ export default function FeesPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Invoices</h3>
-              <span className="text-[10px] font-semibold text-[#4d4354]/40">{invoices.length} records</span>
+              <span className="text-[10px] font-semibold text-ink-subtle">{invoices.length} records</span>
             </div>
             <div className="sk-rise grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ animationDelay: "160ms" }}>
               {invoices.map((invoice: any) => (
@@ -117,9 +117,9 @@ export default function FeesPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <CreditCard className="w-12 h-12 text-[#4d4354]/20 mb-4" />
+            <CreditCard className="w-12 h-12 text-ink-subtle mb-4" />
             <p className="text-lg font-bold text-[#1d1b20] tracking-tight">No invoices yet</p>
-            <p className="mt-1 text-sm font-semibold text-[#4d4354]/55">Fee invoices will appear here once assigned to your profile.</p>
+            <p className="mt-1 text-sm font-semibold text-ink-muted">Fee invoices will appear here once assigned to your profile.</p>
           </div>
         )}
       </div>
@@ -137,7 +137,7 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
           <div className={cn(
@@ -152,7 +152,7 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>
+      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
     </div>
   );
 }
@@ -177,7 +177,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
             <p className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : "Fee invoice"}</p>
-            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/45">
+            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
               {invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "No due date"}
             </p>
           </div>
@@ -203,7 +203,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
 
         <div className="flex items-baseline gap-1.5 mb-3">
           <span className="text-2xl font-bold text-[#1d1b20]">Rs {balance.toLocaleString()}</span>
-          <span className="text-[10px] font-semibold text-[#4d4354]/40">of Rs {invoice.totalAmount?.toLocaleString() || "—"}</span>
+          <span className="text-[10px] font-semibold text-ink-subtle">of Rs {invoice.totalAmount?.toLocaleString() || "—"}</span>
         </div>
 
         <div className="h-2 w-full bg-[#f3f4f9] rounded-full overflow-hidden mb-3">

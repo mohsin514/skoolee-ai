@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
   await assertPlanCapacity({ schoolId: authUser.schoolId, metric: "teachers" });
 
   // Check if user already exists
-  const existing = await prisma.user.findUnique({ where: { email } });
+  // FINDING-D: identity is tenant-scoped — check THIS school only.
+  const existing = await prisma.user.findFirst({ where: { email, schoolId: authUser.schoolId } });
   if (existing) {
     return Response.json({ error: "User with this email already exists" }, { status: 409 });
   }

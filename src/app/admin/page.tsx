@@ -193,7 +193,7 @@ function RestrictedView({ onBack }: { onBack: () => void }) {
         <Shield className="h-6 w-6" />
       </span>
       <h2 className="text-lg font-black tracking-tight text-[#1f1a23]">Not available for your role</h2>
-      <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+      <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">
         Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
       </p>
       <button
@@ -891,7 +891,7 @@ export default function CampusAdminDashboard() {
             <AlertTriangle className="h-6 w-6" />
           </span>
           <h1 className="text-lg font-black tracking-tight text-[#1f1a23]">Couldn&apos;t load your dashboard</h1>
-          <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4d4354]/60">
+          <p className="mt-2 text-xs font-semibold leading-relaxed text-ink-muted">
             The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
           </p>
           <button

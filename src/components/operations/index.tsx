@@ -27,19 +27,19 @@ import { formatPKR } from "@/components/fees/fee-utils";
 const inputCls =
   "h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40";
 const labelCls =
-  "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45";
+  "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle";
 const cardCls =
   "sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]";
 const addBoxCls =
   "mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4";
 const thCls =
-  "px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-[#4d4354]/45";
+  "px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-ink-subtle";
 const tdCls = "px-3 py-2.5 text-sm font-medium text-[#1d1b20]";
 
 function EmptyRow({ cols, text }: { cols: number; text: string }) {
   return (
     <tr>
-      <td colSpan={cols} className="py-10 text-center text-sm text-[#4d4354]/60">
+      <td colSpan={cols} className="py-10 text-center text-sm text-ink-muted">
         {text}
       </td>
     </tr>
@@ -67,7 +67,7 @@ export function TransportPanel() {
           <PanelTitle icon={Bus} title="Transport Management" />
           <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
             {(["routes", "vehicles"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-[#4d4354]/60 hover:text-[#1d1b20]"}`}>
+              <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
                 {t === "routes" ? "Routes" : "Vehicles"}
               </button>
             ))}
@@ -248,7 +248,7 @@ export function DormitoryPanel() {
         <PanelTitle icon={Building2} title="Hostel Management" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["types", "rooms"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-[#4d4354]/60 hover:text-[#1d1b20]"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
               {t === "types" ? "Room Types" : "Rooms"}
             </button>
           ))}
@@ -406,7 +406,7 @@ export function LibraryPanel() {
         <PanelTitle icon={BookOpen} title="Library Management" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["books", "members", "issues", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-[#4d4354]/60 hover:text-[#1d1b20]"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -515,7 +515,7 @@ function BooksTab() {
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#4d4354]/40" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <input className={`${inputCls} w-64 pl-9`} placeholder="Search books…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Book</BrandButton>
@@ -713,7 +713,7 @@ export function InventoryPanel() {
         <PanelTitle icon={Package} title="Inventory / POS" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["items", "transactions", "stores", "suppliers", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-[#4d4354]/60 hover:text-[#1d1b20]"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -896,7 +896,7 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#4d4354]/40" /><input className={`${inputCls} w-64 pl-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><input className={`${inputCls} w-64 pl-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Item</BrandButton>
       </div>
       {showAdd && (

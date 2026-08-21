@@ -94,11 +94,11 @@ export function StatCard({
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">
+          <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">
             {label}
           </p>
           <p className="text-3xl font-black text-[#1f1a23] leading-none">{displayValue}</p>
-          {sub && <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mt-2">{sub}</p>}
+          {sub && <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">{sub}</p>}
         </div>
         <div className="relative shrink-0">
           <div className={cn("absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500", toneGlowClass[tone])} />

@@ -111,7 +111,7 @@ const SUBJECT_COLORS: SubjectColor[] = [
 ];
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-[#4d4354]/50", label: "Break" },
+  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break" },
   PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
   ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
@@ -195,7 +195,7 @@ function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: 
         <Icon className="w-8 h-8 text-[#8127cf]/30" />
       </div>
       <h3 className="text-lg font-black text-[#1f1a23]">{title}</h3>
-      <p className="mt-2 text-sm font-semibold text-[#4d4354]/50 max-w-sm">{description}</p>
+      <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">{description}</p>
     </div>
   );
 }
@@ -239,13 +239,13 @@ function PeriodConfigModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label="Configure Periods" className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
+        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
           <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
         <div className="mb-6">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Timetable Setup</p>
           <h3 className="text-xl font-black text-[#1f1a23] mt-1">Configure Periods</h3>
-          <p className="text-xs font-semibold text-[#4d4354]/40 mt-1">Set start/end times and types for each period</p>
+          <p className="text-xs font-semibold text-ink-subtle mt-1">Set start/end times and types for each period</p>
         </div>
         <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
           {localPeriods.map((p, i) => (
@@ -257,7 +257,7 @@ function PeriodConfigModal({
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
-              <span className="text-[10px] font-bold text-[#4d4354]/30">to</span>
+              <span className="text-[10px] font-bold text-ink-subtle">to</span>
               <input
                 type="time"
                 value={p.end}
@@ -287,7 +287,7 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />Add Period
           </button>
@@ -296,7 +296,7 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -405,18 +405,18 @@ function SlotEditorModal({
         className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
+        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
           <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
         <div className="mb-6">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Edit Slot</p>
           <h3 className="text-xl font-black text-[#1f1a23] mt-1">{dayName} — Period {slot.periodNumber}</h3>
-          <p className="text-xs font-semibold text-[#4d4354]/40 mt-1">{slot.startTime} – {slot.endTime}</p>
+          <p className="text-xs font-semibold text-ink-subtle mt-1">{slot.startTime} – {slot.endTime}</p>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Slot Type</label>
+            <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
             <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
                 <button
@@ -424,7 +424,7 @@ function SlotEditorModal({
                   type="button"
                   onClick={() => setSlotType(type)}
                   className={`flex-1 rounded-xl px-2 py-1.5 text-[9px] font-black uppercase transition-all cursor-pointer ${
-                    slotType === type ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/40 hover:text-[#8127cf]"
+                    slotType === type ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-subtle hover:text-[#8127cf]"
                   }`}
                 >
                   {type}
@@ -436,7 +436,7 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Subject</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
                 <select
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
@@ -450,7 +450,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Teacher {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <select
@@ -469,7 +469,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Room (Optional) {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <select
@@ -496,7 +496,7 @@ function SlotEditorModal({
           <button
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
           >
             <X className="w-3 h-3" />Clear
           </button>
@@ -955,7 +955,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               })}
             </select>
             <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/50 pointer-events-none" />
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4d4354]/40 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
           </div>
         </div>
 
@@ -965,7 +965,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               type="button"
               onClick={() => setViewMode("class")}
               className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class
@@ -974,7 +974,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               type="button"
               onClick={() => setViewMode("teacher")}
               className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher
@@ -983,7 +983,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               type="button"
               onClick={() => setViewMode("room")}
               className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "room" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                viewMode === "room" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <DoorOpen className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Room
@@ -1047,7 +1047,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 <Calendar className="w-10 h-10 text-[#8127cf]/40" />
               </div>
               <h3 className="text-lg font-black text-[#1f1a23] mb-2">No Timetable Yet</h3>
-              <p className="text-sm text-[#4d4354]/50 mb-8 max-w-sm text-center">
+              <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
                 Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
               </p>
               <div className="flex items-center gap-3">
@@ -1097,14 +1097,14 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       setCustomPeriods(p);
                       setShowPeriodConfig(true);
                     }}
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
                   >
                     <Clock className="h-3.5 w-3.5" />Periods
                   </button>
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
                   >
                     <Printer className="h-3.5 w-3.5" />Print
                   </button>
@@ -1138,7 +1138,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-gray-400"}`} />
                       <span className={`text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
                       {s.teacher && (
-                        <span className="text-[9px] font-semibold text-[#4d4354]/40 ml-1">({s.teacher.fullName})</span>
+                        <span className="text-[9px] font-semibold text-ink-subtle ml-1">({s.teacher.fullName})</span>
                       )}
                     </div>
                   );
@@ -1161,7 +1161,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 {/* CENTER: Timetable grid */}
                 <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
                   {classLoading ? (
-                    <div className="p-4 text-center text-sm font-semibold text-[#4d4354]/40">Loading slots…</div>
+                    <div className="p-4 text-center text-sm font-semibold text-ink-subtle">Loading slots…</div>
                   ) : (
                     <TimetableGrid
                       slots={activeTimetable.slots}

@@ -174,7 +174,7 @@ export function ReportCardPipeline({
                         ? "bg-emerald-500 text-white"
                         : state === "active"
                         ? "bg-[#8127cf] text-white"
-                        : "bg-[#f3f4f9] text-[#4d4354]/40"
+                        : "bg-[#f3f4f9] text-ink-subtle"
                     )}
                   >
                     {state === "done" ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
@@ -231,7 +231,7 @@ export function ReportCardPipeline({
               key={s.label}
               className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm"
             >
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 {s.label}
               </p>
               <p className="mt-1 text-xl font-black text-[#1d1b20]">{s.value}</p>
@@ -247,8 +247,8 @@ export function ReportCardPipeline({
         </p>
         {reportCards.length === 0 ? (
           <div className="py-10 text-center">
-            <FilePlus2 className="mx-auto mb-3 h-10 w-10 text-[#4d4354]/20" />
-            <p className="text-sm font-bold text-[#4d4354]/40">No report cards yet</p>
+            <FilePlus2 className="mx-auto mb-3 h-10 w-10 text-ink-subtle" />
+            <p className="text-sm font-bold text-ink-subtle">No report cards yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -266,7 +266,7 @@ export function ReportCardPipeline({
                       <p className="truncate text-sm font-bold text-[#1d1b20]">
                         {rc.student?.fullName || "Student"}
                       </p>
-                      <p className="text-[10px] font-semibold text-[#4d4354]/40">
+                      <p className="text-[10px] font-semibold text-ink-subtle">
                         Roll {rc.student?.rollNo || "—"}
                       </p>
                     </div>
@@ -278,7 +278,7 @@ export function ReportCardPipeline({
                     <Badge done={sent} label="Sent" />
                   </div>
                   {rc.percentage != null ? (
-                    <p className="mt-2 text-[11px] font-bold text-[#4d4354]/60">
+                    <p className="mt-2 text-[11px] font-bold text-ink-muted">
                       {Math.round(rc.percentage)}%
                       {rc.rank != null ? ` · Rank #${rc.rank}` : ""}
                     </p>
@@ -307,7 +307,7 @@ function Badge({ done, label }: { done: boolean; label: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider",
-        done ? "bg-emerald-50 text-emerald-600" : "bg-[#f3f4f9] text-[#4d4354]/40"
+        done ? "bg-emerald-50 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
       )}
     >
       <CheckCircle2 className="h-2.5 w-2.5" />

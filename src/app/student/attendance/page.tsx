@@ -101,7 +101,7 @@ export default function StudentAttendancePage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Attendance</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             {data.user.className} · {data.user.campusName}
           </p>
         </div>
@@ -153,7 +153,7 @@ export default function StudentAttendancePage() {
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/50 px-3 py-1.5 border border-[#cfc2d6]/10">
               <span className="text-xs font-bold text-[#1d1b20]">{monthStats.rate ?? 0}%</span>
-              <span className="text-[9px] font-semibold text-[#4d4354]/50">this month</span>
+              <span className="text-[9px] font-semibold text-ink-muted">this month</span>
             </div>
             <div className="flex gap-3">
               <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />P: {monthStats.present}</span>
@@ -164,7 +164,7 @@ export default function StudentAttendancePage() {
 
           <div className="grid grid-cols-7 gap-1">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-              <div key={d} className="text-center text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider py-2">{d}</div>
+              <div key={d} className="text-center text-[9px] font-bold text-ink-subtle uppercase tracking-wider py-2">{d}</div>
             ))}
             {calendarDays.map((cell, i) => {
               if (!cell) return <div key={`empty-${i}`} />;
@@ -175,7 +175,7 @@ export default function StudentAttendancePage() {
                 ? "bg-rose-50 border-rose-200/50 text-rose-700"
                 : status === "LEAVE"
                 ? "bg-amber-50 border-amber-200/50 text-amber-700"
-                : "bg-[#f3f4f9]/30 border-transparent text-[#4d4354]/30";
+                : "bg-[#f3f4f9]/30 border-transparent text-ink-subtle";
               return (
                 <div key={cell.day} className={`relative flex flex-col items-center justify-center rounded-xl border py-2.5 transition-all ${bg} ${status ? "hover:shadow-md hover:-translate-y-0.5" : ""}`}>
                   <span className="text-xs font-bold">{cell.day}</span>
@@ -203,7 +203,7 @@ export default function StudentAttendancePage() {
             <div className="space-y-5">
               {groupedByMonth.map((group) => (
                 <div key={group.key}>
-                  <p className="text-[11px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
+                  <p className="text-[11px] font-bold text-ink-subtle uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
                   <div className="space-y-1.5">
                     {group.entries.map((entry: any) => (
                       <AttendanceRow key={entry.id} entry={entry} />
@@ -214,9 +214,9 @@ export default function StudentAttendancePage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-[32px] bg-[#fbf0fe]/20 border border-dashed border-[#cfc2d6]/20">
-              <CalendarCheck className="w-10 h-10 text-[#4d4354]/20 mb-3" />
+              <CalendarCheck className="w-10 h-10 text-ink-subtle mb-3" />
               <p className="text-sm font-bold text-[#1d1b20]">No attendance recorded yet</p>
-              <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">Attendance will appear here after your teacher marks it.</p>
+              <p className="mt-1 text-xs font-semibold text-ink-muted">Attendance will appear here after your teacher marks it.</p>
             </div>
           )}
         </div>
@@ -241,7 +241,7 @@ function StatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: an
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.purple}`} />
           <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${iconColors[tone] || iconColors.purple}`}>
@@ -250,7 +250,7 @@ function StatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: an
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>
+      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
     </div>
   );
 }
@@ -271,15 +271,15 @@ function AttendanceRow({ entry }: { entry: any }) {
     <div className="group flex items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3.5 border border-[#cfc2d6]/8 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-[#cfc2d6]/20">
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center w-10">
-          <span className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider">{dayName}</span>
+          <span className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider">{dayName}</span>
           <span className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{formatted.split(" ")[1]}</span>
         </div>
         <div className="h-8 w-[1px] bg-[#cfc2d6]/15" />
         <div>
-          <p className="text-xs font-semibold text-[#4d4354]/70">{formatted}</p>
-          {entry.notes && <p className="text-[9px] font-semibold text-[#4d4354]/40">{entry.notes}</p>}
+          <p className="text-xs font-semibold text-ink">{formatted}</p>
+          {entry.notes && <p className="text-[9px] font-semibold text-ink-subtle">{entry.notes}</p>}
           {entry.marker?.fullName && (
-            <p className="text-[9px] font-semibold text-[#4d4354]/30">Marked by {entry.marker.fullName}</p>
+            <p className="text-[9px] font-semibold text-ink-subtle">Marked by {entry.marker.fullName}</p>
           )}
         </div>
       </div>

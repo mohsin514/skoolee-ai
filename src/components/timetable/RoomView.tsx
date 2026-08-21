@@ -64,8 +64,8 @@ export function RoomView({
         {/* Header */}
         <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
           <div className="flex items-center gap-1.5 p-3">
-            <DoorOpen className="w-4 h-4 text-[#4d4354]/30" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/30">Room</span>
+            <DoorOpen className="w-4 h-4 text-ink-subtle" />
+            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Room</span>
           </div>
           {visibleDays.map((day) => {
             const isOff = weekendDays.includes(day.num);
@@ -76,15 +76,15 @@ export function RoomView({
                   isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""
                 }`}
               >
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-                <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
               </div>
             );
           })}
         </div>
 
         {rooms.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm font-semibold text-[#4d4354]/40">
+          <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
             No rooms configured. Add rooms in Academic settings.
           </div>
         ) : (
@@ -98,7 +98,7 @@ export function RoomView({
               >
                 <div className="flex flex-col justify-center p-3 border-r border-[#f3f4f9]">
                   <span className="text-[11px] font-black text-[#1f1a23]">{room.roomNumber}</span>
-                  <span className="text-[8px] font-bold text-[#4d4354]/40 mt-0.5">
+                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">
                     cap {room.capacity || "—"}
                   </span>
                 </div>
@@ -128,7 +128,7 @@ export function RoomView({
                         </div>
                       ) : (
                         <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-[#cfc2d6]/15">
-                          <span className="text-[8px] font-semibold text-[#4d4354]/15">free</span>
+                          <span className="text-[8px] font-semibold text-ink-subtle">free</span>
                         </div>
                       )}
                     </div>

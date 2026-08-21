@@ -235,7 +235,7 @@ function SettingsDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
           >
             <X className="h-5 w-5" />
           </button>
@@ -244,7 +244,7 @@ function SettingsDrawer({
         {/* Drawer body */}
         <div className="flex-1 space-y-5 overflow-y-auto p-6 custom-scrollbar">
           <div className="space-y-4">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Edit Class Details
             </p>
             <FormInput
@@ -285,7 +285,7 @@ function SettingsDrawer({
             <p className="text-[9px] font-black uppercase tracking-wider text-rose-500/70">
               Danger Zone
             </p>
-            <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#4d4354]/60">
+            <p className="mt-2 text-[11px] font-bold leading-relaxed text-ink-muted">
               Permanently delete this section and all its data including
               subjects, student enrollments, and exam records. This cannot
               be undone.
@@ -421,7 +421,7 @@ function MatrixView({
                     )}
                   >
                     {!subject ? (
-                      <span className="text-[9px] font-bold text-[#4d4354]/25">
+                      <span className="text-[9px] font-bold text-ink-subtle">
                         --
                       </span>
                     ) : isBusy ? (
@@ -439,16 +439,16 @@ function MatrixView({
                                 alt="Teacher"
                               />
                             </div>
-                            <span className="max-w-[100px] truncate text-[9px] font-bold text-[#4d4354]/60">
+                            <span className="max-w-[100px] truncate text-[9px] font-bold text-ink-muted">
                               {teacher.fullName || "Teacher"}
                             </span>
                           </>
                         ) : (
-                          <span className="text-[9px] font-bold italic text-[#4d4354]/35">
+                          <span className="text-[9px] font-bold italic text-ink-subtle">
                             No class teacher
                           </span>
                         )}
-                        <span className="text-[7px] font-bold text-[#4d4354]/30">
+                        <span className="text-[7px] font-bold text-ink-subtle">
                           Follows class teacher
                         </span>
                       </div>
@@ -672,7 +672,7 @@ function SectionDetailView({
         <div className="min-w-0 space-y-5">
           {/* Teaching mode toggle */}
           <div className="rounded-3xl border border-[#cfc2d6]/10 bg-gradient-to-br from-[#faf7fc] to-[#f8f5fb] p-4">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Teaching Mode
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -723,7 +723,7 @@ function SectionDetailView({
                             "flex h-7 w-7 items-center justify-center rounded-xl transition-all",
                             active
                               ? `${option.activeIconBg} text-white shadow-sm`
-                              : "bg-[#f3f4f9] text-[#4d4354]/40",
+                              : "bg-[#f3f4f9] text-ink-subtle",
                           )}
                         >
                           <Icon className="h-3.5 w-3.5" />
@@ -743,7 +743,7 @@ function SectionDetailView({
                         <CheckCircle2 className={cn("h-4 w-4 shrink-0", option.activeTitleColor)} />
                       ) : null}
                     </div>
-                    <p className="mt-1.5 pl-9 text-[9px] font-bold leading-relaxed text-[#4d4354]/45">
+                    <p className="mt-1.5 pl-9 text-[9px] font-bold leading-relaxed text-ink-subtle">
                       {option.desc}
                     </p>
                   </button>
@@ -755,7 +755,7 @@ function SectionDetailView({
           {/* Subject cards */}
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
                 Subjects ({subjectCount})
               </p>
@@ -812,7 +812,7 @@ function SectionDetailView({
                         <button
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
-                          className="h-10 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                          className="h-10 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                         >
                           Cancel
                         </button>
@@ -832,7 +832,7 @@ function SectionDetailView({
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-[9px] font-bold text-[#4d4354]/45">
+                          <p className="mt-1 text-[9px] font-bold text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
                               <span className="text-[#0d9488]">
                                 Follows class teacher
@@ -875,7 +875,7 @@ function SectionDetailView({
                             onClick={() =>
                               startEditingSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[#4d4354]/30 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                             title="Edit subject"
                           >
                             <Pencil className="h-3 w-3" />
@@ -885,7 +885,7 @@ function SectionDetailView({
                             onClick={() =>
                               onDeleteSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[#4d4354]/30 transition-all hover:bg-rose-50 hover:text-rose-500"
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
                             title="Delete subject"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -1012,7 +1012,7 @@ function SectionDetailView({
                   <span className="block text-[11px] font-black text-[#1f1a23]">
                     Add to all {allSections.length} sections
                   </span>
-                  <span className="block text-[9px] font-bold text-[#4d4354]/50">
+                  <span className="block text-[9px] font-bold text-ink-muted">
                     Sections that already have this subject are
                     skipped.
                   </span>
@@ -1062,7 +1062,7 @@ function SectionDetailView({
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-[#f3f4f9]">
-                    <User className="h-6 w-6 text-[#4d4354]/30" />
+                    <User className="h-6 w-6 text-ink-subtle" />
                   </div>
                 )}
               </div>
@@ -1070,7 +1070,7 @@ function SectionDetailView({
                 <p className="truncate text-base font-black text-[#1f1a23]">
                   {section.classTeacher?.fullName || "Unassigned"}
                 </p>
-                <p className="truncate text-[9px] font-bold text-[#4d4354]/45">
+                <p className="truncate text-[9px] font-bold text-ink-subtle">
                   {section.classTeacher?.email || "No teacher assigned"}
                 </p>
               </div>
@@ -1179,12 +1179,12 @@ function SectionDetailView({
               )}>
                 <CheckCircle2 className={cn(
                   "h-3 w-3",
-                  completedSteps === totalSteps ? "text-emerald-600" : "text-[#4d4354]/30",
+                  completedSteps === totalSteps ? "text-emerald-600" : "text-ink-subtle",
                 )} />
               </div>
               <p className={cn(
                 "text-[9px] font-black uppercase tracking-wider",
-                completedSteps === totalSteps ? "text-emerald-600/60" : "text-[#4d4354]/40",
+                completedSteps === totalSteps ? "text-emerald-600/60" : "text-ink-subtle",
               )}>
                 {completedSteps === totalSteps ? "Setup Complete" : "Setup Progress"}
               </p>
@@ -1247,7 +1247,7 @@ function SectionDetailView({
                         "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full",
                         step.done
                           ? "bg-emerald-100 text-emerald-600"
-                          : "bg-[#f3f4f9] text-[#4d4354]/25",
+                          : "bg-[#f3f4f9] text-ink-subtle",
                       )}
                     >
                       <Check
@@ -1260,7 +1260,7 @@ function SectionDetailView({
                         "text-[9px] font-bold",
                         step.done
                           ? "text-[#1f1a23]"
-                          : "text-[#4d4354]/40",
+                          : "text-ink-subtle",
                       )}
                     >
                       {step.label}
@@ -1277,7 +1277,7 @@ function SectionDetailView({
       {showAllStudents ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <GraduationCap className="h-3.5 w-3.5 text-[#8127cf]" />
               All Students ({students.length})
             </p>
@@ -1305,7 +1305,7 @@ function SectionDetailView({
                   <p className="truncate text-xs font-black text-[#1f1a23]">
                     {student.fullName}
                   </p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/40">
+                  <p className="text-[9px] font-bold text-ink-subtle">
                     Roll {student.rollNo || "N/A"}
                   </p>
                 </div>
@@ -1315,7 +1315,7 @@ function SectionDetailView({
             <button
               type="button"
               onClick={onAddStudent}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 px-4 py-3 text-[10px] font-black text-[#4d4354]/40 transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/30 hover:text-[#8127cf] sm:w-auto sm:min-w-[200px]"
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 px-4 py-3 text-[10px] font-black text-ink-subtle transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/30 hover:text-[#8127cf] sm:w-auto sm:min-w-[200px]"
             >
               <Plus className="h-4 w-4" />
               Add Student
@@ -1489,7 +1489,7 @@ export function ClassManager({
                   <button
                     type="button"
                     onClick={onRefresh}
-                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/35 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
                     title="Refresh data"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
@@ -1498,7 +1498,7 @@ export function ClassManager({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-[#4d4354]/50 transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
                 >
                   <X className="h-4 w-4" />
                   <span className="sr-only">Close</span>
@@ -1513,7 +1513,7 @@ export function ClassManager({
                 <span className="text-[10px] font-black text-[#8127cf]">
                   {sortedSections.length}
                 </span>
-                <span className="text-[10px] font-bold text-[#4d4354]/45">
+                <span className="text-[10px] font-bold text-ink-subtle">
                   section{sortedSections.length !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -1522,7 +1522,7 @@ export function ClassManager({
                 <span className="text-[10px] font-black text-[#0d9488]">
                   {totalSubjects}
                 </span>
-                <span className="text-[10px] font-bold text-[#4d4354]/45">
+                <span className="text-[10px] font-bold text-ink-subtle">
                   subject{totalSubjects !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -1531,7 +1531,7 @@ export function ClassManager({
                 <span className="text-[10px] font-black text-[#f43f5e]">
                   {totalStudents}
                 </span>
-                <span className="text-[10px] font-bold text-[#4d4354]/45">
+                <span className="text-[10px] font-bold text-ink-subtle">
                   student{totalStudents !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -1566,13 +1566,13 @@ export function ClassManager({
             {/* Mobile close */}
             {mobileRailOpen ? (
               <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-4 py-3 lg:hidden">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                   Sections
                 </span>
                 <button
                   type="button"
                   onClick={() => setMobileRailOpen(false)}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1615,7 +1615,7 @@ export function ClassManager({
                   >
                     All Sections
                   </p>
-                  <p className="text-[8px] font-bold text-[#4d4354]/40">
+                  <p className="text-[8px] font-bold text-ink-subtle">
                     Matrix view
                   </p>
                 </div>
@@ -1673,16 +1673,16 @@ export function ClassManager({
                             ? `Section ${sec.section}`
                             : "Main Section"}
                         </p>
-                        <p className="mt-0.5 truncate text-[8px] font-bold text-[#4d4354]/40">
+                        <p className="mt-0.5 truncate text-[8px] font-bold text-ink-subtle">
                           {sec.classTeacher?.fullName ||
                             "No teacher"}
                         </p>
                         <div className="mt-1 flex items-center gap-2">
-                          <span className="text-[8px] font-bold text-[#4d4354]/30">
+                          <span className="text-[8px] font-bold text-ink-subtle">
                             {studentCount} student
                             {studentCount !== 1 ? "s" : ""}
                           </span>
-                          <span className="text-[8px] font-bold text-[#4d4354]/30">
+                          <span className="text-[8px] font-bold text-ink-subtle">
                             {sectionSubjectCount} subject
                             {sectionSubjectCount !== 1 ? "s" : ""}
                           </span>
@@ -1716,7 +1716,7 @@ export function ClassManager({
                       <h2 className="text-lg font-black text-[#1f1a23]">
                         Subject-Teacher Matrix
                       </h2>
-                      <p className="text-[10px] font-bold text-[#4d4354]/50">
+                      <p className="text-[10px] font-bold text-ink-muted">
                         Overview of all subjects and teacher
                         assignments across sections
                       </p>
@@ -1759,7 +1759,7 @@ export function ClassManager({
                             ? `Section ${selectedSection.section}`
                             : "Main Section"}
                         </h2>
-                        <p className="text-[10px] font-bold text-[#4d4354]/50">
+                        <p className="text-[10px] font-bold text-ink-muted">
                           {selectedSection.classTeacher?.fullName ||
                             "No class teacher assigned"}{" "}
                           / {selectedStudents.length} student
@@ -1772,7 +1772,7 @@ export function ClassManager({
                     <button
                       type="button"
                       onClick={() => setSettingsOpen(true)}
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
                       title="Section settings"
                     >
                       <Settings className="h-5 w-5" />
@@ -1812,7 +1812,7 @@ export function ClassManager({
         {/* ============================================================ */}
         <div className="shrink-0 rounded-b-[34px] border-t border-[#cfc2d6]/10 bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] px-5 py-2.5 sm:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[9px] font-bold text-[#4d4354]/35">
+            <div className="flex items-center gap-2 text-[9px] font-bold text-ink-subtle">
               <span className="rounded-md bg-[#8127cf]/8 px-2 py-0.5 text-[8px] font-black text-[#8127cf]/50">
                 {className}
               </span>
@@ -1834,7 +1834,7 @@ export function ClassManager({
                   setSettingsOpen(true);
                 }
               }}
-              className="flex h-8 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/15 bg-white px-3.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 shadow-sm transition-all duration-200 hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+              className="flex h-8 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/15 bg-white px-3.5 text-[9px] font-black uppercase tracking-wider text-ink-muted shadow-sm transition-all duration-200 hover:border-[#8127cf]/20 hover:text-[#8127cf]"
             >
               <Settings className="h-3 w-3" />
               Settings

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
+import { assertSharedModuleRead } from "@/lib/api/scope";
 import { isCampusAdminRole } from "@/lib/roles";
 import { aiFeatureRequestSchema } from "@/lib/validators/schemas";
 import { Pseudonymizer } from "@/lib/ai/pseudonymize";
@@ -395,6 +396,7 @@ export async function GET(req: NextRequest) {
   if (billingBlocked) return billingBlocked;
 
   try {
+    await assertSharedModuleRead(user, "ai");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveScopedCampusId(user, searchParams.get("campusId"));
     const ownOnly = user.role === "TEACHER" || user.role === "STUDENT" || user.role === "PARENT";

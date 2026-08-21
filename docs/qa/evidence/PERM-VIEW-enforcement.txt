@@ -1,0 +1,55 @@
+ID:            PERM-VIEW / §10.2
+Title:         The permission matrix's `view` bit was ignored on most list endpoints
+Section:       §4 Role packs / §10.2 permission-matrix deliverable
+Severity:      P2 (a security control that silently does nothing)
+Status:        PARTIALLY FIXED — 4 modules need a product decision
+Found:         2026-08-21 by scripts/qa/permission-matrix.mjs
+
+METHOD
+  T3-CAMPUS_ADMIN is seeded with RolePermission rows revoking all four actions
+  on all 17 modules. Every module's read endpoint is then called as that
+  persona. Anything answering 200 is a bit the UI lets an admin set and the
+  server ignores.
+
+  A note on method: a first pass grepped only for assertPermission() and
+  concluded 39/68 bits were unenforced. That was WRONG — a second helper,
+  assertModuleRead(), enforces the view bit for several modules. The empirical
+  probe is the source of truth here; the static count was not.
+
+BEFORE:  10/17 modules enforced view.   AFTER:  13/17.
+
+FIXED (view bit now enforced)
+  students     /students            was: assertStaffRole only  -> assertModuleRead(user,"students")
+  staff        /staff               was: role gate only        -> assertModuleRead(user,"staff")
+  admissions   /admission-queries   was: requireAuthUser only  -> assertModuleRead(user,"admissions")
+
+  The admissions one was not merely an ignored bit — see below.
+
+RELATED P1, FIXED — admissions pipeline was readable by students and parents
+  GET /api/admission-queries stopped at requireAuthUser(). Confirmed with a
+  seeded lead record: T1-STUDENT and T1-PARENT both received HTTP 200 carrying
+  a prospective family's name, phone (+923009998887), email and private
+  follow-up note. Any pupil with a portal login could enumerate the school's
+  entire admissions pipeline.
+  Now: STUDENT/PARENT -> 403; RECEPTIONIST -> 200 (verified, no regression).
+
+OPEN — 4 modules, needs a product decision (not safe to fix unilaterally)
+  fees (/fees/types) · timetable (/timetable) · exams (/exams) · ai (/ai/insights)
+
+  These are SHARED surfaces: students and parents legitimately read their own
+  timetable, results and fee schedule through them. assertModuleRead() is
+  staff-only, so applying it would cut families off from their own data — a
+  worse bug than the one being fixed.
+
+  The fix is a role-aware guard: enforce the module's view bit for STAFF, and
+  keep the family-scoped read path open for STUDENT/PARENT. That is a design
+  choice about what the matrix means on a shared endpoint, so it is recorded
+  rather than guessed at.
+
+  Interim risk is low: these endpoints are already tenant- and campus-scoped
+  (the isolation sweep passes 1074/1074), so the exposure is "an admin revoked
+  a view bit and it had no effect", not cross-tenant leakage.
+
+CI
+  scripts/qa/permission-matrix.mjs lists these four in ACCEPTED_GAPS, so the
+  suite fails on a NEW unenforced module while not blocking on these.

@@ -70,7 +70,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
     : 0;
 
   const rateColor = (val: number | null) => {
-    if (val === null) return "text-[#4d4354]/30";
+    if (val === null) return "text-ink-subtle";
     if (val >= 80) return "text-emerald-600";
     if (val >= 60) return "text-amber-600";
     return "text-rose-600";
@@ -96,7 +96,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
             <div>
               <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff · {year}</p>
               <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Teacher Performance</h2>
-              <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                 How each teacher&apos;s classes are doing, and whether their marks and attendance are up to date.
               </p>
             </div>
@@ -122,7 +122,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               <card.icon className="h-5 w-5" />
             </div>
             <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{card.value}</p>
-            <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">{card.label}</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">{card.label}</p>
           </div>
         ))}
       </div>
@@ -130,9 +130,9 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/30" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teachers..."
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
+            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-ink-subtle focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
         </div>
         <div className="flex items-center gap-2">
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
@@ -181,7 +181,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
         <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-6 text-center">
           <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-rose-500" />
           <p className="text-sm font-black text-[#1f1a23]">Couldn&apos;t load teacher performance</p>
-          <p className="mt-1 text-xs font-semibold text-[#4d4354]/60">{loadError}</p>
+          <p className="mt-1 text-xs font-semibold text-ink-muted">{loadError}</p>
           <button
             type="button"
             onClick={load}
@@ -202,7 +202,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
                   rank === 0 ? "bg-amber-50 text-amber-600" :
                   rank === 1 ? "bg-slate-100 text-slate-500" :
                   rank === 2 ? "bg-orange-50 text-orange-500" :
-                  "bg-[#f3f4f9] text-[#4d4354]/30"
+                  "bg-[#f3f4f9] text-ink-subtle"
                 }`}>
                   {rank + 1}
                 </div>
@@ -221,14 +221,14 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-[10px] font-semibold text-[#4d4354]/40">{teacher.subjectsCount} subjects</span>
-                    <span className="text-[#4d4354]/15">|</span>
-                    <span className="text-[10px] font-semibold text-[#4d4354]/40">{teacher.classesCount} classes</span>
-                    <span className="text-[#4d4354]/15">|</span>
-                    <span className="text-[10px] font-semibold text-[#4d4354]/40">{teacher.totalStudents} students</span>
+                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.subjectsCount} subjects</span>
+                    <span className="text-ink-subtle">|</span>
+                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.classesCount} classes</span>
+                    <span className="text-ink-subtle">|</span>
+                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.totalStudents} students</span>
                     {teacher.ledClasses.length > 0 && (
                       <>
-                        <span className="text-[#4d4354]/15">|</span>
+                        <span className="text-ink-subtle">|</span>
                         <span className="text-[10px] font-semibold text-[#8127cf]">
                           CT: {teacher.ledClasses.map((c) => `${c.name}${c.section ? `-${c.section}` : ""}`).join(", ")}
                         </span>
@@ -250,14 +250,14 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
                       {teacher.avgPercentage !== null ? `${teacher.avgPercentage}%` : "—"}
                     </p>
                   </div>
-                  <p className="text-[8px] font-semibold uppercase tracking-wider text-[#4d4354]/35 mt-0.5">Avg Score</p>
+                  <p className="text-[8px] font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">Avg Score</p>
                 </div>
 
                 <div className={`rounded-xl px-3 py-2 ${rateBg(teacher.passRate)}`}>
                   <p className={`text-sm font-bold ${rateColor(teacher.passRate)}`}>
                     {teacher.passRate !== null ? `${teacher.passRate}%` : "—"}
                   </p>
-                  <p className="text-[8px] font-semibold uppercase tracking-wider text-[#4d4354]/35 mt-0.5">Pass Rate</p>
+                  <p className="text-[8px] font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">Pass Rate</p>
                 </div>
 
                 <div className={`rounded-xl px-3 py-2 ${rateBg(teacher.teacherAttendanceRate)}`}>
@@ -267,14 +267,14 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
                       {teacher.teacherAttendanceRate !== null ? `${teacher.teacherAttendanceRate}%` : "—"}
                     </p>
                   </div>
-                  <p className="text-[8px] font-semibold uppercase tracking-wider text-[#4d4354]/35 mt-0.5">Own Attendance</p>
+                  <p className="text-[8px] font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">Own Attendance</p>
                 </div>
 
                 <div className={`rounded-xl px-3 py-2 ${rateBg(teacher.marksCompletionRate)}`}>
                   <p className={`text-sm font-bold ${rateColor(teacher.marksCompletionRate)}`}>
                     {teacher.marksCompletionRate !== null ? `${teacher.marksCompletionRate}%` : "—"}
                   </p>
-                  <p className="text-[8px] font-semibold uppercase tracking-wider text-[#4d4354]/35 mt-0.5">Marks Entry</p>
+                  <p className="text-[8px] font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">Marks Entry</p>
                 </div>
               </div>
             </div>

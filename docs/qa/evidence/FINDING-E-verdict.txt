@@ -1,0 +1,42 @@
+ID:            FINDING-E / SEC-5 / ISO-5.2
+Title:         Unsanitised schemaName in CREATE SCHEMA DDL
+Section:       §12 Findings / §9 Security
+Severity:      P3 (was: "P0 if reachable")  -- NOT EXPLOITABLE
+Status:        VERIFIED SAFE (static trace, 2026-08-21)
+
+VERDICT: schemaName is NOT attacker-controlled. Downgrade from P0 to P3 hardening.
+
+TRACE (all 3 call sites of createTenantSchema — exhaustive):
+  src/app/api/auth/register/route.ts:87   const schemaName = `school_${school.id.replace(/-/g, "_")}`;
+  src/app/api/auth/register/route.ts:158  (identical)
+  src/app/api/tenants/route.ts:80         (identical)
+
+WHY IT IS SAFE:
+  1. schemaName derives from school.id ONLY — never from name or slug.
+  2. school.id is NOT client-suppliable. Both creation sites pass an explicit
+     `data` object that omits `id`:
+       prisma.school.create({ data: { name, slug, regId, city, contactEmail, status } })
+     Prisma therefore generates it from the schema default:
+       prisma/schema.prisma -> model School { id String @id @default(uuid()) }
+  3. A v4 UUID matches ^[0-9a-f-]{36}$. After .replace(/-/g,"_") the resulting
+     schemaName matches ^school_[0-9a-f_]{36}$ — it cannot contain a double
+     quote, semicolon, whitespace, or comment marker.
+  4. The proposed probe (school name = 'evil"; CREATE TABLE public.pwned(x int);--')
+     cannot reach the DDL: the name is written to schools.name as a bound Prisma
+     parameter and is never concatenated into the schema name.
+
+RESIDUAL RISK (why this stays open as P3, not CLOSED):
+  createTenantSchema() is an EXPORTED function whose safety rests entirely on the
+  discipline of its 3 current callers. It performs raw interpolation into DDL with
+  13 $executeRawUnsafe calls (1 CREATE SCHEMA + 12 CREATE TABLE). A future caller
+  passing a user-derived string reintroduces DDL-privilege SQL injection with no
+  compile-time signal.
+
+RECOMMENDED FIX (defence in depth, ~3 lines, src/lib/db/tenant.ts):
+  export async function createTenantSchema(schemaName: string, schoolId: string) {
+    if (!/^school_[a-z0-9_]{1,40}$/.test(schemaName)) {
+      throw new Error(`Refusing unsafe schema name: ${schemaName}`);
+    }
+    ...
+
+CONSEQUENCE FOR THE SWEEP: ISO-5.2 is answered. It does not block §2.

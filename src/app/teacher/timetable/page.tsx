@@ -65,7 +65,7 @@ export default function TeacherTimetablePage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider">My Schedule</p>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your published class schedule across all assigned classes</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Your published class schedule across all assigned classes</p>
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export default function TeacherTimetablePage() {
             <CalendarX2 className="h-7 w-7 text-[#8127cf]" />
           </div>
           <h3 className="text-base font-black text-[#1f1a23]">No classes assigned yet</h3>
-          <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-[#4d4354]/55">
+          <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-ink-muted">
             Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later.
           </p>
         </div>
@@ -108,9 +108,9 @@ export default function TeacherTimetablePage() {
                     >
                       {clashes ? <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" /> : null}
                       <span className={`text-[10px] font-black ${clashes ? "text-rose-600" : "text-[#8127cf]"}`}>{s.startTime}</span>
-                      <span className="text-[10px] font-bold text-[#4d4354]/30">|</span>
+                      <span className="text-[10px] font-bold text-ink-subtle">|</span>
                       <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
-                      <span className="text-[9px] font-semibold text-[#4d4354]/40">
+                      <span className="text-[9px] font-semibold text-ink-subtle">
                         {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
                       </span>
                     </div>

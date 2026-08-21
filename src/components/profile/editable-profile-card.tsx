@@ -215,12 +215,12 @@ function ProfileInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
+      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-[#4d4354]/35 hover:border-[#8127cf]/20 focus:border-[#8127cf]/35 focus:bg-white"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-ink-subtle hover:border-[#8127cf]/20 focus:border-[#8127cf]/35 focus:bg-white"
       />
     </label>
   );
@@ -228,7 +228,7 @@ function ProfileInput({
 
 function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">
       <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
       <span className="min-w-0 truncate">{label}</span>
     </div>
@@ -238,7 +238,7 @@ function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string })
 function ReadonlyDetail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3 transition-all duration-300 hover:bg-[#fbf0fe] hover:shadow-md">
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
         <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
         {label}
       </div>

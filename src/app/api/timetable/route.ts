@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertPermission, requireAuthUser, errorResponse, resolveCampusId, canManageOperations } from "@/lib/api/scope";
+import { assertPermission, requireAuthUser, errorResponse, resolveCampusId, canManageOperations,
+  assertSharedModuleRead,
+} from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 
 export const runtime = "nodejs";
@@ -8,6 +10,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertSharedModuleRead(user, "timetable");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
 

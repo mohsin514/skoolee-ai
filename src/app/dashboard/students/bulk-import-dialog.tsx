@@ -351,7 +351,7 @@ export function BulkImportDialog({
                     <span className="font-bold text-[#1f1a23]">{fileName}</span>
                     <button
                       type="button"
-                      className="rounded-lg p-1 text-[#4d4354]/45 hover:bg-[#fbf0fe] hover:text-rose-500"
+                      className="rounded-lg p-1 text-ink-subtle hover:bg-[#fbf0fe] hover:text-rose-500"
                       onClick={reset}
                     >
                       <X className="h-4 w-4" />
@@ -360,7 +360,7 @@ export function BulkImportDialog({
                 ) : (
                   <>
                     <Upload className="h-8 w-8 text-[#8127cf]/50" />
-                    <p className="text-sm font-bold text-[#4d4354]">
+                    <p className="text-sm font-bold text-ink">
                       Drop your CSV file here or click to browse
                     </p>
                   </>
@@ -405,7 +405,7 @@ export function BulkImportDialog({
                         </span>
                       </div>
                     )}
-                    <span className="text-xs font-semibold text-[#4d4354]/50">
+                    <span className="text-xs font-semibold text-ink-muted">
                       {parsedRows.length} total rows
                     </span>
                   </div>
@@ -486,7 +486,7 @@ export function BulkImportDialog({
                       </TableBody>
                     </Table>
                     {parsedRows.length > 10 && (
-                      <div className="border-t border-[#cfc2d6]/15 bg-[#fbf0fe]/30 px-4 py-2 text-center text-xs font-semibold text-[#4d4354]/50">
+                      <div className="border-t border-[#cfc2d6]/15 bg-[#fbf0fe]/30 px-4 py-2 text-center text-xs font-semibold text-ink-muted">
                         Showing first 10 of {parsedRows.length} rows
                       </div>
                     )}

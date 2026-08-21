@@ -165,7 +165,7 @@ export function AIReviewQueue({
 
   if (visibleItems.length === 0) {
     return (
-      <p className="text-xs font-semibold text-[#4d4354]/40 italic">
+      <p className="text-xs font-semibold text-ink-subtle italic">
         No AI drafts are waiting for review.
       </p>
     );

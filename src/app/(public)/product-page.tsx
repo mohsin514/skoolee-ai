@@ -54,10 +54,10 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <SkooleeLogo size="1.15rem" />
           </Link>
           <nav className="flex items-center gap-3 text-sm font-semibold">
-            <Link href="/privacy" className="hidden text-[#4d4354]/70 hover:text-[#8127cf] sm:block">
+            <Link href="/privacy" className="hidden text-ink hover:text-[#8127cf] sm:block">
               Trust
             </Link>
-            <Link href="/login" className="text-[#4d4354]/70 hover:text-[#8127cf]">
+            <Link href="/login" className="text-ink hover:text-[#8127cf]">
               Login
             </Link>
             <a href={demoMailto(copy.eyebrow)}>
@@ -74,7 +74,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-normal sm:text-5xl">
               {copy.title}
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#4d4354]/75">{copy.description}</p>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-ink">{copy.description}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <a href={demoMailto(copy.eyebrow)}>
                 <Button>
@@ -88,7 +88,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               {copy.highlights.map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm font-semibold text-[#4d4354]">
+                <div key={item} className="flex items-center gap-2 text-sm font-semibold text-ink">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   {item}
                 </div>
@@ -101,7 +101,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
               <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <span className="ml-auto text-xs font-bold text-[#4d4354]/45">Live school dashboard</span>
+              <span className="ml-auto text-xs font-bold text-ink-subtle">Live school dashboard</span>
             </div>
             <div className="grid gap-3">
               <div className="rounded-lg bg-[#f6f8fb] p-4">
@@ -113,7 +113,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
               <div className="grid grid-cols-3 gap-3">
                 {["Students", "Fees", "Campuses"].map((label, index) => (
                   <div key={label} className="rounded-lg border border-[#e8e0ed] p-3">
-                    <p className="text-[10px] font-bold uppercase text-[#4d4354]/45">{label}</p>
+                    <p className="text-[10px] font-bold uppercase text-ink-subtle">{label}</p>
                     <p className="mt-2 text-xl font-black">{[482, "91%", 4][index]}</p>
                   </div>
                 ))}
@@ -137,7 +137,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <article key={section.title} className="rounded-lg border border-[#e8e0ed] bg-white p-5 shadow-sm">
               <section.icon className="h-6 w-6 text-[#8127cf]" />
               <h2 className="mt-4 text-lg font-bold tracking-normal">{section.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#4d4354]/75">{section.body}</p>
+              <p className="mt-2 text-sm leading-6 text-ink">{section.body}</p>
             </article>
           ))}
         </div>

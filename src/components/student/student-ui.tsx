@@ -138,7 +138,7 @@ export function ProgressRing({
           <CountUp value={Math.round(value)} suffix="%" />
         </span>
         {label && (
-          <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-[#4d4354]/40">{label}</span>
+          <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-ink-subtle">{label}</span>
         )}
       </div>
     </div>
@@ -174,13 +174,13 @@ export function StatCard({
     >
       <div className="relative flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40 transition-colors group-hover:text-[#4d4354]/60">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle transition-colors group-hover:text-ink-muted">
             {label}
           </p>
           <p className="mt-2 text-3xl font-bold leading-none text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
             {value}
           </p>
-          {sub && <p className="mt-1.5 truncate text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>}
+          {sub && <p className="mt-1.5 truncate text-[10px] font-semibold text-ink-subtle">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
           <ProgressRing value={ring} tone={tone} size={64} stroke={6} />
@@ -225,7 +225,7 @@ export function PanelHeading({
         <div className="min-w-0">
           <h3 className="text-lg font-bold tracking-tight text-[#1d1b20]">{title}</h3>
           {sub && (
-            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">{sub}</p>
+            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
           )}
         </div>
       </div>

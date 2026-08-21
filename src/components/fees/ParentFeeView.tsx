@@ -85,7 +85,7 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
   if (!data) {
     return (
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 text-center">
-        <p className="text-sm font-semibold text-[#4d4354]/40">No fee data available</p>
+        <p className="text-sm font-semibold text-ink-subtle">No fee data available</p>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
         </div>
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee & Payments</h3>
-          <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{data.class}</p>
+          <p className="text-[9px] font-bold uppercase tracking-normal text-ink-subtle">{data.class}</p>
         </div>
         <span className={`ml-auto text-[9px] font-black uppercase tracking-normal px-3 py-1.5 rounded-full ${statusColor}`}>
           {data.paymentStatus === "good" ? "Good Standing" : data.paymentStatus === "critical" ? "Overdue" : "Due"}
@@ -110,9 +110,9 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
 
       {data.nextDue && data.balance > 0 && data.nextDue.invoiceId && (
         <div className="mb-6 rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] border border-[#8127cf]/10 p-5">
-          <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Outstanding Balance</p>
+          <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Outstanding Balance</p>
           <p className="mt-1 text-3xl font-black text-[#1f1a23]">Rs {(data.balance / 100).toLocaleString()}</p>
-          <p className="mt-1 text-xs font-bold text-[#4d4354]/60">
+          <p className="mt-1 text-xs font-bold text-ink-muted">
             Due: {data.nextDue.dueDate}
             {data.nextDue.status === "OVERDUE" ? <span className="text-rose-600 ml-2">OVERDUE</span> : null}
           </p>
@@ -124,13 +124,13 @@ export function ParentFeeView({ studentId }: { studentId: string }) {
       )}
 
       <div className="mb-6">
-        <h4 className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 mb-3">Payment History</h4>
+        <h4 className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-3">Payment History</h4>
         <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
           {data.invoiceHistory.map((inv, idx) => (
             <div key={idx} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/30 px-4 py-3 border border-[#cfc2d6]/10">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23] truncate">{inv.invoiceNumber || "Invoice"}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45">
+                <p className="text-[9px] font-bold text-ink-subtle">
                   {inv.invoiceDate} · Due: {inv.dueDate}
                   {inv.balance > 0 ? ` · Balance: Rs ${(inv.balance / 100).toLocaleString()}` : ""}
                 </p>

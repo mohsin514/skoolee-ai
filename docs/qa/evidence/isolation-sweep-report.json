@@ -1,0 +1,17 @@
+{
+  "ranAt": "2026-08-21T18:43:21.332Z",
+  "base": "http://localhost:3000",
+  "phases": [
+    "A",
+    "B"
+  ],
+  "durationMs": 29936,
+  "assertions": 1074,
+  "pass": 1074,
+  "fail": 0,
+  "skipped": 0,
+  "errors": 0,
+  "p0Count": 0,
+  "timeouts": [],
+  "findings": []
+}

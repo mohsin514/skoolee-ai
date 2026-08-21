@@ -99,7 +99,7 @@ export default function TeacherOnboardingPage() {
     onChange: (v: string) => void; required?: boolean; type?: string;
   }) => (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
+      <Label htmlFor={id} className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
       <Input
@@ -117,7 +117,7 @@ export default function TeacherOnboardingPage() {
     label: string; id: string; value: string; onChange: (v: string) => void; children: React.ReactNode;
   }) => (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">{label}</Label>
+      <Label htmlFor={id} className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">{label}</Label>
       <select
         id={id}
         value={value}
@@ -140,7 +140,7 @@ export default function TeacherOnboardingPage() {
           <h1 className="mb-4 text-3xl font-extrabold leading-tight text-[#1f1a23]">
             Complete your profile to start teaching with Skoolee.
           </h1>
-          <p className="text-sm font-medium text-[#4d4354]">
+          <p className="text-sm font-medium text-ink">
             Your workspace is ready. Just a few details to personalize your experience.
           </p>
         </div>
@@ -167,7 +167,7 @@ export default function TeacherOnboardingPage() {
                     ? "bg-[#8127cf] text-white shadow-md"
                     : i < step
                     ? "bg-[#e8d5f5] text-[#8127cf] cursor-pointer"
-                    : "bg-[#f3f4f9] text-[#4d4354]/40"
+                    : "bg-[#f3f4f9] text-ink-subtle"
                 }`}
               >
                 {i < step ? <CheckCircle2 className="h-3 w-3" /> : null}
@@ -190,11 +190,11 @@ export default function TeacherOnboardingPage() {
               {step === 0 && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="fullName" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
+                    <Label htmlFor="fullName" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                       Full Name <span className="text-rose-500">*</span>
                     </Label>
                     <div className="relative flex items-center">
-                      <UserRound className="pointer-events-none absolute left-4 h-5 w-5 text-[#4d4354]" />
+                      <UserRound className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                       <Input
                         id="fullName"
                         value={form.fullName}
@@ -209,11 +209,11 @@ export default function TeacherOnboardingPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="phone" className="ml-1 text-xs font-bold uppercase tracking-normal text-[#4d4354]">
+                    <Label htmlFor="phone" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                       Phone Number <span className="text-rose-500">*</span>
                     </Label>
                     <div className="relative flex items-center">
-                      <Phone className="pointer-events-none absolute left-4 h-5 w-5 text-[#4d4354]" />
+                      <Phone className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                       <Input
                         id="phone"
                         type="tel"
@@ -292,7 +292,7 @@ export default function TeacherOnboardingPage() {
                   <button
                     type="button"
                     onClick={() => setStep(step - 1)}
-                    className="flex h-12 items-center gap-2 rounded-xl bg-[#f3f4f9] px-5 text-sm font-bold text-[#4d4354] transition-all hover:bg-[#e8e0ec] cursor-pointer"
+                    className="flex h-12 items-center gap-2 rounded-xl bg-[#f3f4f9] px-5 text-sm font-bold text-ink transition-all hover:bg-[#e8e0ec] cursor-pointer"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back

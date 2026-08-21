@@ -15,7 +15,7 @@ export default function SubscriptionSuspendedPage() {
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl font-black">Subscription needs attention</h1>
-                <p className="mt-2 text-sm font-medium leading-6 text-[#4d4354]/70">
+                <p className="mt-2 text-sm font-medium leading-6 text-ink">
                   Access to school operations is paused until billing is updated. Your records stay in place, and
                   administrators can still open billing to restore the subscription.
                 </p>

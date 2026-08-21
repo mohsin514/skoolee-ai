@@ -155,7 +155,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
             </div>
             <div>
               <h2 className="text-xl font-black tracking-tight text-[#1d1b20]">Year-End Summary</h2>
-              <p className="text-[11px] font-semibold text-[#4d4354]/50">
+              <p className="text-[11px] font-semibold text-ink-muted">
                 Academic Year {activeYear}
                 {activeCycle ? ` · ${activeCycle.label}` : ""}
               </p>
@@ -195,7 +195,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     <h4 className="text-sm font-black text-[#1d1b20]">Average Grades per Class</h4>
                   </div>
                   {classAvgs.length === 0 ? (
-                    <p className="py-6 text-center text-xs font-semibold text-[#4d4354]/40">
+                    <p className="py-6 text-center text-xs font-semibold text-ink-subtle">
                       No completed classes with grades yet for {activeYear}.
                     </p>
                   ) : (
@@ -209,7 +209,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                               style={{ width: `${c.avg != null ? Math.min(100, Math.max(0, c.avg)) : 0}%` }}
                             />
                           </div>
-                          <span className={cn("w-12 text-right text-sm font-black", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-[#4d4354]/30")}>
+                          <span className={cn("w-12 text-right text-sm font-black", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-ink-subtle")}>
                             {c.avg != null ? `${Math.round(c.avg)}%` : "—"}
                           </span>
                         </div>
@@ -220,10 +220,10 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
 
                 <div className="rounded-2xl border border-dashed border-[#cfc2d6]/20 bg-[#faf7fc] p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <CalendarClock className="h-4 w-4 text-[#4d4354]/40" />
+                    <CalendarClock className="h-4 w-4 text-ink-subtle" />
                     <h4 className="text-sm font-black text-[#1d1b20]">Attendance Summary</h4>
                   </div>
-                  <p className="text-[11px] font-semibold leading-relaxed text-[#4d4354]/50">
+                  <p className="text-[11px] font-semibold leading-relaxed text-ink-muted">
                     A campus-wide attendance roll-up for the year is coming soon. Per-class attendance is available from each class profile.
                   </p>
                   <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 border border-[#cfc2d6]/10">
@@ -266,7 +266,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   </p>
                 </div>
                 <label className="block">
-                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#4d4354]/55">
+                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                     Type <span className="font-black text-rose-600">{activeCycle?.label}</span> to confirm
                   </span>
                   <input

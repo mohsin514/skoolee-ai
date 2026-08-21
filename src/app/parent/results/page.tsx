@@ -44,7 +44,7 @@ export default function ParentResultsPage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Results</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Report cards and subject-wise marks for your child.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Report cards and subject-wise marks for your child.</p>
         </div>
       </div>
 
@@ -68,23 +68,23 @@ export default function ParentResultsPage() {
                   <div key={rc.id} className="sk-rise group relative rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: `${index * 80}ms` }}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase">{rc.term} {rc.academicYear}</p>
+                        <p className="text-[10px] font-bold text-ink-subtle uppercase">{rc.term} {rc.academicYear}</p>
                         <h3 className="text-base font-bold text-[#1d1b20] mt-0.5 transition-colors group-hover:text-[#8127cf]">{rc.examTitle}</h3>
                         <div className="flex items-center gap-2 mt-2">
                           <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${scoreColor}`}>{pct}%</span>
-                          <span className="text-[10px] font-bold text-[#4d4354]/40">Grade: {rc.grade || "N/A"}</span>
-                          {rc.rank && <span className="text-[10px] font-bold text-[#4d4354]/40">Rank: #{rc.rank}</span>}
+                          <span className="text-[10px] font-bold text-ink-subtle">Grade: {rc.grade || "N/A"}</span>
+                          {rc.rank && <span className="text-[10px] font-bold text-ink-subtle">Rank: #{rc.rank}</span>}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-2xl font-black text-[#8127cf]">{rc.obtainedMarks}<span className="text-sm font-bold text-[#4d4354]/30">/{rc.totalMarks}</span></p>
+                        <p className="text-2xl font-black text-[#8127cf]">{rc.obtainedMarks}<span className="text-sm font-bold text-ink-subtle">/{rc.totalMarks}</span></p>
                       </div>
                     </div>
 
                     {rc.remarksEn && (
                       <div className="mt-3 p-3 rounded-xl bg-[#fbf0fe]/30 border border-[#cfc2d6]/5">
-                        <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase mb-1">Teacher Remarks</p>
-                        <p className="text-xs text-[#4d4354]/70 leading-relaxed">{rc.remarksEn}</p>
+                        <p className="text-[10px] font-bold text-ink-subtle uppercase mb-1">Teacher Remarks</p>
+                        <p className="text-xs text-ink leading-relaxed">{rc.remarksEn}</p>
                       </div>
                     )}
 
@@ -117,15 +117,15 @@ export default function ParentResultsPage() {
                           className="w-full flex items-center justify-between p-5 hover:bg-[#fbf0fe]/20 transition-colors cursor-pointer"
                         >
                           <div className="text-left">
-                            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase">{exam.term}</p>
+                            <p className="text-[10px] font-bold text-ink-subtle uppercase">{exam.term}</p>
                             <h3 className="text-sm font-bold text-[#1d1b20]">{exam.examTitle}</h3>
-                            <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">{exam.marks.length} subjects</p>
+                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{exam.marks.length} subjects</p>
                           </div>
-                          {isExpanded ? <ChevronUp className="w-4 h-4 text-[#4d4354]/40" /> : <ChevronDown className="w-4 h-4 text-[#4d4354]/40" />}
+                          {isExpanded ? <ChevronUp className="w-4 h-4 text-ink-subtle" /> : <ChevronDown className="w-4 h-4 text-ink-subtle" />}
                         </button>
                         {isExpanded && (
                           <div className="border-t border-[#f3f4f9] px-5 pb-4">
-                            <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-[9px] font-black uppercase text-[#4d4354]/40">
+                            <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-[9px] font-black uppercase text-ink-subtle">
                               <span>Subject</span>
                               <span className="text-right">Marks</span>
                               <span className="text-right">Grade</span>
@@ -133,7 +133,7 @@ export default function ParentResultsPage() {
                             {exam.marks.map((m: any) => (
                               <div key={m.subject} className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 border-t border-[#f3f4f9]/50">
                                 <span className="text-xs font-semibold text-[#1d1b20]">{m.subject}</span>
-                                <span className="text-xs font-bold text-[#4d4354]/60 text-right">{m.obtained}/{m.total}</span>
+                                <span className="text-xs font-bold text-ink-muted text-right">{m.obtained}/{m.total}</span>
                                 <span className="text-xs font-black text-[#8127cf] text-right">{m.grade || "-"}</span>
                               </div>
                             ))}
@@ -168,7 +168,7 @@ function MiniStat({ icon: Icon, label, value, tone = "dark" }: { icon: any; labe
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
           <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${tones[tone] || tones.dark}`}>

@@ -145,7 +145,7 @@ export function YearClosureChecklist({
                   ? "This year has not started yet"
                   : "Finish these before closing"}
             </h3>
-            <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+            <p className="mt-0.5 text-xs font-semibold text-ink-muted">
               {data.canClose
                 ? "Everything is marked, approved and released. Closing lets you start the next year."
                 : isEmptyYear
@@ -160,7 +160,7 @@ export function YearClosureChecklist({
       {isEmptyYear ? (
         <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-4 py-5 text-center">
           <p className="text-sm font-bold text-[#1f1a23]">Nothing to close here</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-[#4d4354]/60">
+          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Once exams are created and results released for {data.openCycle.label}, this checklist
             will show what is left before the year can be closed.
           </p>
@@ -200,7 +200,7 @@ export function YearClosureChecklist({
                     {s.owner}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[11px] font-semibold text-[#4d4354]/60">{s.detail}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{s.detail}</p>
               </div>
             </div>
             {!s.done ? (
@@ -263,7 +263,7 @@ export function YearClosureChecklist({
                     </button>
                     <button
                       onClick={() => setConfirmForce(false)}
-                      className="rounded-xl border border-[#cfc2d6]/30 bg-white px-4 py-2 text-xs font-bold text-[#4d4354]"
+                      className="rounded-xl border border-[#cfc2d6]/30 bg-white px-4 py-2 text-xs font-bold text-ink"
                     >
                       Cancel
                     </button>

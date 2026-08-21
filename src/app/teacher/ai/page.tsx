@@ -41,7 +41,7 @@ export default function AIPage() {
             </span>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">AI Insights & Tools</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Weak topics, homework suggestions, lesson plans, and remark generation.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Weak topics, homework suggestions, lesson plans, and remark generation.</p>
         </div>
       </div>
 
@@ -78,7 +78,7 @@ export default function AIPage() {
                       Powered
                     </span>
                   </div>
-                  <p className="text-[11px] font-semibold text-[#4d4354]/50 uppercase tracking-wider">Teacher tools</p>
+                  <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">Teacher tools</p>
                 </div>
               </div>
               <div className="relative">
@@ -173,7 +173,7 @@ export default function AIPage() {
                                 <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">Approved</span>
                               )}
                             </div>
-                            <p className="text-[11px] font-semibold leading-relaxed text-[#4d4354]/80 line-clamp-3 transition-colors group-hover/insight:text-[#1d1b20]">{insight.summary}</p>
+                            <p className="text-[11px] font-semibold leading-relaxed text-ink line-clamp-3 transition-colors group-hover/insight:text-[#1d1b20]">{insight.summary}</p>
                           </div>
                         </div>
                       </div>
@@ -190,7 +190,7 @@ export default function AIPage() {
                           <Zap className="w-6 h-6 text-[#8127cf]/40" />
                         </div>
                       </div>
-                      <p className="text-[11px] font-medium leading-relaxed italic text-[#4d4354]/60">
+                      <p className="text-[11px] font-medium leading-relaxed italic text-ink-muted">
                         AI drafts for remarks, weak topics, homework, and lesson planning will appear here.
                       </p>
                     </div>
@@ -212,7 +212,7 @@ function AIStatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: 
       <div className="absolute -top-16 -right-16 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-[70px]" />
       <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-gradient-to-tr from-[#b876f0]/6 to-transparent rounded-full blur-[60px]" />
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/8 to-[#b876f0]/6 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className={cn(
@@ -227,7 +227,7 @@ function AIStatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: 
         </div>
       </div>
       <p className="relative text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="relative mt-1 text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>
+      <p className="relative mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
     </div>
   );
 }

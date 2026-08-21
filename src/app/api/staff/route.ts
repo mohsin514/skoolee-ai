@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { inviteStaff, removeStaff, cancelInvitation, resendInvitation } from "@/app/actions/invite";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertModuleRead, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 const STAFF_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"]);
 
@@ -9,6 +9,9 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // The role gate alone ignored the staff.view bit, so revoking it in the
+    // permission matrix had no effect on this list (§10.2).
+    await assertModuleRead(user, "staff");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const campusId = await resolveCampusId(user, requestedCampusId);

@@ -198,7 +198,7 @@ function AttendanceDonut({
   const total = present + absent + leave;
   if (total === 0) {
     return (
-      <div className="flex items-center justify-center h-44 text-sm font-semibold text-[#4d4354]/40">
+      <div className="flex items-center justify-center h-44 text-sm font-semibold text-ink-subtle">
         No data
       </div>
     );
@@ -234,7 +234,7 @@ function AttendanceDonut({
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <span className="text-2xl font-black text-[#1f1a23]">{total}</span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/40">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
           Records
         </span>
       </div>
@@ -261,7 +261,7 @@ function DonutLegend({
       {items.map((it) => (
         <div key={it.label} className="flex items-center gap-1.5">
           <span className={cn("h-2 w-2 rounded-full", it.color)} />
-          <span className="text-[10px] font-bold text-[#4d4354]/60">
+          <span className="text-[10px] font-bold text-ink-muted">
             {it.label}
           </span>
           <span className="text-[10px] font-black text-[#1f1a23]">
@@ -522,7 +522,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                 "rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
                 period === p
                   ? "bg-white text-[#8127cf] shadow-md"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
               {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
@@ -534,7 +534,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrevMonth}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer"
+            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -544,7 +544,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           <button
             onClick={handleNextMonth}
             disabled={shiftMonth(selectedMonth, 1) > currentMonthStr()}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-[#4d4354] hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -632,7 +632,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Donut chart card */}
             <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted mb-4">
                 Distribution
               </p>
               {loadingSummary ? (
@@ -656,17 +656,17 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             {/* Class Breakdown Table */}
             <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
               <div className="flex items-center justify-between gap-4 mb-5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                   Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
                 </p>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#4d4354]/30" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
                   <input
                     type="text"
                     placeholder="Search class..."
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
-                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-[#4d4354]/30 outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
                   />
                 </div>
               </div>
@@ -675,15 +675,15 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                 <TableSkeleton />
               ) : filteredClasses.length === 0 ? (
                 <div className="py-12 text-center">
-                  <BarChart3 className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                  <p className="text-sm font-bold text-[#4d4354]/40">
+                  <BarChart3 className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                  <p className="text-sm font-bold text-ink-subtle">
                     No class data for this month
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     <span className="col-span-3">Class</span>
                     <span className="col-span-1 text-center">Students</span>
                     <span className="col-span-1 text-center text-emerald-600">P</span>
@@ -704,7 +704,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         <span className="col-span-3 text-sm font-bold text-[#1f1a23] group-hover:text-[#8127cf] transition-colors truncate">
                           {cls.className}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-[#4d4354]/60 text-center">
+                        <span className="col-span-1 text-xs font-bold text-ink-muted text-center">
                           {cls.studentCount}
                         </span>
                         <span className="col-span-1 text-xs font-bold text-emerald-600 text-center">
@@ -747,7 +747,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                   <AlertTriangle className="h-4 w-4 text-rose-500" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                     Attention Required
                   </p>
                   <p className="text-sm font-black text-[#1f1a23]">
@@ -813,14 +813,14 @@ function SummaryStatCard({
     <div className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-wider mb-2">
+          <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">
             {label}
           </p>
           <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">
             {value}
           </p>
           {sub && (
-            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mt-2">
+            <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">
               {sub}
             </p>
           )}
@@ -878,9 +878,9 @@ function ClassDetailView({
     return (
       <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
         <div className="py-16 text-center">
-          <CalendarCheck className="mx-auto h-12 w-12 text-[#4d4354]/20 mb-4" />
+          <CalendarCheck className="mx-auto h-12 w-12 text-ink-subtle mb-4" />
           <p className="text-lg font-black text-[#1f1a23]">No attendance data</p>
-          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+          <p className="text-sm font-semibold text-ink-muted mt-1">
             No records found for this class in {formatMonthLabel(month)}
           </p>
         </div>
@@ -924,32 +924,32 @@ function ClassDetailView({
         {/* Student table */}
         <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
           <div className="flex items-center justify-between gap-4 mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Student Attendance &mdash; {formatMonthLabel(month)}
             </p>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#4d4354]/30" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
               <input
                 type="text"
                 placeholder="Search student..."
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
-                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-[#4d4354]/30 outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
               />
             </div>
           </div>
 
           {filteredStudents.length === 0 ? (
             <div className="py-12 text-center">
-              <User className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-              <p className="text-sm font-bold text-[#4d4354]/40">
+              <User className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+              <p className="text-sm font-bold text-ink-subtle">
                 No students found
               </p>
             </div>
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 <span className="col-span-1">Roll</span>
                 <span className="col-span-3">Name</span>
                 <span className="col-span-1 text-center text-emerald-600">P</span>
@@ -969,7 +969,7 @@ function ClassDetailView({
                       : "bg-[#f3f4f9]/50 border border-transparent"
                   )}
                 >
-                  <span className="col-span-1 text-xs font-bold text-[#4d4354]/60">
+                  <span className="col-span-1 text-xs font-bold text-ink-muted">
                     {student.rollNo || "-"}
                   </span>
                   <div className="col-span-3 flex items-center gap-2 min-w-0">
@@ -1021,7 +1021,7 @@ function ClassDetailView({
               <AlertTriangle className="h-4 w-4 text-rose-500" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                 Below 75%
               </p>
               <p className="text-sm font-black text-[#1f1a23]">
@@ -1034,7 +1034,7 @@ function ClassDetailView({
             <div className="py-10 text-center">
               <CalendarCheck className="mx-auto h-8 w-8 text-emerald-300 mb-3" />
               <p className="text-sm font-bold text-emerald-600">All good!</p>
-              <p className="text-xs font-semibold text-[#4d4354]/40 mt-1">
+              <p className="text-xs font-semibold text-ink-subtle mt-1">
                 No at-risk students this month
               </p>
             </div>
@@ -1066,7 +1066,7 @@ function ClassDetailView({
                       <p className="text-sm font-bold text-[#1f1a23] truncate">
                         {student.studentName}
                       </p>
-                      <p className="text-[10px] font-bold text-[#4d4354]/40">
+                      <p className="text-[10px] font-bold text-ink-subtle">
                         Roll: {student.rollNo || "-"}
                       </p>
                     </div>

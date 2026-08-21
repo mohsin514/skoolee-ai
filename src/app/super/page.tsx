@@ -66,7 +66,7 @@ function statusTone(status?: string) {
   if (["Expired", "FAILED", "BLOCKED", "SUSPENDED", "MISSING", "NO_REPORT"].includes(status || "")) {
     return "bg-rose-50 text-rose-600";
   }
-  return "bg-[#f3f4f9] text-[#4d4354]/70";
+  return "bg-[#f3f4f9] text-ink";
 }
 
 function classLabel(item: any) {
@@ -314,7 +314,7 @@ const bottomItems: RoleNavItem[] = [];
               <div>
                 <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
                 <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Plans & Billing</h2>
-                <p className="mt-2 text-sm font-semibold text-[#4d4354]/60">
+                <p className="mt-2 text-sm font-semibold text-ink-muted">
                   SaaS plan, upgrades, and AI credit control.
                 </p>
               </div>
@@ -329,7 +329,7 @@ const bottomItems: RoleNavItem[] = [];
               <div>
                 <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Network fee control</p>
                 <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Fee Management</h2>
-                <p className="mt-2 text-sm font-semibold text-[#4d4354]/60">
+                <p className="mt-2 text-sm font-semibold text-ink-muted">
                   Fee structures, invoices, challans, and payment recording across the network.
                 </p>
               </div>
@@ -343,7 +343,7 @@ const bottomItems: RoleNavItem[] = [];
             <div className="sk-rise flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
               <div>
                 <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal">School Network</h2>
-                <p className="text-[#4d4354]/40 font-bold mt-1 uppercase text-[10px] tracking-normal italic">
+                <p className="text-ink-subtle font-bold mt-1 uppercase text-[10px] tracking-normal italic">
                   {data.schoolName} Group
                 </p>
               </div>
@@ -418,7 +418,7 @@ const bottomItems: RoleNavItem[] = [];
                 <div className="rounded-[24px] bg-white border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                   <div className="flex items-center gap-3 mb-4">
                     <Shield className="w-5 h-5 text-[#8127cf]" />
-                    <p className="text-[10px] font-black text-[#4d4354]/40 uppercase tracking-normal">AI Review</p>
+                    <p className="text-[10px] font-black text-ink-subtle uppercase tracking-normal">AI Review</p>
                   </div>
                   <AIReviewQueue items={data.pendingAIReviewItems} onComplete={refetch} />
                 </div>
@@ -435,7 +435,7 @@ const bottomItems: RoleNavItem[] = [];
                   ))}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-[#4d4354]/40 italic">
+                <p className="text-xs font-semibold text-ink-subtle italic">
                   Campus comparisons, fee recovery, and academic trend drafts will appear after the AI engine runs.
                 </p>
               )}
@@ -468,7 +468,7 @@ const bottomItems: RoleNavItem[] = [];
               <div className="flex items-center gap-5">
                 <button
                   onClick={() => setShowCampusFees(false)}
-                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
                 >
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </button>
@@ -490,7 +490,7 @@ const bottomItems: RoleNavItem[] = [];
               <div className="flex items-center gap-5">
                 <button
                   onClick={() => setSelectedCampus(null)}
-                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
                 >
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </button>
@@ -565,14 +565,14 @@ const bottomItems: RoleNavItem[] = [];
                           <SuperStatusPill status={invite.status} />
                           {invite.role ? <SuperStatusPill status={String(invite.role)} /> : null}
                         </div>
-                        <span className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                        <span className="text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
                           {new Date(invite.expiresAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
                   ))}
                   {selectedCampus.pendingInvitations.length === 0 ? (
-                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/25 p-4 text-sm font-semibold text-[#4d4354]/55">
+                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/25 p-4 text-sm font-semibold text-ink-muted">
                       No pending invitations for this campus.
                     </p>
                   ) : null}
@@ -595,10 +595,10 @@ const bottomItems: RoleNavItem[] = [];
                 </div>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#4d4354]/50 mb-2">Invitation Link</p>
-                <p className="text-xs font-semibold text-[#4d4354]/60 mb-2">Share this link manually if the email doesn&apos;t arrive. It expires in 48 hours.</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Invitation Link</p>
+                <p className="text-xs font-semibold text-ink-muted mb-2">Share this link manually if the email doesn&apos;t arrive. It expires in 48 hours.</p>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 p-3 rounded-xl bg-[#fbf0fe] border border-[#cfc2d6]/20 text-xs font-mono text-[#4d4354] break-all select-all">{inviteLink}</div>
+                  <div className="flex-1 p-3 rounded-xl bg-[#fbf0fe] border border-[#cfc2d6]/20 text-xs font-mono text-ink break-all select-all">{inviteLink}</div>
                   <BrandButton variant="soft" className="shrink-0 h-10" onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Link copied to clipboard"); }}>Copy</BrandButton>
                 </div>
               </div>
@@ -617,7 +617,7 @@ const bottomItems: RoleNavItem[] = [];
               </div>
               <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf] mb-1">How it works</p>
-                <p className="text-xs font-semibold text-[#4d4354]/60">An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.</p>
+                <p className="text-xs font-semibold text-ink-muted">An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.</p>
               </div>
             </div>
           )}
@@ -787,7 +787,7 @@ function NetworkCommandPanel({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
                   {!hasActiveSlot(campus.admin) ? "Admin needed" : ""}{!hasActiveSlot(campus.admin) && !hasActiveSlot(campus.principal) ? " - " : ""}{!hasActiveSlot(campus.principal) ? "Principal needed" : ""}
                 </p>
               </div>
@@ -802,7 +802,7 @@ function NetworkCommandPanel({
 
           {pendingInviteCampuses.length > 0 ? (
             <div className="rounded-2xl bg-gradient-to-r from-[#f3f4f9] to-white border border-[#cfc2d6]/10 px-4 py-3">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Pending Invitations</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Pending Invitations</p>
               <p className="mt-1 text-sm font-black text-[#1f1a23]">
                 {pendingInviteCampuses.length} campuses waiting for acceptance
               </p>
@@ -836,7 +836,7 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
       <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full min-w-[760px] text-left">
           <thead>
-            <tr className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
+            <tr className="text-[9px] font-black uppercase tracking-normal text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
               <th className="px-4 py-3 rounded-tl-2xl">Campus</th>
               <th className="px-4 py-3">Leadership</th>
               <th className="px-4 py-3">Academics</th>
@@ -850,7 +850,7 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
               <tr key={campus.id} className="text-sm transition-all duration-200 hover:bg-[#fbf0fe]/30">
                 <td className="px-4 py-4">
                   <p className="font-black text-[#1f1a23]">{campus.name}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-[#4d4354]/40">{campus.city}</p>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-ink-subtle">{campus.city}</p>
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex flex-wrap gap-2">
@@ -858,13 +858,13 @@ function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (
                     <SuperStatusPill status={campus.principal ? campus.principal.status : "MISSING"} />
                   </div>
                 </td>
-                <td className="px-4 py-4 font-bold text-[#4d4354]/70">
+                <td className="px-4 py-4 font-bold text-ink">
                   {campus.studentCount} students / {campus.classCount} classes / {campus.teacherCount} teachers
                 </td>
-                <td className="px-4 py-4 font-bold text-[#4d4354]/70">
+                <td className="px-4 py-4 font-bold text-ink">
                   {campus.reportCardCount} cards / {campus.examCount} exams
                 </td>
-                <td className="px-4 py-4 font-bold text-[#4d4354]/70">
+                <td className="px-4 py-4 font-bold text-ink">
                   {campus.communicationSummary.SENT || 0} sent / {(campus.communicationSummary.FAILED || 0) + (campus.communicationSummary.BLOCKED || 0)} issues
                 </td>
                 <td className="px-4 py-4 text-right">
@@ -891,7 +891,7 @@ function OwnerMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: st
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
+      <p className="text-[8px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       <p className="mt-1 text-2xl font-black text-[#1f1a23]">{value}</p>
     </div>
   );
@@ -930,7 +930,7 @@ function SummaryBucket({
         <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${toneClass} shadow-sm`}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">{label}</p>
+        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       </div>
       <p className="text-xl font-black text-[#1f1a23]">{value}</p>
     </button>
@@ -997,7 +997,7 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
         {hasLeadership ? <CheckCircle2 className="w-7 h-7" /> : <AlertCircle className="w-7 h-7" />}
       </div>
       <h3 className="text-xl font-black text-[#1f1a23] tracking-normal mb-1 pr-16">{campus.name}</h3>
-      <div className="flex items-center gap-2 text-[#4d4354]/40 text-[9px] font-bold uppercase tracking-normal mb-8">
+      <div className="flex items-center gap-2 text-ink-subtle text-[9px] font-bold uppercase tracking-normal mb-8">
         <MapPin className="w-2.5 h-2.5 text-[#8127cf]" />
         {campus.city}
       </div>
@@ -1010,17 +1010,17 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
 
       <div className="space-y-2 mb-5">
         <div className="flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-          <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Admin</span>
+          <span className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Admin</span>
           <SuperStatusPill status={campus.admin ? campus.admin.status : "MISSING"} />
         </div>
         <div className="flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-          <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/45">Principal</span>
+          <span className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Principal</span>
           <SuperStatusPill status={campus.principal ? campus.principal.status : "MISSING"} />
         </div>
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <div className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+        <div className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">
           {campus.reportCardCount} reports / {campus.aiUsage.runs} AI runs
         </div>
         <button onClick={onManage} className="flex items-center gap-1.5 text-[#8127cf] font-black italic tracking-normal text-base hover:translate-x-1 transition-transform cursor-pointer">
@@ -1034,7 +1034,7 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
 function CampusMiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
     <div className={`rounded-2xl px-3 py-3 transition-all ${active ? "bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/80 to-white border border-[#8127cf]/10" : "bg-[#fbf0fe]/70"}`}>
-      <p className="text-[7px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
+      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       <p className={`mt-1 text-base font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
   );
@@ -1043,7 +1043,7 @@ function CampusMiniMetric({ label, value, active }: { label: string; value: any;
 function InfoPill({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
     <div className="p-5 bg-white rounded-[24px] border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
-      <p className="text-[8px] font-black text-[#4d4354]/40 uppercase tracking-normal mb-1">{label}</p>
+      <p className="text-[8px] font-black text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
       <p className={`text-xl font-black italic tracking-normal ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
   );
@@ -1074,7 +1074,7 @@ function ModalFrame({
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Network action</p>
             <h3 className="mt-1 text-2xl font-black text-[#1f1a23] tracking-normal">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
+          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
             <X className="w-5 h-5" /><span className="sr-only">Close</span>
           </button>
         </div>
@@ -1131,13 +1131,13 @@ function FormInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span>
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
       />
     </label>
   );
@@ -1156,7 +1156,7 @@ function FormSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</span>
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -1183,9 +1183,9 @@ function CampusInput({
 }) {
   return (
     <div>
-      <label className="text-[9px] font-black text-[#4d4354]/40 uppercase tracking-normal pl-2 mb-2 block">{label}</label>
+      <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">{label}</label>
       <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
-        <Icon className="w-5 h-5 text-[#4d4354]/40" />
+        <Icon className="w-5 h-5 text-ink-subtle" />
         <input
           type="text"
           placeholder={placeholder}
@@ -1267,7 +1267,7 @@ function ActivityLogModal({ onClose }: { onClose: () => void }) {
       {loading ? (
         <SkeletonList rows={5} label="Loading activity" />
       ) : logs.length === 0 ? (
-        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-[#4d4354]/55">No activity recorded yet.</p>
+        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-ink-muted">No activity recorded yet.</p>
       ) : (
         <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
           {logs.map((log) => (
@@ -1277,11 +1277,11 @@ function ActivityLogModal({ onClose }: { onClose: () => void }) {
                   <p className="text-xs font-black text-[#1f1a23]">
                     {log.tableName.replace(/_/g, " ")} — {log.recordId?.slice(0, 8) || "N/A"}
                   </p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
                     by {log.userId?.slice(0, 8) || "system"}
                   </p>
                 </div>
-                <span className="shrink-0 text-[9px] font-bold text-[#4d4354]/40">
+                <span className="shrink-0 text-[9px] font-bold text-ink-subtle">
                   {new Date(log.createdAt).toLocaleString()}
                 </span>
               </div>

@@ -158,7 +158,7 @@ export function TeacherPicker({
 
   return (
     <div className="group/picker">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 transition-colors duration-200 group-focus-within/picker:text-[#8127cf]">
+      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-[#8127cf]">
         {label}
       </span>
 
@@ -172,7 +172,7 @@ export function TeacherPicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or subject…"
-              className="h-8 w-full bg-transparent text-xs font-bold text-[#1f1a23] outline-none placeholder:text-[#4d4354]/35"
+              className="h-8 w-full bg-transparent text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
             />
           </div>
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5">
@@ -185,13 +185,13 @@ export function TeacherPicker({
                   value === "" ? "bg-[#fbf0fe]" : "hover:bg-[#fbf0fe]/60"
                 )}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-[#4d4354]/50">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-ink-muted">
                   <UserPlus className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-black text-[#1f1a23]">Unassigned</p>
                   {showUnassignedHint ? (
-                    <p className="mt-0.5 text-[9px] font-bold text-[#4d4354]/45">No teacher assigned yet</p>
+                    <p className="mt-0.5 text-[9px] font-bold text-ink-subtle">No teacher assigned yet</p>
                   ) : null}
                 </div>
               </button>
@@ -242,7 +242,7 @@ export function TeacherPicker({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 truncate text-[9px] font-bold text-[#4d4354]/50">
+                    <p className="mt-0.5 truncate text-[9px] font-bold text-ink-muted">
                       {subjectLoad(t)} subject{subjectLoad(t) !== 1 ? "s" : ""} · {classLoad(t)} class{classLoad(t) !== 1 ? "es" : ""}
                     </p>
 
@@ -270,7 +270,7 @@ export function TeacherPicker({
               );
             })}
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-[10px] font-bold text-[#4d4354]/45">No teachers match your search.</p>
+              <p className="px-3 py-4 text-center text-[10px] font-bold text-ink-subtle">No teachers match your search.</p>
             ) : null}
           </div>
         </div>
@@ -289,7 +289,7 @@ export function TeacherPicker({
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-[#1f1a23]">{selected?.fullName || "Assigned teacher"}</span>
                   {selected ? (
-                    <span className="block text-[9px] font-bold text-[#4d4354]/50">
+                    <span className="block text-[9px] font-bold text-ink-muted">
                       {subjectLoad(selected)} subjects · {classLoad(selected)} classes
                       {selectedAvail?.teachesAllSubjects
                         ? " · All subjects"
@@ -301,7 +301,7 @@ export function TeacherPicker({
                 </span>
               </span>
             ) : (
-              <span className="text-sm font-bold text-[#4d4354]/55">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
+              <span className="text-sm font-bold text-ink-muted">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
             )}
             <span className="ml-3 shrink-0 rounded-lg bg-[#8127cf]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
               Change

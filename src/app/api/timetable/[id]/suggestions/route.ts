@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { applySuggestion, buildSuggestions, type SuggestionAction } from "@/lib/timetable/suggest";
+import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const campusId = await resolveCampusId(user);
+
+    // Answer 404 for a timetable outside this campus. buildSuggestions() is
+    // already campus-scoped and returns an empty report, so nothing leaked —
+    // but a 200 on someone else's id is still the wrong answer, and 404 is
+    // indistinguishable from "no such timetable", so it is no existence oracle.
+    const timetable = await prisma.timetable.findFirst({
+      where: { id, campusId },
+      select: { id: true },
+    });
+    if (!timetable) return Response.json({ error: "Not found" }, { status: 404 });
+
     return Response.json({ success: true, data: await buildSuggestions(campusId, id) });
   } catch (error) {
     return errorResponse(error, "[timetable/suggestions] GET failed");

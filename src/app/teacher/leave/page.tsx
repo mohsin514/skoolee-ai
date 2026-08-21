@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
   APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
-  CANCELLED: "bg-[#f3f4f9] text-[#4d4354]/55 border-[#cfc2d6]/20",
+  CANCELLED: "bg-[#f3f4f9] text-ink-muted border-[#cfc2d6]/20",
 };
 
 const STATUS_ICONS: Record<string, any> = {
@@ -156,7 +156,7 @@ export default function LeavePage() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">Time off</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Leave</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">
+          <p className="mt-1 text-sm font-semibold text-ink-muted">
             Academic year {academicYear} · {daysLabel(totalRemaining)} remaining across {balances.length} leave type{balances.length === 1 ? "" : "s"}
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function LeavePage() {
                   <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#fbf0fe]">
                     <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#55208b]" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-[#4d4354]/50">
+                  <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-ink-muted">
                     <span>{daysLabel(b.allocated)} allocated</span>
                     <span>{daysLabel(b.approved)} approved{b.pending > 0 ? ` · ${daysLabel(b.pending)} pending` : ""}</span>
                   </div>
@@ -200,7 +200,7 @@ export default function LeavePage() {
                  the Apply button is disabled, yet the text promised requests
                  would still be submitted. Only the second case can apply. */
               <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 sm:col-span-2 lg:col-span-3">
-                <p className="text-sm font-bold text-[#4d4354]/55">
+                <p className="text-sm font-bold text-ink-muted">
                   {types.length === 0
                     ? "Your campus admin has not set up any leave types yet, so leave cannot be requested here for now."
                     : "No leave allocations have been set for your role yet — your requests will still be submitted for approval."}
@@ -214,14 +214,14 @@ export default function LeavePage() {
               <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-[#1f1a23]">
                 <Plane className="h-4 w-4 text-[#8127cf]" /> Request History
               </h3>
-              <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/55">
+              <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-ink-muted">
                 {pendingCount} pending
               </span>
             </div>
 
             <div className="space-y-3">
               {requests.length === 0 ? (
-                <p className="rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center text-sm font-bold text-[#4d4354]/45">
+                <p className="rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center text-sm font-bold text-ink-subtle">
                   No leave requests yet — apply for leave and it will appear here.
                 </p>
               ) : (
@@ -236,7 +236,7 @@ export default function LeavePage() {
                         <p className="text-sm font-black text-[#1f1a23]">
                           {r.leaveType?.name || "Leave"} · {daysLabel(r.days)}
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/55">
+                        <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                           {formatDate(r.fromDate)} → {formatDate(r.toDate)}
                           {r.reason ? ` · ${r.reason}` : ""}
                         </p>
@@ -280,7 +280,7 @@ export default function LeavePage() {
               <button
                 type="button"
                 onClick={() => setShowApply(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer"
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -288,7 +288,7 @@ export default function LeavePage() {
 
             <div className="space-y-4 px-7 py-6">
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Leave Type</span>
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Leave Type</span>
                 <select
                   value={applyForm.leaveTypeId}
                   onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
@@ -308,7 +308,7 @@ export default function LeavePage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">From Date</span>
+                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">From Date</span>
                   <input
                     type="date"
                     value={applyForm.fromDate}
@@ -317,7 +317,7 @@ export default function LeavePage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">To Date</span>
+                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">To Date</span>
                   <input
                     type="date"
                     value={applyForm.toDate}
@@ -334,13 +334,13 @@ export default function LeavePage() {
               ) : null}
 
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Reason (optional)</span>
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
                 <textarea
                   value={applyForm.reason}
                   onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
                   rows={3}
                   placeholder="Brief reason for the leave"
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white placeholder:text-[#4d4354]/30"
+                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white placeholder:text-ink-subtle"
                 />
               </label>
             </div>

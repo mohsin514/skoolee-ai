@@ -27,7 +27,7 @@ export function SubjectPalette({
       {/* Overall coverage */}
       <div className="mt-3 rounded-xl bg-[#fbf0fe] p-3">
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Periods placed</span>
+          <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">Periods placed</span>
           <span className="text-[10px] font-black text-[#8127cf]">
             {placedTotal}/{totalClassSlots}
           </span>
@@ -40,13 +40,13 @@ export function SubjectPalette({
         </div>
       </div>
 
-      <p className="mt-4 mb-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+      <p className="mt-4 mb-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
         Subjects ({subjects.length})
       </p>
 
       <div className="mt-1 flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
         {subjects.length === 0 && (
-          <p className="rounded-xl border border-dashed border-[#cfc2d6]/20 p-4 text-center text-[10px] font-semibold text-[#4d4354]/40">
+          <p className="rounded-xl border border-dashed border-[#cfc2d6]/20 p-4 text-center text-[10px] font-semibold text-ink-subtle">
             No subjects for this class yet. Add subjects first.
           </p>
         )}
@@ -78,7 +78,7 @@ export function SubjectPalette({
                     <Check className="h-2.5 w-2.5" />Done
                   </span>
                 ) : (
-                  <span className="text-[9px] font-black text-[#4d4354]/40">
+                  <span className="text-[9px] font-black text-ink-subtle">
                     {placed}/{targetDays}
                   </span>
                 )}

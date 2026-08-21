@@ -41,17 +41,17 @@ interface AuditEntry {
 
 const ACTION_META: Record<string, { icon: any; label: string; tone: string }> = {
   login: { icon: LogIn, label: "Login", tone: "bg-emerald-50 text-emerald-600" },
-  logout: { icon: LogOut, label: "Logout", tone: "bg-[#f3f4f9] text-[#4d4354]/60" },
+  logout: { icon: LogOut, label: "Logout", tone: "bg-[#f3f4f9] text-ink-muted" },
   password_change: { icon: KeyRound, label: "Password Changed", tone: "bg-amber-50 text-amber-600" },
   modify_school: { icon: School, label: "School Modified", tone: "bg-indigo-50 text-indigo-600" },
   suspend_school: { icon: AlertCircle, label: "School Suspended", tone: "bg-rose-50 text-rose-600" },
   create_campus: { icon: School, label: "Campus Created", tone: "bg-[#fbf0fe] text-[#8127cf]" },
   delete_campus: { icon: School, label: "Campus Deleted", tone: "bg-rose-50 text-rose-600" },
-  view_dashboard: { icon: Monitor, label: "Dashboard View", tone: "bg-[#f3f4f9] text-[#4d4354]/60" },
+  view_dashboard: { icon: Monitor, label: "Dashboard View", tone: "bg-[#f3f4f9] text-ink-muted" },
 };
 
 function getActionMeta(action: string) {
-  return ACTION_META[action] || { icon: Activity, label: action.replace(/_/g, " "), tone: "bg-[#f3f4f9] text-[#4d4354]/60" };
+  return ACTION_META[action] || { icon: Activity, label: action.replace(/_/g, " "), tone: "bg-[#f3f4f9] text-ink-muted" };
 }
 
 export function AuditLogPanel() {
@@ -122,13 +122,13 @@ export function AuditLogPanel() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Security</p>
           <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Audit Log</h2>
-          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+          <p className="text-sm font-semibold text-ink-muted mt-1">
             {total} actions recorded
           </p>
         </div>
         <button
           onClick={() => loadLogs(1)}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-[#4d4354] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
@@ -170,7 +170,7 @@ export function AuditLogPanel() {
               <FileText className="w-8 h-8 text-[#8127cf]/30" />
             </div>
             <h3 className="text-lg font-black text-[#1f1a23]">No Audit Entries</h3>
-            <p className="mt-2 text-sm font-semibold text-[#4d4354]/50">No actions recorded in this time period.</p>
+            <p className="mt-2 text-sm font-semibold text-ink-muted">No actions recorded in this time period.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -200,27 +200,27 @@ export function AuditLogPanel() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-[10px] font-bold text-[#4d4354]/50 flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-ink-muted flex items-center gap-1">
                           <User className="w-2.5 h-2.5" /> {log.user?.fullName || "System"}
                         </span>
                         {log.targetName && (
-                          <span className="text-[10px] font-bold text-[#4d4354]/50">
+                          <span className="text-[10px] font-bold text-ink-muted">
                             Target: {log.targetName}
                           </span>
                         )}
                         {log.ipAddress && (
-                          <span className="text-[10px] font-bold text-[#4d4354]/40 flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5" /> {log.ipAddress}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-bold text-[#4d4354]/40 flex items-center gap-1">
+                      <p className="text-xs font-bold text-ink-subtle flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {formatDate(log.createdAt)}
                       </p>
                       {log.userAgent && (
-                        <p className="text-[9px] font-bold text-[#4d4354]/30 mt-0.5">
+                        <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                           {parseBrowser(log.userAgent)}
                         </p>
                       )}
@@ -237,8 +237,8 @@ export function AuditLogPanel() {
                       )}
                       {log.oldValues && (
                         <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-[#4d4354]/40 mb-1">Before</p>
-                          <pre className="text-xs font-mono text-[#4d4354]/70 whitespace-pre-wrap break-all">
+                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">Before</p>
+                          <pre className="text-xs font-mono text-ink whitespace-pre-wrap break-all">
                             {JSON.stringify(log.oldValues, null, 2)}
                           </pre>
                         </div>
@@ -253,8 +253,8 @@ export function AuditLogPanel() {
                       )}
                       {log.userAgent && (
                         <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-[#4d4354]/40 mb-1">User Agent</p>
-                          <p className="text-xs font-mono text-[#4d4354]/50 break-all">{log.userAgent}</p>
+                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">User Agent</p>
+                          <p className="text-xs font-mono text-ink-muted break-all">{log.userAgent}</p>
                         </div>
                       )}
                     </div>
@@ -267,21 +267,21 @@ export function AuditLogPanel() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#f3f4f9]">
-            <p className="text-xs font-bold text-[#4d4354]/40">
+            <p className="text-xs font-bold text-ink-subtle">
               Page {page} of {totalPages}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => loadLogs(page - 1)}
                 disabled={page <= 1}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white disabled:opacity-30 transition-all cursor-pointer"
+                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 transition-all cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => loadLogs(page + 1)}
                 disabled={page >= totalPages}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white disabled:opacity-30 transition-all cursor-pointer"
+                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 transition-all cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

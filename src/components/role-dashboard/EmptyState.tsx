@@ -20,7 +20,7 @@ export function EmptyState({ icon: Icon, title, description, action }: EmptyStat
       </div>
       <h3 className="sk-rise text-lg font-black text-[#1f1a23] tracking-wider" style={{ animationDelay: "80ms" }}>{title}</h3>
       {description && (
-        <p className="sk-rise mt-2 text-sm font-semibold text-[#4d4354]/50 max-w-sm leading-relaxed" style={{ animationDelay: "140ms" }}>
+        <p className="sk-rise mt-2 text-sm font-semibold text-ink-muted max-w-sm leading-relaxed" style={{ animationDelay: "140ms" }}>
           {description}
         </p>
       )}
