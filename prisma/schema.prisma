@@ -32,7 +32,14 @@ model School {
   id                   String   @id @default(uuid())
   name                 String
   slug                 String   @unique // subdomain routing
-  status               String   @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED
+  status               String   @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, DELETED
+  deletedAt            DateTime? @map("deleted_at") // set on soft delete; status becomes DELETED
+  // IANA zone used to decide what "today" is for this tenant. Stored datetimes
+  // stay UTC (correct, and what Prisma normalises to); this only governs the
+  // calendar-date boundary — which day an attendance mark or a cutoff falls on.
+  // Defaults to Asia/Karachi: the product ships Urdu report cards, PKR fees and
+  // CNIC/board fields, so UTC was never the right assumption for a real tenant.
+  timezone             String   @default("Asia/Karachi")
   plan                 String   @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
@@ -254,6 +261,7 @@ model Campus {
   phoneCallLogs         PhoneCallLog[]
   certificateTemplates  CertificateTemplate[]
 
+  @@index([schoolId])
   @@map("campuses")
 }
 
@@ -263,10 +271,10 @@ model User {
   campusId                      String?                  @map("campus_id")
   campus                        Campus?                  @relation(fields: [campusId], references: [id])
   schoolId                      String                   @default("") @map("school_id")
-  school                        School                   @relation(fields: [schoolId], references: [id])
-  email                         String                   @unique
+  school                        School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  email                         String
   password                      String? // Added for Diagram 2 Flow
-  username                      String?                  @unique
+  username                      String?
   fullName                      String                   @map("full_name")
   role                          UserRole                 @default(TEACHER)
   phone                         String?
@@ -327,6 +335,15 @@ model User {
   payrollGeneratedRuns          PayrollRun[]             @relation("PayrollGeneratedBy")
   libraryMemberships            LibraryMember[]
 
+  // FINDING-D: email was globally unique, so one person could not hold an
+  // account at two schools — a parent with children at two institutions, or a
+  // teacher working across two groups, was unrepresentable. Identity is now
+  // scoped to the tenant: the same address may exist once per school.
+  passwordResets                PasswordReset[]          @relation("PasswordResetUser")
+
+  @@unique([schoolId, email])
+  @@unique([schoolId, username])
+  @@index([schoolId])
   @@map("users")
 }
 
@@ -556,9 +573,11 @@ model Student {
   classId              String    @map("class_id")
   class                Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   studentUserId        String?   @unique @map("student_user_id")
-  studentUser          User?     @relation("StudentUser", fields: [studentUserId], references: [id])
+  // Removing a user account must not delete the student record it was linked
+  // to — the pupil still exists, they just no longer have a login (INT-1).
+  studentUser          User?     @relation("StudentUser", fields: [studentUserId], references: [id], onDelete: SetNull)
   parentUserId         String?   @map("parent_user_id")
-  parent               User?     @relation("Parent", fields: [parentUserId], references: [id])
+  parent               User?     @relation("Parent", fields: [parentUserId], references: [id], onDelete: SetNull)
   admissionNo          String?   @unique @map("admission_no") // Permanent ID across years
   fullName             String    @map("full_name")
   nameUr               String?   @map("name_ur")
@@ -1441,7 +1460,7 @@ model BankReconciliation {
 model AIUsageLog {
   id             String   @id @default(uuid())
   schoolId       String   @default("") @map("school_id")
-  school         School   @relation(fields: [schoolId], references: [id])
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String?  @map("campus_id")
   userId         String?  @map("user_id")
   feature        String? // e.g., "generate_remarks", "at_risk_students"
@@ -1795,8 +1814,8 @@ model PlatformConfig {
 
 model SuperAdminAuditLog {
   id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  user         User     @relation("AuditLogUser", fields: [userId], references: [id])
+  userId       String?  @map("user_id") // nullable: the log outlives the actor
+  user         User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
   action       String // login, logout, suspend_school, modify_school, password_change, view_dashboard, create_campus, delete_campus, etc.
   targetType   String?  @map("target_type") // school, campus, user, subscription
   targetId     String?  @map("target_id")
@@ -1820,7 +1839,8 @@ model LoginSession {
   schoolId       String    @default("") @map("school_id")
   school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   userId         String    @map("user_id")
-  user           User      @relation("UserSessions", fields: [userId], references: [id])
+  // Sessions are meaningless without their user, and blocked user deletion.
+  user           User      @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
   tokenHash      String    @map("token_hash")
   ipAddress      String?   @map("ip_address")
   userAgent      String?   @map("user_agent") @db.Text
@@ -1841,7 +1861,7 @@ model PasswordHistory {
   schoolId        String   @default("") @map("school_id")
   school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   userId          String   @map("user_id")
-  user            User     @relation("PasswordHistory", fields: [userId], references: [id])
+  user            User     @relation("PasswordHistory", fields: [userId], references: [id], onDelete: Cascade)
   oldPasswordHash String   @map("old_password_hash")
   changedBy       String?  @map("changed_by")
   changeReason    String?  @map("change_reason") // user_request, admin_forced, password_expired
@@ -1856,6 +1876,11 @@ model PasswordHistory {
 model PasswordReset {
   id        String   @id @default(uuid())
   email     String
+  // A token must resolve to exactly one account. Email alone stopped being
+  // unique when identity became tenant-scoped, so the reset is bound to the
+  // user it was issued for.
+  userId    String?  @map("user_id")
+  user      User?    @relation("PasswordResetUser", fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -1988,6 +2013,7 @@ model Notification {
 
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([schoolId])
   @@map("notifications")
 }
 
