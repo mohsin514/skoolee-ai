@@ -1,11 +1,11 @@
 {
-  "ranAt": "2026-08-21T15:46:55.914Z",
+  "ranAt": "2026-08-21T18:43:21.332Z",
   "base": "http://localhost:3000",
   "phases": [
     "A",
     "B"
   ],
-  "durationMs": 31101,
+  "durationMs": 29936,
   "assertions": 1074,
   "pass": 1074,
   "fail": 0,

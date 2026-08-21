@@ -364,12 +364,12 @@
     "email": "t5-super_admin@example.invalid",
     "role": "SUPER_ADMIN",
     "tenant": "T5",
-    "status": 401,
+    "status": 200,
     "expectedLogin": true,
-    "gotLogin": false,
-    "pass": false,
-    "schoolStatus": null,
-    "error": "Invalid email or password"
+    "gotLogin": true,
+    "pass": true,
+    "schoolStatus": "ACTIVE",
+    "error": null
   },
   {
     "persona": "T6-SUPER_ADMIN",
