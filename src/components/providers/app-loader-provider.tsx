@@ -20,8 +20,20 @@ export const useAppLoader = () => {
 };
 
 export function AppLoaderProvider({ children }: { children: React.ReactNode }) {
-  // Start with true so it shows on app reload (hydration)
-  const [isLoading, setIsLoading] = useState(true);
+  // Starts FALSE on purpose.
+  //
+  // This was `true`, which meant the full-screen splash was part of the
+  // server-rendered HTML and covered content the server had already produced
+  // until React finished hydrating — measured at 8-14s on a dev build, and a
+  // blank-looking app on any slow connection. The page was never actually
+  // waiting on data; it was waiting on JavaScript to arrive and un-hide it.
+  //
+  // Route transitions are covered by the 11 loading.tsx Suspense boundaries,
+  // which render inside the shell and keep the nav and header on screen (CP-6:
+  // "skeletons matching final layout", not a full-page splash that discards
+  // context). setLoading() remains available for genuinely long client-side
+  // operations that have nothing to render yet.
+  const [isLoading, setIsLoading] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
