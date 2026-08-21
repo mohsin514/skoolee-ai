@@ -1,10 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere,
+  assertSharedModuleRead,
+} from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertSharedModuleRead(user, "fees");
     const { searchParams } = new URL(req.url);
     const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
 

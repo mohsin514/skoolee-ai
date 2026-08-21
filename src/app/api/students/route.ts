@@ -6,6 +6,7 @@ import { sendInviteEmail } from "@/lib/email";
 import {
   ApiError,
   assertPermission,
+  assertModuleRead,
   assertStaffRole,
   canManageOperations,
   errorResponse,
@@ -156,7 +157,10 @@ export async function GET(req: NextRequest) {
     // The roster carries every child's guardian contacts, address, and medical
     // notes. Families read their own record through /api/parent/data and the
     // student dashboard action — never through here.
-    assertStaffRole(user);
+    // assertModuleRead keeps the staff-only gate AND enforces students.view,
+    // which the list handler previously ignored — revoking the bit in the
+    // permission matrix left the roster readable (§10.2).
+    await assertModuleRead(user, "students");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
@@ -342,8 +346,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (guardianEmail && !parentUserId) {
-          const existingParent = await tx.user.findUnique({
-            where: { email: guardianEmail },
+          // FINDING-D: tenant-scoped identity — look within this school only.
+          const existingParent = await tx.user.findFirst({
+            where: { email: guardianEmail, schoolId: user.schoolId },
             select: { id: true, role: true, schoolId: true, campusId: true, isActive: true },
           });
 
@@ -408,8 +413,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (studentEmail) {
-          const existingStudentUser = await tx.user.findUnique({
-            where: { email: studentEmail },
+          // FINDING-D: tenant-scoped identity — look within this school only.
+          const existingStudentUser = await tx.user.findFirst({
+            where: { email: studentEmail, schoolId: user.schoolId },
             select: { id: true, role: true, schoolId: true, campusId: true, isActive: true },
           });
 

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
+  assertModuleRead,
   assertPermission,
   assertStaffRole,
   canManageOperations,
@@ -23,6 +24,12 @@ const QUERY_STATUSES = ["ACTIVE", "FOLLOW_UP", "CONVERTED", "LOST"];
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // The lead pipeline holds prospective families' names, phone numbers,
+    // emails and free-text follow-up notes. The GET handler stopped at
+    // requireAuthUser(), so every signed-in STUDENT and PARENT could read the
+    // school's entire admissions list. Staff-only, and gated on the same
+    // admissions.view bit as the screen it feeds.
+    await assertModuleRead(user, "admissions");
     const { searchParams } = req.nextUrl;
     const status = searchParams.get("status");
     const source = searchParams.get("source");
