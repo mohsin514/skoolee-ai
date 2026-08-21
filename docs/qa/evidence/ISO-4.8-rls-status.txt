@@ -1,0 +1,39 @@
+ID:            ISO-4.8 / FINDING-I
+Title:         Connecting DB role bypasses RLS; no policies applied
+Section:       §2.1 ISO-4.x
+Severity:      P0-context (does not fail a case; sets severity for ALL of §2)
+Status:        CONFIRMED (local target, 2026-08-21)
+
+QUERY 1 — connecting role:
+  SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+    current_user  | rolsuper | rolbypassrls
+   ---------------+----------+--------------
+    angular_dev_15|    t     |      t
+
+QUERY 2 — RLS enablement in public schema:
+  rls_enabled | rls_forced | total_tables
+  ------------+------------+--------------
+       0      |     0      |      96
+
+QUERY 3 — policies present:
+  policy_count = 0
+
+QUERY 4 — app-side GUC flag:
+  TENANT_RLS is NOT set in .env  -> the set_config('app.current_school_id') path is OFF.
+
+FINDING: All three legs are off simultaneously. Locally the app connects as a
+SUPERUSER with rolbypassrls = true, zero tables have RLS enabled, zero policies
+exist, and the application's RLS GUC path is disabled by flag. prisma/rls.sql
+(689 lines) is inert on disk.
+
+This matches and extends FINDING-I: the header documents rolbypassrls=true for
+`postgres` on Supabase. The local role is worse — a full superuser. Even if
+rls.sql were applied and TENANT_RLS enabled, RLS would remain a no-op here.
+
+CONSEQUENCE: THE APPLICATION GUARD (src/lib/db/prisma.ts + tenant-context.ts)
+IS THE SOLE MECHANISM SEPARATING TENANTS. There is no database backstop. Any gap
+§2 finds is directly exploitable with no second line of defence.
+=> Every §2 case is confirmed P0, as FINDING-I instructed.
+
+NOT ACTIONED (per work order §6): RLS was not enabled, no roles created, no
+connection string repointed.

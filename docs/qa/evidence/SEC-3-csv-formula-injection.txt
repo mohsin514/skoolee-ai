@@ -1,0 +1,48 @@
+ID:            SEC-3
+Title:         CSV exports carry unescaped formula/DDE payloads
+Section:       §9 Security Suite
+Severity:      P2 (code execution on the machine of whoever opens the export)
+Status:        FIXED — VERIFIED
+Found:         2026-08-21 by scripts/qa/probe-sec-9.mjs
+
+DEFECT
+  Four CSV producers, three of which escaped quotes but not formulas:
+
+    src/app/api/students/export/route.ts   RFC 4180 only          VULNERABLE
+    src/components/fees/fee-utils.ts       RFC 4180 only          VULNERABLE
+    src/app/teacher/marks/page.tsx         quote-doubling only    VULNERABLE
+    src/components/shared-admin/index.tsx  had the guard          safe
+
+  A cell beginning = + - @ (or tab/CR) is evaluated as a formula by Excel,
+  Google Sheets and LibreOffice. A student admitted as  =cmd|'/c calc'!A1
+  becomes command execution on the machine of whoever opens the roster.
+
+  This is reachable by an outsider: student names, guardian names and admission
+  enquiries are all free text a school accepts from the public, and the roster
+  export is a routine admin action.
+
+PROOF (before fix) — raw line from GET /api/students/export
+    SEC-3-001,=cmd|'/c calc'!A1,Grade 5 - A,2026,MALE,,active,,,,,,,
+
+FIX APPLIED
+  The four copies were the real problem — a security control with four
+  divergent implementations is one that gets fixed in three places. Consolidated
+  into src/lib/csv.ts (csvCell/csvRow) and all four call sites now import it.
+
+  Dangerous leading characters are prefixed with an apostrophe, which makes the
+  cell literal. Phone numbers are carved out: values matching ^\+?[\d\s()\-]+$
+  legitimately start with "+" and cannot express a formula payload, so contact
+  columns are not littered with apostrophes.
+
+VERIFICATION — csvCell unit behaviour
+    =cmd|'/c calc'!A1        -> '=cmd|'/c calc'!A1      neutralised
+    @SUM(A1:A9)              -> '@SUM(A1:A9)            neutralised
+    -2+3                     -> '-2+3                   neutralised
+    =HYPERLINK("http://evil")-> "'=HYPERLINK(""...")"   neutralised + quoted
+    +923001234567            -> +923001234567           untouched (phone)
+    +92 300 (123) 4567       -> +92 300 (123) 4567      untouched (phone)
+    Khan, Ayesha             -> "Khan, Ayesha"          quoted, not mangled
+    Ordinary Name            -> Ordinary Name           untouched
+
+  Live export re-checked: guardian phones still render as +923000000001.
+  probe-sec-9.mjs 11/11 PASS. tsc --noEmit clean across all four files.

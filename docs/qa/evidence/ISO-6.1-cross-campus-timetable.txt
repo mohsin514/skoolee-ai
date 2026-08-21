@@ -1,0 +1,88 @@
+ID:            ISO-6.1
+Title:         Campus admin can modify another campus's timetable (cross-campus write)
+Section:       §2.1 ISO-6.x — Campus isolation (second dimension)
+Severity:      P1  (NOT P0 — contained within one tenant; no cross-tenant leak)
+Role/Tenant:   T1-CAMPUS_ADMIN (Alpha-North) -> Alpha-South, same school
+Precondition:  Fixtures T1 seeded per §1; a timetable + slot exists in Alpha-South
+Status:        FIXED — VERIFIED
+Found:         2026-08-21 by scripts/qa/isolation-sweep.mjs Phase B, then confirmed
+               empirically by scripts/qa/probe-iso-6.1-timetable.mjs
+
+ROOT CAUSE
+  src/lib/timetable/suggest.ts -> applySuggestion()
+
+  The write path looked the slot up by attacker-supplied values only:
+      prisma.timetableSlot.findFirst({ where: { id: action.slotId, timetableId } })
+  with no campusId predicate.
+
+  This survived review because the Prisma guard injects school_id on every
+  tenant model — and TimetableSlot IS registered (tenant-models.ts:94) and does
+  carry school_id. So the CROSS-TENANT case was always blocked; that is why the
+  sweep found no data leak. But the guard scopes by SCHOOL, and TimetableSlot has
+  NO campus_id column at all, so nothing whatsoever enforced the campus boundary
+  on this path. loadContext() (the READ path) scopes correctly with
+  { id: timetableId, campusId } — the write path simply never got the same check.
+
+  All three actions were affected: REASSIGN_TEACHER, REASSIGN_ROOM, MOVE_SLOT.
+  The teacher/room lookups ARE campus-scoped, so the attacker could only place
+  their OWN campus's teacher or room onto the victim campus's timetable — and
+  MOVE_SLOT could rearrange the victim's lessons outright.
+
+PROOF (before fix)
+  POST /api/timetable/97c48b6a-5341-4bd5-8ba9-e0ada928a4f5/suggestions
+  cookie: T1-CAMPUS_ADMIN  (campusId = Alpha-North)
+  body: {"action":{"type":"REASSIGN_TEACHER",
+                   "slotId":"803cb1b6-12c9-4054-b31b-20654933179f",
+                   "teacherId":"c91ab12c-817f-4ffb-a914-8ad4a8a8fa88"}}
+
+  Expected: 403/404, slot unchanged.
+  Actual:   HTTP 200 {"success":true,...}
+            DB before -> timetable_slots.teacher_id = NULL
+            DB after  -> timetable_slots.teacher_id = c91ab12c…  (WRITE LANDED)
+
+IMPACT
+  Any campus admin in a multi-campus school group can reassign teachers and rooms
+  on, and move lessons around in, a sibling campus's timetable. In T1's shape
+  (Alpha-North / Alpha-South) that is a real privilege-boundary break: campus
+  admins are scoped to one campus by design (§0.1). Silent corruption — the
+  victim campus sees its timetable change with no attribution.
+
+FIX APPLIED
+  src/lib/timetable/suggest.ts — applySuggestion() now verifies ownership before
+  any write, mirroring what loadContext() already did on the read path:
+
+      const timetable = await prisma.timetable.findFirst({
+        where: { id: timetableId, campusId },
+        select: { id: true },
+      });
+      if (!timetable) {
+        throw new ApiErrorLike("That timetable does not belong to this campus", 403);
+      }
+
+  One check at the top covers all three action types.
+
+  Also fixed alongside (ISO-1.1, P3 — API shape, not a leak):
+  src/app/api/timetable/[id]/suggestions/route.ts GET returned 200 + an empty
+  report for a timetable outside the caller's campus. Now 404.
+
+VERIFICATION
+  1. Attack re-run          -> HTTP 403, teacher_id still NULL.            PASS
+     (scripts/qa/probe-iso-6.1-timetable.mjs)
+  2. Legitimate same-campus -> HTTP 200, write lands. NO REGRESSION.       PASS
+     (scripts/qa/probe-iso-6.1-positive.mjs)
+  3. GET status matrix:
+       own campus (real)        -> 200
+       other campus (real)      -> 404
+       foreign-tenant id        -> 404
+       nonexistent id           -> 404
+     Other-campus and nonexistent responses are BYTE-IDENTICAL -> ISO-1.5 PASS,
+     no existence oracle.
+  4. Full sweep re-run      -> 1074/1074 assertions pass, 0 findings.      PASS
+
+RESIDUAL RISK / FOLLOW-UP
+  TimetableSlot has no campus_id, so the guard can never enforce campus scoping
+  on it. Every other write path that reaches TimetableSlot by id must carry its
+  own campus check. Recommend auditing the remaining /api/timetable/* writes for
+  the same pattern, and treating "tenant model without campus_id, mutated by id"
+  as a review checklist item. The generic lesson: THE PRISMA GUARD PROTECTS THE
+  TENANT BOUNDARY, NOT THE CAMPUS BOUNDARY. §2's ISO-6.x cases cannot lean on it.

@@ -1,0 +1,71 @@
+ID:            INT-1 / OWN-6 / MF-3
+Title:         A school cannot be deleted — no product path, and the data model blocks it
+Section:       §8 Data Integrity / §4.1 APP_OWNER / §12 MF-3
+Severity:      P1 (Critical — GDPR erasure and tenant offboarding are impossible)
+Role/Tenant:   APP_OWNER; discovered building the T5 fixture
+Status:        OPEN
+Discovered:    2026-08-21, while seeding §1 fixtures
+
+SUMMARY
+Two independent defects. Neither is a test-harness problem — the second was hit
+three times in a row by ordinary teardown code and is reproducible from a fresh DB.
+
+── DEFECT 1: no deletion capability exists in the product ──
+  src/app/api/owner/schools/route.ts        exports GET, POST
+  src/app/api/owner/schools/[id]/route.ts   exports GET, PATCH
+  No DELETE handler anywhere. Repo-wide, `prisma.school.delete(` appears only in
+  seed/QA scripts — never in src/.
+
+  Consequences:
+   * OWN-6 ("Delete a school -> confirmation requires typing the school name")
+     tests a feature that DOES NOT EXIST. Remove it from §4.1 or build the feature.
+   * MF-3 (tenant export/deletion for GDPR) is CONFIRMED missing, not merely absent
+     from the UI. There is no right-to-erasure path at any layer.
+   * FINDING-G's "deleted school" state is unreachable through the product; it can
+     only be produced by direct DB access, as this QA fixture does.
+
+── DEFECT 2: the data model blocks deletion even if a handler were added ──
+Cascade audit of the 89 School-child relations:
+    87 declare onDelete: Cascade
+     2 do NOT:  User, AIUsageLog
+
+Plus a third, one level deeper: SuperAdminAuditLog -> User has no cascade, AND
+SuperAdminAuditLog is one of the 5 GLOBAL models (no school_id), so it cannot be
+cleared tenant-wise at all — only by userId.
+
+REPRODUCTION (from a clean DB, 3 successive FK failures):
+  1. prisma.school.delete({ where: { id }})
+     -> Foreign key constraint violated: `users_school_id_fkey`
+  2. after clearing users:
+     -> Foreign key constraint violated: `super_admin_audit_logs_user_id_fkey`
+        (triggered merely because a SUPER_ADMIN had logged in once — login writes
+         an audit row via logSuperAdminAction)
+  3. Only this exact order succeeds:
+        studentClassHistory.deleteMany({ schoolId })
+        loginSession.deleteMany({ schoolId })
+        student.updateMany({ schoolId }, { parentUserId: null, studentUserId: null })
+        class.updateMany({ schoolId }, { classTeacherId: null })
+        aIUsageLog.deleteMany({ schoolId })
+        superAdminAuditLog.deleteMany({ userId: { in: <userIds of that school> } })
+        user.deleteMany({ schoolId })
+        school.delete({ id })
+
+IMPACT
+Offboarding a school is impossible without hand-written multi-step SQL. Any
+future DELETE endpoint written the obvious way (school.delete) will fail in
+production the first time it is called against a school whose admin has ever
+logged in. A partial failure midway through leaves a half-deleted tenant.
+
+RECOMMENDED FIX
+ 1. Decide the policy first: hard delete vs soft delete (School.status =
+    'DELETED'). Soft delete pairs better with FINDING-G's stale-session work and
+    keeps financial/audit history, which schools are usually legally required to retain.
+ 2. If hard delete: add onDelete: Cascade to School->User and School->AIUsageLog,
+    and decide SuperAdminAuditLog's retention explicitly (it is deliberately global
+    and arguably SHOULD survive tenant deletion for platform forensics — if so, null
+    its userId rather than cascading).
+ 3. Wrap the whole thing in a single transaction so it cannot half-complete.
+ 4. Only then build the OWN-6 endpoint + type-the-name confirmation.
+
+EVIDENCE: reproducible via scripts/qa/seed-fixtures.mjs teardown (see the ordered
+deletes and their comments); AUTH-1.1 matrix in AUTH-1.1-login-matrix.json.
