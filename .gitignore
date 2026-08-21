@@ -65,3 +65,12 @@ next-env.d.ts
 
 # runtime-generated report card PDFs (contain student PII)
 /public/generated/
+
+# QA fixtures — regenerable, and must never be published.
+# fixtures.json holds signed skoolee_token JWTs for every test persona. They are
+# signed with the real AUTH_SECRET, so on a public repo they are credentials,
+# not test data. Rebuild with:
+#   node scripts/qa/seed-fixtures.mjs && node scripts/qa/capture-tokens.mjs
+docs/qa/fixtures.json
+# Full database dump taken as a pre-QA restore point (~18MB).
+docs/qa/evidence/*.sql
