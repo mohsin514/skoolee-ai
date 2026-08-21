@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { csvCell } from "@/lib/csv";
 import { prisma } from "@/lib/db/prisma";
 import {
   assertPermission,
@@ -20,18 +21,6 @@ import {
 // an export is the entire roster in one file, including guardian contacts, so
 // it must not be an easier door than the list it comes from.
 
-/**
- * RFC 4180 quoting.
- *
- * Guardian names carry commas ("Khan, Ayesha"), addresses carry newlines, and
- * an unescaped one of either silently shifts every later column — the kind of
- * corruption nobody notices until the file is re-imported somewhere else.
- */
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  const s = String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 const COLUMNS: { header: string; get: (s: any) => unknown }[] = [
   { header: "Roll No", get: (s) => s.rollNo },

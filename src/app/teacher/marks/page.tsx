@@ -12,6 +12,7 @@ import { useGradingTools } from "../use-grading-tools";
 import { GradingModals, GradingToolbar } from "../grading-tools";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { csvCell } from "@/lib/csv";
 
 export default function MarksPage() {
   const { data, loading, error, loadData } = useTeacherData();
@@ -107,8 +108,7 @@ export default function MarksPage() {
     }
     // Student names routinely contain commas ("Khan, Ayesha"); unquoted they
     // shift every following column into the wrong subject.
-    const escape = (cell: string) => `"${String(cell ?? "").replaceAll('"', '""')}"`;
-    const csv = rows.map((r) => r.map(escape).join(",")).join("\n");
+    const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `marks-${selectedExamId}.csv`; a.click();
@@ -148,7 +148,7 @@ export default function MarksPage() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">{data.exams?.length || 0} exam cycles</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Tests, Exams & Marks</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Enter marks, create assessments, and manage grade configurations.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Enter marks, create assessments, and manage grade configurations.</p>
         </div>
         {/* justify-end so a wrapped third button lines up with the header's
             right edge instead of stranding itself under the first one. */}
@@ -167,7 +167,7 @@ export default function MarksPage() {
               <Star className="h-8 w-8 text-white" />
             </div>
             <h3 className="mt-5 text-xl font-bold text-[#1d1b20]">No assessments yet</h3>
-            <p className="mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-[#4d4354]/55">
+            <p className="mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
               Create a test or exam for one of your classes, and its mark sheet will open up here for
               you to fill in.
             </p>
@@ -193,7 +193,7 @@ export default function MarksPage() {
 
         {/* Exam selector */}
         <div className="w-full max-w-md">
-          <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Select Assessment</label>
+          <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Select Assessment</label>
           <Select value={selectedExamId} onChange={(e) => setSelectedExamId(e.target.value)}>
             {(data.exams || []).map((exam: any) => (
               <option key={exam.id} value={exam.id}>{exam.title}{exam.subject ? ` (${exam.subject.name})` : ""} &mdash; {classLabel(exam.class)}</option>
@@ -225,7 +225,7 @@ export default function MarksPage() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-[#1d1b20] truncate">{exam.title}</p>
-                    <p className="mt-0.5 text-[11px] text-[#4d4354]/50">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
+                    <p className="mt-0.5 text-[11px] text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
                   </div>
                   <StatusPill status={exam.status} />
                 </div>
@@ -250,7 +250,7 @@ export default function MarksPage() {
             <div className="flex-1 h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-purple-500 transition-all duration-500" style={{ width: `${completion}%` }} />
             </div>
-            <span className="text-xs font-semibold text-[#4d4354]/50 whitespace-nowrap">{filledCells}/{totalCells} cells ({completion}%)</span>
+            <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">{filledCells}/{totalCells} cells ({completion}%)</span>
           </div>
         )}
 
@@ -282,10 +282,10 @@ export default function MarksPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left">
                 <thead>
-                  <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                  <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                     <th className="px-5 py-4">Student</th>
                     {markSheet.subjects.map((subject: any) => (
-                      <th key={subject.id} className="px-3 py-4 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>{subject.name}<br /><span className="text-[10px] font-normal text-[#4d4354]/40">/ {subject.totalMarks || 100}</span></th>
+                      <th key={subject.id} className="px-3 py-4 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>{subject.name}<br /><span className="text-[10px] font-normal text-ink-subtle">/ {subject.totalMarks || 100}</span></th>
                     ))}
                   </tr>
                 </thead>
@@ -309,7 +309,7 @@ export default function MarksPage() {
                               className={cn(
                                 "h-11 w-full rounded-xl border px-3 text-center text-sm font-bold outline-none transition-all",
                                 "focus:border-[#8127cf]/35 focus:bg-white focus:ring-1 focus:ring-[#8127cf]/20",
-                                isLocked ? "bg-[#f3f4f9]/40 text-[#4d4354]/60 cursor-not-allowed" : "bg-[#fbf0fe]/40",
+                                isLocked ? "bg-[#f3f4f9]/40 text-ink-muted cursor-not-allowed" : "bg-[#fbf0fe]/40",
                                 isOverLimit ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#cfc2d6]/20"
                               )} />
                           </td>
@@ -336,7 +336,7 @@ export default function MarksPage() {
               range — fix the highlighted cell{invalidCells.length !== 1 ? "s" : ""} to save.
             </p>
           ) : activeExam ? (
-            <p className="text-sm font-semibold text-[#4d4354]/50">
+            <p className="text-sm font-semibold text-ink-muted">
               {activeExam.enteredMarks || 0}/{activeExam.expectedMarks || 0} marks entered
             </p>
           ) : (

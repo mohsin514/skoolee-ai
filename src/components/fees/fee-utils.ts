@@ -1,4 +1,5 @@
 import type { InvoiceStatus } from "./fee-types";
+import { csvCell } from "@/lib/csv";
 
 export function formatPKR(paisa: number): string {
   return `Rs ${(paisa / 100).toLocaleString("en-PK")}`;
@@ -33,16 +34,9 @@ export function exportCSV(rows: Record<string, string | number>[], filename: str
   if (rows.length === 0) return;
   const headers = Object.keys(rows[0]);
   const csv = [
-    headers.join(","),
+    headers.map(csvCell).join(","),
     ...rows.map((row) =>
-      headers
-        .map((h) => {
-          const val = String(row[h] ?? "");
-          return val.includes(",") || val.includes('"') || val.includes("\n")
-            ? `"${val.replace(/"/g, '""')}"`
-            : val;
-        })
-        .join(",")
+      headers.map((h) => csvCell(row[h])).join(",")
     ),
   ].join("\n");
 
