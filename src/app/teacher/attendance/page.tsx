@@ -13,6 +13,7 @@ import {
 } from "@/components/teacher/teacher-components";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { shiftDateOnly } from "@/lib/date-only";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
@@ -113,18 +114,17 @@ export default function AttendancePage() {
   }, [attendanceClassId, attendanceDate, attendanceRows, loadAttendance, loadAttendanceHistory, loadData]);
 
   const adjustDate = (delta: number) => {
-    const d = new Date(attendanceDate);
-    d.setDate(d.getDate() + delta);
-    setAttendanceDate(d.toISOString().slice(0, 10));
+    // UTC arithmetic throughout — see shiftDateOnly. The previous version mixed
+    // a UTC-parsed date with local getDate/setDate, which lands a day out for
+    // any browser west of UTC.
+    setAttendanceDate(shiftDateOnly(attendanceDate, delta));
   };
 
   const copyFromPrevious = useCallback(async () => {
     if (!attendanceClassId) return;
     setCopyingPrevious(true);
     try {
-      const prev = new Date(attendanceDate);
-      prev.setDate(prev.getDate() - 1);
-      const fromDate = prev.toISOString().slice(0, 10);
+      const fromDate = shiftDateOnly(attendanceDate, -1);
       const res = await fetch("/api/attendance/copy-previous", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classId: attendanceClassId, fromDate, toDate: attendanceDate }),
@@ -178,7 +178,7 @@ export default function AttendancePage() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">Attendance Management</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Daily Attendance</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Mark student attendance per class and date.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Mark student attendance per class and date.</p>
           <div className="flex gap-2 mt-4">
             {([
               { key: "marking" as ViewTab, label: "Mark Attendance", icon: CalendarCheck },
@@ -189,7 +189,7 @@ export default function AttendancePage() {
                   "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/30",
                   activeTab === key
                     ? "bg-[#8127cf] text-white border-[#8127cf] shadow-lg shadow-[#8127cf]/20"
-                    : "bg-white text-[#4d4354]/70 border-[#cfc2d6]/20 hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/50"
+                    : "bg-white text-ink border-[#cfc2d6]/20 hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/50"
                 )}>
                 <Icon className="w-3.5 h-3.5" />{label}
               </button>
@@ -225,7 +225,7 @@ export default function AttendancePage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
             <div>
-              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Class</label>
+              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Class</label>
               <Select value={attendanceClassId} onChange={(e) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
                 {classHubs.map((cls: any) => (
                   <option key={cls.id} value={cls.id}>
@@ -237,12 +237,12 @@ export default function AttendancePage() {
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
-                <ChevronLeft className="w-4 h-4 text-[#4d4354]" />
+                <ChevronLeft className="w-4 h-4 text-ink" />
               </button>
               <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
                 className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
               <button type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
-                <ChevronRight className="w-4 h-4 text-[#4d4354]" />
+                <ChevronRight className="w-4 h-4 text-ink" />
               </button>
             </div>
           </div>
@@ -257,7 +257,7 @@ export default function AttendancePage() {
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 px-4 py-3.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }} title="Total students in this class">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Total</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Total</p>
             <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{stats.total}</p>
           </div>
           <div className="sk-rise rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5 transition-all hover:bg-emerald-100/80" style={{ animationDelay: "60ms" }} title="Students marked present">
@@ -284,14 +284,14 @@ export default function AttendancePage() {
             <div className="flex-1 h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600 transition-all duration-500" style={{ width: `${completion}%` }} />
             </div>
-            <span className="text-xs font-semibold text-[#4d4354]/50 whitespace-nowrap">{completion}% marked</span>
+            <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">{completion}% marked</span>
           </div>
         )}
 
         {/* Bulk actions */}
         {attendanceRows.length > 0 && (
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/45 mb-2.5">Quick Actions</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle mb-2.5">Quick Actions</p>
             <div className="flex flex-wrap gap-2">
               {([
                 { status: "PRESENT" as AttendanceStatus, label: "All Present", icon: CheckCheck },
@@ -333,8 +333,8 @@ export default function AttendancePage() {
           ) : attendanceRows.length ? (
             <div className="divide-y divide-[#f3f4f9]">
               <div className="hidden sm:grid sm:grid-cols-[1fr_200px] gap-3 px-6 py-3 bg-[#fbf0fe]/30">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Student</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Status</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Student</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Status</span>
               </div>
               {attendanceRows.map((student) => (
                 <div key={student.id} className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3 px-5 py-3.5 sm:items-center hover:bg-[#fbf0fe]/20 transition-colors">
@@ -348,7 +348,7 @@ export default function AttendancePage() {
                           "flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                           student.status === status
                             ? STATUS_CONFIG[status].activeClass
-                            : "bg-white text-[#4d4354]/60 border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
+                            : "bg-white text-ink-muted border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
                         )}>
                         {STATUS_CONFIG[status].label}
                       </button>
@@ -367,7 +367,7 @@ export default function AttendancePage() {
         {/* Save + history toggle */}
         <div className="flex items-center justify-between gap-4">
           <button type="button" onClick={() => setHistoryOpen(!historyOpen)} title={historyOpen ? "Collapse history" : "Expand history"}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[#4d4354]/60 hover:text-[#8127cf] transition-colors cursor-pointer active:scale-[0.97]">
+            className="inline-flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer active:scale-[0.97]">
             <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", historyOpen && "rotate-90")} />
             Recent Attendance ({attendanceHistory.length})
           </button>
@@ -394,7 +394,7 @@ export default function AttendancePage() {
                       </div>
                       <div className="min-w-0">
                         <p className={cn("text-sm font-semibold", isSelected ? "text-[#8127cf]" : "text-[#1d1b20]")}>{entry.date}</p>
-                        <p className="text-[11px] text-[#4d4354]/50">
+                        <p className="text-[11px] text-ink-muted">
                           {entry.marked !== undefined ? (entry.marked ? "Complete" : `${entry.unmarked} unmarked`) : `${entry.present + entry.absent + entry.leave} marked`}
                         </p>
                       </div>
@@ -440,7 +440,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
           <div>
-            <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Class</label>
+            <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Class</label>
             <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
               {classHubs.map((cls: any) => (
                 <option key={cls.id} value={cls.id}>
@@ -452,11 +452,11 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => adjustMonth(-1)} title="Previous month" aria-label="Previous month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
-              <ChevronLeft className="w-4 h-4 text-[#4d4354]" />
+              <ChevronLeft className="w-4 h-4 text-ink" />
             </button>
             <div className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-4 flex items-center text-sm font-semibold text-[#1d1b20] min-w-[140px] justify-center">{monthLabel}</div>
             <button type="button" onClick={() => adjustMonth(1)} title="Next month" aria-label="Next month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
-              <ChevronRight className="w-4 h-4 text-[#4d4354]" />
+              <ChevronRight className="w-4 h-4 text-ink" />
             </button>
           </div>
         </div>
@@ -476,7 +476,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Students</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
               <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{monthlyData.totalStudents}</p>
             </div>
             <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5">
@@ -511,7 +511,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold text-rose-700">{s.percentage}%</span>
-                      <span className="text-[10px] font-semibold text-[#4d4354]/50">{s.absentDays} absent</span>
+                      <span className="text-[10px] font-semibold text-ink-muted">{s.absentDays} absent</span>
                     </div>
                   </div>
                 ))}
@@ -522,7 +522,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           {/* Student breakdown table */}
           <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
             <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px] gap-3 px-6 py-3 bg-[#fbf0fe]/30">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Student</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Student</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 text-center">Present</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 text-center">Absent</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 text-center">Leave</span>
@@ -540,7 +540,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#1d1b20] truncate">{student.name}</p>
-                      <p className="text-[10px] font-semibold text-[#4d4354]/45">{student.rollNo || "No roll"}</p>
+                      <p className="text-[10px] font-semibold text-ink-subtle">{student.rollNo || "No roll"}</p>
                     </div>
                   </div>
                   <p className="text-center text-sm font-bold text-emerald-700">{student.present}</p>
