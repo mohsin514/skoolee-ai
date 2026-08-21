@@ -24,7 +24,7 @@ const RULES: Rule[] = [
 ];
 
 const STRENGTH = [
-  { label: "Too short", bar: "w-0", tone: "bg-[#cfc2d6]", text: "text-[#4d4354]/40" },
+  { label: "Too short", bar: "w-0", tone: "bg-[#cfc2d6]", text: "text-ink-subtle" },
   { label: "Weak", bar: "w-1/4", tone: "bg-rose-400", text: "text-rose-500" },
   { label: "Fair", bar: "w-2/4", tone: "bg-amber-400", text: "text-amber-600" },
   { label: "Good", bar: "w-3/4", tone: "bg-[#9c48ea]", text: "text-[#8127cf]" },
@@ -91,7 +91,7 @@ export default function FirstLoginPage() {
             </div>
             <div>
               <h1 className="text-xl font-black text-[#1f1a23] tracking-tight">Set your password</h1>
-              <p className="text-sm font-semibold text-[#4d4354]/60 mt-1 leading-relaxed">
+              <p className="text-sm font-semibold text-ink-muted mt-1 leading-relaxed">
                 Your account was created with a temporary password. Choose your own to continue —
                 you will only be asked this once.
               </p>
@@ -100,11 +100,11 @@ export default function FirstLoginPage() {
 
           <form onSubmit={onSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-[10px] font-black text-[#4d4354] ml-1 uppercase tracking-wider">
+              <Label htmlFor="password" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 New Password
               </Label>
               <div className="relative flex items-center group">
-                <div className="absolute left-3.5 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
+                <div className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <Lock className="h-4 w-4" />
                 </div>
                 <Input
@@ -115,13 +115,13 @@ export default function FirstLoginPage() {
                   autoFocus
                   autoComplete="new-password"
                   placeholder="Choose a strong password"
-                  className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-[#4d4354]/25 text-[#1f1a23] font-bold shadow-none"
+                  className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShow(!show)}
                   aria-label={show ? "Hide password" : "Show password"}
-                  className="absolute right-4 text-[#4d4354]/30 hover:text-[#8127cf] transition-colors cursor-pointer"
+                  className="absolute right-4 text-ink-subtle hover:text-[#8127cf] transition-colors cursor-pointer"
                 >
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -147,9 +147,9 @@ export default function FirstLoginPage() {
                   >
                     {passed[i]
                       ? <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
-                      : <X className="h-2.5 w-2.5 text-[#4d4354]/30" strokeWidth={3.5} />}
+                      : <X className="h-2.5 w-2.5 text-ink-subtle" strokeWidth={3.5} />}
                   </span>
-                  <span className={`text-[11px] font-bold ${passed[i] ? "text-[#4d4354]" : "text-[#4d4354]/40"}`}>
+                  <span className={`text-[11px] font-bold ${passed[i] ? "text-ink" : "text-ink-subtle"}`}>
                     {rule.label}
                   </span>
                 </li>
@@ -157,11 +157,11 @@ export default function FirstLoginPage() {
             </ul>
 
             <div className="space-y-1.5">
-              <Label htmlFor="confirm" className="text-[10px] font-black text-[#4d4354] ml-1 uppercase tracking-wider">
+              <Label htmlFor="confirm" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 Confirm Password
               </Label>
               <div className="relative flex items-center group">
-                <div className="absolute left-3.5 text-[#4d4354]/30 group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
+                <div className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <ShieldCheck className="h-4 w-4" />
                 </div>
                 <Input
@@ -171,7 +171,7 @@ export default function FirstLoginPage() {
                   onChange={(e) => setConfirm(e.target.value)}
                   autoComplete="new-password"
                   placeholder="Type it again"
-                  className={`w-full h-12 pl-10 pr-4 border-0 rounded-2xl focus:ring-2 transition-all placeholder:text-[#4d4354]/25 text-[#1f1a23] font-bold shadow-none ${
+                  className={`w-full h-12 pl-10 pr-4 border-0 rounded-2xl focus:ring-2 transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none ${
                     confirm.length > 0 && !matches
                       ? "bg-rose-50 focus:ring-rose-200 focus:bg-rose-50"
                       : "bg-[#fbf0fe] focus:ring-[#8127cf]/20 focus:bg-white"
@@ -206,7 +206,7 @@ export default function FirstLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-[11px] font-bold text-[#4d4354]/40 mt-5">
+        <p className="text-center text-[11px] font-bold text-ink-subtle mt-5">
           Skoolee will never ask for your password by email or WhatsApp.
         </p>
       </div>

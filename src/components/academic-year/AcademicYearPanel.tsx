@@ -329,8 +329,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
                         {yearStatusLabel(yg.status)}
                       </span>
-                      <span className="text-[11px] font-semibold text-[#4d4354]/50">{yg.classes.length} classes</span>
-                      <span className="text-[11px] font-semibold text-[#4d4354]/50">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
+                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.length} classes</span>
+                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
                     </div>
                   </div>
                 </div>
@@ -345,7 +345,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       Close Year
                     </BrandButton>
                   )}
-                  {expandedYear === yg.year ? <ChevronDown className="h-5 w-5 text-[#4d4354]/30" /> : <ChevronRight className="h-5 w-5 text-[#4d4354]/30" />}
+                  {expandedYear === yg.year ? <ChevronDown className="h-5 w-5 text-ink-subtle" /> : <ChevronRight className="h-5 w-5 text-ink-subtle" />}
                 </div>
               </div>
 
@@ -357,7 +357,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="text-sm font-bold text-[#1d1b20]">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
-                            <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">
+                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">
                               {cls.classTeacher?.fullName || "No class teacher"}
                             </p>
                           </div>
@@ -368,15 +368,15 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <div className="grid grid-cols-3 gap-2 mb-3">
                           <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-[#8127cf]">{cls._count.students}</p>
-                            <p className="text-[8px] font-semibold uppercase text-[#4d4354]/35">Students</p>
+                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Students</p>
                           </div>
                           <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-[#1d1b20]">{cls._count.subjects}</p>
-                            <p className="text-[8px] font-semibold uppercase text-[#4d4354]/35">Subjects</p>
+                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Subjects</p>
                           </div>
                           <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-[#1d1b20]">{cls._count.exams}</p>
-                            <p className="text-[8px] font-semibold uppercase text-[#4d4354]/35">Exams</p>
+                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Exams</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -419,7 +419,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 <h3 className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">Class History</h3>
               </div>
               <button type="button" onClick={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -444,12 +444,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
                   <span>#</span><span>Student</span><span>Admission No</span><span>Roll No</span><span>Grade</span><span>Status</span>
                 </div>
                 {historyRecords.map((record, i) => (
                   <div key={record.id} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl hover:bg-[#fbf0fe]/30 transition-colors">
-                    <span className="text-xs font-bold text-[#4d4354]/30">{i + 1}</span>
+                    <span className="text-xs font-bold text-ink-subtle">{i + 1}</span>
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
                         <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-[11px]" />
@@ -457,14 +457,14 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-[#1d1b20] truncate">{record.student.fullName}</p>
                         {record.student.class && (
-                          <p className="text-[10px] font-semibold text-[#4d4354]/40">
+                          <p className="text-[10px] font-semibold text-ink-subtle">
                             Now in: {record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
                           </p>
                         )}
                       </div>
                     </div>
                     <span className="text-xs font-bold text-[#8127cf]">{record.student.admissionNo || "—"}</span>
-                    <span className="text-xs font-semibold text-[#4d4354]/60">{record.rollNo}</span>
+                    <span className="text-xs font-semibold text-ink-muted">{record.rollNo}</span>
                     <span className="text-sm font-bold text-[#1d1b20]">
                       {record.finalGrade || (record.finalPercentage ? `${Math.round(record.finalPercentage)}%` : "—")}
                     </span>
@@ -480,7 +480,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 ))}
               </div>
             ) : (
-              <p className="text-center text-sm font-semibold text-[#4d4354]/50 py-12">No history records for this class.</p>
+              <p className="text-center text-sm font-semibold text-ink-muted py-12">No history records for this class.</p>
             )}
           </div>
         </div>
@@ -501,7 +501,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </h3>
               </div>
               <button type="button" onClick={closePromotionWizard}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
+                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -517,12 +517,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <div key={step} className="flex items-center gap-2">
                       {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-[#8127cf]" : "bg-[#e8e0ec]")} />}
                       <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all",
-                        isActive ? "bg-[#8127cf] text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-[#4d4354]/30"
+                        isActive ? "bg-[#8127cf] text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
                       )}>
                         {isDone ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                       </div>
                       <span className={cn("text-[10px] font-bold uppercase tracking-wider hidden sm:block",
-                        isActive ? "text-[#8127cf]" : isDone ? "text-emerald-600" : "text-[#4d4354]/30"
+                        isActive ? "text-[#8127cf]" : isDone ? "text-emerald-600" : "text-ink-subtle"
                       )}>
                         {step === "source" ? "Select Class" : step === "review" ? "Review" : "Promote"}
                       </span>
@@ -535,7 +535,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {/* ── Step 1: Source ── */}
             {promoteStep === "source" && (
               <div className="space-y-4">
-                <p className="text-xs font-semibold text-[#4d4354]/50">
+                <p className="text-xs font-semibold text-ink-muted">
                   Select the class whose students you want to promote. You can choose any class with students.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -550,7 +550,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           {yearStatusLabel(cls.status)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] font-semibold text-[#4d4354]/50">
+                      <div className="flex items-center gap-3 text-[10px] font-semibold text-ink-muted">
                         <span>{cls._count.students} students</span>
                         <span>Year {cls.academicYear}</span>
                         <span>{cls.classTeacher?.fullName || "No teacher"}</span>
@@ -560,8 +560,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </div>
                 {allClasses.filter((c) => c._count.students > 0).length === 0 && (
                   <div className="py-12 text-center">
-                    <Users className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                    <p className="text-sm font-bold text-[#4d4354]/40">No classes with students found</p>
+                    <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                    <p className="text-sm font-bold text-ink-subtle">No classes with students found</p>
                   </div>
                 )}
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
@@ -585,7 +585,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <GraduationCap className="h-5 w-5 text-[#8127cf] shrink-0" />
                     <div>
                       <p className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)}</p>
-                      <p className="text-[10px] font-semibold text-[#4d4354]/50">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
+                      <p className="text-[10px] font-semibold text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
                     </div>
                   </div>
                 )}
@@ -643,7 +643,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           <table className="w-full text-left">
                             <thead>
                               <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
                                   <input type="checkbox"
                                     checked={gradeResults.length > 0 && gradeResults.every((g) => studentDecisions.get(g.studentId) === "promote")}
                                     onChange={(e) => {
@@ -654,17 +654,17 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                     className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
                                   />
                                 </th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">#</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Student</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">Roll No</th>
+                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">#</th>
+                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Student</th>
+                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Roll No</th>
                                 {!gradeError && (
                                   <>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">%</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">Grade</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">Status</th>
+                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">%</th>
+                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Grade</th>
+                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Status</th>
                                   </>
                                 )}
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50 text-center">Decision</th>
+                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Decision</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -684,9 +684,9 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                         className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
                                       />
                                     </td>
-                                    <td className="px-4 py-3 text-xs font-bold text-[#4d4354]/40">{g.rank}</td>
+                                    <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{g.rank}</td>
                                     <td className="px-4 py-3 text-sm font-bold text-[#1f1a23] truncate max-w-[200px]">{g.studentName}</td>
-                                    <td className="px-4 py-3 text-xs font-semibold text-[#4d4354]/50">{g.rollNo || "—"}</td>
+                                    <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
                                     {!gradeError && (
                                       <>
                                         <td className="px-4 py-3 text-center">
@@ -728,8 +728,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       </>
                     ) : (
                       <div className="py-12 text-center">
-                        <Users className="mx-auto h-10 w-10 text-[#4d4354]/20 mb-3" />
-                        <p className="text-sm font-bold text-[#4d4354]/40">No students found in this class</p>
+                        <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
+                        <p className="text-sm font-bold text-ink-subtle">No students found in this class</p>
                       </div>
                     )}
                   </>
@@ -753,7 +753,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {/* Left: target selection */}
                   <div>
                     <label className="block mb-4">
-                      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Target Class</span>
+                      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
                       <select value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer">
                         <option value="">Select target class</option>
@@ -782,7 +782,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <Lock className="h-3.5 w-3.5 inline mr-1" />
                         Class changes are only allowed via promotion
                       </p>
-                      <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">
+                      <p className="text-[10px] font-semibold text-ink-muted mt-0.5">
                         Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.
                       </p>
                     </div>
@@ -790,24 +790,24 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     {/* Summary */}
                     <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#4d4354]/50">Students to promote</span>
+                        <span className="text-xs font-semibold text-ink-muted">Students to promote</span>
                         <span className="text-sm font-black text-emerald-600">{studentsToPromote.length}</span>
                       </div>
                       {studentsToRetain.length > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#4d4354]/50">Students retained</span>
+                          <span className="text-xs font-semibold text-ink-muted">Students retained</span>
                           <span className="text-sm font-black text-amber-600">{studentsToRetain.length}</span>
                         </div>
                       )}
                       {sourceClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#4d4354]/50">From</span>
+                          <span className="text-xs font-semibold text-ink-muted">From</span>
                           <span className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
                         </div>
                       )}
                       {targetClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#4d4354]/50">To</span>
+                          <span className="text-xs font-semibold text-ink-muted">To</span>
                           <span className="text-sm font-bold text-[#8127cf]">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
                         </div>
                       )}
@@ -816,15 +816,15 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                   {/* Right: roll number preview */}
                   <div>
-                    <p className="mb-1.5 pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">New Roll Number Preview</p>
+                    <p className="mb-1.5 pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
                     {promoteTargetId && targetClass ? (
                       <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
                         <table className="w-full text-left">
                           <thead>
                             <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30 sticky top-0">
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-[#4d4354]/50">Student</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-[#4d4354]/50">Old Roll</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-[#4d4354]/50 text-center">→</th>
+                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Student</th>
+                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Old Roll</th>
+                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted text-center">→</th>
                               <th className="px-3 py-2 text-[9px] font-black uppercase text-[#8127cf]">New Roll</th>
                             </tr>
                           </thead>
@@ -832,7 +832,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                             {studentsToPromote.map((g, idx) => (
                               <tr key={g.studentId} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20">
                                 <td className="px-3 py-2 text-xs font-bold text-[#1f1a23] truncate max-w-[160px]">{g.studentName}</td>
-                                <td className="px-3 py-2 text-xs font-semibold text-[#4d4354]/50">{g.rollNo || "—"}</td>
+                                <td className="px-3 py-2 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
                                 <td className="px-3 py-2 text-center"><ArrowRight className="h-3 w-3 text-[#8127cf] mx-auto" /></td>
                                 <td className="px-3 py-2 text-xs font-black text-[#8127cf]">
                                   {generateRollNoPreview(targetClass.name, targetClass.section, idx, targetClass._count.students)}
@@ -844,7 +844,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       </div>
                     ) : (
                       <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-[#cfc2d6]/20">
-                        <p className="text-xs font-bold text-[#4d4354]/30">Select a target class to preview roll numbers</p>
+                        <p className="text-xs font-bold text-ink-subtle">Select a target class to preview roll numbers</p>
                       </div>
                     )}
                   </div>
@@ -884,7 +884,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-[#1f1a23]">Promotion Complete</h3>
-                    <p className="text-sm font-semibold text-[#4d4354]/50 mt-2">
+                    <p className="text-sm font-semibold text-ink-muted mt-2">
                       {promotionResults.promoted} student{promotionResults.promoted !== 1 ? "s" : ""} promoted
                       {targetClass ? ` to ${clsLabel(targetClass)}` : ""}
                       {promotionResults.retained > 0 ? `, ${promotionResults.retained} retained` : ""}
@@ -903,7 +903,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   </div>
                 </div>
 
-                <p className="text-xs font-semibold text-[#4d4354]/40">
+                <p className="text-xs font-semibold text-ink-subtle">
                   New roll numbers have been assigned automatically. Student history records have been saved.
                 </p>
 

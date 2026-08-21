@@ -127,13 +127,13 @@ export function SecurityPanel() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Security</p>
           <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Security Overview</h2>
-          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+          <p className="text-sm font-semibold text-ink-muted mt-1">
             Sessions, system stats & security posture
           </p>
         </div>
         <button
           onClick={loadData}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-[#4d4354] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
@@ -169,7 +169,7 @@ export function SecurityPanel() {
               <div className="rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border border-[#cfc2d6]/10 p-5">
                 <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60">Network</p>
                 <p className="text-2xl font-black text-[#1f1a23] mt-2">{stats.campusCount} Campuses</p>
-                <p className="text-xs font-bold text-[#4d4354]/50 mt-1">{stats.studentCount} students / {stats.teacherCount} teachers</p>
+                <p className="text-xs font-bold text-ink-muted mt-1">{stats.studentCount} students / {stats.teacherCount} teachers</p>
               </div>
             </div>
           )}
@@ -185,13 +185,13 @@ export function SecurityPanel() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowActiveOnly(true)}
-                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
                 >
                   Active Only
                 </button>
                 <button
                   onClick={() => setShowActiveOnly(false)}
-                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${!showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${!showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
                 >
                   All Sessions
                 </button>
@@ -204,7 +204,7 @@ export function SecurityPanel() {
                   <Lock className="w-6 h-6 text-[#8127cf]/30" />
                 </div>
                 <p className="text-sm font-black text-[#1f1a23]">No Sessions</p>
-                <p className="mt-1 text-xs font-semibold text-[#4d4354]/50">No active sessions found.</p>
+                <p className="mt-1 text-xs font-semibold text-ink-muted">No active sessions found.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -224,7 +224,7 @@ export function SecurityPanel() {
                     >
                       <div className="flex items-center gap-4">
                         <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          session.isActive && !isExpired ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-[#4d4354]/40"
+                          session.isActive && !isExpired ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
                         }`}>
                           <DeviceIcon className="w-4 h-4" />
                         </div>
@@ -234,24 +234,24 @@ export function SecurityPanel() {
                             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase ${
                               session.isActive && !isExpired
                                 ? "bg-emerald-50 text-emerald-600"
-                                : "bg-[#f3f4f9] text-[#4d4354]/40"
+                                : "bg-[#f3f4f9] text-ink-subtle"
                             }`}>
                               <span className={`h-1 w-1 rounded-full ${session.isActive && !isExpired ? "bg-emerald-500" : "bg-[#4d4354]/30"}`} />
                               {session.isActive && !isExpired ? "Active" : "Ended"}
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 mt-1">
-                            <span className="text-[10px] font-bold text-[#4d4354]/40">{session.user.email}</span>
-                            <span className="text-[10px] font-bold text-[#4d4354]/40 flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-ink-subtle">{session.user.email}</span>
+                            <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5" /> {session.ipAddress || "—"}
                             </span>
-                            <span className="text-[10px] font-bold text-[#4d4354]/40">
+                            <span className="text-[10px] font-bold text-ink-subtle">
                               {device.browser} / {device.os}
                             </span>
                           </div>
                         </div>
                         <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                          <p className="text-[10px] font-bold text-[#4d4354]/40 flex items-center gap-1">
+                          <p className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
                             <Clock className="w-3 h-3" /> {formatDate(session.loginAt)}
                           </p>
                           {session.isActive && !isExpired && (
@@ -324,7 +324,7 @@ function SecurityStat({
       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm mb-3">
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
+      <p className="text-[8px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       <p className={`mt-1 text-xl font-black ${toneClass}`}>{value}</p>
     </div>
   );
@@ -338,7 +338,7 @@ function ChecklistItem({ label, detail, ok }: { label: string; detail: string; o
       </div>
       <div>
         <p className="text-xs font-black text-[#1f1a23]">{label}</p>
-        <p className="text-[10px] font-semibold text-[#4d4354]/50">{detail}</p>
+        <p className="text-[10px] font-semibold text-ink-muted">{detail}</p>
       </div>
     </div>
   );

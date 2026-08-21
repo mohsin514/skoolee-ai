@@ -214,10 +214,10 @@ export function DatesheetBuilder({
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
       {/* Subject sidebar */}
       <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm">
-        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-ink-muted">
           Exam Subjects
         </p>
-        <p className="mb-3 text-[10px] font-semibold text-[#4d4354]/40">
+        <p className="mb-3 text-[10px] font-semibold text-ink-subtle">
           {armed ? "Tap a slot to schedule" : "Tap to select, then a slot"}
         </p>
         <div className="space-y-2">
@@ -233,7 +233,7 @@ export function DatesheetBuilder({
                 className={cn(
                   "flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition-all cursor-pointer",
                   isScheduled
-                    ? "border-[#cfc2d6]/15 bg-[#f3f4f9] text-[#4d4354]/40"
+                    ? "border-[#cfc2d6]/15 bg-[#f3f4f9] text-ink-subtle"
                     : isArmed
                     ? "border-[#8127cf] bg-[#fbf0fe] text-[#8127cf] shadow-sm"
                     : "border-[#cfc2d6]/15 bg-white text-[#1d1b20] hover:border-[#8127cf]/40"
@@ -249,7 +249,7 @@ export function DatesheetBuilder({
             );
           })}
           {subjects.length === 0 ? (
-            <p className="rounded-2xl bg-[#f3f4f9] px-3 py-4 text-center text-[11px] font-semibold text-[#4d4354]/40">
+            <p className="rounded-2xl bg-[#f3f4f9] px-3 py-4 text-center text-[11px] font-semibold text-ink-subtle">
               No subjects found
             </p>
           ) : null}
@@ -258,7 +258,7 @@ export function DatesheetBuilder({
 
       {/* Calendar grid */}
       <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm custom-scrollbar">
-        <div className="mb-3 flex items-center gap-2 text-[#4d4354]/60">
+        <div className="mb-3 flex items-center gap-2 text-ink-muted">
           <CalendarDays className="h-4 w-4 text-[#8127cf]" />
           <span className="text-xs font-bold">
             Datesheet · {days.length} working day{days.length !== 1 ? "s" : ""}
@@ -335,7 +335,7 @@ export function DatesheetBuilder({
                                 {sched.room.roomNumber}
                               </p>
                             ) : (
-                              <p className="mt-0.5 text-[9px] font-semibold text-[#4d4354]/40">
+                              <p className="mt-0.5 text-[9px] font-semibold text-ink-subtle">
                                 No room
                               </p>
                             )}
@@ -557,7 +557,7 @@ function AssignmentPopover({
             })}
           </div>
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
               Rooms (free rooms only) — pick more than one to split the paper
             </span>
             <div className="max-h-52 space-y-1 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-white p-1.5">
@@ -568,7 +568,7 @@ function AssignmentPopover({
                   <label
                     key={r.id}
                     className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                      checked ? "bg-[#fbf0fe] text-[#1d1b20]" : "text-[#4d4354]/70 hover:bg-[#4d4354]/5"
+                      checked ? "bg-[#fbf0fe] text-[#1d1b20]" : "text-ink hover:bg-[#4d4354]/5"
                     }`}
                   >
                     <input
@@ -579,7 +579,7 @@ function AssignmentPopover({
                     />
                     <DoorOpen className="h-4 w-4 shrink-0 text-[#8127cf]" />
                     <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                       {r.capacity ? `cap ${r.capacity}` : "no capacity set"}
                     </span>
                     {checked && roomIds.length > 1 ? (
@@ -592,14 +592,14 @@ function AssignmentPopover({
               })}
             </div>
             {selectedRooms.length > 0 ? (
-              <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">
+              <p className="mt-1 text-[10px] font-bold text-ink-muted">
                 {selectedRooms.length} room{selectedRooms.length === 1 ? "" : "s"} selected ·{" "}
                 {seatsAvailable} seats for {studentsCount} students
                 {multiRoom ? " · students are seated in roll-number order" : ""}
               </p>
             ) : null}
             {roomsLoading ? (
-              <p className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#4d4354]/40">
+              <p className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-ink-subtle">
                 <Loader2 className="h-3 w-3 animate-spin" /> Checking room availability…
               </p>
             ) : roomsError ? (
@@ -619,7 +619,7 @@ function AssignmentPopover({
                 </button>
               </div>
             ) : rooms.length === 0 ? (
-              <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">
+              <p className="mt-1 text-[10px] font-semibold text-ink-subtle">
                 No free rooms for this slot.
               </p>
             ) : shortBy > 0 ? (
@@ -662,7 +662,7 @@ function AssignmentPopover({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl px-5 py-2.5 text-sm font-black text-[#4d4354]/60 hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
+            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
           >
             Cancel
           </button>

@@ -22,13 +22,13 @@ export default function SettingsPage() {
                 </div>
               </div>
               <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Protected Fields</h2>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 Role, email, and account permissions are managed by your campus administrator and cannot be changed here.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Role</span>
-                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Email</span>
-                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#4d4354]/60 border border-[#cfc2d6]/10">Permissions</span>
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-muted border border-[#cfc2d6]/10">Role</span>
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-muted border border-[#cfc2d6]/10">Email</span>
+                <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-muted border border-[#cfc2d6]/10">Permissions</span>
               </div>
             </div>
           </aside>

@@ -46,7 +46,7 @@ function ChildSwitcher() {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+      <span className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
         Viewing
       </span>
       {siblings.map((s) => {
@@ -60,7 +60,7 @@ function ChildSwitcher() {
             className={
               active
                 ? "cursor-pointer rounded-full bg-[#8127cf] px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-3.5 py-1.5 text-xs font-bold text-[#4d4354]/70 transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+                : "cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-3.5 py-1.5 text-xs font-bold text-ink transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
             }
           >
             {s.fullName}

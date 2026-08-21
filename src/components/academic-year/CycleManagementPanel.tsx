@@ -155,7 +155,7 @@ export function CycleManagementPanel({
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600/70">Current Active Cycle</p>
                 <h3 className="text-xl font-black text-[#1d1b20] tracking-tight">{activeCycle.label}</h3>
-                <p className="text-xs font-semibold text-[#4d4354]/60 mt-0.5">
+                <p className="text-xs font-semibold text-ink-muted mt-0.5">
                   Academic Year {activeCycle.academicYear}
                   {activeCycle.startDate && ` · Started ${new Date(activeCycle.startDate).toLocaleDateString()}`}
                 </p>
@@ -199,7 +199,7 @@ export function CycleManagementPanel({
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70">No Active Cycle</p>
               <h3 className="text-lg font-black text-[#1d1b20] tracking-tight">Teachers cannot operate without an active cycle</h3>
-              <p className="text-xs font-semibold text-[#4d4354]/60 mt-0.5">
+              <p className="text-xs font-semibold text-ink-muted mt-0.5">
                 Create and activate a cycle to allow attendance, marks entry, and reports.
               </p>
             </div>
@@ -219,17 +219,17 @@ export function CycleManagementPanel({
         <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Cycle Label</label>
+              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Cycle Label</label>
               <input
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="e.g. Session 2026-27"
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
             </div>
             <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Academic Year</label>
+              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Academic Year</label>
               <input
                 type="number"
                 value={newYear}
@@ -241,7 +241,7 @@ export function CycleManagementPanel({
           <div className="flex gap-2">
             <button
               onClick={() => setShowCreate(false)}
-              className="rounded-2xl bg-[#f3f4f9] px-5 py-2.5 text-xs font-bold text-[#4d4354] hover:bg-[#e8e0ec] transition-all cursor-pointer"
+              className="rounded-2xl bg-[#f3f4f9] px-5 py-2.5 text-xs font-bold text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
             >
               Cancel
             </button>
@@ -282,7 +282,7 @@ export function CycleManagementPanel({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-[#1d1b20]">{cycle.label}</p>
-                    <p className="text-[10px] font-semibold text-[#4d4354]/50">
+                    <p className="text-[10px] font-semibold text-ink-muted">
                       Year {cycle.academicYear}
                       {cycle.startDate && ` · Started ${new Date(cycle.startDate).toLocaleDateString()}`}
                       {cycle.endDate && ` · Ended ${new Date(cycle.endDate).toLocaleDateString()}`}

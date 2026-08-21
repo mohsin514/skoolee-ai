@@ -68,7 +68,7 @@ export default async function AnalyticsPage() {
           <Card className="sk-rise border-[#8127cf]/20 bg-[#fbf0fe]/50 shadow-none" style={{ animationDelay: "0ms" }}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[#4d4354]/70">
+                <p className="text-sm text-ink">
                   Upgrade to <span className="font-bold text-[#8127cf]">Pro</span> for AI-powered insights, cohort trends, and intervention summaries.
                 </p>
                 <Link href="/dashboard/billing">

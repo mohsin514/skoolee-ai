@@ -23,7 +23,7 @@ export default function GlobalError({
           <AlertTriangle className="w-8 h-8" />
         </div>
         <h1 className="text-2xl font-black tracking-normal mb-2">Something went wrong</h1>
-        <p className="text-sm font-semibold text-[#4d4354]/60 leading-relaxed mb-6">
+        <p className="text-sm font-semibold text-ink-muted leading-relaxed mb-6">
           An unexpected error occurred. Please try again.
         </p>
         <button

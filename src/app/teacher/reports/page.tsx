@@ -137,7 +137,7 @@ export default function ReportsPage() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">{data.recentReportCards?.length || 0} recent report cards</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards & Remarks</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Generate report cards, draft remarks, and send results to guardians.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Generate report cards, draft remarks, and send results to guardians.</p>
         </div>
       </header>
 
@@ -147,7 +147,7 @@ export default function ReportsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div>
-              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">Locked Exam</label>
+              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Locked Exam</label>
               <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className="min-w-[280px]">
                 {(data.lockedExams || []).map((exam: any) => (
                   <option key={exam.id} value={exam.id}>{exam.title} &mdash; {classLabel(exam.class)}</option>
@@ -165,7 +165,7 @@ export default function ReportsPage() {
 
         {/* Locked exam cards */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-3">Locked Exams</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-3">Locked Exams</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
               const rcCount = exam.reportCards || 0;
@@ -175,7 +175,7 @@ export default function ReportsPage() {
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors truncate">{exam.title}</p>
-                      <p className="mt-0.5 text-[11px] text-[#4d4354]/50">{classLabel(exam.class)}</p>
+                      <p className="mt-0.5 text-[11px] text-ink-muted">{classLabel(exam.class)}</p>
                     </div>
                     <StatusPill status={exam.status} />
                   </div>
@@ -196,7 +196,7 @@ export default function ReportsPage() {
                 {/* Teachers cannot lock an exam themselves — only a principal or
                     campus admin can — so saying "locked exams will appear here"
                     left them with no idea what to actually do next. */}
-                <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-[#4d4354]/55">
+                <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
                   Finish entering marks for an assessment, then your principal or campus admin locks
                   it. Once locked it appears here, ready for remarks and report cards.
                 </p>
@@ -211,7 +211,7 @@ export default function ReportsPage() {
 
         {/* Report cards list */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50 mb-3">Recent Report Cards</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-3">Recent Report Cards</p>
           <div className="space-y-2">
             {(data.recentReportCards || []).slice(0, 12).map((report: any, index: number) => (
               <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
@@ -224,7 +224,7 @@ export default function ReportsPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                 <div className="min-w-0 relative">
                   <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{report.student?.fullName || "Student"}</p>
-                  <p className="text-[11px] text-[#4d4354]/50 mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
+                  <p className="text-[11px] text-ink-muted mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 relative">
                   <span className="inline-flex items-center gap-1 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[12px] font-bold text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white transition-all">

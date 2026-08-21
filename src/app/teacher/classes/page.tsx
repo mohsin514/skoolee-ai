@@ -26,7 +26,7 @@ export default function TeacherClassesPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider">My Teaching Load</p>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Classes</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Every class assigned to you, with students and pending work</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Every class assigned to you, with students and pending work</p>
         </div>
       </div>
 
@@ -37,7 +37,7 @@ export default function TeacherClassesPage() {
               <GraduationCap className="h-7 w-7 text-[#8127cf]" />
             </div>
             <h3 className="text-base font-black text-[#1f1a23]">No classes assigned yet</h3>
-            <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-[#4d4354]/55">
+            <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-ink-muted">
               Your classes will appear here once the admin assigns them to you. Check back later.
             </p>
           </div>
@@ -45,7 +45,7 @@ export default function TeacherClassesPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">Assigned Classes</h3>
-              <span className="text-[10px] font-semibold text-[#4d4354]/50">{classHubs.length} active</span>
+              <span className="text-[10px] font-semibold text-ink-muted">{classHubs.length} active</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {classHubs.map((cls: any) => {
@@ -66,15 +66,15 @@ export default function TeacherClassesPage() {
                     <div className="grid grid-cols-3 gap-2 mb-4">
                       <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
                         <p className="text-lg font-bold text-[#8127cf]">{clsStudents.length}</p>
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Students</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
                       </div>
                       <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
                         <p className="text-lg font-bold text-[#1d1b20]">{cls.subjects?.length || 0}</p>
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Subjects</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Subjects</p>
                       </div>
                       <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
                         <p className={`text-lg font-bold ${clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600"}`}>{clsMissingMarks}</p>
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Pending</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Pending</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mb-4">
@@ -82,7 +82,7 @@ export default function TeacherClassesPage() {
                         <span key={subject.id} className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-[#8127cf]">{subject.name}</span>
                       ))}
                       {(cls.subjects?.length || 0) > 4 && (
-                        <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold text-[#4d4354]/40">+{cls.subjects.length - 4}</span>
+                        <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold text-ink-subtle">+{cls.subjects.length - 4}</span>
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">

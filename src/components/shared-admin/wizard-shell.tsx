@@ -163,14 +163,14 @@ export function WizardShell({
                 <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">
                   {current.label}
                 </h3>
-                <p className="mt-0.5 text-xs font-semibold leading-snug text-[#4d4354]/60">{current.blurb}</p>
+                <p className="mt-0.5 text-xs font-semibold leading-snug text-ink-muted">{current.blurb}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="group/x flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-[#4d4354]/40 transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+              className="group/x flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-95"
             >
               <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
             </button>
@@ -194,7 +194,7 @@ export function WizardShell({
                     "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition-all duration-200",
                     active && "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/25",
                     done && "cursor-pointer bg-[#8127cf]/10 text-[#8127cf] hover:bg-[#8127cf]/20 active:scale-95",
-                    !done && !active && "cursor-not-allowed bg-white/70 text-[#4d4354]/40",
+                    !done && !active && "cursor-not-allowed bg-white/70 text-ink-subtle",
                   )}
                 >
                   {done ? <Check className="h-3 w-3" strokeWidth={3.5} /> : <StepIcon className="h-3 w-3" />}
@@ -225,7 +225,7 @@ export function WizardShell({
               type="button"
               onClick={step === 0 ? onClose : onBack}
               disabled={submitting}
-              className="flex h-12 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-[#4d4354]/70 transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-12 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {step === 0 ? "Cancel" : (<><ArrowLeft className="h-4 w-4" />Back</>)}
             </button>
@@ -293,7 +293,7 @@ export function FormSection({
         </span>
         <div className="min-w-0">
           <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-          {hint ? <p className="mt-0.5 text-[11px] font-semibold leading-snug text-[#4d4354]/55">{hint}</p> : null}
+          {hint ? <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">{hint}</p> : null}
         </div>
       </div>
       {children}
@@ -335,7 +335,7 @@ export function Field({
 
   return (
     <div className="space-y-1.5">
-      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">
+      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
         {label}
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </Label>
@@ -345,7 +345,7 @@ export function Field({
           {error}
         </p>
       ) : null}
-      {hint && !error ? <p className="pl-1 text-xs font-medium text-[#4d4354]/50">{hint}</p> : null}
+      {hint && !error ? <p className="pl-1 text-xs font-medium text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -371,7 +371,7 @@ export function ReviewHero({
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
           <h3 className="truncate text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
-          <p className="mt-0.5 truncate text-xs font-semibold text-[#4d4354]/65">{meta}</p>
+          <p className="mt-0.5 truncate text-xs font-semibold text-ink-muted">{meta}</p>
         </div>
       </div>
     </div>
@@ -428,7 +428,7 @@ export function ReviewRow({
   const missing = required && !value;
   return (
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">{label}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{label}</p>
       <p className={cn("truncate text-sm font-bold", missing ? "text-rose-500" : "text-[#1f1a23]")} dir={dir}>
         {value || (required ? "Required — not set" : "—")}
       </p>

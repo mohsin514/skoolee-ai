@@ -24,7 +24,7 @@ export default function DashboardError({
           <AlertTriangle className="w-7 h-7" />
         </div>
         <h2 className="text-xl font-black text-[#1f1a23] mb-2">Page Error</h2>
-        <p className="text-sm font-semibold text-[#4d4354]/60 leading-relaxed mb-6">
+        <p className="text-sm font-semibold text-ink-muted leading-relaxed mb-6">
           This page encountered an error. Your data is safe.
         </p>
         <div className="flex gap-3 justify-center">
@@ -37,7 +37,7 @@ export default function DashboardError({
           </button>
           <Link
             href="/login"
-            className="inline-flex h-10 px-5 items-center justify-center gap-2 rounded-xl border border-[#cfc2d6]/30 text-[#4d4354] font-bold text-sm"
+            className="inline-flex h-10 px-5 items-center justify-center gap-2 rounded-xl border border-[#cfc2d6]/30 text-ink font-bold text-sm"
           >
             <ArrowLeft className="w-4 h-4" />
             Home

@@ -66,10 +66,10 @@ export function TeacherView({
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/40" />
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
         </div>
         {selectedTeacherId && (
-          <span className="text-[10px] font-bold text-[#4d4354]/50">
+          <span className="text-[10px] font-bold text-ink-muted">
             {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} across all classes
           </span>
         )}
@@ -77,7 +77,7 @@ export function TeacherView({
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
           >
             <Printer className="h-3.5 w-3.5" />Print Routine
           </button>
@@ -90,7 +90,7 @@ export function TeacherView({
             <User className="h-8 w-8 text-[#8127cf]/30" />
           </div>
           <h3 className="text-lg font-black text-[#1f1a23]">Select a Teacher</h3>
-          <p className="mt-2 max-w-sm text-sm font-semibold text-[#4d4354]/50">
+          <p className="mt-2 max-w-sm text-sm font-semibold text-ink-muted">
             Choose a teacher above to see their full weekly schedule across every class they teach.
           </p>
         </div>
@@ -101,7 +101,7 @@ export function TeacherView({
           <div className="min-w-[760px]">
             <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
               <div className="flex items-center justify-center p-3">
-                <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/30">Period</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
               </div>
               {visibleDays.map((day) => (
                 <div
@@ -110,8 +110,8 @@ export function TeacherView({
                     weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-                  <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
                 </div>
               ))}
             </div>
@@ -125,7 +125,7 @@ export function TeacherView({
                 >
                   <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
                     <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                    <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{period.start}</span>
+                    <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
                   </div>
                   {visibleDays.map((day) => {
                     const isOff = weekendDays.includes(day.num);
@@ -150,14 +150,14 @@ export function TeacherView({
                             >
                               {slotInfo.subject}
                             </p>
-                            <p className="text-[8px] font-semibold text-[#4d4354]/50 mt-0.5">{slotInfo.classLabel}</p>
+                            <p className="text-[8px] font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
                             {isConflict && (
                               <span className="mt-0.5 text-[7px] font-black uppercase text-rose-600">CONFLICT</span>
                             )}
                           </div>
                         ) : (
                           <div className="h-full min-h-[48px] rounded-xl border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                            <span className="text-[8px] font-semibold text-[#4d4354]/15">—</span>
+                            <span className="text-[8px] font-semibold text-ink-subtle">—</span>
                           </div>
                         )}
                       </div>
@@ -166,7 +166,7 @@ export function TeacherView({
                 </div>
               ))
             ) : (
-              <div className="flex items-center justify-center py-16 text-sm font-semibold text-[#4d4354]/40">
+              <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
                 No timetable periods found. Create timetables for classes first.
               </div>
             )}

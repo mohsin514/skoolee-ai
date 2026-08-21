@@ -49,7 +49,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
               className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                 active
                   ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -161,7 +161,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee Structures</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             {activeStructures.length} active · {unassignedClasses.length} classes without fees
           </p>
         </div>
@@ -207,7 +207,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-3">
+          <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3">
             Inactive Structures
           </h4>
           <div className="space-y-2 opacity-60">
@@ -217,7 +217,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
                   <p className="text-sm font-black text-[#1f1a23]">
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45">
+                  <p className="text-[9px] font-bold text-ink-subtle">
                     {formatPKR(fs.monthlyFee)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
@@ -265,7 +265,7 @@ function StructureCard({
           <p className="text-sm font-black text-[#1f1a23]">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45 mt-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
             Since {new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
           </p>
         </div>
@@ -273,14 +273,14 @@ function StructureCard({
           <button
             type="button"
             onClick={onEdit}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50"
+            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted"
           >
             <Edit3 className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50"
+            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -298,24 +298,24 @@ function StructureCard({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Monthly</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Monthly</p>
           <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee)}</p>
         </div>
         {oneTimeTotal > 0 && (
           <div className="rounded-xl bg-blue-50/50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-[#4d4354]/40">One-Time</p>
+            <p className="text-[9px] font-black uppercase text-ink-subtle">One-Time</p>
             <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal)}</p>
           </div>
         )}
         <div className="rounded-xl bg-amber-50/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Late Fee</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Late Fee</p>
           <p className="text-sm font-black text-amber-600">
             {fs.lateFeePercentage}%{fs.compoundLateFee ? " cpd" : ""}
           </p>
         </div>
         {(fs.taxPercentage ?? 0) > 0 && (
           <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Tax</p>
+            <p className="text-[9px] font-black uppercase text-ink-subtle">Tax</p>
             <p className="text-sm font-black text-gray-600">{fs.taxPercentage}%</p>
           </div>
         )}
@@ -324,7 +324,7 @@ function StructureCard({
       {hasExtras && (
         <div className="space-y-1.5">
           {Object.entries(oneTimeFees).map(([name, amount]) => (
-            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-[#4d4354]/55 px-1">
+            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-ink-muted px-1">
               <span>{name}</span>
               <span>{formatPKR(amount)}</span>
             </div>
@@ -432,7 +432,7 @@ function StructureModal({
   };
 
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
-  const labelClass = "text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1";
+  const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -489,7 +489,7 @@ function StructureModal({
               <button
                 type="button"
                 onClick={() => setCompoundLateFee(!compoundLateFee)}
-                className={`w-full h-11 rounded-2xl border px-4 text-sm font-bold transition-colors cursor-pointer ${compoundLateFee ? "border-[#8127cf]/30 bg-[#fbf0fe] text-[#8127cf]" : "border-[#cfc2d6]/20 bg-[#f3f4f9] text-[#4d4354]/50"}`}
+                className={`w-full h-11 rounded-2xl border px-4 text-sm font-bold transition-colors cursor-pointer ${compoundLateFee ? "border-[#8127cf]/30 bg-[#fbf0fe] text-[#8127cf]" : "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted"}`}
               >
                 {compoundLateFee ? "Yes" : "No"}
               </button>
@@ -502,7 +502,7 @@ function StructureModal({
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 One-Time Fees
               </p>
               <button
@@ -548,7 +548,7 @@ function StructureModal({
                 </div>
               ))}
               {oneTimeFees.length === 0 && (
-                <p className="text-[10px] font-semibold text-[#4d4354]/30 italic">
+                <p className="text-[10px] font-semibold text-ink-subtle italic">
                   e.g. Admission Fee, Lab Fee, Books
                 </p>
               )}
@@ -557,7 +557,7 @@ function StructureModal({
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 Discount Rules
               </p>
               <button
@@ -595,7 +595,7 @@ function StructureModal({
                       }}
                       className="w-full h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 pr-7 text-xs font-bold outline-none focus:border-[#8127cf]/30"
                     />
-                    <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#4d4354]/30" />
+                    <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
                   </div>
                   <button
                     type="button"
@@ -607,7 +607,7 @@ function StructureModal({
                 </div>
               ))}
               {discountRules.length === 0 && (
-                <p className="text-[10px] font-semibold text-[#4d4354]/30 italic">
+                <p className="text-[10px] font-semibold text-ink-subtle italic">
                   e.g. Sibling 10%, Staff Child 25%
                 </p>
               )}

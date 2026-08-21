@@ -104,7 +104,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
       case "PRESENT": return "bg-emerald-50 text-emerald-600";
       case "ABSENT": return "bg-rose-50 text-rose-600";
       case "LEAVE": return "bg-amber-50 text-amber-600";
-      default: return "bg-[#f3f4f9] text-[#4d4354]/40";
+      default: return "bg-[#f3f4f9] text-ink-subtle";
     }
   };
 
@@ -132,7 +132,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
             { label: "Present", count: summary.present, color: "bg-emerald-50 text-emerald-600" },
             { label: "Absent", count: summary.absent, color: "bg-rose-50 text-rose-600" },
             { label: "Leave", count: summary.leave, color: "bg-amber-50 text-amber-600" },
-            { label: "Unmarked", count: summary.unmarked, color: "bg-[#f3f4f9] text-[#4d4354]/60" },
+            { label: "Unmarked", count: summary.unmarked, color: "bg-[#f3f4f9] text-ink-muted" },
           ].map((s) => (
             <div key={s.label} className={`rounded-xl px-3 py-1.5 ${s.color}`}>
               <p className="text-sm font-bold">{s.count}</p>
@@ -145,9 +145,9 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
       {/* Search + Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4d4354]/30" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teachers..."
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
+            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none placeholder:text-ink-subtle focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
         </div>
         <div className="flex items-center gap-2">
           {!readOnly ? (
@@ -161,7 +161,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
               </BrandButton>
             </>
           ) : (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Teachers mark their own attendance</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Teachers mark their own attendance</span>
           )}
         </div>
       </div>
@@ -199,11 +199,11 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-[#1d1b20] truncate">{teacher.fullName}</p>
-                  <p className="text-[10px] font-semibold text-[#4d4354]/40 truncate">{teacher.email}</p>
+                  <p className="text-[10px] font-semibold text-ink-subtle truncate">{teacher.email}</p>
                 </div>
 
                 {teacher.attendance?.checkInTime && (
-                  <div className="hidden sm:flex items-center gap-1 text-[10px] font-semibold text-[#4d4354]/40">
+                  <div className="hidden sm:flex items-center gap-1 text-[10px] font-semibold text-ink-subtle">
                     <Clock className="h-3 w-3" /> {teacher.attendance.checkInTime}
                   </div>
                 )}
@@ -224,7 +224,7 @@ export function TeacherAttendancePanel({ campusId, readOnly }: { campusId?: stri
                           type="button"
                           onClick={() => handleStatusChange(teacher.id, s)}
                           className={`h-9 rounded-xl px-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            active ? statusColor(s) : "bg-[#f3f4f9] text-[#4d4354]/30 hover:bg-[#f3f4f9]/80"
+                            active ? statusColor(s) : "bg-[#f3f4f9] text-ink-subtle hover:bg-[#f3f4f9]/80"
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5" />

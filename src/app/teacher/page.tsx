@@ -119,7 +119,7 @@ export default function TeacherDashboardHub() {
                 <p suppressHydrationWarning className="text-[12px] font-bold uppercase tracking-wider text-[#8127cf]">
                   {greeting}, {data.teacherName?.split(" ")[0] || "Teacher"}
                 </p>
-                <p suppressHydrationWarning className="text-[10px] font-semibold text-[#4d4354]/50">
+                <p suppressHydrationWarning className="text-[10px] font-semibold text-ink-muted">
                   {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 </p>
               </div>
@@ -167,7 +167,7 @@ export default function TeacherDashboardHub() {
                   <p className="text-sm font-bold text-[#1d1b20]">
                     {selfAttendanceStatus === "marked" ? "You're Checked In Today" : "Mark Your Attendance"}
                   </p>
-                  <p className="text-[10px] font-semibold text-[#4d4354]/50 mt-0.5">
+                  <p className="text-[10px] font-semibold text-ink-muted mt-0.5">
                     {selfAttendanceStatus === "marked" && selfAttendanceTime
                       ? `Checked in at ${selfAttendanceTime}`
                       : "Tap to mark yourself present for today"}
@@ -256,7 +256,7 @@ export default function TeacherDashboardHub() {
                 </div>
               </div>
               <p className="text-2xl font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.value}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{card.label}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{card.label}</p>
             </button>
           ))}
         </div>

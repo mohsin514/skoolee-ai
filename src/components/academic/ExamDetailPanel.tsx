@@ -118,7 +118,7 @@ export function ExamDetailPanel({
                   "flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
                   tab === t.key
                     ? "bg-[#8127cf]/10 text-[#8127cf]"
-                    : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                    : "text-ink-muted hover:text-[#8127cf]"
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -215,8 +215,8 @@ function MarksGrid({ exam }: { exam: ExamItem }) {
   if (students.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
-        <PenLine className="mb-3 h-10 w-10 text-[#4d4354]/20" />
-        <p className="text-sm font-bold text-[#4d4354]/50">No students in this exam&apos;s class</p>
+        <PenLine className="mb-3 h-10 w-10 text-ink-subtle" />
+        <p className="text-sm font-bold text-ink-muted">No students in this exam&apos;s class</p>
       </div>
     );
   }
@@ -228,7 +228,7 @@ function MarksGrid({ exam }: { exam: ExamItem }) {
       {subjects.length > 0 && (
         <div className="rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3 shadow-sm">
           <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold">
-            <span className="text-[#4d4354]/60">Subjects completed</span>
+            <span className="text-ink-muted">Subjects completed</span>
             <span className="text-[#8127cf]">
               {markedCount}/{subjects.length}
             </span>
@@ -245,26 +245,26 @@ function MarksGrid({ exam }: { exam: ExamItem }) {
       <table className="w-full text-left">
         <thead>
           <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
               #
             </th>
-            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
               Student
             </th>
             {subjects.map((s) => (
               <th
                 key={s.id}
-                className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50"
+                className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-ink-muted"
               >
                 {s.name}
                 <br />
                 <span className="text-[8px] font-semibold">/ {s.totalMarks}</span>
               </th>
             ))}
-            <th className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <th className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-ink-muted">
               Total
             </th>
-            <th className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+            <th className="px-4 py-3 text-center text-[9px] font-black uppercase tracking-wider text-ink-muted">
               %
             </th>
           </tr>
@@ -282,10 +282,10 @@ function MarksGrid({ exam }: { exam: ExamItem }) {
                 key={student.id}
                 className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20 transition-colors"
               >
-                <td className="px-4 py-2.5 text-xs font-bold text-[#4d4354]/30">{idx + 1}</td>
+                <td className="px-4 py-2.5 text-xs font-bold text-ink-subtle">{idx + 1}</td>
                 <td className="px-4 py-2.5">
                   <p className="text-sm font-bold text-[#1f1a23]">{student.fullName}</p>
-                  <p className="text-[10px] font-semibold text-[#4d4354]/40">{student.rollNo}</p>
+                  <p className="text-[10px] font-semibold text-ink-subtle">{student.rollNo}</p>
                 </td>
                 {subjects.map((sub) => {
                   const key = `${student.id}:${sub.id}`;
@@ -355,7 +355,7 @@ function MarksGrid({ exam }: { exam: ExamItem }) {
           })}
         </tbody>
       </table>
-      <div className="flex items-center gap-2 border-t border-[#cfc2d6]/10 bg-[#fbf0fe]/20 px-4 py-2.5 text-[10px] font-semibold text-[#4d4354]/50">
+      <div className="flex items-center gap-2 border-t border-[#cfc2d6]/10 bg-[#fbf0fe]/20 px-4 py-2.5 text-[10px] font-semibold text-ink-muted">
         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Green = pass (≥50%),{" "}
         <span className="text-rose-500">Rose = fail</span>. Marks auto-save on blur.
       </div>

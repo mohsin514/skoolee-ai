@@ -359,7 +359,7 @@ export function QuickCreateClass({
                 <h2 className="text-xl font-black text-[#1f1a23]">
                   Quick Setup
                 </h2>
-                <p className="text-[10px] font-bold text-[#4d4354]/55">
+                <p className="text-[10px] font-bold text-ink-muted">
                   Create a class, then configure it fully
                 </p>
               </div>
@@ -368,7 +368,7 @@ export function QuickCreateClass({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="cursor-pointer rounded-xl p-2 text-[#4d4354]/45 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+              className="cursor-pointer rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
             >
               <X className="h-5 w-5" />
             </button>
@@ -390,7 +390,7 @@ export function QuickCreateClass({
               {/* Class Name */}
               <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     Class Name
                   </span>
                   <input
@@ -399,7 +399,7 @@ export function QuickCreateClass({
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grade 8"
                     autoFocus
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-base font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-base font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
                   />
                 </label>
               </div>
@@ -407,7 +407,7 @@ export function QuickCreateClass({
               {/* Academic Year */}
               <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     Academic Year
                   </span>
                   <input
@@ -415,14 +415,14 @@ export function QuickCreateClass({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
                   />
                 </label>
               </div>
 
               {/* Teaching Mode */}
               <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
-                <span className="mb-3 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                <span className="mb-3 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                   Teaching Mode
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -451,7 +451,7 @@ export function QuickCreateClass({
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all",
                           teachingMode === "SINGLE"
                             ? "bg-[#ccfbf1] text-[#0d9488]"
-                            : "bg-[#f3f4f6] text-[#4d4354]/40",
+                            : "bg-[#f3f4f6] text-ink-subtle",
                         )}
                       >
                         <User className="h-4 w-4" />
@@ -474,7 +474,7 @@ export function QuickCreateClass({
                             </div>
                           )}
                         </div>
-                        <p className="mt-1 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                        <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">
                           The class teacher takes every subject
                         </p>
                       </div>
@@ -506,7 +506,7 @@ export function QuickCreateClass({
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all",
                           teachingMode === "SUBJECT"
                             ? "bg-[#fef3c7] text-[#b45309]"
-                            : "bg-[#f3f4f6] text-[#4d4354]/40",
+                            : "bg-[#f3f4f6] text-ink-subtle",
                         )}
                       >
                         <Users className="h-4 w-4" />
@@ -529,7 +529,7 @@ export function QuickCreateClass({
                             </div>
                           )}
                         </div>
-                        <p className="mt-1 text-[10px] font-bold leading-relaxed text-[#4d4354]/50">
+                        <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">
                           Each subject gets its own teacher
                         </p>
                       </div>
@@ -552,10 +552,10 @@ export function QuickCreateClass({
               <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="block text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                       Has Sections?
                     </span>
-                    <p className="mt-1 text-[10px] font-bold text-[#4d4354]/50">
+                    <p className="mt-1 text-[10px] font-bold text-ink-muted">
                       e.g. Grade 8 - A, Grade 8 - B
                     </p>
                   </div>
@@ -582,9 +582,9 @@ export function QuickCreateClass({
                 {hasSections && (
                   <div className="mt-4">
                     <label className="block">
-                      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                         Section Names{" "}
-                        <span className="text-[#4d4354]/30">
+                        <span className="text-ink-subtle">
                           (comma separated)
                         </span>
                       </span>
@@ -593,7 +593,7 @@ export function QuickCreateClass({
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
                         placeholder="A, B, C"
-                        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#0d9488]/40 focus:shadow-[0_0_0_3px_rgba(13,148,136,0.08)]"
+                        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#0d9488]/40 focus:shadow-[0_0_0_3px_rgba(13,148,136,0.08)]"
                       />
                     </label>
 
@@ -633,7 +633,7 @@ export function QuickCreateClass({
               {copyableClasses.length > 0 && (
                 <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
                   <label className="block">
-                    <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                    <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                       Copy Subjects From...
                     </span>
                     <div className="relative">
@@ -653,7 +653,7 @@ export function QuickCreateClass({
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#4d4354]/30" />
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
                     </div>
                   </label>
                 </div>
@@ -661,7 +661,7 @@ export function QuickCreateClass({
 
               {/* Quick-add subjects */}
               <div className="rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-5">
-                <span className="mb-3 block pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+                <span className="mb-3 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                   Quick-Add Subjects
                 </span>
                 <div className="flex items-end gap-2">
@@ -677,7 +677,7 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Subject name"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
                     />
                   </div>
                   <div className="w-20">
@@ -692,7 +692,7 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Marks"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-center text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:border-[#8127cf]/40"
+                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-center text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40"
                     />
                   </div>
                   <button
@@ -720,7 +720,7 @@ export function QuickCreateClass({
                             <p className="text-sm font-black text-[#1f1a23]">
                               {subject.name}
                             </p>
-                            <p className="text-[9px] font-bold text-[#4d4354]/45">
+                            <p className="text-[9px] font-bold text-ink-subtle">
                               {subject.totalMarks} marks
                             </p>
                           </div>
@@ -728,7 +728,7 @@ export function QuickCreateClass({
                         <button
                           type="button"
                           onClick={() => removeSubject(subject.key)}
-                          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[#4d4354]/30 opacity-0 transition-all hover:bg-[#fff1f2] hover:text-[#f43f5e] group-hover:opacity-100"
+                          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-0 transition-all hover:bg-[#fff1f2] hover:text-[#f43f5e] group-hover:opacity-100"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -740,10 +740,10 @@ export function QuickCreateClass({
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff]">
                       <BookOpen className="h-5 w-5 text-[#8127cf]/40" />
                     </div>
-                    <p className="mt-3 text-xs font-black text-[#4d4354]/35">
+                    <p className="mt-3 text-xs font-black text-ink-subtle">
                       No subjects yet
                     </p>
-                    <p className="mt-1 text-[10px] font-bold text-[#4d4354]/25">
+                    <p className="mt-1 text-[10px] font-bold text-ink-subtle">
                       Add them now or later from the class manager
                     </p>
                   </div>
@@ -765,7 +765,7 @@ export function QuickCreateClass({
                       ? `Creating... (${progress.done} of ${progress.total})`
                       : "Creating..."}
                   </p>
-                  <p className="text-[10px] font-bold text-[#4d4354]/50">
+                  <p className="text-[10px] font-bold text-ink-muted">
                     {Math.round(progressPercent)}%
                   </p>
                 </div>
@@ -782,7 +782,7 @@ export function QuickCreateClass({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-[#4d4354]/70 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
               >
                 Cancel
               </button>

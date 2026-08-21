@@ -51,7 +51,7 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
               className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 subTab === tab.key
                   ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <Icon className="w-3 h-3" />
@@ -161,7 +161,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-bold text-[#4d4354]/40">
+        <p className="text-[9px] font-bold text-ink-subtle">
           {defaulters.length} defaulter{defaulters.length !== 1 ? "s" : ""}
         </p>
         <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
@@ -170,7 +170,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
           <span>Student</span>
           <span>Guardian</span>
           <span>Overdue</span>
@@ -187,27 +187,27 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
             >
               <div className="min-w-0">
                 <p className="text-xs font-black text-[#1f1a23] truncate">{d.studentName}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45">
+                <p className="text-[9px] font-bold text-ink-subtle">
                   {d.rollNo ? `${d.rollNo} · ` : ""}{classLabel(d.className, d.section)}
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-[#4d4354]/60 truncate">{d.guardianName ?? "—"}</p>
+                <p className="text-[10px] font-bold text-ink-muted truncate">{d.guardianName ?? "—"}</p>
                 {d.guardianPhone && (
-                  <p className="text-[9px] font-bold text-[#4d4354]/40 flex items-center gap-0.5">
+                  <p className="text-[9px] font-bold text-ink-subtle flex items-center gap-0.5">
                     <Phone className="w-2.5 h-2.5" />
                     {d.guardianPhone}
                   </p>
                 )}
               </div>
               <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
-              <p className="text-xs font-bold text-[#4d4354]/60">{formatPKR(d.totalDue)}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
               <span className={`text-[9px] font-black px-2 py-1 rounded-lg w-fit ${
                 d.daysOverdue > 30 ? "bg-rose-50 text-rose-600" : d.daysOverdue > 15 ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
               }`}>
                 {d.daysOverdue}d
               </span>
-              <p className="text-xs font-black text-[#4d4354]/60">{d.overdueInvoices}</p>
+              <p className="text-xs font-black text-ink-muted">{d.overdueInvoices}</p>
               <button
                 type="button"
                 onClick={() => handleRemind(d.studentId)}
@@ -307,7 +307,7 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-bold text-[#4d4354]/40">
+        <p className="text-[9px] font-bold text-ink-subtle">
           {data.length} class{data.length !== 1 ? "es" : ""}
         </p>
         <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
@@ -317,25 +317,25 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3 border border-[#cfc2d6]/10">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Total Students</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Students</p>
           <p className="text-xl font-black text-[#8127cf]">{totals.students}</p>
         </div>
         <div className="rounded-2xl bg-blue-50/50 px-4 py-3 border border-blue-100">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Total Due</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Due</p>
           <p className="text-xl font-black text-blue-600">{formatPKR(totals.due)}</p>
         </div>
         <div className="rounded-2xl bg-emerald-50/50 px-4 py-3 border border-emerald-100">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Total Collected</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Collected</p>
           <p className="text-xl font-black text-emerald-600">{formatPKR(totals.paid)}</p>
         </div>
         <div className="rounded-2xl bg-rose-50/50 px-4 py-3 border border-rose-100">
-          <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Total Overdue</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Overdue</p>
           <p className="text-xl font-black text-rose-600">{formatPKR(totals.overdue)}</p>
         </div>
       </div>
 
       <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
           <span>Class</span>
           <span>Students</span>
           <span>Total Due</span>
@@ -350,8 +350,8 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
               className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 items-center hover:bg-[#fbf0fe]/20 transition-colors"
             >
               <p className="text-xs font-black text-[#1f1a23]">{d.className}</p>
-              <p className="text-xs font-bold text-[#4d4354]/60">{d.totalStudents}</p>
-              <p className="text-xs font-bold text-[#4d4354]/60">{formatPKR(d.totalDue)}</p>
+              <p className="text-xs font-bold text-ink-muted">{d.totalStudents}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
               <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid)}</p>
               <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
               <div className="flex items-center gap-2">
@@ -367,7 +367,7 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
                     style={{ width: `${d.collectionRate}%` }}
                   />
                 </div>
-                <span className="text-[9px] font-black text-[#4d4354]/50 w-8 text-right">
+                <span className="text-[9px] font-black text-ink-muted w-8 text-right">
                   {d.collectionRate}%
                 </span>
               </div>
@@ -452,7 +452,7 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
               <p className="text-sm font-black text-[#1f1a23]">
                 {paymentMethodLabel(m.method)}
               </p>
-              <span className="text-[9px] font-black uppercase text-[#4d4354]/40 px-2 py-1 rounded-lg bg-[#f3f4f9]">
+              <span className="text-[9px] font-black uppercase text-ink-subtle px-2 py-1 rounded-lg bg-[#f3f4f9]">
                 {m.count} txns
               </span>
             </div>
@@ -464,7 +464,7 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
                   style={{ width: `${m.percentage}%` }}
                 />
               </div>
-              <span className="text-xs font-black text-[#4d4354]/50">{m.percentage}%</span>
+              <span className="text-xs font-black text-ink-muted">{m.percentage}%</span>
             </div>
           </div>
         ))}

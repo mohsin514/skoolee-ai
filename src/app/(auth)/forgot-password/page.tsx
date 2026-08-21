@@ -208,24 +208,24 @@ export default function ForgotPasswordPage() {
                     <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
                       Recover account
                     </h2>
-                    <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                    <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
                       We&apos;ll email you a single-use recovery link.
                     </p>
                   </div>
 
                   <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-4" noValidate>
                     <div className="space-y-1.5">
-                      <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                      <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                         Email Identity
                       </Label>
                       <div className="group relative flex items-center">
-                        <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                        <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                         <Input
                           id="recover-email"
                           type="email"
                           autoComplete="email"
                           placeholder="admin@horizon.edu"
-                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
                             requestForm.formState.errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
                           }`}
                           {...requestForm.register("email")}
@@ -263,7 +263,7 @@ export default function ForgotPasswordPage() {
                     <CheckCircle2 className="h-10 w-10" />
                   </div>
                   <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Check your inbox</h3>
-                  <p className="mb-8 text-sm font-semibold leading-6 text-[#4d4354]/65">
+                  <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                     We&apos;ve sent an encrypted, single-use link to your registered email.
                     It expires shortly — no worries if it lapses, you can start again.
                   </p>
@@ -278,7 +278,7 @@ export default function ForgotPasswordPage() {
                   <AlertCircle className="h-10 w-10" />
                 </div>
                 <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Link expired</h3>
-                <p className="mb-8 text-sm font-semibold leading-6 text-[#4d4354]/65">
+                <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                   This recovery link has reached its expiration or has already been used.
                   Request a fresh one to continue.
                 </p>
@@ -292,7 +292,7 @@ export default function ForgotPasswordPage() {
             ) : isValidToken === null ? (
               <div className="flex flex-col items-center justify-center gap-4 py-12">
                 <Loader2 className="h-10 w-10 animate-spin text-[#8127cf]" />
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#4d4354]/50">Verifying link…</p>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-ink-muted">Verifying link…</p>
               </div>
             ) : (
               // ── RESET PASSWORD ──
@@ -301,24 +301,24 @@ export default function ForgotPasswordPage() {
                   <h2 className="text-[1.85rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
                     New password
                   </h2>
-                  <p className="mt-2 text-[14.5px] font-semibold text-[#4d4354]/60">
+                  <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
                     Define your new institutional access code.
                   </p>
                 </div>
 
                 <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" noValidate>
                   <div className="space-y-1.5">
-                    <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                    <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       New Password
                     </Label>
                     <div className="group relative flex items-center">
-                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="new-password"
                         type="password"
                         autoComplete="new-password"
                         placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
                           resetForm.formState.errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
                         }`}
                         {...resetForm.register("password")}
@@ -332,17 +332,17 @@ export default function ForgotPasswordPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+                    <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       Confirm Password
                     </Label>
                     <div className="group relative flex items-center">
-                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#4d4354]/30 transition-colors group-focus-within:text-[#8127cf]" />
+                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="confirm-password"
                         type="password"
                         autoComplete="new-password"
                         placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-[#4d4354]/25 focus:bg-white focus:ring-2 ${
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
                           resetForm.formState.errors.confirmPassword ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
                         }`}
                         {...resetForm.register("confirmPassword")}
@@ -364,7 +364,7 @@ export default function ForgotPasswordPage() {
                         <div
                           key={i}
                           className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
-                            req.met ? "text-emerald-600" : "text-[#4d4354]/40"
+                            req.met ? "text-emerald-600" : "text-ink-subtle"
                           }`}
                         >
                           {req.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />}
@@ -399,7 +399,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-5 border-t border-[#cfc2d6]/20 pt-4 text-center">
             <Link
               href="/login"
-              className="text-sm font-bold text-[#4d4354]/55 transition-colors hover:text-[#8127cf]"
+              className="text-sm font-bold text-ink-muted transition-colors hover:text-[#8127cf]"
             >
               Nevermind, I remember it.
             </Link>

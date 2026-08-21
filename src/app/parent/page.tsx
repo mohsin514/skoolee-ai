@@ -46,10 +46,10 @@ export default function ParentOverviewPage() {
                     lines on a phone; the avatar and type both step down so a
                     longer real name still fits. */}
                 <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight text-[#1d1b20] leading-tight sm:leading-none mb-2 transition-colors group-hover:text-[#8127cf]">{student.fullName}</h2>
-                <p className="text-sm font-semibold text-[#4d4354]/60 uppercase tracking-wider">
+                <p className="text-sm font-semibold text-ink-muted uppercase tracking-wider">
                   {student.rollNo} - {student.className}
                 </p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
                   {campus.name}{campus.city ? ` - ${campus.city}` : ""}
                 </p>
               </div>
@@ -71,7 +71,7 @@ export default function ParentOverviewPage() {
               <div key={s.label} className="sk-rise group relative rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-2 transition-colors group-hover:text-[#4d4354]/60">{s.label}</p>
+                    <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2 transition-colors group-hover:text-ink-muted">{s.label}</p>
                     <p className="text-3xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{s.value}</p>
                   </div>
                   <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${tones[i]} shadow-md group-hover:shadow-xl group-hover:scale-110`}>
@@ -95,20 +95,20 @@ export default function ParentOverviewPage() {
               <div className="rounded-2xl bg-[#fbf0fe]/30 p-5 border border-[#cfc2d6]/8 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
                     <p className="mt-0.5 text-sm font-bold text-[#1d1b20]">{data.reportCards[0].examTitle}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-[#8127cf]">{Math.round(data.reportCards[0].percentage)}%</p>
-                    <p className="text-[10px] font-semibold text-[#4d4354]/40">Grade {data.reportCards[0].grade || "N/A"}</p>
+                    <p className="text-[10px] font-semibold text-ink-subtle">Grade {data.reportCards[0].grade || "N/A"}</p>
                   </div>
                 </div>
                 {data.reportCards[0].remarksEn && (
-                  <p className="text-xs font-semibold leading-relaxed text-[#4d4354]/60 line-clamp-2">{data.reportCards[0].remarksEn}</p>
+                  <p className="text-xs font-semibold leading-relaxed text-ink-muted line-clamp-2">{data.reportCards[0].remarksEn}</p>
                 )}
               </div>
             ) : (
-              <p className="text-xs font-semibold text-[#4d4354]/40 italic">No report cards published yet.</p>
+              <p className="text-xs font-semibold text-ink-subtle italic">No report cards published yet.</p>
             )}
             <Link
               href={`/parent/results${q}`}
@@ -151,7 +151,7 @@ function QuickLink({ href, icon: Icon, label, sub }: { href: string; icon: any; 
       </div>
       <div className="min-w-0">
         <p className="text-xs font-bold text-[#1d1b20]">{label}</p>
-        <p className="text-[9px] font-semibold text-[#4d4354]/40 truncate">{sub}</p>
+        <p className="text-[9px] font-semibold text-ink-subtle truncate">{sub}</p>
       </div>
     </Link>
   );

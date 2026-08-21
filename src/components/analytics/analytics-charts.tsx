@@ -174,21 +174,21 @@ export function AnalyticsCharts() {
                 <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-[#fbf0fe]/30 transition-colors">
                   <div className="flex items-center gap-3">
                     <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
-                      i < 3 ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/50"
+                      i < 3 ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink-muted"
                     }`}>{i + 1}</span>
                     <div>
                       <p className="text-xs font-bold text-[#1f1a23]">{s.name}</p>
-                      <p className="text-[9px] font-semibold text-[#4d4354]/40">{s.rollNo}</p>
+                      <p className="text-[9px] font-semibold text-ink-subtle">{s.rollNo}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-[#8127cf]">{s.percentage}%</span>
-                    <span className="text-[9px] font-bold text-[#4d4354]/40 bg-[#f3f4f9] px-2 py-0.5 rounded-md">{s.grade}</span>
+                    <span className="text-[9px] font-bold text-ink-subtle bg-[#f3f4f9] px-2 py-0.5 rounded-md">{s.grade}</span>
                   </div>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-[#4d4354]/40 text-center py-8">No data yet</p>}
+          ) : <p className="text-sm text-ink-subtle text-center py-8">No data yet</p>}
         </div>
 
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
@@ -204,7 +204,7 @@ export function AnalyticsCharts() {
                 <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-rose-50/30 transition-colors">
                   <div>
                     <p className="text-xs font-bold text-[#1f1a23]">{s.name}</p>
-                    <p className="text-[9px] font-semibold text-[#4d4354]/40">{s.rollNo}</p>
+                    <p className="text-[9px] font-semibold text-ink-subtle">{s.rollNo}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-rose-600">{s.percentage}%</span>
@@ -219,7 +219,7 @@ export function AnalyticsCharts() {
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-[#4d4354]/40 text-center py-8">No at-risk students</p>}
+          ) : <p className="text-sm text-ink-subtle text-center py-8">No at-risk students</p>}
         </div>
       </div>
     </div>
@@ -243,7 +243,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
           <Icon className={`h-5 w-5 ${c.text}`} />
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{label}</p>
           <p className="text-2xl font-black text-[#1f1a23]">{value}</p>
         </div>
       </div>
@@ -268,7 +268,7 @@ function ChartCard({ title, icon: Icon, children }: { title: string; icon: any; 
 function EmptyChart() {
   return (
     <div className="flex h-[280px] items-center justify-center">
-      <p className="text-sm font-semibold text-[#4d4354]/30">Charts appear after exam results are published</p>
+      <p className="text-sm font-semibold text-ink-subtle">Charts appear after exam results are published</p>
     </div>
   );
 }

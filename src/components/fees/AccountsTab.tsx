@@ -23,7 +23,7 @@ import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/components/fees/fee-u
 
 const API = "/api";
 const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
-const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40";
+const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
 
 type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
 
@@ -50,7 +50,7 @@ export function AccountsTab({ campusId }: { campusId?: string }) {
               type="button"
               onClick={() => setActive(tab.key)}
               className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               {tab.label}
@@ -169,9 +169,9 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-1">Chart of Accounts</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Chart of Accounts</p>
           <p className="text-sm font-black text-[#1f1a23]">Bookkeeping heads used by the ledger</p>
-          <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">Fee income auto-posts to "Fee Income" — accounts with entries cannot be deleted.</p>
+          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Fee income auto-posts to "Fee Income" — accounts with entries cannot be deleted.</p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Account</BrandButton>
       </div>
@@ -195,19 +195,19 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">
                   {acc.name}
-                  {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-[#4d4354]/35">System</span> : null}
+                  {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-ink-subtle">System</span> : null}
                 </p>
-                <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {acc._count ? `${acc._count.entries} entries` : ""}
                 </p>
               </div>
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
                 {acc.type}
               </span>
-              <button type="button" onClick={() => openModal(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit account">
+              <button type="button" onClick={() => openModal(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit account">
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete account">
+              <button type="button" onClick={() => setDeleting(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete account">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -350,7 +350,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-1">Payment Methods</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Payment Methods</p>
           <p className="text-sm font-black text-[#1f1a23]">Labels used on receipts and ledger entries</p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Method</BrandButton>
@@ -374,19 +374,19 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">{m.name}</p>
-                <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">{m.isActive ? "Active" : "Inactive"}</p>
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{m.isActive ? "Active" : "Inactive"}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleToggle(m)}
-                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-[#4d4354]/40"}`}
+                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
               >
                 {m.isActive ? "Active" : "Inactive"}
               </button>
-              <button type="button" onClick={() => openModal(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit method">
+              <button type="button" onClick={() => openModal(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit method">
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete method">
+              <button type="button" onClick={() => setDeleting(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete method">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -534,7 +534,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-1">Bank Accounts</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Bank Accounts</p>
           <p className="text-sm font-black text-[#1f1a23]">Deposit accounts entries can be attributed to</p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Bank Account</BrandButton>
@@ -558,25 +558,25 @@ function BanksPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">{b.name}</p>
-                <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {[b.bankName, b.accountNumber].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Opening Balance</p>
+                <p className="text-[9px] font-black uppercase text-ink-subtle">Opening Balance</p>
                 <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleToggle(b)}
-                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${b.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-[#4d4354]/40"}`}
+                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${b.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
               >
                 {b.isActive ? "Active" : "Inactive"}
               </button>
-              <button type="button" onClick={() => openModal(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit bank">
+              <button type="button" onClick={() => openModal(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit bank">
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete bank">
+              <button type="button" onClick={() => setDeleting(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete bank">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -730,7 +730,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-1">{kind === "INCOME" ? "Income Entries" : "Expense Entries"}</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? "Income Entries" : "Expense Entries"}</p>
           <p className="text-sm font-black text-[#1f1a23]">
             {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span>} total · {total} records
           </p>
@@ -760,19 +760,19 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23] truncate">{e.sourceName}</p>
-                <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {e.account.name}
                   {e.bankAccount ? ` · ${e.bankAccount.name}` : ""}
                   {e.paymentMethod ? ` · ${e.paymentMethod}` : ""}
                   {" · "}{e.date.split("T")[0]}
                 </p>
-                {e.note ? <p className="text-[10px] font-semibold text-[#4d4354]/35 mt-0.5">{e.note}</p> : null}
+                {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{e.note}</p> : null}
               </div>
               <p className={`text-sm font-black ${e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
                 {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount)}
               </p>
               {!e.paymentId && (
-                <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete entry">
+                <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete entry">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
@@ -897,7 +897,7 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-[#1f1a23]">{b.accountName}</p>
-                    <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">{b.entries} entries</p>
+                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{b.entries} entries</p>
                   </div>
                   <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
                     {formatPKR(b.amount)}

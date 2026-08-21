@@ -139,7 +139,7 @@ export function RoleSidebar({
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-[#4d4354]/60 text-[10px] font-semibold"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-ink-muted text-[10px] font-semibold"
         >
           <Menu className="w-5 h-5" />
           <span>More</span>
@@ -173,7 +173,7 @@ export function RoleSidebar({
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}
-                  className="p-2 rounded-xl text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="p-2 rounded-xl text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                 >
                   <XIcon className="w-5 h-5" />
                 </button>
@@ -225,7 +225,7 @@ function NavGroup({ group }: { group: RoleNavGroup }) {
             : "text-[#1f1a23]/70 hover:text-[#1f1a23] hover:bg-white/50"
         )}
       >
-        <Icon className={cn("w-[18px] h-[18px] shrink-0", active ? "text-[#8127cf]" : "text-[#4d4354]/60")} />
+        <Icon className={cn("w-[18px] h-[18px] shrink-0", active ? "text-[#8127cf]" : "text-ink-muted")} />
         <span className="flex-1 text-left truncate">{group.label}</span>
         <ChevronDown
           className={cn(
@@ -271,7 +271,7 @@ function MobileTabButton({ item }: { item: RoleNavItem }) {
       }}
       className={cn(
         "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-semibold transition-colors min-w-0",
-        isActive ? "text-[#8127cf]" : "text-[#4d4354]/60"
+        isActive ? "text-[#8127cf]" : "text-ink-muted"
       )}
     >
       <Icon className={cn("w-5 h-5", isActive && "text-[#8127cf]")} />
@@ -307,7 +307,7 @@ function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean
         compact ? "px-3 py-2.5 text-[13px]" : "px-4 py-3 text-sm",
         isActive
           ? "text-[#8127cf] font-bold"
-          : "text-[#4d4354] hover:bg-white/70 hover:text-[#1f1a23] hover:shadow-sm"
+          : "text-ink hover:bg-white/70 hover:text-[#1f1a23] hover:shadow-sm"
       )}
     >
       {isActive && (
@@ -320,7 +320,7 @@ function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean
         </motion.span>
       )}
       <span className="relative z-10 flex items-center gap-3 min-w-0">
-        <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-[#8127cf]" : "text-[#4d4354]/60")} />
+        <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-[#8127cf]" : "text-ink-muted")} />
         <span className="truncate">{item.label}</span>
       </span>
     </button>

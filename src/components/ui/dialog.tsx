@@ -112,7 +112,7 @@ function DialogContent({
       >
         <button
           type="button"
-          className="absolute right-4 top-4 rounded-xl p-2 text-[#4d4354]/45 transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+          className="absolute right-4 top-4 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
           onClick={() => setOpen(false)}
         >
           <X className="h-4 w-4" />
@@ -156,7 +156,7 @@ function DialogDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn("text-sm font-medium text-[#4d4354]/65", className)}
+      className={cn("text-sm font-medium text-ink-muted", className)}
       {...props}
     />
   );

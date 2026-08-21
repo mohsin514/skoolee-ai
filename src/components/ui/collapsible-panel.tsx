@@ -52,7 +52,7 @@ export function CollapsiblePanel({
           </div>
           <div className="min-w-0">
             <p className="text-lg font-black text-[#1f1a23]">{title}</p>
-            {subtitle ? <p className="text-[10px] text-[#4d4354]/55">{subtitle}</p> : null}
+            {subtitle ? <p className="text-[10px] text-ink-muted">{subtitle}</p> : null}
           </div>
         </div>
 

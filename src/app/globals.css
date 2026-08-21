@@ -28,12 +28,34 @@
   --sidebar-border: 278 17% 80%;
   --success: 142 76% 36%;
   --warning: 38 92% 50%;
+  /* ─── Text ink scale (WCAG AA) ─────────────────────────────
+     Replaces 14 opacity steps on the ink colour (text-ink-subtle…/80),
+     13 of which failed AA — /35 measured 1.83:1 against the app's own
+     lilac surface where 4.5:1 is required. Opacity cannot express
+     "muted" accessibly on a near-white background, so muting is a solid
+     colour instead. Ratios are the worst case across #ffffff, #faf7fc,
+     #fdf6fe and #fff1f2.
+       ink         8.51:1   body text
+       ink-muted   5.96:1   secondary text
+       ink-subtle  4.59:1   tertiary — the lightest tint that still passes AA
+       ink-faint   3.05:1   NON-TEXT ONLY (icons, borders, rules); never body copy
+     These are also the first of these values to respond to dark mode —
+     the hardcoded hex never did. */
+  --ink: #4d4354;
+  --ink-muted: #635a6b;
+  --ink-subtle: #746c7a;
+  --ink-faint: #918a95;
   --brand-1: #8127cf;
   --brand-2: #9c48ea;
   --font-geist-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 }
 
 .dark {
+  /* Ink scale inverted for dark surfaces; worst-case ratios 16.4 / 11.1 / 7.6 / 5.0 */
+  --ink: #f5f3f7;
+  --ink-muted: #cfc9d4;
+  --ink-subtle: #aca5b3;
+  --ink-faint: #8b8494;
   --background: 240 10% 3.9%;
   --foreground: 0 0% 98%;
   --card: 240 10% 5.5%;
@@ -63,6 +85,10 @@
 /* ─── Tailwind v4 Theme ─────────────────────────────────── */
 
 @theme inline {
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-faint: var(--ink-faint);
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));

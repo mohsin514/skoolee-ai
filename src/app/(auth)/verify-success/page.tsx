@@ -44,7 +44,7 @@ export default function VerifySuccessPage() {
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
             <span className="text-[12px] font-bold tracking-normal text-emerald-600 uppercase mb-2 block">Identity Confirmed</span>
             <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"Trust is the glue of life. It’s the most essential ingredient in effective communication."</h2>
-            <p className="text-[#4d4354] font-medium text-sm">Your institutional authority has been verified. Welcome to the Skoolee ecosystem.</p>
+            <p className="text-ink font-medium text-sm">Your institutional authority has been verified. Welcome to the Skoolee ecosystem.</p>
           </div>
         </div>
       </section>
@@ -70,7 +70,7 @@ export default function VerifySuccessPage() {
             </div>
             
             <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-4 tracking-normal">Authority Verified</h2>
-            <p className="text-sm font-medium text-[#4d4354]/70 mb-10 leading-relaxed px-2">
+            <p className="text-sm font-medium text-ink mb-10 leading-relaxed px-2">
               Your email identity has been synchronized with the institutional registry. You now have full access to your command console.
             </p>
 
@@ -78,12 +78,12 @@ export default function VerifySuccessPage() {
               Continue to Login <ArrowRight className="h-5 w-5 group-hover:translate-x-1" />
             </Link>
 
-            <div className="mt-8 flex items-center gap-3 text-[#4d4354]/40 font-bold text-[10px] uppercase tracking-normal">
+            <div className="mt-8 flex items-center gap-3 text-ink-subtle font-bold text-[10px] uppercase tracking-normal">
                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Auto-redirecting in {countdown}s
             </div>
           </motion.div>
 
-          <p className="mt-8 text-center text-xs font-bold text-[#4d4354]/30 uppercase tracking-normal flex items-center justify-center gap-2">
+          <p className="mt-8 text-center text-xs font-bold text-ink-subtle uppercase tracking-normal flex items-center justify-center gap-2">
             <ShieldCheck className="w-4 h-4" /> End-to-End Encryption Verified
           </p>
         </div>

@@ -100,7 +100,7 @@ export default function ParentTimetablePage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Timetable</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your child&apos;s weekly class schedule.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Your child&apos;s weekly class schedule.</p>
         </div>
       </div>
 
@@ -125,11 +125,11 @@ export default function ParentTimetablePage() {
               <div className="min-w-[700px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">
-                    <Clock className="w-3 h-3 text-[#4d4354]/25" />
+                    <Clock className="w-3 h-3 text-ink-subtle" />
                   </div>
                   {visibleDays.map((d) => (
                     <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
-                      <span className="text-[8px] font-black uppercase text-[#4d4354]/30">{d.short}</span>
+                      <span className="text-[8px] font-black uppercase text-ink-subtle">{d.short}</span>
                     </div>
                   ))}
                 </div>
@@ -139,7 +139,7 @@ export default function ParentTimetablePage() {
                     <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                       <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
                         <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
-                        <span className="text-[6px] font-bold text-[#4d4354]/20">{p.start}</span>
+                        <span className="text-[6px] font-bold text-ink-subtle">{p.start}</span>
                       </div>
                       {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
@@ -147,7 +147,7 @@ export default function ParentTimetablePage() {
                           const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
                           return (
                             <div key={d.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-0.5">
-                              <span className="text-[7px] font-bold text-[#4d4354]/25">{label}</span>
+                              <span className="text-[7px] font-bold text-ink-subtle">{label}</span>
                             </div>
                           );
                         }
@@ -157,10 +157,10 @@ export default function ParentTimetablePage() {
                             {slot.subject ? (
                               <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
                                 <p className={`text-[8px] font-black ${c?.text} leading-tight`}>{slot.subject.name}</p>
-                                {slot.teacher && <p className="text-[6px] font-semibold text-[#4d4354]/30 mt-0.5">{slot.teacher.fullName}</p>}
+                                {slot.teacher && <p className="text-[6px] font-semibold text-ink-subtle mt-0.5">{slot.teacher.fullName}</p>}
                               </div>
                             ) : (
-                              <div className="h-full flex items-center justify-center"><span className="text-[7px] text-[#4d4354]/15">—</span></div>
+                              <div className="h-full flex items-center justify-center"><span className="text-[7px] text-ink-subtle">—</span></div>
                             )}
                           </div>
                         );

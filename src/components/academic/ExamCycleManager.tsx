@@ -396,11 +396,11 @@ export function ExamCycleManager({
         </div>
       ) : exams.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
-          <CalendarDays className="mb-3 h-10 w-10 text-[#4d4354]/20" />
-          <p className="text-sm font-bold text-[#4d4354]/50">
+          <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
+          <p className="text-sm font-bold text-ink-muted">
             {isTeacher ? "No tests yet" : "No exams yet"}
           </p>
-          <p className="mt-1 text-xs font-semibold text-[#4d4354]/30">
+          <p className="mt-1 text-xs font-semibold text-ink-subtle">
             {isTeacher
               ? "Create a quiz or class test for one of your subjects."
               : "Create your first exam to start the cycle."}
@@ -428,7 +428,7 @@ export function ExamCycleManager({
                   {byColumn[col.key].length}
                 </span>
               </div>
-              <p className="mb-3 text-[10px] font-semibold text-[#4d4354]/40">{col.hint}</p>
+              <p className="mb-3 text-[10px] font-semibold text-ink-subtle">{col.hint}</p>
               <div className="flex flex-1 flex-col gap-3">
                 {byColumn[col.key].map((exam) => (
                   <ExamCard
@@ -446,7 +446,7 @@ export function ExamCycleManager({
                   />
                 ))}
                 {byColumn[col.key].length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[#cfc2d6]/20 py-8 text-center text-[11px] font-semibold text-[#4d4354]/30">
+                  <div className="rounded-2xl border border-dashed border-[#cfc2d6]/20 py-8 text-center text-[11px] font-semibold text-ink-subtle">
                     Empty
                   </div>
                 ) : null}
@@ -534,13 +534,13 @@ function RejectMarksModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full p-1 text-[#4d4354]/50 transition hover:bg-[#f3f4f9] cursor-pointer"
+            className="rounded-full p-1 text-ink-muted transition hover:bg-[#f3f4f9] cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <p className="mb-4 text-[11px] font-semibold leading-relaxed text-[#4d4354]/60">
+        <p className="mb-4 text-[11px] font-semibold leading-relaxed text-ink-muted">
           {exam.title}
           {exam.class ? ` · ${classLabel(exam.class)}` : ""}. The teacher will be able to edit
           the marks again, and the {exam._count?.reportCards ?? 0} report card
@@ -549,7 +549,7 @@ function RejectMarksModal({
         </p>
 
         <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
             Reason for the teacher
           </span>
           <textarea
@@ -638,12 +638,12 @@ function ExamCard({
             exam.examType?.replaceAll("_", " ") ||
             "Exam"}
         </span>
-        <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-bold text-[#4d4354]/60">
+        <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-bold text-ink-muted">
           {classLabel(exam.class)}
         </span>
       </div>
 
-      <p className="mb-3 text-[11px] font-semibold text-[#4d4354]/50">
+      <p className="mb-3 text-[11px] font-semibold text-ink-muted">
         {exam.subject ? exam.subject.name : "All subjects"}
         {subjCount ? ` · ${subjCount} subject${subjCount > 1 ? "s" : ""}` : ""}
       </p>
@@ -651,8 +651,8 @@ function ExamCard({
       {subjCount > 0 ? (
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
-            <span className="text-[#4d4354]/50">Subjects marked</span>
-            <span className="text-[#4d4354]/70">
+            <span className="text-ink-muted">Subjects marked</span>
+            <span className="text-ink">
               {marked}/{subjCount}
             </span>
           </div>
@@ -830,7 +830,7 @@ function CreateExamModal({
           {loadingClasses ? (
             <div className="space-y-3">
               <div className="h-40 w-full rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-              <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+              <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
                 Loading classes…
               </p>
             </div>
@@ -905,7 +905,7 @@ function CreateExamModal({
                   ))}
                 </select>
                 {role === "TEACHER" ? (
-                  <p className="mt-1.5 text-[10px] font-semibold text-[#4d4354]/40">
+                  <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
                     Mid-term and final exams are set up by the school office.
                   </p>
                 ) : null}
@@ -918,7 +918,7 @@ function CreateExamModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl px-5 py-2.5 text-sm font-black text-[#4d4354]/60 hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
+            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
           >
             Cancel
           </button>
@@ -936,7 +936,7 @@ function CreateExamModal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50">
+      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
         {label}
       </span>
       {children}

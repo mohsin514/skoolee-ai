@@ -14,7 +14,7 @@ export default function TeacherTestsPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider">Assessment Pipeline</p>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Tests &amp; Quizzes</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Plan, track and release your assessments stage by stage</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Plan, track and release your assessments stage by stage</p>
         </div>
       </div>
 

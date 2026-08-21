@@ -48,7 +48,7 @@ export function ScheduleConflictsBanner({
             <p className="text-sm font-black text-[#1f1a23]">
               You&apos;re double-booked {scopeLabel}
             </p>
-            <p className="mt-0.5 text-[10px] font-bold text-[#4d4354]/60">
+            <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
               {clashes.length} period{clashes.length !== 1 ? "s" : ""} put you in more than one
               class at the same time
             </p>
@@ -67,14 +67,14 @@ export function ScheduleConflictsBanner({
                 <span className="rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-rose-700">
                   {DAY_LABELS[clash.dayOfWeek] || `Day ${clash.dayOfWeek}`} · P{clash.periodNumber}
                 </span>
-                <span className="text-[10px] font-black text-[#4d4354]/50">{clash.startTime}</span>
+                <span className="text-[10px] font-black text-ink-muted">{clash.startTime}</span>
               </div>
               <p className="mt-1.5 text-xs font-bold leading-relaxed text-[#1f1a23]">
                 {clash.classes.join("  &  ")}
               </p>
             </div>
           ))}
-          <p className="pt-1 text-[10px] font-bold text-[#4d4354]/55">
+          <p className="pt-1 text-[10px] font-bold text-ink-muted">
             You can&apos;t edit the timetable yourself — ask the office to move one of these periods.
           </p>
         </div>

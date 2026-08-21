@@ -315,7 +315,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
             <button
               onClick={() => setStep(i)}
               className={`flex flex-1 items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-all ${
-                i === step ? "border-[#8127cf] bg-[#8127cf] text-white" : i < step ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[#cfc2d6]/30 bg-white text-[#4d4354]/50"
+                i === step ? "border-[#8127cf] bg-[#8127cf] text-white" : i < step ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[#cfc2d6]/30 bg-white text-ink-muted"
               }`}
             >
               {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 text-[10px]">{i + 1}</span>}
@@ -335,11 +335,11 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <Field label="Academic Year" type="number" value={String(year)} onChange={(v) => setYear(parseInt(v || "0", 10))} />
             </div>
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#4d4354]/55">Number of Terms</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Number of Terms</p>
               <div className="flex gap-2">
                 {[1, 2, 3].map((n) => (
                   <button key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
-                    className={`rounded-xl border px-5 py-2 text-sm font-bold ${termCount === n ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-[#4d4354]/60"}`}>
+                    className={`rounded-xl border px-5 py-2 text-sm font-bold ${termCount === n ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
                     {n}
                   </button>
                 ))}
@@ -368,7 +368,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => (
                 <button key={d.num} onClick={() => toggleWeekend(d.num)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${weekends.includes(d.num) ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-[#4d4354]/60"}`}>
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${weekends.includes(d.num) ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
                   {d.short}{weekends.includes(d.num) ? " · off" : ""}
                 </button>
               ))}
@@ -379,12 +379,12 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 {holidayMode ? (holidayPick ? `Finish range → ${holidayPick}` : "Pick end day…") : "✚ Mark holiday range"}
               </button>
             </div>
-            <p className="text-[10px] font-semibold text-[#4d4354]/50">
+            <p className="text-[10px] font-semibold text-ink-muted">
               Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.
             </p>
             <YearCalendar year={year} weekends={weekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
             <div className="rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#4d4354]/55">Add Holiday</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Add Holiday</p>
               <div className="flex flex-wrap items-end gap-3">
                 <Field label="Name" value={holidayDraft.name} onChange={(v) => setHolidayDraft((d) => ({ ...d, name: v }))} />
                 <Field label="From" type="date" value={holidayDraft.fromDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, fromDate: v }))} />
@@ -410,7 +410,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Clock className="h-5 w-5 text-[#8127cf]" />Define Periods</h3>
               <div className="flex gap-2">
                 {(["CLASS", "EXAM"] as const).map((t) => (
-                  <button key={t} onClick={() => setPeriodTab(t)} className={`rounded-xl border px-4 py-1.5 text-xs font-bold ${periodTab === t ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-[#4d4354]/60"}`}>
+                  <button key={t} onClick={() => setPeriodTab(t)} className={`rounded-xl border px-4 py-1.5 text-xs font-bold ${periodTab === t ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
                     {t === "CLASS" ? "Class Periods" : "Exam Periods"}
                   </button>
                 ))}
@@ -423,14 +423,14 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <button onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
             </div>
             <div className="space-y-2">
-              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-[#4d4354]/50">No {periodTab.toLowerCase()} periods yet</p>}
+              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
               {activePeriods.map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f3eeff] text-sm font-black text-[#8127cf]">P{p.periodNumber}</span>
-                    <span className="text-sm font-semibold text-[#4d4354]/70">{p.startTime} – {p.endTime}</span>
+                    <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <button onClick={() => deletePeriod(p.id)} className="text-[#4d4354]/40 hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => deletePeriod(p.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
             </div>
@@ -453,12 +453,12 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 <div key={r.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
                   <div>
                     <p className="text-sm font-bold text-[#1f1a23]">Room {r.roomNumber}</p>
-                    <p className="text-xs text-[#4d4354]/55">Capacity {r.capacity}</p>
+                    <p className="text-xs text-ink-muted">Capacity {r.capacity}</p>
                   </div>
-                  <button onClick={() => deleteRoom(r.id)} className="text-[#4d4354]/40 hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => deleteRoom(r.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
-              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-[#4d4354]/50">No rooms yet — optional, skip if not used</p>}
+              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
             </div>
             <div className="flex justify-end">
               <button onClick={completeSetup} disabled={saving} className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-black text-white disabled:opacity-50">
@@ -472,7 +472,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       {/* nav */}
       <div className="flex justify-between">
         <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
-          className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/30 bg-white px-5 py-2.5 text-sm font-bold text-[#4d4354]/70 disabled:opacity-40">
+          className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/30 bg-white px-5 py-2.5 text-sm font-bold text-ink disabled:opacity-40">
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
         {/* Step 1 has pending state to commit (the academic cycle); the later
@@ -506,7 +506,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const filled = terms.filter((t) => t.start && t.end);
   if (filled.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-4 text-xs font-semibold text-[#4d4354]/45">
+      <div className="flex items-center justify-center rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-4 text-xs font-semibold text-ink-subtle">
         Pick term dates above to preview the year divided into colored term blocks
       </div>
     );
@@ -518,7 +518,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const span = Math.max(1, max - min);
   return (
     <div className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-4">
-      <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/55">Year Preview</p>
+      <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-ink-muted">Year Preview</p>
       <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-[#f3f4f9]">
         {filled.map((t, i) => {
           const s = new Date(t.start).getTime();
@@ -538,7 +538,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {filled.map((t, i) => (
-          <span key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-[#4d4354]/60">
+          <span key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-ink-muted">
             <span className={`h-2 w-2 rounded-full bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]}`} />
             Term {i + 1}: {t.start} → {t.end}
           </span>
@@ -551,7 +551,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
 function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/55">{label}</span>
+      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label}</span>
       <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/60" />
     </label>
@@ -579,7 +579,7 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
       {months.map(({ m, daysInMonth, leading }) => (
         <div key={m} className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-3">
           <p className="mb-2 text-center text-xs font-black text-[#8127cf]">{MONTHS[m]} {year}</p>
-          <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] font-bold text-[#4d4354]/40">
+          <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] font-bold text-ink-subtle">
             {WEEKDAYS.map((d) => <span key={d.num}>{d.short[0]}</span>)}
           </div>
           <div className="mt-1 grid grid-cols-7 gap-0.5">
@@ -603,8 +603,8 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
                       : hol
                         ? "bg-teal-500 text-white"
                         : isWeekend
-                          ? "bg-[#f3f4f9] text-[#4d4354]/40 hover:bg-[#e8e0ec]"
-                          : "text-[#4d4354]/70 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                          ? "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]"
+                          : "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   }`}
                 >
                   {dayNum}

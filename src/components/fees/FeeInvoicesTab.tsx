@@ -188,7 +188,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
               className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 statusFilter === s.value
                   ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                  : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               {s.label}
@@ -229,7 +229,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-[#4d4354]/40">{total} invoice{total !== 1 ? "s" : ""}</p>
+      <p className="text-[9px] font-bold text-ink-subtle">{total} invoice{total !== 1 ? "s" : ""}</p>
 
       {loading ? (
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
@@ -263,7 +263,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">
+            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <span>Student</span>
               <span>Invoice</span>
               <span>Total</span>
@@ -280,13 +280,13 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-black text-[#1f1a23] truncate">{inv.student.fullName}</p>
-                    <p className="text-[9px] font-bold text-[#4d4354]/45">
+                    <p className="text-[9px] font-bold text-ink-subtle">
                       {classLabel(inv.student.class.name, inv.student.class.section)}
                     </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-black text-[#1f1a23] truncate">{inv.invoiceNumber}</p>
-                    <p className="text-[9px] font-bold text-[#4d4354]/45">
+                    <p className="text-[9px] font-bold text-ink-subtle">
                       Due: {formatDate(inv.dueDate)}
                     </p>
                   </div>
@@ -301,7 +301,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                       type="button"
                       onClick={() => viewDetail(inv.id)}
                       title={inv.status === "PAID" ? "View Receipt" : "View Details"}
-                      className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50"
+                      className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted"
                     >
                       {inv.status === "PAID" ? <Receipt className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                     </button>
@@ -310,7 +310,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                         type="button"
                         onClick={() => handleStatusChange(inv.id, "OVERDUE")}
                         title="Mark as Overdue"
-                        className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-amber-50 hover:text-amber-600 transition-colors cursor-pointer text-[#4d4354]/50"
+                        className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-amber-50 hover:text-amber-600 transition-colors cursor-pointer text-ink-muted"
                       >
                         <AlertTriangle className="w-3 h-3" />
                       </button>
@@ -327,19 +327,19 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft className="w-3 h-3" />
                 Prev
               </button>
-              <span className="text-[9px] font-black uppercase text-[#4d4354]/50">
+              <span className="text-[9px] font-black uppercase text-ink-muted">
                 Page {page} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 Next
                 <ChevronRight className="w-3 h-3" />
@@ -455,7 +455,7 @@ function InvoiceDetailModal({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{inv.invoiceNumber}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45">
+                <p className="text-[9px] font-bold text-ink-subtle">
                   {inv.student?.fullName} · {inv.student?.class?.name}
                 </p>
               </div>
@@ -494,7 +494,7 @@ function InvoiceDetailModal({
 
             {inv.payments && inv.payments.length > 0 && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">
                   Payment Receipts
                 </p>
                 <div className="space-y-2">
@@ -507,12 +507,12 @@ function InvoiceDetailModal({
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-[9px] font-bold text-[#4d4354]/45">
+                        <p className="text-[9px] font-bold text-ink-subtle">
                           {formatDate(p.paymentDate)} · {paymentMethodLabel(p.paymentMethod)}
                           {p.referenceNumber ? ` · Ref: ${p.referenceNumber}` : ""}
                         </p>
                         {p.recorder?.fullName && (
-                          <p className="text-[9px] font-bold text-[#4d4354]/35">by {p.recorder.fullName}</p>
+                          <p className="text-[9px] font-bold text-ink-subtle">by {p.recorder.fullName}</p>
                         )}
                       </div>
                     </div>
@@ -551,7 +551,7 @@ function InvoiceDetailModal({
 function Row({ label, value, className, bold }: { label: string; value: string; className?: string; bold?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[9px] font-black uppercase text-[#4d4354]/40">{label}</span>
+      <span className="text-[9px] font-black uppercase text-ink-subtle">{label}</span>
       <span className={`text-sm ${bold ? "font-black" : "font-bold"} ${className ?? "text-[#1f1a23]"}`}>{value}</span>
     </div>
   );
@@ -620,11 +620,11 @@ function GenerateInvoicesModal({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Month</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Month</label>
             <input type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 block mb-1">Class (optional)</label>
+            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Class (optional)</label>
             <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
               <option value="">All Classes</option>
               {classes.map((c) => (
@@ -639,7 +639,7 @@ function GenerateInvoicesModal({
               onChange={(e) => setIncludeLateFees(e.target.checked)}
               className="accent-[#8127cf] w-4 h-4"
             />
-            <span className="text-xs font-bold text-[#4d4354]/60">Include late fees from overdue invoices</span>
+            <span className="text-xs font-bold text-ink-muted">Include late fees from overdue invoices</span>
           </label>
           <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating}>
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}

@@ -139,24 +139,24 @@ export function CombinedReportCard({
         <div className="rounded-3xl bg-gradient-to-br from-[#fbf0fe] to-white border border-[#8127cf]/10 p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Total</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Total</p>
               <p className="mt-1 text-2xl font-black text-[#1f1a23]">{totalObtained}</p>
-              <p className="text-[10px] font-bold text-[#4d4354]/45">out of {totalPossible}</p>
+              <p className="text-[10px] font-bold text-ink-subtle">out of {totalPossible}</p>
             </div>
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Overall</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Overall</p>
               <p className="mt-1 text-2xl font-black text-[#8127cf]">{overallPercentage}%</p>
-              <p className="text-[10px] font-bold text-[#4d4354]/45">Percentage</p>
+              <p className="text-[10px] font-bold text-ink-subtle">Percentage</p>
             </div>
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Grade</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Grade</p>
               <p className={`mt-1 text-3xl font-black ${gradeColor(overallGrade)}`}>{overallGrade}</p>
               <span className={`inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-normal mt-1 ${passed ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                 {passed ? "PASS" : "FAIL"}
               </span>
             </div>
             <div className="text-center">
-              <p className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Summary</p>
+              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Summary</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[8px] font-black text-emerald-600">{passedSubjects} Pass</span>
                 {failedSubjects > 0 ? (
@@ -176,18 +176,18 @@ export function CombinedReportCard({
         {attPct !== null ? (
           <div className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe]/60 px-5 py-3">
             <BarChart3 className="h-4 w-4 text-[#8127cf]" />
-            <span className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Attendance:</span>
+            <span className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Attendance:</span>
             <span className="text-sm font-black text-[#1f1a23]">{attPct}%</span>
-            <span className="text-[9px] font-bold text-[#4d4354]/45">({attendancePresent}/{attendanceTotal} days)</span>
+            <span className="text-[9px] font-bold text-ink-subtle">({attendancePresent}/{attendanceTotal} days)</span>
           </div>
         ) : null}
 
         <div>
-          <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Subject Performance</p>
+          <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-ink-subtle">Subject Performance</p>
           <div className="overflow-x-auto rounded-[26px] border border-[#cfc2d6]/10">
             <table className="w-full min-w-[480px] text-left">
               <thead>
-                <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-[#4d4354]/40">
+                <tr className="bg-[#f3f4f9]/60 text-[8px] font-black uppercase tracking-normal text-ink-subtle">
                   <th className="px-5 py-3">Subject</th>
                   <th className="px-4 py-3 text-center">Obtained</th>
                   <th className="px-4 py-3 text-center">Total</th>
@@ -200,7 +200,7 @@ export function CombinedReportCard({
                   <tr key={subject.subjectId} className="hover:bg-[#fbf0fe]/30">
                     <td className="px-5 py-3 font-bold text-sm text-[#1f1a23]">{subject.subjectName}</td>
                     <td className="px-4 py-3 text-center font-black text-[#1f1a23]">{subject.obtainedMarks}</td>
-                    <td className="px-4 py-3 text-center text-sm text-[#4d4354]/60">{subject.totalMarks}</td>
+                    <td className="px-4 py-3 text-center text-sm text-ink-muted">{subject.totalMarks}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`font-black text-sm ${subject.percentage >= 50 ? "text-emerald-600" : "text-rose-600"}`}>
                         {subject.percentage}%
@@ -220,19 +220,19 @@ export function CombinedReportCard({
 
         {examBreakdown.length > 0 ? (
           <div>
-            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">Exam Weight Breakdown</p>
+            <p className="mb-3 text-[9px] font-black uppercase tracking-normal text-ink-subtle">Exam Weight Breakdown</p>
             <div className="space-y-2">
               {examBreakdown.map((exam) => (
                 <div key={exam.examId} className="flex items-center justify-between gap-4 rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-black text-[#1f1a23]">{exam.examTitle}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-normal text-[#4d4354]/45">{exam.examType.replace("_", " ")}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-normal text-ink-subtle">{exam.examType.replace("_", " ")}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[10px] font-bold text-[#4d4354]/45">{exam.obtainedMarks}/{exam.totalMarks}</span>
+                    <span className="text-[10px] font-bold text-ink-subtle">{exam.obtainedMarks}/{exam.totalMarks}</span>
                     <span className="text-sm font-black text-[#1f1a23]">{exam.percentage}%</span>
                     <span className="rounded-full bg-white px-2.5 py-0.5 text-[9px] font-black text-[#8127cf]">{exam.weight}%</span>
-                    <span className="text-[10px] font-bold text-[#4d4354]/45">→ {exam.contribution}%</span>
+                    <span className="text-[10px] font-bold text-ink-subtle">→ {exam.contribution}%</span>
                     <span className={`rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-normal ${gradeBg(exam.grade)}`}>
                       {exam.grade}
                     </span>
@@ -264,7 +264,7 @@ export function CombinedReportCard({
 function MiniBox({ label, value, active }: { label: string; value: string; active?: boolean }) {
   return (
     <div className="rounded-2xl bg-[#fbf0fe]/70 px-4 py-3">
-      <p className="text-[7px] font-black uppercase tracking-normal text-[#4d4354]/40">{label}</p>
+      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
       <p className={`mt-1 truncate text-sm font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
   );

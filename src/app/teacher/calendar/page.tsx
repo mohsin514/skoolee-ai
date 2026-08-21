@@ -14,7 +14,7 @@ export default function TeacherCalendarPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider">School Calendar</p>
           </div>
           <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Academic Calendar</h1>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Upcoming events, holidays and scheduled activities</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Upcoming events, holidays and scheduled activities</p>
         </div>
       </div>
 

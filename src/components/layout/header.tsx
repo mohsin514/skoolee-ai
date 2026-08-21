@@ -193,7 +193,7 @@ export function Header({ title, description, actions }: HeaderProps) {
               {title}
             </h1>
             {description && (
-              <p className="mt-0.5 max-w-2xl text-xs font-medium text-[#4d4354]/65">
+              <p className="mt-0.5 max-w-2xl text-xs font-medium text-ink-muted">
                 {description}
               </p>
             )}
@@ -232,9 +232,9 @@ export function Header({ title, description, actions }: HeaderProps) {
                 <div className="max-h-[360px] space-y-0.5 overflow-y-auto p-1.5">
                   {liveNotifications.length === 0 ? (
                     <div className="py-10 text-center">
-                      <Bell className="mx-auto mb-3 h-8 w-8 text-[#4d4354]/15" />
-                      <p className="text-sm font-bold text-[#4d4354]/40">No notifications yet</p>
-                      <p className="mt-1 text-xs font-medium text-[#4d4354]/30">You&#39;re all caught up</p>
+                      <Bell className="mx-auto mb-3 h-8 w-8 text-ink-subtle" />
+                      <p className="text-sm font-bold text-ink-subtle">No notifications yet</p>
+                      <p className="mt-1 text-xs font-medium text-ink-subtle">You&#39;re all caught up</p>
                     </div>
                   ) : (
                     liveNotifications.map((n) => {
@@ -252,17 +252,17 @@ export function Header({ title, description, actions }: HeaderProps) {
                         >
                           <div className={cn(
                             "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                            !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-[#4d4354]/50"
+                            !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-ink-muted"
                           )}>
                             <Icon className="h-[18px] w-[18px]" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
-                              <p className={cn("truncate text-sm", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-[#4d4354]/80")}>{n.title}</p>
+                              <p className={cn("truncate text-sm", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-ink")}>{n.title}</p>
                               {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-[#4d4354]/50">{n.message}</p>
-                            <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/35">{relativeTime(n.createdAt)}</p>
+                            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-ink-muted">{n.message}</p>
+                            <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{relativeTime(n.createdAt)}</p>
                           </div>
                         </div>
                       );
@@ -310,7 +310,7 @@ export function Header({ title, description, actions }: HeaderProps) {
               </span>
               <ChevronDown
                 className={cn(
-                  "h-3.5 w-3.5 shrink-0 text-[#4d4354]/50 transition-transform",
+                  "h-3.5 w-3.5 shrink-0 text-ink-muted transition-transform",
                   menuOpen && "rotate-180 text-[#8127cf]"
                 )}
               />
@@ -391,7 +391,7 @@ function AccountLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold text-[#4d4354] transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

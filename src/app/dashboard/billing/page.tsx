@@ -37,7 +37,7 @@ export default function BillingPage({ embedded = false, hideHeader = false }: Bi
           <div>
             <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
             <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Billing & Payments</h2>
-            <p className="mt-2 text-sm font-semibold text-[#4d4354]/60">
+            <p className="mt-2 text-sm font-semibold text-ink-muted">
               Fee structures, invoices, challans, payment recording, plan, and AI credit control.
             </p>
           </div>

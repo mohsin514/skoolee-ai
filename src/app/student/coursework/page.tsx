@@ -33,7 +33,7 @@ export default function CourseworkPage() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">{user.subjects.length} subjects enrolled</span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Coursework & Performance</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your subjects, teachers, and academic progress.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Your subjects, teachers, and academic progress.</p>
         </div>
       </div>
 
@@ -47,22 +47,22 @@ export default function CourseworkPage() {
                 <MapPin className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Current Class</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Current Class</p>
                 <p className="text-lg font-bold text-[#1d1b20]">{user.className}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Class Teacher</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Class Teacher</p>
                 <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.classTeacher?.fullName || "Not assigned"}</p>
                 {user.classTeacher?.email && (
-                  <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45">{user.classTeacher.email}</p>
+                  <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">{user.classTeacher.email}</p>
                 )}
               </div>
               <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">Enrolled Subjects</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Enrolled Subjects</p>
                 <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.subjects.length} subjects</p>
-                <p className="mt-0.5 text-[10px] font-semibold text-[#4d4354]/45 line-clamp-2">
+                <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle line-clamp-2">
                   {user.subjects?.length ? user.subjects.map((s: any) => s.name).join(", ") : "—"}
                 </p>
               </div>
@@ -75,17 +75,17 @@ export default function CourseworkPage() {
                 <UserRound className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/40">Roll Number</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Roll Number</p>
                 <p className="text-lg font-bold text-[#1d1b20]">{user.rollNo || "N/A"}</p>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between gap-3 text-sm">
-                <span className="font-semibold text-[#4d4354]/60">Name</span>
+                <span className="font-semibold text-ink-muted">Name</span>
                 <span className="font-bold text-[#1d1b20] truncate">{user.fullName}</span>
               </div>
               <div className="flex justify-between gap-3 text-sm">
-                <span className="font-semibold text-[#4d4354]/60">Campus</span>
+                <span className="font-semibold text-ink-muted">Campus</span>
                 <span className="font-bold text-[#1d1b20] truncate">{user.campusName}</span>
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function CourseworkPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-[#4d4354]/40 italic">Subjects will appear after admin adds them to this section.</p>
+                <p className="text-xs font-semibold text-ink-subtle italic">Subjects will appear after admin adds them to this section.</p>
               )}
             </div>
 
@@ -138,7 +138,7 @@ export default function CourseworkPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-[#4d4354]/40 italic">No marks recorded in current cycle.</p>
+                <p className="text-xs font-semibold text-ink-subtle italic">No marks recorded in current cycle.</p>
               )}
             </div>
           </div>
@@ -149,13 +149,13 @@ export default function CourseworkPage() {
                 <div className="px-6 py-4 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">All Marks</h3>
                   {user.marks.length > 0 && (
-                    <span className="text-[10px] font-semibold text-[#4d4354]/40">{user.marks.length} entries</span>
+                    <span className="text-[10px] font-semibold text-ink-subtle">{user.marks.length} entries</span>
                   )}
                 </div>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left min-w-[480px]">
                 <thead>
-                  <tr className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-[#4d4354]/40 uppercase tracking-wider border-b border-[#cfc2d6]/10">
+                  <tr className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-ink-subtle uppercase tracking-wider border-b border-[#cfc2d6]/10">
                     <th className="px-6 py-3.5">Subject</th>
                     <th className="px-3 py-3.5 text-center">Score</th>
                     <th className="px-3 py-3.5 text-center">%</th>
@@ -170,13 +170,13 @@ export default function CourseworkPage() {
                         <tr key={mark.id} className="group transition-all duration-200 hover:bg-[#fbf0fe]/40 hover:shadow-sm cursor-default">
                           <td className="px-6 py-3.5">
                             <p className="text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{mark.subject?.name}</p>
-                            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+                            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
                               {mark.exam?.title || "Exam"}
                             </p>
                           </td>
                           <td className="px-3 py-3.5 text-center">
                             <span className="text-sm font-bold text-[#1d1b20]">{mark.marksObtained}</span>
-                            <span className="text-[10px] text-[#4d4354]/40"> / {mark.subject?.totalMarks || 100}</span>
+                            <span className="text-[10px] text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
                           </td>
                           <td className="px-3 py-3.5 text-center">
                             <span className={cn(
@@ -199,8 +199,8 @@ export default function CourseworkPage() {
                   ) : (
                     <tr>
                       <td colSpan={4} className="px-6 py-12 text-center">
-                        <BookOpen className="w-8 h-8 text-[#4d4354]/20 mx-auto mb-3" />
-                        <p className="text-sm font-semibold text-[#4d4354]/40">No marks recorded yet.</p>
+                        <BookOpen className="w-8 h-8 text-ink-subtle mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-ink-subtle">No marks recorded yet.</p>
                       </td>
                     </tr>
                   )}
@@ -225,7 +225,7 @@ function SummaryCard({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
           <div className="relative h-9 w-9 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
@@ -234,7 +234,7 @@ function SummaryCard({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>
+      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
     </div>
   );
 }
@@ -246,9 +246,9 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{name}</p>
-            <ChevronRight className="h-3.5 w-3.5 text-[#4d4354]/20 transition-all group-hover:text-[#8127cf] group-hover:translate-x-0.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-ink-subtle transition-all group-hover:text-[#8127cf] group-hover:translate-x-0.5" />
           </div>
-          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">{teacher}</p>
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{teacher}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {score !== null && (
@@ -275,7 +275,7 @@ function PerfBar({ label, score, color }: { label: string; score: number; color:
     <div className="group transition-all duration-200 hover:-translate-y-0.5">
       <div className="flex justify-between items-center mb-1.5">
         <span className="text-xs font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{label}</span>
-        <span className="text-[10px] font-bold text-[#4d4354]/40 transition-colors group-hover:text-[#4d4354]/60">{score}%</span>
+        <span className="text-[10px] font-bold text-ink-subtle transition-colors group-hover:text-ink-muted">{score}%</span>
       </div>
       <div className="h-3 w-full bg-[#f3f4f9] rounded-full overflow-hidden p-0.5 border border-[#cfc2d6]/10 transition-all group-hover:shadow-md">
         <div

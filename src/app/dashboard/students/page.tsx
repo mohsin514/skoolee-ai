@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { localToday } from "@/lib/date-only";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -157,7 +158,7 @@ export default function StudentsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [attendanceDate, setAttendanceDate] = useState(localToday());
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [attendanceStudents, setAttendanceStudents] = useState<AttendanceStudent[]>([]);
   const [attendanceEntries, setAttendanceEntries] = useState<Record<string, AttendanceStatus>>({});
@@ -379,6 +380,7 @@ export default function StudentsPage() {
                 />
               </div>
               <Select
+                aria-label="Filter students by class"
                 className="w-full md:w-56"
                 value={classFilter}
                 onChange={(event) => {
@@ -565,12 +567,12 @@ export default function StudentsPage() {
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-[220px_220px_1fr] md:items-end">
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
+                <Label htmlFor="attendance-date">Date</Label>
+                <Input id="attendance-date" type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Class</Label>
-                <Select value={attendanceClassId} onChange={(event) => setAttendanceClassId(event.target.value)}>
+                <Label htmlFor="attendance-class">Class</Label>
+                <Select id="attendance-class" value={attendanceClassId} onChange={(event) => setAttendanceClassId(event.target.value)}>
                   <option value="">Select class</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>

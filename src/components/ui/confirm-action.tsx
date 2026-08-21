@@ -120,7 +120,7 @@ export function ConfirmAction({
               type="button"
               onClick={onCancel}
               disabled={busy}
-              className="group/x flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl text-[#4d4354]/40 transition-all hover:bg-white hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group/x flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-white hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="h-4 w-4 transition-transform duration-300 group-hover/x:rotate-90" />
               <span className="sr-only">Cancel</span>
@@ -129,9 +129,9 @@ export function ConfirmAction({
         </div>
 
         <div className="px-6 py-5">
-          <p className="text-sm font-semibold leading-relaxed text-[#4d4354]/75">{description}</p>
+          <p className="text-sm font-semibold leading-relaxed text-ink">{description}</p>
           {detail ? (
-            <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3 text-xs font-semibold text-[#4d4354]/70">
+            <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3 text-xs font-semibold text-ink">
               {detail}
             </div>
           ) : null}
@@ -142,7 +142,7 @@ export function ConfirmAction({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-[#4d4354]/70 transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelLabel}
           </button>

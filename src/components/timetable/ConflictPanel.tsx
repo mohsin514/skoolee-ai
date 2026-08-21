@@ -148,7 +148,7 @@ function ResolutionSection({
       {error ? (
         <p className="mt-1.5 text-[10px] font-bold text-rose-500">{error}</p>
       ) : loading && !report ? (
-        <p className="mt-1.5 text-[10px] font-semibold text-[#4d4354]/40">Checking the saved board…</p>
+        <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">Checking the saved board…</p>
       ) : critical === 0 && warning === 0 ? (
         <p className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-emerald-600">
           <CheckCircle2 className="h-3 w-3" />
@@ -156,7 +156,7 @@ function ResolutionSection({
         </p>
       ) : (
         <>
-          <p className="mt-1.5 text-[10px] font-bold text-[#4d4354]/60">
+          <p className="mt-1.5 text-[10px] font-bold text-ink-muted">
             {critical} blocking · {warning} advisory on the saved board
           </p>
           <ul className="mt-2 space-y-1.5">
@@ -171,7 +171,7 @@ function ResolutionSection({
                       s.severity === "CRITICAL" ? "text-rose-500" : "text-amber-500"
                     }`}
                   />
-                  <p className="text-[10px] font-semibold leading-relaxed text-[#4d4354]/80">
+                  <p className="text-[10px] font-semibold leading-relaxed text-ink">
                     {s.description}
                   </p>
                 </div>
@@ -192,7 +192,7 @@ function ResolutionSection({
             ))}
           </ul>
           {(report?.unresolvable?.length ?? 0) > 0 && (
-            <p className="mt-2 text-[9px] font-bold text-[#4d4354]/45">
+            <p className="mt-2 text-[9px] font-bold text-ink-subtle">
               {report!.unresolvable.length} conflict
               {report!.unresolvable.length === 1 ? "" : "s"} need a manual decision — no free
               teacher, room or period was available to propose.
@@ -308,7 +308,7 @@ export function ConflictPanel({
           ) : (
             <AlertTriangle className="h-3.5 w-3.5 text-[#f43f5e]" />
           )}
-          <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/50">
+          <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">
             Teacher double-bookings
           </span>
         </div>
@@ -327,10 +327,10 @@ export function ConflictPanel({
 
       {/* Subject coverage */}
       <div>
-        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Subject coverage</p>
+        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject coverage</p>
         <div className="space-y-1.5">
           {subjects.length === 0 && (
-            <p className="text-[10px] font-semibold text-[#4d4354]/40">No subjects to track.</p>
+            <p className="text-[10px] font-semibold text-ink-subtle">No subjects to track.</p>
           )}
           {subjects.map((s) => {
             const placed = placedBySubject.get(s.id) || 0;
@@ -355,9 +355,9 @@ export function ConflictPanel({
 
       {/* Teacher workload per day */}
       <div>
-        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Teacher workload / day</p>
+        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Teacher workload / day</p>
         {workload.size === 0 ? (
-          <p className="text-[10px] font-semibold text-[#4d4354]/40">No teachers assigned yet.</p>
+          <p className="text-[10px] font-semibold text-ink-subtle">No teachers assigned yet.</p>
         ) : (
           <div className="space-y-2.5">
             {[...workload.entries()].map(([tid, dayMap]) => (
@@ -374,7 +374,7 @@ export function ConflictPanel({
                           style={{ height: `${Math.max(h, count > 0 ? 4 : 2)}px` }}
                           title={`${day.short}: ${count} period(s)`}
                         />
-                        <span className="text-[7px] font-bold text-[#4d4354]/30">{day.short}</span>
+                        <span className="text-[7px] font-bold text-ink-subtle">{day.short}</span>
                       </div>
                     );
                   })}
@@ -399,14 +399,14 @@ export function ConflictPanel({
         </p>
         <ul className="space-y-1">
           {suggestions.map((sug, i) => (
-            <li key={i} className="flex items-start gap-1 text-[10px] font-semibold text-[#4d4354]/70">
+            <li key={i} className="flex items-start gap-1 text-[10px] font-semibold text-ink">
               <Info className="mt-0.5 h-2.5 w-2.5 shrink-0 text-[#8127cf]/60" />
               {sug}
             </li>
           ))}
         </ul>
         {clashes.size === 0 && (
-          <p className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-[#4d4354]/35">
+          <p className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-ink-subtle">
             <UserX className="h-2.5 w-2.5" />Prevention is on: dropdowns only offer free teachers & rooms.
           </p>
         )}

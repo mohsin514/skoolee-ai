@@ -69,7 +69,7 @@ export function Sidebar() {
                     "group relative isolate flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]",
                     isActive
                       ? "text-[#8127cf]"
-                      : "text-[#4d4354]/70 hover:bg-white/75 hover:text-[#1f1a23] hover:shadow-sm"
+                      : "text-ink hover:bg-white/75 hover:text-[#1f1a23] hover:shadow-sm"
                   )}
                 >
                   {isActive && (
@@ -86,7 +86,7 @@ export function Sidebar() {
                       "relative z-10 h-4 w-4 shrink-0 transition-colors",
                       isActive
                         ? "text-[#8127cf]"
-                        : "text-[#4d4354]/55 group-hover:text-[#8127cf]"
+                        : "text-ink-muted group-hover:text-[#8127cf]"
                     )}
                   />
                   <span className="relative z-10 truncate">{item.label}</span>
@@ -111,7 +111,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="mt-1 flex cursor-pointer items-center gap-1.5 rounded-lg text-xs font-bold text-[#4d4354]/60 transition-colors hover:text-rose-500"
+                className="mt-1 flex cursor-pointer items-center gap-1.5 rounded-lg text-xs font-bold text-ink-muted transition-colors hover:text-rose-500"
               >
                 <LogOut className="h-3 w-3" />
                 Sign out
@@ -137,7 +137,7 @@ export function Sidebar() {
                 "flex min-w-[64px] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-black transition-all active:scale-95",
                 isActive
                   ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)]"
-                  : "text-[#4d4354]/60 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
               )}
               title={item.label}
             >

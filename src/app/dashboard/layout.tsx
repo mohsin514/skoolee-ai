@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { Sidebar } from "@/components/layout/sidebar";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+
+export const metadata: Metadata = {
+  // §7.3: every route needs a distinct <title>. The root layout supplies
+  // the "%s | SkooleeAI" template, so this renders as "Dashboard | SkooleeAI".
+  title: "Dashboard",
+};
 
 export default async function DashboardLayout({
   children,

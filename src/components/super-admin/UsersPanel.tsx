@@ -100,7 +100,7 @@ export function UsersPanel() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Security</p>
           <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">User Management</h2>
-          <p className="text-sm font-semibold text-[#4d4354]/50 mt-1">
+          <p className="text-sm font-semibold text-ink-muted mt-1">
             {pagination.total} total users across all campuses
           </p>
         </div>
@@ -109,13 +109,13 @@ export function UsersPanel() {
       <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg mb-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4d4354]/40" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
             <input
               type="text"
               placeholder="Search by name, email, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-[#4d4354]/35 focus:ring-2 focus:ring-[#8127cf]/20"
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
             />
           </div>
           <select
@@ -150,14 +150,14 @@ export function UsersPanel() {
               <Users className="w-8 h-8 text-[#8127cf]/30" />
             </div>
             <h3 className="text-lg font-black text-[#1f1a23]">No Users Found</h3>
-            <p className="mt-2 text-sm font-semibold text-[#4d4354]/50">Try adjusting your filters.</p>
+            <p className="mt-2 text-sm font-semibold text-ink-muted">Try adjusting your filters.</p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full min-w-[900px] text-left">
                 <thead>
-                  <tr className="text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40 bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
+                  <tr className="text-[9px] font-black uppercase tracking-normal text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
                     <th className="px-4 py-3 rounded-tl-2xl">User</th>
                     <th className="px-4 py-3">Role</th>
                     <th className="px-4 py-3">Campus</th>
@@ -177,17 +177,17 @@ export function UsersPanel() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-black text-[#1f1a23] truncate">{u.fullName}</p>
-                            <p className="text-[10px] font-bold text-[#4d4354]/40 truncate">{u.email}</p>
+                            <p className="text-[10px] font-bold text-ink-subtle truncate">{u.email}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-[#f3f4f9] text-[#4d4354]"}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-[#f3f4f9] text-ink"}`}>
                           {u.role === "SUPER_ADMIN" && <Shield className="w-2.5 h-2.5" />}
                           {u.role.replace("_", " ")}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-[#4d4354]/70 font-bold text-xs">
+                      <td className="px-4 py-4 text-ink font-bold text-xs">
                         {u.campus?.name || "—"}
                       </td>
                       <td className="px-4 py-4">
@@ -196,10 +196,10 @@ export function UsersPanel() {
                           {u.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-[#4d4354]/60 text-xs font-semibold">
+                      <td className="px-4 py-4 text-ink-muted text-xs font-semibold">
                         {formatDate(u.lastLogin)}
                       </td>
-                      <td className="px-4 py-4 text-[#4d4354]/60 text-xs font-semibold">
+                      <td className="px-4 py-4 text-ink-muted text-xs font-semibold">
                         {formatDate(u.lastPasswordChange)}
                       </td>
                       <td className="px-4 py-4 text-right">
@@ -219,21 +219,21 @@ export function UsersPanel() {
 
             {pagination.pages > 1 && (
               <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#f3f4f9]">
-                <p className="text-xs font-bold text-[#4d4354]/40">
+                <p className="text-xs font-bold text-ink-subtle">
                   Page {pagination.page} of {pagination.pages} ({pagination.total} users)
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => loadUsers(pagination.page - 1)}
                     disabled={pagination.page <= 1}
-                    className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-[#4d4354] transition-all cursor-pointer"
+                    className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => loadUsers(pagination.page + 1)}
                     disabled={pagination.page >= pagination.pages}
-                    className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354] hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-[#4d4354] transition-all cursor-pointer"
+                    className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -310,7 +310,7 @@ function ChangePasswordModal({
             <p className="text-[10px] font-black uppercase text-[#8127cf]">Security action</p>
             <h3 className="mt-1 text-2xl font-black text-[#1f1a23] tracking-normal">Change Password</h3>
           </div>
-          <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
+          <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -322,14 +322,14 @@ function ChangePasswordModal({
             </div>
             <div>
               <p className="font-black text-sm text-[#1f1a23]">{user.fullName}</p>
-              <p className="text-[10px] font-bold text-[#4d4354]/40">{user.email}</p>
+              <p className="text-[10px] font-bold text-ink-subtle">{user.email}</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-4 mb-6">
           <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
               New Password
             </label>
             <div className="relative">
@@ -338,12 +338,12 @@ function ChangePasswordModal({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password..."
-                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#4d4354]/40 hover:text-[#8127cf] cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -372,7 +372,7 @@ function ChangePasswordModal({
           </div>
 
           <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-[#4d4354]/40">
+            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
               Confirm Password
             </label>
             <input
@@ -380,7 +380,7 @@ function ChangePasswordModal({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter password..."
-              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-2 text-xs font-bold text-rose-500 flex items-center gap-1.5">
@@ -411,7 +411,7 @@ function ChangePasswordModal({
         <div className="flex gap-4">
           <button
             onClick={onClose}
-            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-[#4d4354] hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
             Cancel
           </button>

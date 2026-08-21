@@ -24,7 +24,7 @@ export default function MembersPage() {
             <h2 className="text-xl font-black text-[#1f1a23]">
               Member tools are moving to custom auth
             </h2>
-            <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-[#4d4354]/65">
+            <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-ink-muted">
               Staff, teacher, and administrator access will live here once the custom auth engine migration is complete.
             </p>
           </CardContent>

@@ -72,13 +72,13 @@ function Shell({
             </div>
             <div>
               <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
-              <p className="mt-0.5 text-[13px] font-semibold leading-snug text-[#4d4354]/60">{subtitle}</p>
+              <p className="mt-0.5 text-[13px] font-semibold leading-snug text-ink-muted">{subtitle}</p>
             </div>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 cursor-pointer rounded-xl p-2 text-[#4d4354]/40 transition-colors hover:bg-[#f3f4f9] hover:text-[#1f1a23]"
+            className="shrink-0 cursor-pointer rounded-xl p-2 text-ink-subtle transition-colors hover:bg-[#f3f4f9] hover:text-[#1f1a23]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -97,10 +97,10 @@ function Field({
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2 px-1">
-        <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]">
+        <label className="text-[10px] font-black uppercase tracking-wider text-ink">
           {label}{required && <span className="ml-0.5 text-[#8127cf]">*</span>}
         </label>
-        {hint && <span className="text-[10px] font-bold text-[#4d4354]/35">{hint}</span>}
+        {hint && <span className="text-[10px] font-bold text-ink-subtle">{hint}</span>}
       </div>
       {children}
       {error && <p className="px-1 text-[11px] font-bold text-rose-500">{error}</p>}
@@ -109,7 +109,7 @@ function Field({
 }
 
 const inputCls =
-  "h-11 w-full rounded-xl border-0 bg-[#f3f4f9] px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-[#4d4354]/30 focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25";
+  "h-11 w-full rounded-xl border-0 bg-[#f3f4f9] px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25";
 
 function ErrorBanner({ message }: { message: string }) {
   return (
@@ -162,7 +162,7 @@ You will be asked to set your own password on first sign-in.`;
       <dl className="mb-5 space-y-2 rounded-2xl bg-[#f9f7fb] p-4">
         {data.lines.map((l) => (
           <div key={l.label} className="flex items-baseline justify-between gap-4">
-            <dt className="text-[11px] font-black uppercase tracking-wider text-[#4d4354]/45">{l.label}</dt>
+            <dt className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">{l.label}</dt>
             <dd className="truncate text-[13px] font-bold text-[#1f1a23]">{l.value}</dd>
           </div>
         ))}
@@ -183,7 +183,7 @@ You will be asked to set your own password on first sign-in.`;
             </code>
             <button
               onClick={() => copy(data.email, "email")}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-[#4d4354]/50 transition-colors hover:text-[#8127cf]"
+              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
               aria-label="Copy email"
             >
               {copied === "email" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
@@ -196,14 +196,14 @@ You will be asked to set your own password on first sign-in.`;
             </code>
             <button
               onClick={() => setReveal((v) => !v)}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-[#4d4354]/50 transition-colors hover:text-[#8127cf]"
+              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
               aria-label={reveal ? "Hide password" : "Show password"}
             >
               {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
             <button
               onClick={() => copy(data.password, "pw")}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-[#4d4354]/50 transition-colors hover:text-[#8127cf]"
+              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
               aria-label="Copy password"
             >
               {copied === "pw" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
@@ -220,7 +220,7 @@ You will be asked to set your own password on first sign-in.`;
         </button>
       </div>
 
-      <p className="mt-4 flex items-start gap-2 px-1 text-[11px] font-semibold leading-relaxed text-[#4d4354]/55">
+      <p className="mt-4 flex items-start gap-2 px-1 text-[11px] font-semibold leading-relaxed text-ink-muted">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
         This password is not stored anywhere in readable form and cannot be shown again.
         The user must replace it the first time they sign in.
@@ -369,12 +369,12 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
                 onChange={(e) => setPassword(e.target.value)} />
               <button onClick={() => setPassword(makePassword())} type="button"
                 aria-label="Regenerate password"
-                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-[#4d4354]/50 transition-colors hover:bg-[#8127cf] hover:text-white">
+                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-colors hover:bg-[#8127cf] hover:text-white">
                 <RefreshCw className="h-4 w-4" />
               </button>
             </div>
           </Field>
-          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2 text-[11px] font-bold text-[#4d4354]/55">
+          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2 text-[11px] font-bold text-ink-muted">
             Role is <span className="text-[#8127cf]">SUPER_ADMIN</span> — full control of this school across every campus.
           </p>
         </section>
@@ -394,7 +394,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
                     <span className={`text-[13px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{def.name}</span>
                     {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
                   </div>
-                  <p className="mt-0.5 text-[10px] font-bold text-[#4d4354]/45">{def.priceLabel}</p>
+                  <p className="mt-0.5 text-[10px] font-bold text-ink-subtle">{def.priceLabel}</p>
                 </button>
               );
             })}
@@ -408,7 +408,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               { icon: Zap, label: "AI credits", v: planDef.aiCredits },
             ].map(({ icon: I, label, v }) => (
               <div key={label}>
-                <div className="flex items-center gap-1.5 text-[#4d4354]/40">
+                <div className="flex items-center gap-1.5 text-ink-subtle">
                   <I className="h-3 w-3" />
                   <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
                 </div>
@@ -424,7 +424,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               {["TRIAL", "ACTIVE"].map((s) => (
                 <button key={s} type="button" onClick={() => set("status", s)}
                   className={`h-10 flex-1 cursor-pointer rounded-xl text-[12px] font-black transition-all ${
-                    form.status === s ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-[#4d4354]/60 hover:bg-[#e9e5ee]"
+                    form.status === s ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink-muted hover:bg-[#e9e5ee]"
                   }`}>
                   {s}
                 </button>
@@ -435,12 +435,12 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-[#cfc2d6]/15 p-5">
-        <p className="text-[11px] font-bold text-[#4d4354]/40">
+        <p className="text-[11px] font-bold text-ink-subtle">
           {valid ? "Ready to provision" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">
           <button onClick={onClose}
-            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-[#4d4354]/60 transition-colors hover:bg-[#f3f4f9]">
+            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]">
             Cancel
           </button>
           <button onClick={submit} disabled={!valid || busy}
@@ -564,7 +564,7 @@ export function AddUserModal({
                     <span className={`text-[12.5px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{r.label}</span>
                     {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
                   </div>
-                  <p className="mt-0.5 text-[10px] font-bold leading-snug text-[#4d4354]/45">{r.hint}</p>
+                  <p className="mt-0.5 text-[10px] font-bold leading-snug text-ink-subtle">{r.hint}</p>
                 </button>
               );
             })}
@@ -588,7 +588,7 @@ export function AddUserModal({
         )}
 
         {!needsCampus && (
-          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2.5 text-[11px] font-bold text-[#4d4354]/55">
+          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2.5 text-[11px] font-bold text-ink-muted">
             A Super Admin spans every campus in the school, so no campus is assigned.
           </p>
         )}
@@ -615,7 +615,7 @@ export function AddUserModal({
               onChange={(e) => setPassword(e.target.value)} />
             <button onClick={() => setPassword(makePassword())} type="button"
               aria-label="Regenerate password"
-              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-[#4d4354]/50 transition-colors hover:bg-[#8127cf] hover:text-white">
+              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-colors hover:bg-[#8127cf] hover:text-white">
               <RefreshCw className="h-4 w-4" />
             </button>
           </div>
@@ -630,12 +630,12 @@ export function AddUserModal({
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-[#cfc2d6]/15 p-5">
-        <p className="text-[11px] font-bold text-[#4d4354]/40">
+        <p className="text-[11px] font-bold text-ink-subtle">
           {valid ? "Ready to create" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">
           <button onClick={onClose}
-            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-[#4d4354]/60 transition-colors hover:bg-[#f3f4f9]">
+            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]">
             Cancel
           </button>
           <button onClick={submit} disabled={!valid || busy}

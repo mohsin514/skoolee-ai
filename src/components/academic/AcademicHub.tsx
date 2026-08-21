@@ -312,7 +312,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                   Year Complete
                 </p>
                 <h3 className="text-lg font-black text-[#1f1a23]">Everything is set up</h3>
-                <p className="mt-0.5 text-xs font-semibold text-[#4d4354]/60">
+                <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                   Results are out. You can now move students into next year.
                 </p>
               </div>
@@ -339,7 +339,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                   Next Step · {currentIndex + 1} of {steps.length}
                 </p>
                 <h3 className="text-lg font-black text-[#1f1a23]">{currentStep.label}</h3>
-                <p className="mt-0.5 max-w-xl text-xs font-semibold text-[#4d4354]/70">
+                <p className="mt-0.5 max-w-xl text-xs font-semibold text-ink">
                   {currentStep.reason}
                 </p>
               </div>
@@ -357,7 +357,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
 
       {/* ── Step tracker ── */}
       <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
-        <h3 className="mb-4 text-sm font-black uppercase tracking-wider text-[#4d4354]/70">
+        <h3 className="mb-4 text-sm font-black uppercase tracking-wider text-ink">
           Your Year at a Glance
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -383,17 +383,17 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                         ? "bg-emerald-100 text-emerald-600"
                         : isCurrent
                           ? "bg-[#8127cf] text-white"
-                          : "bg-[#f3f4f9] text-[#4d4354]/50"
+                          : "bg-[#f3f4f9] text-ink-muted"
                     }`}
                   >
                     {s.done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/35">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                     Step {i + 1}
                   </span>
                 </div>
                 <p className="text-sm font-black text-[#1f1a23]">{s.label}</p>
-                <p className="text-[11px] font-semibold leading-snug text-[#4d4354]/55">{s.blurb}</p>
+                <p className="text-[11px] font-semibold leading-snug text-ink-muted">{s.blurb}</p>
                 {s.detail ? (
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -421,14 +421,14 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           <div className="flex items-center gap-3">
             <span
               className={`flex h-8 w-8 items-center justify-center rounded-xl ${
-                allDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-[#4d4354]/40"
+                allDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
               }`}
             >
               {allDone ? <GraduationCap className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </span>
             <div>
               <p className="text-xs font-black text-[#1f1a23]">At the end of the year</p>
-              <p className="text-[11px] font-semibold text-[#4d4354]/55">
+              <p className="text-[11px] font-semibold text-ink-muted">
                 {allDone
                   ? "Ready — move students into their next class."
                   : "Promoting students unlocks once results are released."}
@@ -441,7 +441,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
             className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
               allDone
                 ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                : "cursor-not-allowed bg-[#e8e0ec]/60 text-[#4d4354]/35"
+                : "cursor-not-allowed bg-[#e8e0ec]/60 text-ink-subtle"
             }`}
           >
             Promote Students
@@ -464,7 +464,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-black uppercase tracking-wider text-[#4d4354]/70">
+            <h3 className="text-sm font-black uppercase tracking-wider text-ink">
               Needs Your Attention
             </h3>
           </div>
@@ -491,7 +491,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
             <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/60 py-8 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
               <p className="mt-2 text-sm font-bold text-emerald-700">All caught up</p>
-              <p className="text-xs text-[#4d4354]/50">Nothing needs fixing right now</p>
+              <p className="text-xs text-ink-muted">Nothing needs fixing right now</p>
             </div>
           )}
         </div>
@@ -500,7 +500,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <Clock className="h-4 w-4 text-[#8127cf]" />
-            <h3 className="text-sm font-black uppercase tracking-wider text-[#4d4354]/70">
+            <h3 className="text-sm font-black uppercase tracking-wider text-ink">
               Recent Activity
             </h3>
           </div>
@@ -522,7 +522,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                     </span>
                     <div>
                       <p className="text-sm font-bold text-[#1f1a23]">{a.title}</p>
-                      <p className="text-[11px] font-semibold text-[#4d4354]/50">
+                      <p className="text-[11px] font-semibold text-ink-muted">
                         {[a.term, a.meta].filter(Boolean).join(" · ")}
                       </p>
                     </div>
@@ -534,7 +534,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           ) : (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] py-8 text-center">
               <CircleDashed className="h-8 w-8 text-[#cfc2d6]" />
-              <p className="mt-2 text-sm font-semibold text-[#4d4354]/50">No recent activity yet</p>
+              <p className="mt-2 text-sm font-semibold text-ink-muted">No recent activity yet</p>
             </div>
           )}
         </div>
@@ -561,7 +561,7 @@ function StatCard({
         <Icon className={`h-5 w-5 ${t.text}`} />
       </div>
       <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-[#4d4354]/55">{label}</p>
+      <p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p>
     </div>
   );
 }

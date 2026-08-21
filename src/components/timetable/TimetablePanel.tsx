@@ -83,7 +83,7 @@ const SUBJECT_COLORS = [
 ];
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-[#4d4354]/50", label: "Break" },
+  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break" },
   PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
   ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
@@ -508,7 +508,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           type="button"
           onClick={() => setViewMode("class")}
           className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+            viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
           }`}
         >
           <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class View
@@ -517,7 +517,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           type="button"
           onClick={() => setViewMode("teacher")}
           className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+            viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
           }`}
         >
           <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher View
@@ -538,10 +538,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   <option key={t.id} value={t.id}>{t.fullName}</option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4d4354]/40 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
             </div>
             {selectedTeacherId && (
-              <span className="text-[10px] font-bold text-[#4d4354]/50">
+              <span className="text-[10px] font-bold text-ink-muted">
                 {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} assigned
               </span>
             )}
@@ -549,7 +549,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
               >
                 <Printer className="h-3.5 w-3.5" />Print Routine
               </button>
@@ -569,12 +569,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               <div className="min-w-[800px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
-                    <Clock className="w-4 h-4 text-[#4d4354]/30" />
+                    <Clock className="w-4 h-4 text-ink-subtle" />
                   </div>
                   {visibleDays.map((day) => (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-                      <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
                       {weekendDays.includes(day.num) && (
                         <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
                       )}
@@ -586,7 +586,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   <div key={period.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                     <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
                       <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                      <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{period.start}</span>
+                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
                     </div>
                     {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
@@ -599,7 +599,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                               <p className={`text-[10px] font-black leading-tight ${isConflict ? "text-rose-700" : "text-emerald-700"}`}>
                                 {slotInfo.subject}
                               </p>
-                              <p className="text-[8px] font-semibold text-[#4d4354]/50 mt-0.5">
+                              <p className="text-[8px] font-semibold text-ink-muted mt-0.5">
                                 {slotInfo.classLabel}
                               </p>
                               {isConflict && (
@@ -608,7 +608,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                             </div>
                           ) : (
                             <div className="h-full rounded-xl border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                              <span className="text-[8px] font-semibold text-[#4d4354]/15">—</span>
+                              <span className="text-[8px] font-semibold text-ink-subtle">—</span>
                             </div>
                           )}
                         </div>
@@ -616,7 +616,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     })}
                   </div>
                 )) : (
-                  <div className="flex items-center justify-center py-16 text-sm font-semibold text-[#4d4354]/40">
+                  <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
                     No timetable periods found. Create timetables for classes first.
                   </div>
                 )}
@@ -640,7 +640,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 className={`relative flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                   selectedClassId === cls.id
                     ? "bg-white text-[#8127cf] shadow-sm"
-                    : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                    : "text-ink-muted hover:text-[#8127cf]"
                 }`}
               >
                 {cls.name}{cls.section ? ` - ${cls.section}` : ""}
@@ -667,7 +667,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             <Calendar className="w-10 h-10 text-[#8127cf]/40" />
           </div>
           <h3 className="text-lg font-black text-[#1f1a23] mb-2">No Timetable Yet</h3>
-          <p className="text-sm text-[#4d4354]/50 mb-8 max-w-sm text-center">
+          <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
             Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
           </p>
           <div className="flex items-center gap-3">
@@ -721,14 +721,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   setCustomPeriods(p);
                   setShowPeriodConfig(true);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
               >
                 <Clock className="h-3.5 w-3.5" />Periods
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
               >
                 <Printer className="h-3.5 w-3.5" />Print
               </button>
@@ -775,7 +775,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-gray-400"}`} />
                   <span className={`text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
                   {s.teacher && (
-                    <span className="text-[9px] font-semibold text-[#4d4354]/40 ml-1">({s.teacher.fullName})</span>
+                    <span className="text-[9px] font-semibold text-ink-subtle ml-1">({s.teacher.fullName})</span>
                   )}
                 </div>
               );
@@ -793,14 +793,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               {/* Header row */}
               <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                 <div className="flex items-center justify-center p-3">
-                  <Clock className="w-4 h-4 text-[#4d4354]/30" />
+                  <Clock className="w-4 h-4 text-ink-subtle" />
                 </div>
                 {visibleDays.map((day) => {
                   const isOff = weekendDays.includes(day.num);
                   return (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-                      <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
                       {isOff && (
                         <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
                       )}
@@ -825,10 +825,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     {/* Time column */}
                     <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
                       <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                      <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">
+                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">
                         {period.start}
                       </span>
-                      <span className="text-[7px] font-semibold text-[#4d4354]/20">
+                      <span className="text-[7px] font-semibold text-ink-subtle">
                         {period.end}
                       </span>
                     </div>
@@ -850,7 +850,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                             className={`border-l border-[#f3f4f9] flex items-center justify-center p-1 cursor-pointer ${offCls}`}
                             onClick={() => setEditingSlot(slot)}
                           >
-                            <span className={`text-[9px] font-bold ${style?.text || "text-[#4d4354]/40"}`}>
+                            <span className={`text-[9px] font-bold ${style?.text || "text-ink-subtle"}`}>
                               {style?.label || effectiveType}
                             </span>
                           </div>
@@ -892,12 +892,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                                   {subjectName}
                                 </p>
                                 {teacherName && (
-                                  <p className="text-[8px] font-semibold text-[#4d4354]/40 mt-1 flex items-center gap-0.5">
+                                  <p className="text-[8px] font-semibold text-ink-subtle mt-1 flex items-center gap-0.5">
                                     <User className="w-2.5 h-2.5" />{teacherName}
                                   </p>
                                 )}
                                 {roomName && (
-                                  <p className="text-[8px] font-semibold text-[#4d4354]/35 mt-0.5 flex items-center gap-0.5">
+                                  <p className="text-[8px] font-semibold text-ink-subtle mt-0.5 flex items-center gap-0.5">
                                     <DoorOpen className="w-2.5 h-2.5" />{roomName}
                                   </p>
                                 )}
@@ -905,7 +905,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                             </div>
                           ) : (
                             <div className="h-full rounded-xl border border-dashed border-[#cfc2d6]/20 flex items-center justify-center transition-all group-hover:border-[#8127cf]/30 group-hover:bg-[#fbf0fe]/30">
-                              <Plus className="w-3.5 h-3.5 text-[#4d4354]/15 group-hover:text-[#8127cf]/40 transition-colors" />
+                              <Plus className="w-3.5 h-3.5 text-ink-subtle group-hover:text-[#8127cf]/40 transition-colors" />
                             </div>
                           )}
                         </div>
@@ -1054,14 +1054,14 @@ function PeriodConfigModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label="Configure Periods" className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
+        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
           <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
 
         <div className="mb-6">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Timetable Setup</p>
           <h3 className="text-xl font-black text-[#1f1a23] mt-1">Configure Periods</h3>
-          <p className="text-xs font-semibold text-[#4d4354]/40 mt-1">Set start/end times and types for each period</p>
+          <p className="text-xs font-semibold text-ink-subtle mt-1">Set start/end times and types for each period</p>
         </div>
 
         <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
@@ -1074,7 +1074,7 @@ function PeriodConfigModal({
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
-              <span className="text-[10px] font-bold text-[#4d4354]/30">to</span>
+              <span className="text-[10px] font-bold text-ink-subtle">to</span>
               <input
                 type="time"
                 value={p.end}
@@ -1104,7 +1104,7 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/40 hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />Add Period
           </button>
@@ -1114,7 +1114,7 @@ function PeriodConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -1206,19 +1206,19 @@ function SlotEditorModal({
         className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-[#4d4354]/40 hover:bg-[#f3f4f9] transition-colors cursor-pointer">
+        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
           <X className="w-4 h-4" /><span className="sr-only">Close</span>
         </button>
 
         <div className="mb-6">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Edit Slot</p>
           <h3 className="text-xl font-black text-[#1f1a23] mt-1">{dayName} — Period {slot.periodNumber}</h3>
-          <p className="text-xs font-semibold text-[#4d4354]/40 mt-1">{slot.startTime} – {slot.endTime}</p>
+          <p className="text-xs font-semibold text-ink-subtle mt-1">{slot.startTime} – {slot.endTime}</p>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Slot Type</label>
+            <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
             <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
                 <button
@@ -1228,7 +1228,7 @@ function SlotEditorModal({
                   className={`flex-1 rounded-xl px-2 py-1.5 text-[9px] font-black uppercase transition-all cursor-pointer ${
                     slotType === type
                       ? "bg-white text-[#8127cf] shadow-sm"
-                      : "text-[#4d4354]/40 hover:text-[#8127cf]"
+                      : "text-ink-subtle hover:text-[#8127cf]"
                   }`}
                 >
                   {type}
@@ -1240,7 +1240,7 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Subject</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
                 <select
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
@@ -1254,7 +1254,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Teacher</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Teacher</label>
                 <select
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
@@ -1268,7 +1268,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/50 mb-1.5 block">Room (Optional)</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Room (Optional)</label>
                 <select
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
@@ -1282,7 +1282,7 @@ function SlotEditorModal({
                   ))}
                 </select>
                 {selectedRoom && selectedRoom.capacity > 0 && (
-                  <p className="mt-1.5 text-[10px] font-semibold text-[#4d4354]/45">
+                  <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
                     Room capacity is {selectedRoom.capacity} — assigned classes should not exceed this (warning only).
                   </p>
                 )}
@@ -1295,7 +1295,7 @@ function SlotEditorModal({
           <button
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#4d4354]/60 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
           >
             <X className="w-3 h-3" />Clear
           </button>
@@ -1378,7 +1378,7 @@ function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: 
         <Icon className="w-8 h-8 text-[#8127cf]/30" />
       </div>
       <h3 className="text-lg font-black text-[#1f1a23]">{title}</h3>
-      <p className="mt-2 text-sm font-semibold text-[#4d4354]/50 max-w-sm">{description}</p>
+      <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">{description}</p>
     </div>
   );
 }
@@ -1472,11 +1472,11 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
         <div className="min-w-[700px]">
           <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
             <div className="flex items-center justify-center p-2">
-              <Clock className="w-3.5 h-3.5 text-[#4d4354]/25" />
+              <Clock className="w-3.5 h-3.5 text-ink-subtle" />
             </div>
             {visibleDays.map((day) => (
               <div key={day.num} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
-                <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
               </div>
             ))}
           </div>
@@ -1493,7 +1493,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
               >
                 <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
                   <span className="text-[9px] font-black text-[#8127cf]">P{period.num}</span>
-                  <span className="text-[7px] font-bold text-[#4d4354]/25">{period.start}</span>
+                  <span className="text-[7px] font-bold text-ink-subtle">{period.start}</span>
                 </div>
                 {visibleDays.map((day) => {
                   const slot = getSlot(day.num, period.num);
@@ -1503,7 +1503,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                     const style = SLOT_TYPE_STYLES[slot.slotType];
                     return (
                       <div key={day.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-1">
-                        <span className={`text-[8px] font-bold ${style?.text || "text-[#4d4354]/40"}`}>
+                        <span className={`text-[8px] font-bold ${style?.text || "text-ink-subtle"}`}>
                           {style?.label || slot.slotType}
                         </span>
                       </div>
@@ -1520,19 +1520,19 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                             {slot.subject.name}
                           </p>
                           {slot.className && (
-                            <p className="text-[7px] font-semibold text-[#4d4354]/35 mt-0.5">
+                            <p className="text-[7px] font-semibold text-ink-subtle mt-0.5">
                               {slot.className}{slot.classSection ? ` - ${slot.classSection}` : ""}
                             </p>
                           )}
                           {slot.teacher && (
-                            <p className="text-[7px] font-semibold text-[#4d4354]/30 mt-0.5">
+                            <p className="text-[7px] font-semibold text-ink-subtle mt-0.5">
                               {slot.teacher.fullName}
                             </p>
                           )}
                         </div>
                       ) : (
                         <div className="h-full rounded-lg border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                          <span className="text-[8px] font-semibold text-[#4d4354]/15">—</span>
+                          <span className="text-[8px] font-semibold text-ink-subtle">—</span>
                         </div>
                       )}
                     </div>

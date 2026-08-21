@@ -121,7 +121,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
                 </div>
                 <div>
                   <h2 className="text-lg font-black tracking-tight">{section.title}</h2>
-                  <p className="mt-1.5 text-[15px] leading-7 text-[#4d4354]/75">{section.body}</p>
+                  <p className="mt-1.5 text-[15px] leading-7 text-ink">{section.body}</p>
                 </div>
               </div>
             );
@@ -143,7 +143,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
                 <p className="text-sm font-black text-[#1f1a23] transition-colors group-hover:text-[#8127cf]">
                   {nav.label}
                 </p>
-                <p className="mt-1 text-xs font-semibold leading-5 text-[#4d4354]/60">
+                <p className="mt-1 text-xs font-semibold leading-5 text-ink-muted">
                   {nav.desc}
                 </p>
               </Link>

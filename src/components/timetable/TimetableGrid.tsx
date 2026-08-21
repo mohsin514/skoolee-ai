@@ -13,7 +13,7 @@ import type {
 } from "./TimetableStudio";
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-[#4d4354]/50", label: "Break" },
+  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break" },
   PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
   ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
@@ -64,7 +64,7 @@ export function TimetableGrid({
       {/* Header row */}
       <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
         <div className="flex items-center justify-center p-3">
-          <span className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/30">Period</span>
+          <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
         </div>
         {visibleDays.map((day) => {
           const isOff = weekendDays.includes(day.num);
@@ -75,8 +75,8 @@ export function TimetableGrid({
                 isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""
               }`}
             >
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#4d4354]/30">{day.short}</span>
-              <span className="text-[8px] font-bold text-[#4d4354]/20 mt-0.5">{day.full}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+              <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
               {isOff && (
                 <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
               )}
@@ -101,8 +101,8 @@ export function TimetableGrid({
             {/* Time column */}
             <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
               <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-              <span className="text-[8px] font-bold text-[#4d4354]/30 mt-0.5">{period.start}</span>
-              <span className="text-[7px] font-semibold text-[#4d4354]/20">{period.end}</span>
+              <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
+              <span className="text-[7px] font-semibold text-ink-subtle">{period.end}</span>
             </div>
 
             {/* Day cells */}
@@ -123,7 +123,7 @@ export function TimetableGrid({
                     className={`border-l border-[#f3f4f9] flex items-center justify-center p-1 cursor-pointer ${offCls}`}
                     onClick={() => onCellClick(slot)}
                   >
-                    <span className={`text-[9px] font-bold ${style?.text || "text-[#4d4354]/40"}`}>
+                    <span className={`text-[9px] font-bold ${style?.text || "text-ink-subtle"}`}>
                       {style?.label || effectiveType}
                     </span>
                   </div>
@@ -179,13 +179,13 @@ export function TimetableGrid({
                       </p>
                       <div>
                         {teacherName && (
-                          <p className="text-[8px] font-semibold text-[#4d4354]/40 mt-1 flex items-center gap-0.5">
+                          <p className="text-[8px] font-semibold text-ink-subtle mt-1 flex items-center gap-0.5">
                             <User className="w-2.5 h-2.5" />
                             {teacherName}
                           </p>
                         )}
                         {roomName && (
-                          <p className="text-[8px] font-semibold text-[#4d4354]/35 mt-0.5 flex items-center gap-0.5">
+                          <p className="text-[8px] font-semibold text-ink-subtle mt-0.5 flex items-center gap-0.5">
                             <DoorOpen className="w-2.5 h-2.5" />
                             {roomName}
                           </p>
@@ -194,7 +194,7 @@ export function TimetableGrid({
                     </div>
                   ) : (
                     <div className="h-full min-h-[48px] rounded-xl border border-dashed border-[#cfc2d6]/20 flex items-center justify-center transition-all group-hover:border-[#8127cf]/30 group-hover:bg-[#fbf0fe]/30">
-                      <BookOpen className="w-3.5 h-3.5 text-[#4d4354]/15 group-hover:text-[#8127cf]/40 transition-colors" />
+                      <BookOpen className="w-3.5 h-3.5 text-ink-subtle group-hover:text-[#8127cf]/40 transition-colors" />
                     </div>
                   )}
                 </div>

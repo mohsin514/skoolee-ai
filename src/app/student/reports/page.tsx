@@ -39,7 +39,7 @@ export default function ReportsPage() {
             </span>
           </div>
           <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards</h2>
-          <p className="mt-1 text-sm font-semibold text-[#4d4354]/60">Your published academic records and performance summaries.</p>
+          <p className="mt-1 text-sm font-semibold text-ink-muted">Your published academic records and performance summaries.</p>
         </div>
       </div>
 
@@ -65,7 +65,7 @@ export default function ReportsPage() {
               <FileText className="w-8 h-8 text-[#8127cf]/40" />
             </div>
             <h3 className="text-xl font-bold text-[#1d1b20] tracking-tight">No report cards yet</h3>
-            <p className="mt-1 text-sm font-semibold text-[#4d4354]/55 max-w-sm">
+            <p className="mt-1 text-sm font-semibold text-ink-muted max-w-sm">
               Report cards will appear here after teachers publish them for your exams.
             </p>
           </div>
@@ -85,7 +85,7 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
   return (
     <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
       <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-[#4d4354]/40 uppercase tracking-wider transition-colors group-hover:text-[#4d4354]/60">{label}</p>
+        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
         <div className="relative">
           <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
           <div className={cn(
@@ -100,7 +100,7 @@ function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: a
         </div>
       </div>
       <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#4d4354]/40">{sub}</p>
+      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
     </div>
   );
 }
@@ -119,7 +119,7 @@ function ReportCard({ report }: { report: any }) {
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-[#4d4354]/40 uppercase tracking-wider mb-1 transition-colors group-hover:text-[#4d4354]/60">
+            <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-1 transition-colors group-hover:text-ink-muted">
               {report.exam?.term || "Exam"}
             </p>
             <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight transition-colors group-hover:text-[#8127cf]">
@@ -151,18 +151,18 @@ function ReportCard({ report }: { report: any }) {
       </div>
       <div className="p-6 pt-4">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] font-semibold text-[#4d4354]/40">Academic Year {report.exam?.academicYear || "—"}</span>
+          <span className="text-[10px] font-semibold text-ink-subtle">Academic Year {report.exam?.academicYear || "—"}</span>
           <span className="h-3 w-[1px] bg-[#cfc2d6]/20" />
-          <span className="text-[10px] font-semibold text-[#4d4354]/40">{Math.round(report.percentage || 0)}% overall</span>
+          <span className="text-[10px] font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
         </div>
         {report.remarksEn ? (
           <div className="relative">
-            <p className="text-sm font-medium text-[#4d4354]/70 leading-relaxed line-clamp-3 transition-colors group-hover:text-[#4d4354]/80">
+            <p className="text-sm font-medium text-ink leading-relaxed line-clamp-3 transition-colors group-hover:text-ink">
               {report.remarksEn}
             </p>
           </div>
         ) : (
-          <p className="text-sm font-semibold text-[#4d4354]/30 italic">No remarks provided.</p>
+          <p className="text-sm font-semibold text-ink-subtle italic">No remarks provided.</p>
         )}
         <div className="mt-4 flex items-center gap-1 text-[10px] font-semibold text-[#8127cf] opacity-0 transition-all duration-300 group-hover:opacity-100">
           <span>View details</span>

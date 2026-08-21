@@ -20,7 +20,7 @@ import type {
 import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees } from "./fee-utils";
 
 const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
-const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40";
+const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
 
 export function FeeLayersTab({ campusId }: { campusId?: string }) {
   const [active, setActive] = useState<"types" | "groups" | "master" | "assign" | "discounts" | "carry">("types");
@@ -46,7 +46,7 @@ export function FeeLayersTab({ campusId }: { campusId?: string }) {
               type="button"
               onClick={() => setActive(tab.key)}
               className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-[#4d4354]/50 hover:text-[#8127cf]"
+                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -161,7 +161,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee Types</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             Reusable fee heads &mdash; Tuition, Admission, Lab, Books&hellip;
           </p>
         </div>
@@ -183,16 +183,16 @@ function TypesPanel({ campusId }: { campusId?: string }) {
             <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                   {t.code} · {t._count?.masters ?? 0} line(s)
                   {t.description ? ` · ${t.description}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => openModal(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => openModal(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
                   <BookOpen className="w-3.5 h-3.5" />
                 </button>
-                <button type="button" onClick={() => setDeleting(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => setDeleting(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <ConfirmAction
@@ -315,7 +315,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Fee Groups</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             Packages bundling multiple fee types &mdash; price them in Master
           </p>
         </div>
@@ -340,15 +340,15 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="text-sm font-black text-[#1f1a23]">{g.name}</p>
-                    <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                    <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                       {g.lines.length} fee line(s) · {g.assignments.length} class assignment(s)
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => openModal(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50">
+                    <button type="button" onClick={() => openModal(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
                       <BookOpen className="w-3.5 h-3.5" />
                     </button>
-                    <button type="button" onClick={() => setDeleting(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                    <button type="button" onClick={() => setDeleting(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <ConfirmAction
@@ -363,11 +363,11 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                   </div>
                 </div>
                 <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2 flex items-center justify-between">
-                  <p className="text-[9px] font-black uppercase text-[#4d4354]/40">Bundled value</p>
+                  <p className="text-[9px] font-black uppercase text-ink-subtle">Bundled value</p>
                   <p className="text-sm font-black text-[#8127cf]">{formatPKR(lineTotal)}</p>
                 </div>
                 {g.description && (
-                  <p className="text-[10px] font-semibold text-[#4d4354]/45 mt-2 px-1">{g.description}</p>
+                  <p className="text-[10px] font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
                 )}
               </div>
             );
@@ -509,7 +509,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/45">
+            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               {selectedGroup.name} &mdash; {selectedGroup.lines.length} line(s)
             </p>
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
@@ -523,17 +523,17 @@ function MasterPanel({ campusId }: { campusId?: string }) {
               <div key={line.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
                 <div>
                   <p className="text-sm font-black text-[#1f1a23]">{line.feeType?.name ?? "Unknown"}</p>
-                  <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                  <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                     {line.feeType?.code}
                     {line.dueDate ? ` · due ${new Date(line.dueDate).toLocaleDateString()}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount)}</p>
-                  <button type="button" onClick={() => openModal(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50">
+                  <button type="button" onClick={() => openModal(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
                     <BookOpen className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => setDeleting(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                  <button type="button" onClick={() => setDeleting(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                   <ConfirmAction
@@ -664,7 +664,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Class Assignments</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             Which fee group serves each class, per academic year
           </p>
         </div>
@@ -683,12 +683,12 @@ function AssignPanel({ campusId }: { campusId?: string }) {
                 <p className="text-sm font-black text-[#1f1a23]">
                   {a.class ? classLabel(a.class.name, a.class.section) : "Unknown class"}
                 </p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                   {a.feeGroup?.name} · {a.academicYear}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setDeleting(a)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => setDeleting(a)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <ConfirmAction
@@ -906,7 +906,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Discounts</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             Flat (PKR) or percent &mdash; per student or auto-applied to a category
           </p>
         </div>
@@ -923,7 +923,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                   {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value)}
                   {d.category ? ` · auto: ${d.category.name}` : ""} · {d._count?.assignments ?? 0} student(s)
                 </p>
@@ -932,10 +932,10 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                 <button type="button" onClick={() => openAssign(d)} className="h-8 px-2.5 rounded-xl bg-[#fbf0fe] text-[#8127cf] flex items-center gap-1 hover:bg-white transition-colors cursor-pointer text-[9px] font-black uppercase tracking-wider">
                   <Users className="w-3.5 h-3.5" /> Assign
                 </button>
-                <button type="button" onClick={() => openModal(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => openModal(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
                   <BookOpen className="w-3.5 h-3.5" />
                 </button>
-                <button type="button" onClick={() => setDeleting(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => setDeleting(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <ConfirmAction
@@ -991,17 +991,17 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">
                 Assigned ({assigned.length})
               </p>
               {assigned.length === 0 ? (
-                <p className="text-[10px] font-semibold text-[#4d4354]/30 italic">No students assigned yet.</p>
+                <p className="text-[10px] font-semibold text-ink-subtle italic">No students assigned yet.</p>
               ) : (
                 <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
                   {assigned.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 px-3 py-2">
                       <p className="text-xs font-black text-[#1f1a23]">
-                        {a.student?.fullName} <span className="text-[#4d4354]/40 font-bold">· {a.student?.rollNo ?? ""}</span>
+                        {a.student?.fullName} <span className="text-ink-subtle font-bold">· {a.student?.rollNo ?? ""}</span>
                       </p>
                       <button
                         type="button"
@@ -1018,7 +1018,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-2">Add student</p>
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">Add student</p>
               <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
                 {students
                   .filter((s) => {
@@ -1033,7 +1033,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                   .map((s) => (
                     <div key={s.id} className="flex items-center justify-between rounded-xl border border-[#cfc2d6]/10 px-3 py-2">
                       <p className="text-xs font-bold text-[#1f1a23]">
-                        {s.fullName} <span className="text-[#4d4354]/40 font-bold">· {s.rollNo ?? ""}</span>
+                        {s.fullName} <span className="text-ink-subtle font-bold">· {s.rollNo ?? ""}</span>
                       </p>
                       <button
                         type="button"
@@ -1046,7 +1046,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                     </div>
                   ))}
                 {students.filter((s) => !assigned.some((a) => a.studentId === s.id)).length === 0 && (
-                  <p className="text-[10px] font-semibold text-[#4d4354]/30 italic">All students already assigned.</p>
+                  <p className="text-[10px] font-semibold text-ink-subtle italic">All students already assigned.</p>
                 )}
               </div>
             </div>
@@ -1157,7 +1157,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]">Carry Forward</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
             Session-end balances moved to the next academic year
           </p>
         </div>
@@ -1174,7 +1174,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
             <div key={f.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{f.student?.fullName ?? "Unknown"}</p>
-                <p className="text-[9px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                   {f.fromAcademicYear} &rarr; {f.toAcademicYear}
                   {f.note ? ` · ${f.note}` : ""}
                 </p>
@@ -1183,7 +1183,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
                 <span className={`text-sm font-black ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance))}
                 </span>
-                <button type="button" onClick={() => setDeleting(f)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-[#4d4354]/50">
+                <button type="button" onClick={() => setDeleting(f)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <ConfirmAction
@@ -1351,11 +1351,11 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40 mb-1">Fine Rules</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Fine Rules</p>
           <p className="text-sm font-black text-[#1f1a23]">
             Late-payment fines applied when collecting overdue invoices
           </p>
-          <p className="text-[10px] font-semibold text-[#4d4354]/40 mt-0.5">
+          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">
             PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due
           </p>
         </div>
@@ -1381,9 +1381,9 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">
                   {rule.name}
-                  {rule.description ? <span className="ml-2 text-[10px] font-semibold text-[#4d4354]/40">{rule.description}</span> : null}
+                  {rule.description ? <span className="ml-2 text-[10px] font-semibold text-ink-subtle">{rule.description}</span> : null}
                 </p>
-                <p className="text-[10px] font-bold text-[#4d4354]/45 mt-0.5">
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {rule.type === "PERCENT"
                     ? `${rule.value}% of balance`
                     : rule.type === "PER_DAY"
@@ -1397,7 +1397,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
                 onClick={() => handleToggle(rule)}
                 disabled={togglingId === rule.id}
                 className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50 ${
-                  rule.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-[#4d4354]/40"
+                  rule.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"
                 }`}
               >
                 {togglingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -1406,7 +1406,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
               <button
                 type="button"
                 onClick={() => openModal(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-[#8127cf] transition-colors cursor-pointer"
+                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer"
                 aria-label="Edit fine rule"
               >
                 <Tag className="w-4 h-4" />
@@ -1414,7 +1414,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
               <button
                 type="button"
                 onClick={() => setDeleting(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-[#4d4354]/50 hover:text-rose-500 transition-colors cursor-pointer"
+                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer"
                 aria-label="Delete fine rule"
               >
                 <Trash2 className="w-4 h-4" />

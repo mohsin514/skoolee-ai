@@ -149,7 +149,7 @@ export function ExamDateSheet({
           </div>
           <div>
             <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Exam Date Sheet</h3>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/40">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
               {exams.length} exam cycle{exams.length !== 1 ? "s" : ""}
             </p>
           </div>
@@ -198,7 +198,7 @@ export function ExamDateSheet({
       ) : visibleExams.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16">
           <CalendarDays className="mb-4 h-12 w-12 text-[#8127cf]/25" />
-          <p className="text-sm font-bold text-[#4d4354]/50">
+          <p className="text-sm font-bold text-ink-muted">
             {classId
               ? "No exam cycles published for your class yet."
               : "No exam cycles published yet. The date sheet will appear here once exams are scheduled."}
@@ -208,7 +208,7 @@ export function ExamDateSheet({
         <>
           <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-[#f6f2fa] p-3">
             <span className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{selectedExam.title}</span>
-            <span className="text-[10px] font-bold text-[#4d4354]/50">
+            <span className="text-[10px] font-bold text-ink-muted">
               {selectedExam.class ? `${selectedExam.class.name}${selectedExam.class.section ? ` ${selectedExam.class.section}` : ""} · ` : ""}
               {selectedExam.term} · {selectedExam.academicYear}
             </span>
@@ -224,7 +224,7 @@ export function ExamDateSheet({
           ) : !hasSheets ? (
             <div className="flex flex-col items-center justify-center py-14">
               <CalendarDays className="mb-3 h-10 w-10 text-[#8127cf]/20" />
-              <p className="text-xs font-bold text-[#4d4354]/45">
+              <p className="text-xs font-bold text-ink-subtle">
                 Papers are being scheduled for this exam — check back soon.
               </p>
             </div>
@@ -234,7 +234,7 @@ export function ExamDateSheet({
                 <div key={date} className="rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/25 p-4">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-black text-[#8127cf]">{date} · {weekdayLabel(date)}</p>
-                    <span className="text-[9px] font-bold text-[#4d4354]/40">{rows.length} paper{rows.length !== 1 ? "s" : ""}</span>
+                    <span className="text-[9px] font-bold text-ink-subtle">{rows.length} paper{rows.length !== 1 ? "s" : ""}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {rows.map((row) => (
@@ -244,7 +244,7 @@ export function ExamDateSheet({
                         </span>
                         <div className="min-w-0">
                           <p className="truncate text-xs font-black text-[#1f1a23]">{row.subject?.name || "Class-wide paper"}</p>
-                          <p className="text-[9px] font-semibold text-[#4d4354]/45">
+                          <p className="text-[9px] font-semibold text-ink-subtle">
                             {row.periodDefinition ? `${row.periodDefinition.startTime}–${row.periodDefinition.endTime}` : "Any time"}
                             {row.room ? ` · Room ${row.room.roomNumber}` : ""}
                           </p>

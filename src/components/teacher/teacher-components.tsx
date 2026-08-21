@@ -51,7 +51,7 @@ export function statusTone(status?: string) {
   if (["ACTIVE", "MARKS_ENTRY", "PUBLISHED", "SENT", "APPROVED", "PRESENT"].includes(status || "")) return "bg-emerald-50 text-emerald-600";
   if (["LOCKED", "PRINCIPAL_REVIEWED", "REVIEWED", "LEAVE"].includes(status || "")) return "bg-[#fbf0fe] text-[#8127cf]";
   if (["ABSENT", "FAILED", "BLOCKED"].includes(status || "")) return "bg-rose-50 text-rose-600";
-  return "bg-[#f3f4f9] text-[#4d4354]/70";
+  return "bg-[#f3f4f9] text-ink";
 }
 
 /* ── Reusable UI components ── */
@@ -89,7 +89,7 @@ export function ClassHubCard({ cls, students, onViewStudent }: { cls: any; stude
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{cls.role || "Teacher"}</p>
           <h3 className="mt-1 truncate text-xl font-bold text-[#1d1b20] tracking-tight">{classLabel(cls)}</h3>
-          <p className="mt-1 text-[11px] font-medium text-[#4d4354]/45">Academic year {cls.academicYear || "N/A"}</p>
+          <p className="mt-1 text-[11px] font-medium text-ink-subtle">Academic year {cls.academicYear || "N/A"}</p>
         </div>
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
           <GraduationCap className="h-6 w-6" />
@@ -111,17 +111,17 @@ export function ClassHubCard({ cls, students, onViewStudent }: { cls: any; stude
         <div className="mt-5">
           <button type="button" onClick={() => setShowStudents(!showStudents)} className="flex w-full cursor-pointer items-center justify-between rounded-2xl bg-[#fbf0fe]/50 px-4 py-2.5 text-left transition-all hover:bg-[#fbf0fe] hover:shadow-sm">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{students.length} Student{students.length !== 1 ? "s" : ""}</span>
-            <span className="text-[10px] font-semibold text-[#4d4354]/40">{showStudents ? "Hide" : "View"}</span>
+            <span className="text-[10px] font-semibold text-ink-subtle">{showStudents ? "Hide" : "View"}</span>
           </button>
           {showStudents ? (
             <div className="mt-3 max-h-48 space-y-1 overflow-y-auto custom-scrollbar">
               {students.slice(0, 20).map((student: any) => (
                 <button key={student.id} type="button" onClick={() => onViewStudent?.(student)} className="flex w-full cursor-pointer items-center gap-3 rounded-xl bg-white/70 px-3 py-2 text-left text-xs font-semibold text-[#1d1b20] transition-all hover:bg-white hover:shadow-sm active:scale-[0.98]">
-                  <span className="text-[11px] font-bold text-[#4d4354]/40">{student.rollNo || "#"}</span>
+                  <span className="text-[11px] font-bold text-ink-subtle">{student.rollNo || "#"}</span>
                   <span className="truncate">{student.fullName}</span>
                 </button>
               ))}
-              {students.length > 20 ? <p className="px-3 py-1 text-[11px] font-semibold text-[#4d4354]/40">+{students.length - 20} more</p> : null}
+              {students.length > 20 ? <p className="px-3 py-1 text-[11px] font-semibold text-ink-subtle">+{students.length - 20} more</p> : null}
             </div>
           ) : null}
         </div>
@@ -138,7 +138,7 @@ export function StudentMini({ student }: { student: any }) {
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#4d4354]/45">
+        <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
           {student.rollNo || "No roll"} {student.class ? `- ${classLabel(student.class)}` : ""}
         </p>
       </div>
@@ -149,7 +149,7 @@ export function StudentMini({ student }: { student: any }) {
 export function MiniMetric({ label, value, active, danger }: { label: string; value: any; active?: boolean; danger?: boolean }) {
   return (
     <div className="rounded-2xl bg-[#fbf0fe]/70 px-3.5 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
       <p className={`mt-0.5 truncate text-lg font-bold ${danger ? "text-rose-600" : active ? "text-[#8127cf]" : "text-[#1d1b20]"}`}>{value}</p>
     </div>
   );
@@ -173,7 +173,7 @@ export function StatusPill({ status }: { status?: string }) {
 }
 
 export function EmptyInline({ text }: { text: string }) {
-  return <p className="rounded-2xl bg-[#fbf0fe]/60 border border-[#8127cf]/10 p-4 text-sm font-semibold text-[#4d4354]/55">{text}</p>;
+  return <p className="rounded-2xl bg-[#fbf0fe]/60 border border-[#8127cf]/10 p-4 text-sm font-semibold text-ink-muted">{text}</p>;
 }
 
 export function TeacherErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
@@ -185,7 +185,7 @@ export function TeacherErrorState({ error, onRetry }: { error?: string | null; o
         </div>
         <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
         <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your workspace</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#4d4354]/60">
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
           {error || "We couldn't load your teacher workspace. This may be a permission or connectivity issue."}
         </p>
         <div className="mt-6 inline-block">
@@ -245,7 +245,7 @@ export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: 
             <h3 id="modal-title" className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">{title}</h3>
           </div>
           <button type="button" onClick={onClose} aria-label="Close dialog"
-            className="flex h-10 w-10 items-center justify-center rounded-2xl text-[#4d4354]/40 hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/50">
+            className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -258,7 +258,7 @@ export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: 
 export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors hover:bg-white">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <span className="min-w-0 truncate text-right text-sm font-bold text-[#1d1b20]">{value}</span>
     </div>
   );
@@ -267,11 +267,11 @@ export function DetailRow({ label, value }: { label: string; value: ReactNode })
 export function FormInput({ label, value, placeholder, type = "text", required, onChange }: { label: string; value: string; placeholder: string; type?: string; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-[#4d4354]/35 focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
     </label>
   );
 }
@@ -279,7 +279,7 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
 export function FormSelect({ label, value, children, required, onChange }: { label: string; value: string; children: ReactNode; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <select value={value} onChange={(event) => onChange(event.target.value)}
@@ -313,7 +313,7 @@ export function ConfigField({ label, value, onChange }: { label: string; value: 
 
   return (
     <div>
-      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-[#4d4354]/50">{label}</span>
+      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <input type="number" min={0} max={100} value={text}
         onFocus={() => { editing.current = true; }}
         onBlur={() => {
@@ -394,7 +394,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
         <ModalSkeleton fieldRows={3} />
       ) : selectedGradeClassId ? (
         <div className="space-y-5">
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Exam Type Weights (must total 100%)</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights (must total 100%)</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ConfigField label="Quiz Weight (%)" value={gradeConfig.quizWeight} onChange={(v) => onConfigChange({ ...gradeConfig, quizWeight: v })} />
             <ConfigField label="Class Test Weight (%)" value={gradeConfig.classTestWeight} onChange={(v) => onConfigChange({ ...gradeConfig, classTestWeight: v })} />
@@ -405,7 +405,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             <p className="text-[10px] font-bold">Total: {Object.entries(gradeConfig).filter(([k]) => k.endsWith("Weight")).reduce((s, [, v]) => s + (v as number), 0)}%</p>
           </div>
           <div className="border-t border-[#cfc2d6]/10 pt-5">
-            <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-[#4d4354]/40">Grade Thresholds</p>
+            <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Grade Thresholds</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <ConfigField label="A+ ≥" value={gradeConfig.gradeAplus} onChange={(v) => onConfigChange({ ...gradeConfig, gradeAplus: v })} />
               <ConfigField label="A ≥" value={gradeConfig.gradeA} onChange={(v) => onConfigChange({ ...gradeConfig, gradeA: v })} />
@@ -466,7 +466,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
           <div className="overflow-x-auto rounded-2xl border border-[#f3f4f9]">
             <table className="w-full min-w-[600px] text-left">
               <thead>
-                <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                   <th className="px-5 py-4">Rank</th>
                   <th className="px-5 py-4">Student</th>
                   <th className="px-4 py-4 text-center">Roll No</th>
@@ -480,9 +480,9 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                   const cls = classHubs.find((c: any) => c.id === selectedGradeClassId);
                   return (
                     <tr key={grade.studentId} className="hover:bg-[#fbf0fe]/30 cursor-pointer transition-colors" onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}>
-                      <td className="px-5 py-4"><span className="text-sm font-bold text-[#4d4354]/60">#{grade.rank || i + 1}</span></td>
+                      <td className="px-5 py-4"><span className="text-sm font-bold text-ink-muted">#{grade.rank || i + 1}</span></td>
                       <td className="px-5 py-4"><p className="text-sm font-bold text-[#1d1b20]">{grade.studentName}</p></td>
-                      <td className="px-4 py-4 text-center text-sm font-semibold text-[#4d4354]/60">{grade.rollNo || "—"}</td>
+                      <td className="px-4 py-4 text-center text-sm font-semibold text-ink-muted">{grade.rollNo || "—"}</td>
                       <td className="px-4 py-4 text-center"><span className="text-lg font-bold text-[#8127cf]">{grade.overallPercentage}%</span></td>
                       <td className="px-4 py-4 text-center"><span className="rounded-full bg-white border border-[#cfc2d6]/10 px-3 py-1 text-[11px] font-bold text-[#1d1b20]">{grade.overallGrade}</span></td>
                       <td className="px-4 py-4 text-center">
@@ -499,7 +499,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-bold text-[#4d4354]/50">{weightedGradeResult.length} students</p>
+            <p className="text-xs font-bold text-ink-muted">{weightedGradeResult.length} students</p>
             <div className="flex flex-wrap gap-3">
               <BrandButton variant="dark" icon={generatingReportCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}>
@@ -541,7 +541,7 @@ export function StudentDetailModal({ student, exams, onClose }: { student: any; 
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Record</p>
           <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{student.fullName}</h3>
-          <p className="mt-2 text-sm font-semibold text-[#4d4354]/55">
+          <p className="mt-2 text-sm font-semibold text-ink-muted">
             {student.rollNo || "No roll number"} &mdash; {classLabel(student.class)}
           </p>
         </div>
@@ -732,7 +732,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             ) : null}
             <div className="min-w-0">
               <p className="text-sm font-black text-[#1d1b20]">{viewReport.campus.school?.name || viewReport.campus.name}</p>
-              <p className="truncate text-[11px] font-semibold text-[#4d4354]/55">{campusContactLine}</p>
+              <p className="truncate text-[11px] font-semibold text-ink-muted">{campusContactLine}</p>
             </div>
           </div>
         ) : null}
@@ -743,19 +743,19 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
             <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{viewReport.student?.fullName || "Student"}</h3>
-            <p className="mt-2 text-sm font-semibold text-[#4d4354]/55">
+            <p className="mt-2 text-sm font-semibold text-ink-muted">
               {viewReport.student?.rollNo ? `Roll No: ${viewReport.student.rollNo}` : ""} &middot; {classLabel(viewReport.student?.class)}
             </p>
-            <p className="mt-1 text-[11px] font-medium text-[#4d4354]/50">Generated {formatDate(viewReport.generatedAt)}</p>
+            <p className="mt-1 text-[11px] font-medium text-ink-muted">Generated {formatDate(viewReport.generatedAt)}</p>
           </div>
           <div className="flex items-center gap-5 shrink-0">
             <div className="text-center">
               <p className="text-4xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Percentage</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
             </div>
             <div className="text-center">
               <p className="text-4xl font-bold text-[#1d1b20]">{viewReport.grade || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Grade</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
             </div>
           </div>
         </div>
@@ -772,19 +772,19 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
               <p className="text-2xl font-bold text-[#1d1b20]">{viewReport.totalMarks || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Total Marks</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
               <p className="text-2xl font-bold text-[#8127cf]">{viewReport.obtainedMarks || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Obtained</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Obtained</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
               <p className="text-2xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Percentage</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
             </div>
             <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
               <p className={`text-2xl font-bold ${viewReport.passed !== false ? "text-[#1d1b20]" : "text-rose-600"}`}>{viewReport.grade || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Grade</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
             </div>
           </div>
         </div>
@@ -792,7 +792,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
           <PanelTitle icon={BarChart3} title="Marks Distribution" />
           {viewReport.weightConfig ? (
-            <p className="mt-3 text-[11px] font-semibold text-[#4d4354]/55">
+            <p className="mt-3 text-[11px] font-semibold text-ink-muted">
               Weights &mdash; Quiz {viewReport.weightConfig.quizWeight}% &middot; Class Test {viewReport.weightConfig.classTestWeight}% &middot; Mid Term {viewReport.weightConfig.midTermWeight}% &middot; Final {viewReport.weightConfig.finalWeight}%
             </p>
           ) : null}
@@ -824,7 +824,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                     <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10 bg-white">
                       <table className="w-full min-w-[520px] text-left">
                         <thead>
-                          <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/50">
+                          <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                             <th className="px-4 py-2.5">Exam</th>
                             <th className="px-4 py-2.5 text-center">Weight</th>
                             <th className="px-4 py-2.5 text-center">Marks</th>
@@ -871,12 +871,12 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           {onSaveRemarks ? (
             <div className="mt-4 space-y-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">English</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">English</p>
                 <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5 text-sm" placeholder="Write remarks for this student..." />
               </div>
               <div>
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Urdu</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
                   <div className="flex items-center gap-1.5">
                     {translatingUr ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#8127cf]">
@@ -894,7 +894,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                   <UrduInput value={remarks.ur} onChange={handleRemarksUrChange} textarea placeholder="اردو میں نوٹس لکھیں..." />
                 </div>
                 {!remarks.ur && remarks.en ? (
-                  <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-[#4d4354]/45">
+                  <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-ink-subtle">
                     <RefreshCw className="h-3 w-3" /> Urdu auto-translates from the English remark as you type.
                   </p>
                 ) : null}
@@ -910,13 +910,13 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             <div className="mt-4 space-y-3">
               {viewReport.remarksEn ? (
                 <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">English</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">English</p>
                   <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksEn}</p>
                 </div>
               ) : null}
               {viewReport.remarksUr ? (
                 <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20" dir="rtl">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4d4354]/45">Urdu</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
                   <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksUr}</p>
                 </div>
               ) : null}
