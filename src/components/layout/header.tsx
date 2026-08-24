@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   LogOut,
   Mail,
+  MessageCircle,
   Receipt,
   Settings,
   ShieldCheck,
@@ -31,7 +32,7 @@ import { useNotifications, type AppNotification } from "@/hooks/use-notification
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
-  GraduationCap, LayoutGrid, Mail, Receipt, UserCheck,
+  GraduationCap, LayoutGrid, Mail, MessageCircle, Receipt, UserCheck,
 };
 
 function resolveNotifIcon(name: string | null): LucideIcon {

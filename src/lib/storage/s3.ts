@@ -129,3 +129,23 @@ export function staffDocumentKey(
     .slice(0, 80);
   return `staff-docs/${campusId}/${userId}/${safe}`;
 }
+
+/**
+ * Key for a chat attachment.
+ *
+ * Prefixed with the school so a bucket-level policy or lifecycle rule can be
+ * written per tenant, and the conversation id keeps one thread's files
+ * together for retention sweeps.
+ */
+export function chatAttachmentKey(
+  schoolId: string,
+  conversationId: string,
+  fileName: string
+): string {
+  const safe = fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `chat/${schoolId}/${conversationId}/${safe}`;
+}

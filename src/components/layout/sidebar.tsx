@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  MessagesSquare,
   Settings,
   Users,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/dashboard/marks", label: "Marks Entry", icon: ClipboardList },
   { href: "/dashboard/reports", label: "Reports", icon: FileText },
   { href: "/dashboard/communications", label: "Communications", icon: MessageCircle },
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

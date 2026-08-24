@@ -18,6 +18,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  MessageCircle,
   MessageSquare,
   Plus,
   Receipt,
@@ -261,6 +262,7 @@ export default function SuperAdminDashboard() {
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
+    { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
 const bottomItems: RoleNavItem[] = [];
   const superAIFeatures = [

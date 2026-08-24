@@ -191,6 +191,27 @@ CREATE POLICY tenant_isolation ON "chart_of_accounts"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 
+ALTER TABLE "chat_attachments" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "chat_attachments" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "chat_attachments";
+CREATE POLICY tenant_isolation ON "chat_attachments"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "chat_messages" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "chat_messages" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "chat_messages";
+CREATE POLICY tenant_isolation ON "chat_messages"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "chat_settings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "chat_settings" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "chat_settings";
+CREATE POLICY tenant_isolation ON "chat_settings"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "class_rooms" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "class_rooms" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "class_rooms";
@@ -216,6 +237,20 @@ ALTER TABLE "consent_logs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "consent_logs" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "consent_logs";
 CREATE POLICY tenant_isolation ON "consent_logs"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "conversation_members" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "conversation_members" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "conversation_members";
+CREATE POLICY tenant_isolation ON "conversation_members"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "conversations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "conversations" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "conversations";
+CREATE POLICY tenant_isolation ON "conversations"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 

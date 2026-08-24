@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   CalendarRange,
+  MessageCircle,
   Package,
   PhoneCall,
   Plane,
@@ -867,6 +868,12 @@ export default function CampusAdminDashboard() {
       return canViewModule(VIEW_MODULE[entry.label] ?? "students") ? entry : null;
     })
     .filter(Boolean) as SidebarEntry[];
+
+  // Appended after the permission filter on purpose: messaging is not one of
+  // the permission modules, and VIEW_MODULE's fallback would have graded it
+  // against "students" — hiding the inbox from anyone without roster access.
+  filteredNavItems.push({ icon: MessageCircle, label: "Messages", href: "/messages" });
+
   const bottomItems: RoleNavItem[] = [];
   const adminAIFeatures = [
     { feature: "at_risk_students", label: "At-risk Students", placeholder: "Class, exam, or attendance focus" },

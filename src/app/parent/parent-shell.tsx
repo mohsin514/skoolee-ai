@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, Clock, CreditCard, FileText, LayoutGrid } from "lucide-react";
+import { CalendarCheck, Clock, CreditCard, FileText, LayoutGrid, MessageCircle } from "lucide-react";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
 
@@ -16,6 +16,15 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
     { icon: CalendarCheck, label: "Attendance", href: link("/parent/attendance") },
     { icon: Clock, label: "Timetable", href: link("/parent/timetable") },
     { icon: CreditCard, label: "Fees", href: link("/parent/fees") },
+    // Only for guardians who are actually signed in. A portal token grants
+    // 30 days of unauthenticated read access with no account behind it, so
+    // there is nobody for the other side of a conversation to be talking to —
+    // the link would only bounce them to the login screen. Signed-in
+    // guardians who happen to arrive on a token URL still reach messages
+    // through the floating messenger.
+    ...(token
+      ? []
+      : [{ icon: MessageCircle, label: "Messages", href: "/messages" }]),
   ];
 
   const child = data?.student;

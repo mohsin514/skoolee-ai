@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BarChart3, BookOpen, Calendar, CalendarCheck, CalendarDays, ClipboardList, FileText, GraduationCap, LogOut, Plane, Star, Users, Zap } from "lucide-react";
+import { BarChart3, BookOpen, Calendar, CalendarCheck, CalendarDays, ClipboardList, FileText, GraduationCap, LogOut, MessageCircle, Plane, Star, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
@@ -24,6 +24,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
     { icon: Star, label: "Marks & Tests", href: "/teacher/marks" },
     { icon: ClipboardList, label: "Assessments", href: "/teacher/tests" },
     { icon: Users, label: "My Students", href: "/teacher/students" },
+    { icon: MessageCircle, label: "Messages", href: "/messages" },
     { icon: FileText, label: "Reports", href: "/teacher/reports" },
     { icon: Calendar, label: "Timetable", href: "/teacher/timetable" },
     { icon: CalendarDays, label: "Calendar", href: "/teacher/calendar" },

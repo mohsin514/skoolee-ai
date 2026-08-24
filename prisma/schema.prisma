@@ -29,36 +29,36 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   name                 String
-  slug                 String   @unique // subdomain routing
-  status               String   @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, DELETED
+  slug                 String    @unique // subdomain routing
+  status               String    @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, DELETED
   deletedAt            DateTime? @map("deleted_at") // set on soft delete; status becomes DELETED
   // IANA zone used to decide what "today" is for this tenant. Stored datetimes
   // stay UTC (correct, and what Prisma normalises to); this only governs the
   // calendar-date boundary — which day an attendance mark or a cutoff falls on.
   // Defaults to Asia/Karachi: the product ships Urdu report cards, PKR fees and
   // CNIC/board fields, so UTC was never the right assumption for a real tenant.
-  timezone             String   @default("Asia/Karachi")
-  plan                 String   @default("FREE") // FREE, BASIC, PRO
+  timezone             String    @default("Asia/Karachi")
+  plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
   lastPaymentAt        DateTime? @map("last_payment_at") // last successful SafePay charge
-  aiCreditsUsed        Int      @default(0) @map("ai_credits_used")
-  aiCreditsLimit       Int      @default(100) @map("ai_credits_limit")
-  stripeCustomerId     String?  @unique @map("stripe_customer_id")
-  stripeSubscriptionId String?  @unique @map("stripe_subscription_id")
-  planPricing          Json?    @map("plan_pricing") // Owner-defined plan pricing overrides
+  aiCreditsUsed        Int       @default(0) @map("ai_credits_used")
+  aiCreditsLimit       Int       @default(100) @map("ai_credits_limit")
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  planPricing          Json?     @map("plan_pricing") // Owner-defined plan pricing overrides
   city                 String
   address              String?
-  regId                String   @unique @map("reg_id") // Unique Institutional Identity
-  contactEmail         String   @unique @map("contact_email")
+  regId                String    @unique @map("reg_id") // Unique Institutional Identity
+  contactEmail         String    @unique @map("contact_email")
   phone                String? // Primary contact phone
   website              String? // Official institution website
-  logoUrl              String?  @map("logo_url") // Institution icon / logo
-  establishedYear      Int?     @map("established_year") // Year the institution was founded
+  logoUrl              String?   @map("logo_url") // Institution icon / logo
+  establishedYear      Int?      @map("established_year") // Year the institution was founded
   tagline              String? // Motto / short descriptor
-  createdAt            DateTime @default(now()) @map("created_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
 
   // Relations
   campuses                Campus[]
@@ -152,6 +152,11 @@ model School {
   postalRecords           PostalRecord[]
   phoneCallLogs           PhoneCallLog[]
   certificateTemplates    CertificateTemplate[]
+  conversations           Conversation[]
+  conversationMembers     ConversationMember[]
+  chatMessages            ChatMessage[]
+  chatAttachments         ChatAttachment[]
+  chatSetting             ChatSetting?
 
   @@map("schools")
 }
@@ -260,6 +265,7 @@ model Campus {
   postalRecords         PostalRecord[]
   phoneCallLogs         PhoneCallLog[]
   certificateTemplates  CertificateTemplate[]
+  conversations         Conversation[]
 
   @@index([schoolId])
   @@map("campuses")
@@ -339,7 +345,10 @@ model User {
   // account at two schools — a parent with children at two institutions, or a
   // teacher working across two groups, was unrepresentable. Identity is now
   // scoped to the tenant: the same address may exist once per school.
-  passwordResets                PasswordReset[]          @relation("PasswordResetUser")
+  passwordResets       PasswordReset[]      @relation("PasswordResetUser")
+  chatMemberships      ConversationMember[] @relation("ChatMemberships")
+  chatMessages         ChatMessage[]        @relation("ChatMessagesSent")
+  createdConversations Conversation[]       @relation("ConversationCreator")
 
   @@unique([schoolId, email])
   @@unique([schoolId, username])
@@ -558,6 +567,7 @@ model Class {
   classHistory        StudentClassHistory[]
   feeGroupAssignments FeeGroupAssignment[]
   admissionQueries    AdmissionQuery[]      @relation("QueryClass")
+  conversations       Conversation[]
 
   @@index([schoolId])
   @@map("classes")
@@ -2444,4 +2454,196 @@ model ExamSeat {
   @@index([examRoomId])
   @@index([schoolId])
   @@map("exam_seats")
+}
+
+// ─── 18. MESSAGING / CHAT ─────────────────────────────────
+//
+// Direct and group messaging across all ten school roles. Who may open a
+// thread with whom is decided in src/lib/chat/policy.ts — the schema holds
+// no reachability rules, because they depend on live relationships (which
+// class a teacher takes, whose child a guardian is) rather than on stored
+// columns.
+//
+// Every row is tenant-owned: the Prisma guard stamps and filters school_id,
+// so a conversation can never span two schools.
+
+enum ConversationKind {
+  DIRECT // exactly two people, deduplicated by pairKey
+  GROUP // ad-hoc, named, anyone the creator may already reach
+  CLASS // a class channel: its teachers plus students and/or guardians
+  ANNOUNCEMENT // broadcast; only OWNER/MODERATOR members may post
+}
+
+enum ConversationMemberRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum ChatMessageKind {
+  TEXT
+  FILE
+  IMAGE
+  SYSTEM // membership and title changes, written by the server
+}
+
+model Conversation {
+  id       String           @id @default(uuid())
+  schoolId String           @default("") @map("school_id")
+  school   School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String?          @map("campus_id")
+  campus   Campus?          @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  kind     ConversationKind @default(DIRECT)
+  title    String?
+  topic    String?          @db.Text
+
+  /// Set on CLASS channels so the roster can be reconciled when students move.
+  classId String? @map("class_id")
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  /// The two participants of a DIRECT thread, ids sorted and joined by ":".
+  /// Unique per school, so "message this person" always resolves to the one
+  /// existing thread instead of forking a second one. NULL for every other
+  /// kind — Postgres does not collide NULLs in a unique index.
+  pairKey String? @map("pair_key")
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Read-only: kept visible and searchable, but closed to new messages.
+  isLocked Boolean @default(false) @map("is_locked")
+
+  // Denormalised so the conversation list is one query rather than one
+  // extra lookup per row.
+  lastMessageAt       DateTime? @map("last_message_at")
+  lastMessagePreview  String?   @map("last_message_preview")
+  lastMessageSenderId String?   @map("last_message_sender_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members  ConversationMember[]
+  messages ChatMessage[]
+
+  @@unique([schoolId, pairKey])
+  @@index([schoolId, campusId, lastMessageAt(sort: Desc)])
+  @@index([schoolId, classId])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  schoolId       String       @default("") @map("school_id")
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  conversationId String       @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String       @map("user_id")
+  user           User         @relation("ChatMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  memberRole ConversationMemberRole @default(MEMBER) @map("member_role")
+
+  /// Maintained on send and reset on read, so the unread badge never needs a
+  /// COUNT over the message table.
+  unreadCount Int       @default(0) @map("unread_count")
+  lastReadAt  DateTime? @map("last_read_at")
+
+  isMuted    Boolean @default(false) @map("is_muted")
+  isPinned   Boolean @default(false) @map("is_pinned")
+  isArchived Boolean @default(false) @map("is_archived")
+
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  /// Soft leave: the thread disappears from their list but the history they
+  /// were part of stays intact for everyone else and for moderation.
+  leftAt   DateTime? @map("left_at")
+
+  @@unique([conversationId, userId])
+  @@index([userId, leftAt, isArchived])
+  @@index([schoolId])
+  @@map("conversation_members")
+}
+
+model ChatMessage {
+  id             String       @id @default(uuid())
+  schoolId       String       @default("") @map("school_id")
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  conversationId String       @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// NULL for SYSTEM notices, and after the author's account is deleted —
+  /// the thread must stay readable for the people still in it.
+  senderId String? @map("sender_id")
+  sender   User?   @relation("ChatMessagesSent", fields: [senderId], references: [id], onDelete: SetNull)
+
+  kind ChatMessageKind @default(TEXT)
+  body String          @db.Text
+
+  replyToId String?       @map("reply_to_id")
+  replyTo   ChatMessage?  @relation("ChatMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("ChatMessageReplies")
+
+  attachments ChatAttachment[]
+
+  editedAt    DateTime? @map("edited_at")
+  /// Soft delete. The row survives so the school retains an auditable record
+  /// of what was said; only the body is withheld from the thread.
+  deletedAt   DateTime? @map("deleted_at")
+  deletedById String?   @map("deleted_by_id")
+
+  /// Sender-generated id, so a retried POST re-reads the message it already
+  /// created instead of posting it twice.
+  clientKey String? @map("client_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([conversationId, clientKey])
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([schoolId])
+  @@map("chat_messages")
+}
+
+model ChatAttachment {
+  id          String      @id @default(uuid())
+  schoolId    String      @default("") @map("school_id")
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  messageId   String      @map("message_id")
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  storageKey  String      @map("storage_key")
+  fileName    String      @map("file_name")
+  contentType String      @map("content_type")
+  sizeBytes   Int         @map("size_bytes")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([messageId])
+  @@index([schoolId])
+  @@map("chat_attachments")
+}
+
+/// Per-school messaging policy. The defaults are the conservative ones: the
+/// peer channels a school has to consciously open (pupil-to-pupil,
+/// guardian-to-guardian) start closed.
+model ChatSetting {
+  id       String @id @default(uuid())
+  schoolId String @unique @default("") @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  studentToStudent Boolean @default(false) @map("student_to_student")
+  parentToParent   Boolean @default(false) @map("parent_to_parent")
+  /// Whether families may reach support staff (accountant, librarian,
+  /// receptionist) directly. Leadership and their own teachers are always
+  /// reachable — that is the point of the module.
+  studentToSupport Boolean @default(true) @map("student_to_support")
+  parentToSupport  Boolean @default(true) @map("parent_to_support")
+
+  attachmentsEnabled Boolean @default(true) @map("attachments_enabled")
+
+  /// Outside these hours a family message still lands in the thread, it just
+  /// does not raise a notification on staff devices. "HH:mm" in school time.
+  quietHoursEnabled Boolean @default(false) @map("quiet_hours_enabled")
+  quietHoursStart   String  @default("20:00") @map("quiet_hours_start")
+  quietHoursEnd     String  @default("07:00") @map("quiet_hours_end")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("chat_settings")
 }

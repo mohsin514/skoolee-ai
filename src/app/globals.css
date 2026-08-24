@@ -318,9 +318,51 @@ button:disabled,
   to   { transform: translateX(160%) skewX(-12deg); }
 }
 
+/* ─── Messaging ───────────────────────────────────────────
+   Chat-specific motion. Kept here with the rest of the brand
+   vocabulary rather than inlined, so the reduced-motion block
+   below can switch all of it off in one place. */
+
+@keyframes skTypingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* A bubble arrives with a little overshoot — enough to read as "landed",
+   not enough to be a performance. */
+@keyframes skBubbleIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  60%  { opacity: 1; transform: translateY(-1px) scale(1.005); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Expanding ring behind an online dot / an unread launcher. */
+@keyframes skPing {
+  0%   { transform: scale(0.9); opacity: 0.55; }
+  70%  { transform: scale(2.1); opacity: 0; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+.sk-typing-dot { animation: skTypingDot 1.2s ease-in-out infinite; }
+.sk-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.sk-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+.sk-bubble-in { animation: skBubbleIn 0.32s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.sk-ping { animation: skPing 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+/* Faint dot field behind the message list, so a sparse thread does not read
+   as an empty white void. Sits under the bubbles at very low contrast. */
+.sk-chat-canvas {
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(129, 39, 207, 0.07), transparent 46%),
+    radial-gradient(circle at 84% 78%, rgba(177, 14, 107, 0.06), transparent 44%),
+    radial-gradient(rgba(129, 39, 207, 0.10) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sk-blob, .sk-rise, .sk-shake, .sk-shimmer, .sk-check-pop,
-  .sk-glow, .sk-float, .sk-sweep {
+  .sk-glow, .sk-float, .sk-sweep,
+  .sk-typing-dot, .sk-bubble-in, .sk-ping {
     animation: none !important;
   }
   .sk-parallax { transition: none !important; }

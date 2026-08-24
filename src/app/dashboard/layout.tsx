@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ChatDock, ChatProvider } from "@/components/chat";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 
@@ -21,16 +22,21 @@ export default async function DashboardLayout({
   const isSuspended = school?.status === "SUSPENDED";
 
   return (
-    <div className="flex min-h-screen bg-[#fbf0fe] font-sans text-[#1f1a23]">
-      <Sidebar />
-      <main className="skoolee-dashboard-main min-h-screen flex-1 pb-24 md:ml-64 md:pb-0">
-        {isSuspended && (
-          <div className="border-b border-amber-200 bg-amber-50/90 px-6 py-3 text-sm font-bold text-amber-800">
-            Subscription suspended. Billing is still available so an administrator can restore access.
-          </div>
-        )}
-        {children}
-      </main>
-    </div>
+    // This console predates RoleShell, so the messenger is mounted here too —
+    // otherwise the school-group workspace would be the one dashboard without it.
+    <ChatProvider>
+      <div className="flex min-h-screen bg-[#fbf0fe] font-sans text-[#1f1a23]">
+        <Sidebar />
+        <main className="skoolee-dashboard-main min-h-screen flex-1 pb-24 md:ml-64 md:pb-0">
+          {isSuspended && (
+            <div className="border-b border-amber-200 bg-amber-50/90 px-6 py-3 text-sm font-bold text-amber-800">
+              Subscription suspended. Billing is still available so an administrator can restore access.
+            </div>
+          )}
+          {children}
+        </main>
+        <ChatDock />
+      </div>
+    </ChatProvider>
   );
 }
