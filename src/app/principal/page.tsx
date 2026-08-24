@@ -20,6 +20,7 @@ import {
   DoorOpen,
   ExternalLink,
   FileText,
+  MessageCircle,
   PhoneCall,
   Plane,
   Shield,
@@ -442,6 +443,7 @@ export default function PrincipalDashboard() {
     },
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: MessageCircle, label: "Messages", href: "/messages" },
     { icon: School, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
   ];
   const bottomItems: RoleNavItem[] = [];

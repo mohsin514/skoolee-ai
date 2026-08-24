@@ -10,6 +10,7 @@ import {
   Landmark,
   LayoutGrid,
   Layers,
+  MessageCircle,
   Receipt,
   Wallet,
 } from "lucide-react";
@@ -86,6 +87,7 @@ export default function AccountantPage() {
     },
     { label: "Payroll", icon: Banknote, active: activeView === "payroll", onClick: () => setActiveView("payroll") },
     { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
+    { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
 
   return (

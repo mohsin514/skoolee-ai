@@ -15,6 +15,7 @@ const SUITES = [
   ["§10.2 permission-matrix enforcement",   "scripts/qa/permission-matrix.mjs"],
   ["§5  cross-module interlink chains",     "scripts/qa/probe-interlink-5.mjs"],
   ["§6.5 tenant timezone",                  "scripts/qa/probe-timezone.mjs"],
+  ["chat reachability + tenancy",           "scripts/qa/probe-chat.mjs"],
   ["FINDING-D one email, two schools",      "scripts/qa/probe-finding-d.mjs"],
   ["OWN-6 / INT-1 / MF-3 deletion",         "scripts/qa/probe-own-6-delete-school.mjs"],
 ];

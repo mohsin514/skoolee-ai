@@ -6,6 +6,7 @@ import {
   CalendarClock,
   FolderOpen,
   LayoutGrid,
+  MessageCircle,
   Package,
   RotateCcw,
   Users,
@@ -57,6 +58,7 @@ export default function LibrarianPage() {
     { label: "Library", icon: BookOpen, active: activeView === "library", onClick: () => setActiveView("library") },
     { label: "Inventory", icon: Package, active: activeView === "inventory", onClick: () => setActiveView("inventory") },
     { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
+    { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
 
   return (

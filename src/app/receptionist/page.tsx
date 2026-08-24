@@ -7,6 +7,7 @@ import {
   FileText,
   LayoutGrid,
   Mail,
+  MessageCircle,
   MessageSquare,
   Phone,
 } from "lucide-react";
@@ -66,6 +67,7 @@ export default function ReceptionistPage() {
     { label: "Phone Calls", icon: Phone, active: activeView === "phone-calls", onClick: () => setActiveView("phone-calls") },
     { label: "Certificates", icon: FileText, active: activeView === "certificates", onClick: () => setActiveView("certificates") },
     { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
+    { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
 
   return (
