@@ -221,6 +221,13 @@ export default function CampusAdminDashboard() {
   const [movingStudent, setMovingStudent] = useState<any>(null);
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  // Set when a category or group card asks to see its students, cleared as soon
+  // as the roster has taken it — so it is a hand-off, not a sticky filter.
+  const [rosterFilter, setRosterFilter] = useState<{ categoryId?: string; groupId?: string } | null>(null);
+  // What the roster / faculty list is showing, so a profile dialog can page
+  // through the same set rather than making the admin close and reopen it.
+  const [studentSequence, setStudentSequence] = useState<any[]>([]);
+  const [teacherSequence, setTeacherSequence] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
   const [showAddPrincipalForm, setShowAddPrincipalForm] = useState(false);
@@ -961,8 +968,6 @@ export default function CampusAdminDashboard() {
             <TeacherConflictsBanner />
             <AcademicPanel
               classes={data.classes}
-              exams={data.recentExams}
-              reports={data.recentReportCards}
               teachers={data.teachers}
               students={data.students}
               campusName={data.campusName}
@@ -989,7 +994,10 @@ export default function CampusAdminDashboard() {
               pendingInvites={data.pendingTeacherInvitations}
               onInvite={() => setShowAddTeacherForm(true)}
               onRemove={(id) => handleRemove(id, "Teacher")}
-              onViewTeacher={setSelectedTeacher}
+              onViewTeacher={(teacher, visible) => {
+              setSelectedTeacher(teacher);
+              setTeacherSequence(visible || []);
+            }}
               onResend={handleResendInvite}
               onCancel={handleCancelInvite}
             />
@@ -1000,9 +1008,15 @@ export default function CampusAdminDashboard() {
               students={data.students}
               classes={data.classes}
               onAddStudent={openAdmissionForm}
-              onViewStudent={setSelectedStudent}
+              onViewStudent={(student, visible) => {
+              setSelectedStudent(student);
+              setStudentSequence(visible || []);
+            }}
               onBulkImport={() => setShowBulkImportModal(true)}
               onExport={exportStudentsCSV}
+              incomingFilter={rosterFilter}
+              onIncomingFilterApplied={() => setRosterFilter(null)}
+              onRefresh={loadData}
             />
           ) : null}
 
@@ -1016,7 +1030,13 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "student-setup" ? (
-            <StudentSetupPanel />
+            <StudentSetupPanel
+              studentCount={data.students?.length}
+              onViewStudents={(filter) => {
+                setRosterFilter(filter);
+                setActiveView("students");
+              }}
+            />
           ) : null}
 
           {/*
@@ -1237,6 +1257,11 @@ export default function CampusAdminDashboard() {
         <StudentDetailModal
           student={selectedStudent}
           busy={savingStudentUpdate}
+          sequence={studentSequence.map((s: any) => ({ id: s.id, label: s.fullName }))}
+          onNavigate={(id) => {
+            const next = studentSequence.find((s: any) => s.id === id);
+            if (next) setSelectedStudent(next);
+          }}
           onClose={() => setSelectedStudent(null)}
           onMove={() => {
             openMoveStudent(selectedStudent);
@@ -1248,7 +1273,16 @@ export default function CampusAdminDashboard() {
       ) : null}
 
       {selectedTeacher ? (
-        <TeacherDetailModal teacher={selectedTeacher} onClose={() => setSelectedTeacher(null)} onUpdate={handleUpdateTeacher} />
+        <TeacherDetailModal
+          teacher={selectedTeacher}
+          sequence={teacherSequence.map((t: any) => ({ id: t.id, label: t.fullName }))}
+          onNavigate={(id) => {
+            const next = teacherSequence.find((t: any) => t.id === id);
+            if (next) setSelectedTeacher(next);
+          }}
+          onClose={() => setSelectedTeacher(null)}
+          onUpdate={handleUpdateTeacher}
+        />
       ) : null}
 
       <BulkImportDialog

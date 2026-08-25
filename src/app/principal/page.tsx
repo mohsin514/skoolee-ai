@@ -183,6 +183,13 @@ export default function PrincipalDashboard() {
   const [editedRemarks, setEditedRemarks] = useState({ en: "", ur: "" });
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  // Set when a category or group card asks to see its students, cleared as soon
+  // as the roster has taken it — so it is a hand-off, not a sticky filter.
+  const [rosterFilter, setRosterFilter] = useState<{ categoryId?: string; groupId?: string } | null>(null);
+  // What the roster / faculty list is showing, so a profile dialog can page
+  // through the same set rather than making the admin close and reopen it.
+  const [studentSequence, setStudentSequence] = useState<any[]>([]);
+  const [teacherSequence, setTeacherSequence] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [showClassWizard, setShowClassWizard] = useState(false);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
@@ -501,8 +508,6 @@ export default function PrincipalDashboard() {
           <TeacherConflictsBanner />
           <AcademicPanel
             classes={data.classes}
-            exams={data.recentExams}
-            reports={data.recentReportCards}
             teachers={data.teachers}
             students={data.students}
             campusName={data.campusName}
@@ -530,7 +535,10 @@ export default function PrincipalDashboard() {
             pendingAdminInvites={data.pendingAdminInvitations}
             onInvite={(role) => { if (role === "TEACHER") { setShowAddTeacherForm(true); } else { openAddStaff(role as "CAMPUS_ADMIN" | "PRINCIPAL"); } }}
             onRemove={(id, label) => handleRemove(id, label)}
-            onViewTeacher={setSelectedTeacher}
+            onViewTeacher={(teacher, visible) => {
+              setSelectedTeacher(teacher);
+              setTeacherSequence(visible || []);
+            }}
             onResend={handleResendInvite}
             onCancel={handleCancelInvite}
           />
@@ -548,12 +556,24 @@ export default function PrincipalDashboard() {
             students={data.students}
             classes={data.classes}
             onAddStudent={openAdmissionForm}
-            onViewStudent={setSelectedStudent}
+            onViewStudent={(student, visible) => {
+              setSelectedStudent(student);
+              setStudentSequence(visible || []);
+            }}
             onBulkImport={() => setShowBulkImportModal(true)}
             onExport={exportStudentsCSV}
+            incomingFilter={rosterFilter}
+            onIncomingFilterApplied={() => setRosterFilter(null)}
+            onRefresh={refetch}
           />
         ) : null}
-        {activeView === "student-setup" ? <StudentSetupPanel /> : null}
+        {activeView === "student-setup" ? <StudentSetupPanel
+              studentCount={data.students?.length}
+              onViewStudents={(filter) => {
+                setRosterFilter(filter);
+                setActiveView("students");
+              }}
+            /> : null}
         {activeView === "promote-archive" ? (
           <div className="space-y-6">
             <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
@@ -682,8 +702,33 @@ export default function PrincipalDashboard() {
           onUpdateSubject={handleUpdateSubject}
         />
       ) : null}
-      {selectedStudent && !showMoveStudentModal ? <StudentDetailModal student={selectedStudent} busy={savingStudentUpdate} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onMove={() => { setMoveClassId(""); setShowMoveStudentModal(true); }} onClose={() => { setSelectedStudent(null); }} /> : null}
-      {selectedTeacher ? <TeacherDetailModal teacher={selectedTeacher} onUpdate={handleUpdateTeacher} onClose={() => setSelectedTeacher(null)} /> : null}
+      {selectedStudent && !showMoveStudentModal ? (
+        <StudentDetailModal
+          student={selectedStudent}
+          busy={savingStudentUpdate}
+          sequence={studentSequence.map((s: any) => ({ id: s.id, label: s.fullName }))}
+          onNavigate={(id) => {
+            const next = studentSequence.find((s: any) => s.id === id);
+            if (next) setSelectedStudent(next);
+          }}
+          onUpdate={handleUpdateStudent}
+          onDelete={handleDeleteStudent}
+          onMove={() => { setMoveClassId(""); setShowMoveStudentModal(true); }}
+          onClose={() => { setSelectedStudent(null); }}
+        />
+      ) : null}
+      {selectedTeacher ? (
+        <TeacherDetailModal
+          teacher={selectedTeacher}
+          sequence={teacherSequence.map((t: any) => ({ id: t.id, label: t.fullName }))}
+          onNavigate={(id) => {
+            const next = teacherSequence.find((t: any) => t.id === id);
+            if (next) setSelectedTeacher(next);
+          }}
+          onUpdate={handleUpdateTeacher}
+          onClose={() => setSelectedTeacher(null)}
+        />
+      ) : null}
       {showAddTeacherForm && (
         <AddTeacherForm
           onSuccess={() => { setShowAddTeacherForm(false); refetch(); }}
@@ -746,7 +791,11 @@ function OverviewPanel({ data, communicationTotals, onViewReports, onViewEngagem
 
 function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvites, onInvite, onRemove, onViewTeacher, onResend, onCancel }: {
   teachers: any[]; pendingInvites: any[]; campusAdmins: any[]; pendingAdminInvites: any[];
-  onInvite: (role: string) => void; onRemove: (id: string, label: string) => void; onViewTeacher: (teacher: any) => void; onResend: (id: string) => void; onCancel: (id: string) => void;
+  onInvite: (role: string) => void; onRemove: (id: string, label: string) => void;
+  /** Receives the teacher and the list currently on screen, so the profile
+   *  dialog can step through it. */
+  onViewTeacher: (teacher: any, visible?: any[]) => void;
+  onResend: (id: string) => void; onCancel: (id: string) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const filtered = teachers.filter((t) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q); });
@@ -768,7 +817,7 @@ function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvi
           </div>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((teacher: any) => (<FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id, "Teacher")} />))}
+          {filtered.map((teacher: any) => (<FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={() => onRemove(teacher.id, "Teacher")} />))}
           {filtered.length === 0 ? (<div className="md:col-span-2 xl:col-span-3"><EmptyState icon={Users} title={searchQuery ? "No matching teachers" : "No active teachers"} description={searchQuery ? "Try a different search term." : "Assigned teachers will appear here for principal oversight."} /></div>) : null}
         </div>
         {pendingInvites.length > 0 ? (<div className="mt-6 space-y-2"><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle px-2">Pending Teacher Invitations ({pendingInvites.length})</p><div className="space-y-2">{pendingInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div></div>) : null}

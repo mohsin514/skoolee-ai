@@ -111,6 +111,10 @@ export function AcademicCalendar({
     y: number;
     mode: "view" | "add";
   } | null>(null);
+  // A month grid answers "what happens in October". It cannot answer "what is
+  // next", which is the question anyone actually opens this screen with — that
+  // used to mean clicking through months looking for a coloured square.
+  const [calendarView, setCalendarView] = useState<"month" | "agenda">("month");
 
   const qs = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
@@ -131,6 +135,91 @@ export function AcademicCalendar({
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Everything dated in the loaded year, flattened and sorted. Respects the
+   * same layer toggles as the grid so hiding "Holidays" hides them in both.
+   */
+  const agenda = useMemo(() => {
+    if (!feed) return [];
+    type Item = {
+      iso: string;
+      kind: "exam" | "deadline" | "holiday" | "term";
+      title: string;
+      detail: string;
+      color: string;
+    };
+    const items: Item[] = [];
+
+    if (layers.exams) {
+      feed.exams.forEach((e) =>
+        e.dates.forEach((iso) =>
+          items.push({
+            iso,
+            kind: "exam",
+            title: e.title,
+            detail: `${e.className} · ${e.examType.replaceAll("_", " ")}`,
+            color: "#8127cf",
+          }),
+        ),
+      );
+    }
+    if (layers.deadlines) {
+      feed.exams
+        .filter((e) => DEADLINE_STATUSES.has(e.status))
+        .forEach((e) => {
+          const last = e.dates[e.dates.length - 1];
+          if (last) {
+            items.push({
+              iso: last,
+              kind: "deadline",
+              title: `${e.title} — marks due`,
+              detail: e.className,
+              color: "#f43f5e",
+            });
+          }
+        });
+    }
+    if (layers.holidays) {
+      feed.holidays.forEach((h) =>
+        items.push({
+          iso: h.fromDate.slice(0, 10),
+          kind: "holiday",
+          title: h.name,
+          detail:
+            h.toDate.slice(0, 10) === h.fromDate.slice(0, 10)
+              ? "One day"
+              : `Until ${h.toDate.slice(0, 10)}`,
+          color: "#0d9488",
+        }),
+      );
+    }
+    if (layers.terms) {
+      feed.terms.forEach((t) => {
+        items.push({
+          iso: t.startDate.slice(0, 10),
+          kind: "term",
+          title: `${t.label} begins`,
+          detail: `Academic year ${t.academicYear}`,
+          color: "#d97706",
+        });
+        items.push({
+          iso: t.endDate.slice(0, 10),
+          kind: "term",
+          title: `${t.label} ends`,
+          detail: `Academic year ${t.academicYear}`,
+          color: "#d97706",
+        });
+      });
+    }
+
+    return items.sort((a, b) => a.iso.localeCompare(b.iso) || a.title.localeCompare(b.title));
+  }, [feed, layers]);
+
+  const upcoming = useMemo(() => {
+    const today = todayIso();
+    return agenda.filter((i) => i.iso >= today);
+  }, [agenda]);
 
   // ── Aggregate events per day ─────────────────────────────────────────────
   const dayMap = useMemo(() => {
@@ -231,23 +320,56 @@ export function AcademicCalendar({
           <div>
             <h3 className="text-lg font-black tracking-tight text-[#1d1b20]">Academic Calendar</h3>
             <p className="text-[11px] font-semibold text-ink-muted">
-              {MONTHS[viewMonth]} {viewYear}
+              {calendarView === "month" ? `${MONTHS[viewMonth]} ${viewYear}` : `${viewYear}`}
+              {upcoming.length > 0 ? ` · ${upcoming.length} still to come` : " · nothing else scheduled"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
-            className="rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-          >
-            Today
-          </button>
-          <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
-            <ChevronRight className="h-4 w-4" />
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-white p-1">
+            {(["month", "agenda"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setCalendarView(v)}
+                aria-pressed={calendarView === v}
+                className={cn(
+                  "cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all",
+                  calendarView === v
+                    ? "bg-[#8127cf] text-white"
+                    : "text-ink-muted hover:text-[#8127cf]",
+                )}
+              >
+                {v === "month" ? "Month" : "What's next"}
+              </button>
+            ))}
+          </div>
+          {calendarView === "month" ? (
+            <>
+              <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
+                className="cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+              >
+                Today
+              </button>
+              <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setViewYear((y) => y - 1)} aria-label="Previous year" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-[11px] font-black uppercase tracking-wider text-ink-muted">{viewYear}</span>
+              <button onClick={() => setViewYear((y) => y + 1)} aria-label="Next year" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -274,6 +396,8 @@ export function AcademicCalendar({
             </div>
           ))}
         </div>
+      ) : calendarView === "agenda" ? (
+        <AgendaList items={agenda} />
       ) : (
         <div className="p-5">
           <div className="grid grid-cols-7 gap-1.5">
@@ -514,6 +638,110 @@ function DayPopover({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * The calendar as a chronological list. Past entries are kept but dimmed and
+ * pushed below the fold — an office still needs to look back at when a term
+ * ended, just not before it can see what is next.
+ */
+function AgendaList({
+  items,
+}: {
+  items: { iso: string; kind: string; title: string; detail: string; color: string }[];
+}) {
+  const today = todayIso();
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof items>();
+    items.forEach((i) => {
+      const list = map.get(i.iso);
+      if (list) list.push(i);
+      else map.set(i.iso, [i]);
+    });
+    return [...map.entries()];
+  }, [items]);
+
+  const future = grouped.filter(([iso]) => iso >= today);
+  const past = grouped.filter(([iso]) => iso < today).reverse();
+
+  if (grouped.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-14 text-center">
+        <CalendarDays className="mb-3 h-9 w-9 text-ink-subtle" />
+        <p className="text-sm font-bold text-ink-muted">Nothing on the calendar this year</p>
+        <p className="mt-1 text-xs font-semibold text-ink-subtle">
+          Terms, holidays and exam dates all appear here once they are set.
+        </p>
+      </div>
+    );
+  }
+
+  const renderDay = ([iso, dayItems]: [string, typeof items], isPast: boolean) => {
+    const d = new Date(`${iso}T00:00:00`);
+    const isToday = iso === today;
+    const days = Math.round((d.getTime() - new Date(`${today}T00:00:00`).getTime()) / 86_400_000);
+    return (
+      <li key={iso} className={cn("flex gap-4 px-5 py-3", isPast && "opacity-55")}>
+        <div className="w-20 shrink-0 text-right">
+          <p
+            className={cn(
+              "text-sm font-black leading-tight",
+              isToday ? "text-[#8127cf]" : "text-[#1d1b20]",
+            )}
+          >
+            {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+            {isToday
+              ? "Today"
+              : days === 1
+                ? "Tomorrow"
+                : days > 0
+                  ? `in ${days}d`
+                  : d.toLocaleDateString("en-GB", { weekday: "short" })}
+          </p>
+        </div>
+        <ul className="min-w-0 flex-1 space-y-1.5">
+          {dayItems.map((item, i) => (
+            <li key={`${item.kind}-${item.title}-${i}`} className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold text-[#1d1b20]">{item.title}</span>
+                <span className="block truncate text-[11px] font-semibold text-ink-muted">
+                  {item.detail}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </li>
+    );
+  };
+
+  return (
+    <div className="max-h-[560px] overflow-y-auto custom-scrollbar">
+      {future.length > 0 ? (
+        <ul className="divide-y divide-[#cfc2d6]/10">{future.map((g) => renderDay(g, false))}</ul>
+      ) : (
+        <p className="px-5 py-6 text-center text-sm font-semibold text-ink-muted">
+          Nothing else is scheduled this year.
+        </p>
+      )}
+      {past.length > 0 ? (
+        <>
+          <p className="border-y border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            Already happened
+          </p>
+          <ul className="divide-y divide-[#cfc2d6]/10">{past.map((g) => renderDay(g, true))}</ul>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   ArrowRight,
   ArrowRightLeft,
   Archive,
@@ -36,6 +37,7 @@ import {
   Lock,
   Mail,
   MapPin,
+  MessageCircle,
   Megaphone,
   Pencil,
   Phone,
@@ -68,10 +70,29 @@ import { CornerSparkles } from "@/components/CornerSparkles";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
 export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
+// The roster grew its own file once it gained table view, multi-select and
+// bulk actions; the import path is unchanged.
+export { StudentsPanel } from "@/components/shared-admin/students-panel";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { csvCell } from "@/lib/csv";
+import {
+  DataTable,
+  SearchField,
+  SelectionBar,
+  StatTiles,
+  ModalPager,
+  ToolbarSelect,
+  Pagination,
+  SortDirButton,
+  ToolbarToggle,
+  WorkspaceHeader,
+  WorkspaceToolbar,
+  usePaged,
+  ViewSwitch,
+  useWorkspacePrefs,
+} from "@/components/shared-admin/workspace";
 
 export type ClassFormState = {
   name: string;
@@ -573,8 +594,6 @@ export function LeadershipPanel({
 
 export function AcademicPanel({
   classes,
-  exams,
-  reports,
   teachers,
   students,
   campusName,
@@ -590,8 +609,6 @@ export function AcademicPanel({
   onAddSection,
 }: {
   classes: any[];
-  exams: any[];
-  reports: any[];
   teachers: any[];
   students?: any[];
   campusName?: string;
@@ -607,42 +624,130 @@ export function AcademicPanel({
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
   const classGroups = groupClasses(classes);
-  const [showAllExams, setShowAllExams] = useState(false);
-  const [showAllReports, setShowAllReports] = useState(false);
-  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
-  const lockedExams = exams.filter((e) => e.isLocked);
-  const displayExams = showAllExams ? exams : exams.slice(0, 6);
-  const displayReports = showAllReports ? reports : reports.slice(0, 6);
+  const [classSearch, setClassSearch] = useState("");
+  const [onlyGaps, setOnlyGaps] = useState(false);
 
-  const generateReportCards = async (examId: string) => {
-    setGeneratingExamId(examId);
-    try {
-      const res = await fetch("/api/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate", examId }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Generation failed");
-      toast.success("Report cards generated");
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setGeneratingExamId(null);
-    }
-  };
+  // Exams and report cards moved to their own screens; the state that fed the
+  // old inline sections stayed behind and was still being computed on every
+  // render, including an unused generate-report-cards request.
+
+  const allSections = classGroups.flatMap((g) => g.sections || []);
+  const subjectsTotal = allSections.reduce(
+    (sum, sec: any) => sum + (sec._count?.subjects ?? sec.subjects?.length ?? 0),
+    0,
+  );
+  const subjectsWithoutTeacher = allSections.reduce(
+    (sum, sec: any) =>
+      sum + (sec.subjects || []).filter((sub: any) => !sub.teacherId && !sub.teacher).length,
+    0,
+  );
+  const sectionsWithoutTeacher = allSections.filter((sec: any) => !sec.classTeacherId).length;
+  const studentTotal = (students || []).length;
+
+  // A group is "incomplete" when it has no class teacher or an unassigned
+  // subject — the two things that stop a timetable being built.
+  const groupHasGap = (group: any) =>
+    (group.sections || []).some(
+      (sec: any) =>
+        !sec.classTeacherId ||
+        (sec.subjects || []).some((sub: any) => !sub.teacherId && !sub.teacher),
+    );
+
+  const visibleGroups = classGroups.filter((group) => {
+    if (onlyGaps && !groupHasGap(group)) return false;
+    const q = classSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(group.name).toLowerCase().includes(q) ||
+      (group.sections || []).some((sec: any) =>
+        `${sec.section || ""} ${(sec.subjects || []).map((x: any) => x.name).join(" ")}`
+          .toLowerCase()
+          .includes(q),
+      )
+    );
+  });
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap justify-end gap-3">
-        <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={onAddClass}>
-          Add Class
-        </BrandButton>
-      </div>
+    <div className="space-y-6">
+      <WorkspaceHeader
+        icon={School}
+        eyebrow="Academics"
+        title="Classes & Subjects"
+        summary={
+          <>
+            {classGroups.length} class{classGroups.length === 1 ? "" : "es"} ·{" "}
+            {allSections.length} section{allSections.length === 1 ? "" : "s"}
+            {campusName ? ` · ${campusName}` : ""}
+          </>
+        }
+        actions={
+          <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={onAddClass}>
+            Add Class
+          </BrandButton>
+        }
+      />
 
       {classGroups.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          {classGroups.map((group) => (
+        <>
+          <StatTiles
+            tiles={[
+              { key: "classes", icon: School, label: "Classes", value: classGroups.length, hint: `${allSections.length} sections`, tone: "violet" },
+              { key: "students", icon: GraduationCap, label: "Students enrolled", value: studentTotal, tone: "teal" },
+              {
+                key: "subjects",
+                icon: BookOpen,
+                label: "Subjects",
+                value: subjectsTotal,
+                hint: subjectsWithoutTeacher ? `${subjectsWithoutTeacher} with no teacher` : "All assigned",
+                tone: subjectsWithoutTeacher ? "amber" : "emerald",
+              },
+              {
+                key: "leads",
+                icon: UserCheck,
+                label: "Sections with no class teacher",
+                value: sectionsWithoutTeacher,
+                hint: sectionsWithoutTeacher ? "Blocks the timetable" : "Every section is led",
+                tone: sectionsWithoutTeacher ? "amber" : "emerald",
+              },
+            ]}
+          />
+
+          {classGroups.length > 3 ? (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <SearchField
+                value={classSearch}
+                onChange={setClassSearch}
+                placeholder="Find a class, section or subject…"
+                autoFocusKey={null}
+                className="max-w-xs"
+              />
+              <ToolbarToggle
+                active={onlyGaps}
+                icon={AlertTriangle}
+                label="Needs attention"
+                count={classGroups.filter(groupHasGap).length}
+                onClick={() => setOnlyGaps((v) => !v)}
+              />
+              {classSearch || onlyGaps ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassSearch("");
+                    setOnlyGaps(false);
+                  }}
+                  className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+                >
+                  <X className="h-3 w-3" /> Clear
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {visibleGroups.length > 0 ? (
+        <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2">
+          {visibleGroups.map((group) => (
             <ClassGroupCard
               key={group.key}
               group={group}
@@ -660,6 +765,8 @@ export function AcademicPanel({
             />
           ))}
         </div>
+      ) : classGroups.length > 0 ? (
+        <EmptyInline text="No class matches that search. Try clearing it." />
       ) : (
         <EmptyState
           icon={BookOpen}
@@ -1113,42 +1220,382 @@ export function ReportCardsPanel({
   reports: any[];
   onSelect?: (report: any) => void;
 }) {
-  const [showAllReports, setShowAllReports] = useState(false);
-  const displayReports = showAllReports ? reports : reports.slice(0, 12);
+  const [prefs, patchPrefs] = useWorkspacePrefs("report-cards", {
+    view: "cards",
+    sortKey: "name",
+    perPage: 24,
+  });
+  const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [examFilter, setExamFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const pct = (r: any) => Number(r.percentage ?? 0);
+
+  const { classOptions, examOptions } = useMemo(() => {
+    const cls = new Map<string, string>();
+    const exams = new Map<string, string>();
+    for (const r of reports) {
+      if (r.student?.class?.id) cls.set(r.student.class.id, classLabel(r.student.class));
+      if (r.exam?.id) exams.set(r.exam.id, r.exam.title || "Exam");
+    }
+    return {
+      classOptions: [...cls.entries()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true })),
+      examOptions: [...exams.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+    };
+  }, [reports]);
+
+  const published = reports.filter((r) => String(r.status).toUpperCase() === "PUBLISHED").length;
+  const withMarks = reports.filter((r) => r.percentage != null);
+  const average =
+    withMarks.length > 0
+      ? Math.round(withMarks.reduce((sum, r) => sum + pct(r), 0) / withMarks.length)
+      : null;
+  // A report card below the pass mark is the one an office actually has to do
+  // something about, so it is a number on the screen rather than a scroll.
+  const failing = withMarks.filter((r) => pct(r) < 40).length;
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = reports.filter((r) => {
+      if (classFilter !== "all" && r.student?.class?.id !== classFilter) return false;
+      if (examFilter !== "all" && r.exam?.id !== examFilter) return false;
+      if (statusFilter !== "all" && String(r.status).toUpperCase() !== statusFilter) return false;
+      if (!q) return true;
+      return Boolean(
+        r.student?.fullName?.toLowerCase().includes(q) ||
+          r.student?.rollNo?.toLowerCase().includes(q) ||
+          r.exam?.title?.toLowerCase().includes(q),
+      );
+    });
+    const dir = prefs.sortDir === "desc" ? -1 : 1;
+    return rows.sort((a, b) => {
+      let cmp = 0;
+      switch (prefs.sortKey) {
+        case "score":
+          cmp = pct(a) - pct(b);
+          break;
+        case "class":
+          cmp = classLabel(a.student?.class).localeCompare(classLabel(b.student?.class), undefined, { numeric: true });
+          break;
+        case "exam":
+          cmp = (a.exam?.title || "").localeCompare(b.exam?.title || "");
+          break;
+        default:
+          cmp = (a.student?.fullName || "").localeCompare(b.student?.fullName || "");
+      }
+      return cmp === 0
+        ? (a.student?.fullName || "").localeCompare(b.student?.fullName || "")
+        : cmp * dir;
+    });
+  }, [reports, search, classFilter, examFilter, statusFilter, prefs.sortKey, prefs.sortDir]);
+
+  const paged = usePaged(filtered, prefs.perPage);
+  const filtersActive =
+    classFilter !== "all" || examFilter !== "all" || statusFilter !== "all" || Boolean(search.trim());
+
+  const resetFilters = () => {
+    setClassFilter("all");
+    setExamFilter("all");
+    setStatusFilter("all");
+    setSearch("");
+  };
+
+  const scoreTone = (v: number) =>
+    v >= 80 ? "text-emerald-600" : v >= 40 ? "text-amber-600" : "text-rose-500";
+
+  if (reports.length === 0) {
+    return (
+      <EmptyState
+        icon={ClipboardList}
+        title="No report cards yet"
+        description="Report cards are generated when an exam's marks are locked. Finish marks entry under Exams & Results, lock the exam, and they appear here."
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{reports.length} Report{reports.length !== 1 ? "s" : ""}</p>
-          <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Report Cards</h3>
-        </div>
-        {reports.length > 12 && (
-          <button type="button" onClick={() => setShowAllReports(!showAllReports)}
-            className="text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer">
-            {showAllReports ? "Show Less" : `View All (${reports.length})`}
+    <div className="space-y-5">
+      <WorkspaceHeader
+        icon={ClipboardList}
+        eyebrow="Academics"
+        title="Report Cards"
+        summary={
+          <>
+            {filtered.length} of {reports.length} shown
+            {average !== null ? ` · ${average}% average` : ""}
+            {failing > 0 ? ` · ${failing} below 40%` : ""}
+          </>
+        }
+      />
+
+      <StatTiles
+        tiles={[
+          { key: "total", icon: ClipboardList, label: "Report cards", value: reports.length, tone: "violet" },
+          {
+            key: "published",
+            icon: CheckCircle2,
+            label: "Released to families",
+            value: published,
+            hint: `${reports.length - published} still internal`,
+            tone: published === reports.length ? "emerald" : "amber",
+          },
+          {
+            key: "avg",
+            icon: Award,
+            label: "Average score",
+            value: average === null ? "—" : `${average}%`,
+            hint: withMarks.length ? `across ${withMarks.length} cards` : "No marks yet",
+            tone: "teal",
+          },
+          {
+            key: "fail",
+            icon: AlertTriangle,
+            label: "Below 40%",
+            value: failing,
+            hint: failing ? "Tap to see only these" : "Nobody is failing",
+            tone: failing ? "rose" : "emerald",
+            active: statusFilter === "all" && prefs.sortKey === "score" && prefs.sortDir === "asc",
+            onClick: failing
+              ? () => patchPrefs({ sortKey: "score", sortDir: "asc" })
+              : undefined,
+          },
+        ]}
+      />
+
+      <WorkspaceToolbar
+        trailing={
+          <>
+            <ToolbarSelect
+              value={prefs.sortKey}
+              onChange={(v) => patchPrefs({ sortKey: v })}
+              label="Sort by"
+              options={[
+                ["name", "Student"],
+                ["score", "Score"],
+                ["class", "Class"],
+                ["exam", "Exam"],
+              ]}
+            />
+            <SortDirButton
+              dir={prefs.sortDir}
+              onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
+            />
+            <ViewSwitch
+              value={prefs.view}
+              onChange={(v) => patchPrefs({ view: v })}
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "table", label: "List", icon: ClipboardList },
+              ]}
+            />
+          </>
+        }
+      >
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Student, roll no or exam…"
+          autoFocusKey={null}
+        />
+        <ToolbarSelect
+          value={classFilter}
+          onChange={setClassFilter}
+          label="Class"
+          options={[["all", "All classes"], ...classOptions.map(([id, n]) => [id, n] as [string, string])]}
+        />
+        <ToolbarSelect
+          value={examFilter}
+          onChange={setExamFilter}
+          label="Exam"
+          options={[["all", "All exams"], ...examOptions.map(([id, n]) => [id, n] as [string, string])]}
+        />
+        <ToolbarSelect
+          value={statusFilter}
+          onChange={setStatusFilter}
+          label="Status"
+          options={[
+            ["all", "Any status"],
+            ["PUBLISHED", "Published"],
+            ["DRAFT", "Draft"],
+          ]}
+        />
+        {filtersActive ? (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+          >
+            <X className="h-3 w-3" /> Clear
           </button>
-        )}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {displayReports.map((report: any, i: number) => (
-          <div key={report.id} role="button" tabIndex={0} onClick={() => onSelect?.(report)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(report); } }}
-            className="sk-rise group/report rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 hover:border-[#8127cf]/25 cursor-pointer" style={{ animationDelay: `${i * 60}ms` }}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="min-w-0">
-                <p className="text-sm font-black text-[#1f1a23] tracking-tight truncate">{report.student?.fullName || "Student"}</p>
-                <p className="mt-1 text-[10px] font-bold text-ink-muted">{report.exam?.title || "Report"} - {report.grade || Math.round(report.percentage || 0) + "%"}</p>
+        ) : null}
+      </WorkspaceToolbar>
+
+      {filtered.length === 0 ? (
+        <EmptyInline text="No report card matches those filters." />
+      ) : prefs.view === "table" ? (
+        <DataTable
+          rows={paged.rows}
+          rowKey={(r: any) => r.id}
+          minWidth={760}
+          onRowClick={onSelect ? (r: any) => onSelect(r) : undefined}
+          sort={{ key: prefs.sortKey, dir: prefs.sortDir }}
+          onSort={(key) =>
+            patchPrefs(
+              key === prefs.sortKey
+                ? { sortDir: prefs.sortDir === "asc" ? "desc" : "asc" }
+                : { sortKey: key, sortDir: "asc" },
+            )
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Student",
+              sortable: true,
+              render: (r: any) => (
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-[#1f1a23]">
+                    {r.student?.fullName || "Student"}
+                  </p>
+                  <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                    {r.student?.rollNo || "No roll"}
+                  </p>
+                </div>
+              ),
+            },
+            {
+              key: "class",
+              label: "Class",
+              sortable: true,
+              render: (r: any) => (
+                <span className="text-xs font-bold text-ink">
+                  {r.student?.class ? classLabel(r.student.class) : "—"}
+                </span>
+              ),
+            },
+            {
+              key: "exam",
+              label: "Exam",
+              sortable: true,
+              secondary: true,
+              render: (r: any) => (
+                <span className="text-xs font-bold text-ink-muted">{r.exam?.title || "—"}</span>
+              ),
+            },
+            {
+              key: "score",
+              label: "Score",
+              sortable: true,
+              align: "right",
+              render: (r: any) =>
+                r.percentage == null ? (
+                  <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                ) : (
+                  <span className={cn("text-sm font-black", scoreTone(pct(r)))}>
+                    {Math.round(pct(r))}%
+                  </span>
+                ),
+            },
+            {
+              key: "grade",
+              label: "Grade",
+              align: "center",
+              render: (r: any) => (
+                <span className="text-xs font-black text-[#8127cf]">{r.grade || "—"}</span>
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              align: "right",
+              render: (r: any) => <StatusPill status={r.status} />,
+            },
+          ]}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {paged.rows.map((report: any, i: number) => (
+            <div
+              key={report.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelect?.(report)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect?.(report);
+                }
+              }}
+              className="sk-rise group/report cursor-pointer rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              style={{ animationDelay: `${i * 40}ms` }}
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black tracking-tight text-[#1f1a23]">
+                    {report.student?.fullName || "Student"}
+                  </p>
+                  <p className="mt-1 truncate text-[10px] font-bold text-ink-muted">
+                    {report.exam?.title || "Report"}
+                  </p>
+                </div>
+                <StatusPill status={report.status} />
               </div>
-              <StatusPill status={report.status} />
+              <div className="flex items-end justify-between gap-3">
+                <p className="text-[9px] font-semibold text-ink-muted">
+                  {report.student?.class ? classLabel(report.student.class) : "—"}
+                  {report.student?.rollNo ? ` · ${report.student.rollNo}` : ""}
+                </p>
+                <div className="text-right">
+                  {report.percentage == null ? (
+                    <p className="text-xs font-bold text-ink-subtle">No marks</p>
+                  ) : (
+                    <>
+                      <p className={cn("text-xl font-black leading-none", scoreTone(pct(report)))}>
+                        {Math.round(pct(report))}%
+                      </p>
+                      {report.grade ? (
+                        <p className="mt-0.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                          Grade {report.grade}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+              {/* A score bar makes a row of cards comparable at a glance. */}
+              {report.percentage != null ? (
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f9]">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      pct(report) >= 80
+                        ? "bg-emerald-500"
+                        : pct(report) >= 40
+                          ? "bg-amber-500"
+                          : "bg-rose-500",
+                    )}
+                    style={{ width: `${Math.min(100, Math.max(0, pct(report)))}%` }}
+                  />
+                </div>
+              ) : null}
             </div>
-            <p className="text-[9px] font-semibold text-ink-muted">{report.student?.class ? classLabel(report.student.class) : "—"}</p>
-          </div>
-        ))}
-      </div>
-      {reports.length === 0 ? (
-        <div className="sk-rise flex items-center justify-center h-32 rounded-[28px] bg-white border border-[#cfc2d6]/25">
-          <p className="text-xs font-bold text-ink-subtle">Report cards will appear after exams are processed.</p>
+          ))}
+        </div>
+      )}
+
+      {filtered.length > 0 ? (
+        <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white px-6 py-4 shadow-sm">
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            perPage={prefs.perPage}
+            total={filtered.length}
+            firstShown={paged.firstShown}
+            lastShown={paged.lastShown}
+            onPage={paged.setPage}
+            onPerPage={(n) => patchPrefs({ perPage: n })}
+            perPageOptions={[12, 24, 48, 96]}
+          />
         </div>
       ) : null}
     </div>
@@ -1168,13 +1615,17 @@ export function FacultyPanel({
   pendingInvites: any[];
   onInvite: () => void;
   onRemove: (id: string) => void;
-  onViewTeacher: (teacher: any) => void;
+  /** Receives the teacher and the list currently on screen. */
+  onViewTeacher: (teacher: any, visible?: any[]) => void;
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [facultyFilter, setFacultyFilter] = useState<"all" | "unassigned" | "classTeachers" | "onboarding">("all");
   const [sortKey, setSortKey] = useState<"name" | "subjects" | "classes">("name");
+  // Rows read well for eight teachers and badly for sixty, where the question
+  // is usually "who is carrying what?" — which is a table question.
+  const [facultyPrefs, patchFacultyPrefs] = useWorkspacePrefs("faculty", { view: "cards" });
 
   const q = searchQuery.trim().toLowerCase();
   const matches = (value?: string) => Boolean(value?.toLowerCase().includes(q));
@@ -1285,59 +1736,152 @@ export function FacultyPanel({
       </div>
 
       <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="mb-5 flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
-            <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                type="text" placeholder="Name, email or phone…" value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <FormSelect label="Show" value={facultyFilter} onChange={(v) => setFacultyFilter(v as typeof facultyFilter)}>
-            <option value="all">Everyone</option>
-            <option value="classTeachers">Class teachers only</option>
-            <option value="unassigned">No subjects assigned</option>
-            <option value="onboarding">Onboarding unfinished</option>
-          </FormSelect>
-          <FormSelect label="Sort by" value={sortKey} onChange={(v) => setSortKey(v as typeof sortKey)}>
-            <option value="name">Name (A–Z)</option>
-            <option value="subjects">Most subjects</option>
-            <option value="classes">Most classes led</option>
-          </FormSelect>
-          <div className="pb-1.5 flex items-center gap-2">
-            <StatusPill status={`${filtered.length} of ${teachers.length} shown`} />
-            {filtersActive ? (
-              <button
-                type="button"
-                onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
-                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
-              >
-                <X className="h-3 w-3" /> Clear
-              </button>
-            ) : null}
+        <div className="mb-5 flex flex-wrap items-center gap-2.5">
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Name, email or phone…"
+            autoFocusKey={null}
+            className="max-w-xs"
+          />
+          <ToolbarSelect
+            label="Show"
+            value={facultyFilter}
+            onChange={(v) => setFacultyFilter(v as typeof facultyFilter)}
+            options={[
+              ["all", "Everyone"],
+              ["classTeachers", "Class teachers only"],
+              ["unassigned", "No subjects assigned"],
+              ["onboarding", "Onboarding unfinished"],
+            ]}
+          />
+          <ToolbarSelect
+            label="Sort by"
+            value={sortKey}
+            onChange={(v) => setSortKey(v as typeof sortKey)}
+            options={[
+              ["name", "Name (A–Z)"],
+              ["subjects", "Most subjects"],
+              ["classes", "Most classes led"],
+            ]}
+          />
+          <StatusPill status={`${filtered.length} of ${teachers.length} shown`} />
+          {filtersActive ? (
+            <button
+              type="button"
+              onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
+              className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            >
+              <X className="h-3 w-3" /> Clear
+            </button>
+          ) : null}
+          <div className="ml-auto">
+            <ViewSwitch
+              value={facultyPrefs.view}
+              onChange={(v) => patchFacultyPrefs({ view: v })}
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "table", label: "List", icon: ClipboardList },
+              ]}
+            />
           </div>
         </div>
 
+        {facultyPrefs.view === "table" && filtered.length > 0 ? (
+          <div className="mb-4">
+            <DataTable
+              rows={filtered}
+              rowKey={(t: any) => t.id}
+              minWidth={780}
+              onRowClick={(t: any) => onViewTeacher(t, filtered)}
+              columns={[
+                {
+                  key: "name",
+                  label: "Teacher",
+                  render: (t: any) => (
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-[#1f1a23]">{t.fullName}</p>
+                      <p className="truncate text-[10px] font-semibold text-ink-subtle">{t.email}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "phone",
+                  label: "Phone",
+                  secondary: true,
+                  render: (t: any) => (
+                    <span className="text-xs font-bold text-ink-muted">{t.phone || "—"}</span>
+                  ),
+                },
+                {
+                  key: "subjects",
+                  label: "Subjects",
+                  align: "center",
+                  render: (t: any) => {
+                    const n = subjectCount(t);
+                    return (
+                      <span
+                        className={cn(
+                          "inline-flex min-w-[28px] justify-center rounded-full px-2 py-0.5 text-[10px] font-black",
+                          n === 0 ? "bg-amber-50 text-amber-700" : "bg-[#fbf0fe] text-[#8127cf]",
+                        )}
+                      >
+                        {n}
+                      </span>
+                    );
+                  },
+                },
+                {
+                  key: "classes",
+                  label: "Classes led",
+                  align: "center",
+                  render: (t: any) => (
+                    <span className="text-xs font-black text-ink">{classCount(t)}</span>
+                  ),
+                },
+                {
+                  key: "onboarding",
+                  label: "Onboarding",
+                  align: "center",
+                  render: (t: any) => (
+                    <StatusPill status={t.onboardingComplete ? "Complete" : "Unfinished"} />
+                  ),
+                },
+                {
+                  key: "actions",
+                  label: "",
+                  align: "right",
+                  render: (t: any) => (
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onViewTeacher(t, filtered)}
+                        className="cursor-pointer rounded-xl bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"
+                      >
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(t.id)}
+                        aria-label={`Remove ${t.fullName}`}
+                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        ) : null}
+
         <div className="space-y-4">
-          {filtered.map((teacher: any) => (
-            <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher)} onRemove={() => onRemove(teacher.id)} />
-          ))}
+          {facultyPrefs.view === "table"
+            ? null
+            : filtered.map((teacher: any) => (
+                <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={() => onRemove(teacher.id)} />
+              ))}
 
           {filteredInvites.length ? (
             <>
@@ -1445,443 +1989,6 @@ const STUDENT_SORTS = {
 } as const;
 
 type StudentSortKey = keyof typeof STUDENT_SORTS;
-
-export function StudentsPanel({
-  students,
-  classes,
-  onAddStudent,
-  onViewStudent,
-  onBulkImport,
-  onExport,
-}: {
-  students: any[];
-  classes: any[];
-  onAddStudent: (classId?: string) => void;
-  onViewStudent: (student: any) => void;
-  onBulkImport?: () => void;
-  /** Receives exactly what the admin is looking at, not the whole roster. */
-  onExport?: (visible: any[]) => void;
-}) {
-  const [classFilter, setClassFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(false);
-  const [sortKey, setSortKey] = useState<StudentSortKey>("name");
-  const [perPage, setPerPage] = useState(12);
-  const [page, setPage] = useState(1);
-  const classGroups = groupClasses(classes);
-  const selectedGroup = classGroups.find((group) => group.key === classFilter);
-
-  // Category and group tags come off the roster itself — no extra request, and
-  // the filter can only ever offer values that actually match a student.
-  const { categoryOptions, groupOptions } = useMemo(() => {
-    const cats = new Map<string, string>();
-    const grps = new Map<string, string>();
-    for (const s of students) {
-      if (s.category?.id) cats.set(s.category.id, s.category.name);
-      if (s.group?.id) grps.set(s.group.id, s.group.name);
-    }
-    return {
-      categoryOptions: [...cats.entries()].sort((a, b) => a[1].localeCompare(b[1])),
-      groupOptions: [...grps.entries()].sort((a, b) => a[1].localeCompare(b[1])),
-    };
-  }, [students]);
-
-  const missingGuardian = useMemo(
-    () => students.filter((s) => !s.guardianPhone && !s.guardianEmail).length,
-    [students],
-  );
-  const classesCovered = useMemo(
-    () => new Set(students.map((s) => s.class?.id).filter(Boolean)).size,
-    [students],
-  );
-  const noPortalLogin = useMemo(() => students.filter((s) => !s.studentUser?.email).length, [students]);
-
-  const filteredStudents = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const result = students.filter((student) => {
-      if (sectionFilter !== "all" && student.class?.id !== sectionFilter) return false;
-      if (sectionFilter === "all" && classFilter !== "all" && classGroupKey(student.class) !== classFilter) return false;
-      if (categoryFilter === "none" && student.category?.id) return false;
-      if (categoryFilter !== "all" && categoryFilter !== "none" && student.category?.id !== categoryFilter) return false;
-      if (groupFilter === "none" && student.group?.id) return false;
-      if (groupFilter !== "all" && groupFilter !== "none" && student.group?.id !== groupFilter) return false;
-      if (onlyMissingGuardian && (student.guardianPhone || student.guardianEmail)) return false;
-      if (!q) return true;
-      return Boolean(
-        student.fullName?.toLowerCase().includes(q) ||
-        student.rollNo?.toLowerCase().includes(q) ||
-        student.guardianName?.toLowerCase().includes(q) ||
-        student.guardianPhone?.includes(q) ||
-        student.guardianEmail?.toLowerCase().includes(q),
-      );
-    });
-    return result.sort(STUDENT_SORTS[sortKey].compare);
-  }, [students, classFilter, sectionFilter, categoryFilter, groupFilter, searchQuery, sortKey, onlyMissingGuardian]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / perPage));
-  const safePage = Math.min(page, totalPages);
-  const firstShown = filteredStudents.length === 0 ? 0 : (safePage - 1) * perPage + 1;
-  const lastShown = Math.min(safePage * perPage, filteredStudents.length);
-  const pagedStudents = filteredStudents.slice((safePage - 1) * perPage, safePage * perPage);
-
-  const filtersActive =
-    classFilter !== "all" || sectionFilter !== "all" || categoryFilter !== "all" || groupFilter !== "all" ||
-    onlyMissingGuardian || Boolean(searchQuery.trim());
-
-  const resetFilters = () => {
-    setClassFilter("all");
-    setSectionFilter("all");
-    setCategoryFilter("all");
-    setGroupFilter("all");
-    setOnlyMissingGuardian(false);
-    setSearchQuery("");
-  };
-
-  useEffect(() => { setPage(1); }, [classFilter, sectionFilter, categoryFilter, groupFilter, searchQuery, onlyMissingGuardian, perPage]);
-
-  if (students.length === 0) {
-    return (
-      <EmptyState
-        icon={GraduationCap}
-        title={classes.length === 0 ? "Create a class first" : "No students enrolled yet"}
-        description={
-          classes.length === 0
-            ? "Students are admitted into a class, so there is nothing to enrol them into yet. Create your classes and sections under Academics → Classes & Subjects, then come back here."
-            : "Admit your first student, or bulk-import an existing roster from a spreadsheet."
-        }
-        action={
-          classes.length === 0 ? undefined : (
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <BrandButton onClick={() => onAddStudent()}>Add Student</BrandButton>
-              {onBulkImport ? (
-                <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={onBulkImport}>
-                  Bulk Import
-                </BrandButton>
-              ) : null}
-            </div>
-          )
-        }
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* ── Header: who is on the roster, and the things you do to it ── */}
-      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Student Directory</h2>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => onAddStudent()}>
-              Add Student
-            </BrandButton>
-            {onBulkImport ? (
-              <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={onBulkImport}>
-                Bulk Import
-              </BrandButton>
-            ) : null}
-            {onExport ? (
-              <BrandButton
-                variant="soft"
-                icon={<Download className="w-4 h-4" />}
-                onClick={() => onExport(filteredStudents)}
-                disabled={filteredStudents.length === 0}
-              >
-                Export {filtersActive ? `${filteredStudents.length} Shown` : "CSV"}
-              </BrandButton>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {/* ── At a glance. The last two are clickable because they are chores. ── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard icon={Users} label="Students on roll" value={students.length} tone="violet" />
-        <MetricCard
-          icon={School}
-          label="Classes with students"
-          value={classesCovered}
-          hint={`of ${classes.length} class${classes.length === 1 ? "" : "es"}`}
-          tone="teal"
-        />
-        <MetricCard
-          icon={PhoneCall}
-          label="No guardian contact"
-          value={missingGuardian}
-          hint={missingGuardian ? (onlyMissingGuardian ? "Showing these only" : "Tap to filter") : "All reachable"}
-          tone={missingGuardian ? "amber" : "emerald"}
-          active={onlyMissingGuardian}
-          onClick={missingGuardian ? () => setOnlyMissingGuardian((v) => !v) : undefined}
-        />
-        <MetricCard
-          icon={Mail}
-          label="No student login"
-          value={noPortalLogin}
-          hint={noPortalLogin ? "Portal access not set" : "Everyone has access"}
-          tone={noPortalLogin ? "amber" : "emerald"}
-        />
-      </div>
-
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
-            <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                type="text" placeholder="Name, roll no, guardian, phone…" value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <FormSelect
-            label="Class"
-            value={classFilter}
-            onChange={(value) => {
-              setClassFilter(value);
-              setSectionFilter("all");
-            }}
-          >
-            <option value="all">All classes</option>
-            {classGroups.map((group) => (
-              <option key={group.key} value={group.key}>
-                {group.name} - {group.academicYear}
-              </option>
-            ))}
-          </FormSelect>
-          <FormSelect label="Section" value={sectionFilter} onChange={setSectionFilter}>
-            <option value="all">All sections</option>
-            {(selectedGroup?.sections || classes).map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {classLabel(cls)}
-              </option>
-            ))}
-          </FormSelect>
-          {categoryOptions.length ? (
-            <FormSelect label="Category" value={categoryFilter} onChange={setCategoryFilter}>
-              <option value="all">All categories</option>
-              <option value="none">No category</option>
-              {categoryOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </FormSelect>
-          ) : null}
-          {groupOptions.length ? (
-            <FormSelect label="Group" value={groupFilter} onChange={setGroupFilter}>
-              <option value="all">All groups</option>
-              <option value="none">No group</option>
-              {groupOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </FormSelect>
-          ) : null}
-          <FormSelect label="Sort by" value={sortKey} onChange={(v) => setSortKey(v as StudentSortKey)}>
-            {Object.entries(STUDENT_SORTS).map(([key, s]) => (
-              <option key={key} value={key}>{s.label}</option>
-            ))}
-          </FormSelect>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <StatusPill status={`${filteredStudents.length} of ${students.length} shown`} />
-          {filtersActive ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
-            >
-              <X className="h-3 w-3" /> Clear filters
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {pagedStudents.map((student: any, i: number) => {
-          const report = student.reportCards?.[0];
-          const avatar = student.profileImageUrl;
-          const noContact = !student.guardianPhone && !student.guardianEmail;
-          return (
-            <div
-              key={student.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onViewStudent(student)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onViewStudent(student);
-                }
-              }}
-              className="sk-rise group/student relative cursor-pointer overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1"
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-0 transition-opacity duration-300 group-hover/student:opacity-70" />
-              <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/8 to-transparent rounded-full blur-[50px] opacity-0 group-hover/student:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <div className="relative">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-[#8127cf]/35 to-[#9c48ea]/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-[#8127cf] group-hover/student:to-[#9c48ea] group-hover/student:shadow-md">
-                      <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-[#fbf0fe]">
-                        <AvatarImage
-                          src={avatar}
-                          name={student.fullName}
-                          alt="Student photo"
-                          initialsClassName="text-base"
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110"
-                        />
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <p
-                        className="truncate text-base font-black text-[#1f1a23] tracking-tight transition-colors duration-300 group-hover/student:text-[#8127cf]"
-                        title={student.fullName}
-                      >
-                        {student.fullName}
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-                          Roll {student.rollNo || "—"}
-                        </span>
-                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-ink-muted">
-                          {classLabel(student.class)}
-                        </span>
-                        {student.category?.name ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
-                            {student.category.name}
-                          </span>
-                        ) : null}
-                        {student.group?.name ? (
-                          <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
-                            {student.group.name}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/*
-                  The report-card status used to sit beside the name and squeezed
-                  it into an ellipsis. It is secondary information, so it lives on
-                  the footer row and the name gets the full width of the card.
-                */}
-                {/*
-                  Two rows, not one. The card is ~225px at the 3-column
-                  breakpoint; with the guardian, the report pill and the chevron
-                  all on one line the name was left ~90px and ellipsised — and
-                  only for the longer names, so a row of cards looked ragged.
-                  The name now owns the full width and the secondary bits share
-                  the line below it.
-                */}
-                <div className="mt-4 border-t border-[#f3f4f9] pt-3.5">
-                  <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">Guardian</p>
-                  <p
-                    className="truncate text-xs font-bold text-ink"
-                    title={student.guardianName || undefined}
-                  >
-                    {student.guardianName || "Not linked"}
-                  </p>
-                  <div className="mt-1.5 flex items-center justify-between gap-2">
-                    {/* A name with no way to reach them is the thing worth flagging. */}
-                    <p
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-[10px] font-bold",
-                        noContact ? "text-amber-600" : "text-ink-subtle",
-                      )}
-                    >
-                      {noContact ? "No phone or email" : student.guardianPhone || student.guardianEmail}
-                    </p>
-                    <StatusPill status={report ? report.status : "NO_REPORT"} />
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white group-hover/student:shadow-sm">
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {/*
-          Spans the whole grid: dropped into a single cell it rendered as a
-          narrow strip beside empty columns.
-        */}
-        {pagedStudents.length === 0 ? (
-          <div className="col-span-full">
-            <EmptyInline text="No students match your search and filters. Try clearing them." />
-          </div>
-        ) : null}
-      </div>
-      {filteredStudents.length > 0 ? (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#f3f4f9] pt-5">
-          <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
-            Showing {firstShown}–{lastShown} of {filteredStudents.length}
-          </p>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-              Per page
-              <select
-                value={perPage}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-                className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
-              >
-                {[12, 24, 48, 96].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </label>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
-                >
-                  Previous
-                </button>
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
-                  {safePage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={safePage >= totalPages}
-                  className="flex h-10 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
-                >
-                  Next
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-      </div>
-    </div>
-  );
-}
 
 export function AIPanel({
   features,
@@ -2563,6 +2670,8 @@ type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
 export function StudentDetailModal({
   student: summary,
   busy,
+  sequence,
+  onNavigate,
   onClose,
   onMove,
   onDelete,
@@ -2570,6 +2679,9 @@ export function StudentDetailModal({
 }: {
   student: any;
   busy: boolean;
+  /** The students currently on screen, so the profile can step through them. */
+  sequence?: { id: string; label: string }[];
+  onNavigate?: (studentId: string) => void;
   onClose: () => void;
   onMove: () => void;
   onDelete: (student: any) => void;
@@ -2767,6 +2879,16 @@ export function StudentDetailModal({
       }
       tone={isActive ? "violet" : "amber"}
       onClose={onClose}
+      headerActions={
+        sequence && onNavigate ? (
+          <ModalPager
+            sequence={sequence}
+            currentId={student.id}
+            onNavigate={onNavigate}
+            noun="student"
+          />
+        ) : null
+      }
       wide
     >
       {/* Pinned inside the scroll area: on a profile this long the actions
@@ -3496,7 +3618,20 @@ export function StudentAdmissionsPanel({
   );
 }
 
-export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: any; onClose: () => void; onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void> }) {
+export function TeacherDetailModal({
+  teacher,
+  sequence,
+  onNavigate,
+  onClose,
+  onUpdate,
+}: {
+  teacher: any;
+  /** The teachers currently on screen, for stepping between profiles. */
+  sequence?: { id: string; label: string }[];
+  onNavigate?: (teacherId: string) => void;
+  onClose: () => void;
+  onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
+}) {
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -3774,6 +3909,16 @@ export function TeacherDetailModal({ teacher, onClose, onUpdate }: { teacher: an
             </span>
           ) : null}
         </>
+      }
+      headerActions={
+        sequence && onNavigate ? (
+          <ModalPager
+            sequence={sequence}
+            currentId={teacher.id}
+            onNavigate={onNavigate}
+            noun="teacher"
+          />
+        ) : null
       }
       onClose={onClose}
       wide
@@ -5648,7 +5793,15 @@ const STUDENT_TAG_API: Record<StudentTagKind, string> = {
   group: "/api/student-groups",
 };
 
-export function StudentSetupPanel() {
+export function StudentSetupPanel({
+  studentCount,
+  onViewStudents,
+}: {
+  /** Roster size, so the panel can say how many students are untagged. */
+  studentCount?: number;
+  /** Jumps to the roster filtered by this tag. Omit to hide the link. */
+  onViewStudents?: (filter: { categoryId?: string; groupId?: string }) => void;
+} = {}) {
   const [categories, setCategories] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -5723,6 +5876,11 @@ export function StudentSetupPanel() {
   const modal = editing || (creating ? { kind: creating, item: null } : null);
   const kind = modal?.kind as StudentTagKind;
 
+  const countOf = (t: { _count?: { students?: number } }) => t._count?.students ?? 0;
+  const taggedStudents = categories.reduce((sum, c) => sum + countOf(c), 0);
+  const unusedTags = [...categories, ...groups].filter((t) => countOf(t) === 0).length;
+  const inUse = deleting ? countOf(deleting.item) : 0;
+
   return (
     <div className="space-y-8">
       {/* Header matches the academics overview so the students section of the
@@ -5749,6 +5907,31 @@ export function StudentSetupPanel() {
         </p>
       </div>
 
+      {/* A tag nobody uses and a roster nobody has tagged are the two things
+          worth knowing here, and neither was visible before. */}
+      <StatTiles
+        tiles={[
+          { key: "cats", icon: Tag, label: "Categories", value: categories.length, tone: "violet" },
+          { key: "grps", icon: Layers, label: "Groups", value: groups.length, tone: "teal" },
+          {
+            key: "tagged",
+            icon: UserCheck,
+            label: "Students with a category",
+            value: taggedStudents,
+            hint: studentCount ? `of ${studentCount} on roll` : undefined,
+            tone: "emerald",
+          },
+          {
+            key: "unused",
+            icon: AlertTriangle,
+            label: "Tags nobody uses",
+            value: unusedTags,
+            hint: unusedTags ? "Safe to remove" : "All in use",
+            tone: unusedTags ? "amber" : "emerald",
+          },
+        ]}
+      />
+
       <div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <TagListCard
@@ -5760,6 +5943,9 @@ export function StudentSetupPanel() {
             onAdd={() => setCreating("category")}
             onEdit={(item) => setEditing({ kind: "category", item })}
             onDelete={(item) => setDeleting({ kind: "category", item })}
+            onViewStudents={
+              onViewStudents ? (item) => onViewStudents({ categoryId: item.id }) : undefined
+            }
           />
           <TagListCard
             kind="group"
@@ -5770,6 +5956,7 @@ export function StudentSetupPanel() {
             onAdd={() => setCreating("group")}
             onEdit={(item) => setEditing({ kind: "group", item })}
             onDelete={(item) => setDeleting({ kind: "group", item })}
+            onViewStudents={onViewStudents ? (item) => onViewStudents({ groupId: item.id }) : undefined}
           />
         </div>
       </div>
@@ -5792,7 +5979,11 @@ export function StudentSetupPanel() {
         title={`Delete ${deleting?.kind === "category" ? "category" : "group"}?`}
         description={
           deleting
-            ? `"${deleting.item.name}" will be permanently removed. Students already tagged with it keep their links until reassigned.`
+            ? inUse > 0
+              // "keep their links until reassigned" told an admin nothing about
+              // how much work they were about to create for themselves.
+              ? `"${deleting.item.name}" is on ${inUse} student${inUse === 1 ? "" : "s"}. Deleting it removes that tag from ${inUse === 1 ? "them" : "all of them"}, and any fee rule that depends on it stops applying. This cannot be undone.`
+              : `"${deleting.item.name}" is not on any student, so removing it changes nothing else.`
             : ""
         }
         confirmLabel="Delete"
@@ -5814,6 +6005,7 @@ function TagListCard({
   onAdd,
   onEdit,
   onDelete,
+  onViewStudents,
 }: {
   kind: StudentTagKind;
   icon: LucideIcon;
@@ -5823,6 +6015,7 @@ function TagListCard({
   onAdd: () => void;
   onEdit: (item: any) => void;
   onDelete: (item: any) => void;
+  onViewStudents?: (item: any) => void;
 }) {
   return (
     <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
@@ -5880,9 +6073,26 @@ function TagListCard({
                     {item.description || "No description"}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm">
-                  {studentCount} student{studentCount === 1 ? "" : "s"}
-                </span>
+                {onViewStudents && studentCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onViewStudents(item)}
+                    title={`Show the ${studentCount} student${studentCount === 1 ? "" : "s"} tagged "${item.name}"`}
+                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white"
+                  >
+                    {studentCount} student{studentCount === 1 ? "" : "s"}
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider shadow-sm",
+                      studentCount > 0 ? "bg-white text-[#8127cf]" : "bg-[#f3f4f9] text-ink-subtle",
+                    )}
+                  >
+                    {studentCount === 0 ? "Unused" : `${studentCount} students`}
+                  </span>
+                )}
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
@@ -6039,6 +6249,10 @@ export function AdmissionQueriesPanel({
   const [showNewModal, setShowNewModal] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [now, setNow] = useState(0);
+  // A follow-up desk works off "who is furthest past due", which the old
+  // fixed order could not answer.
+  const [querySort, setQuerySort] = useState<"overdue" | "next" | "newest" | "name">("overdue");
+  const [queryPrefs, patchQueryPrefs] = useWorkspacePrefs("enquiries", { view: "cards" });
 
   useEffect(() => {
     setNow(Date.now());
@@ -6082,19 +6296,41 @@ export function AdmissionQueriesPanel({
     return c;
   }, [queries, now]);
 
-  const filtered = queries.filter((q) => {
-    if (statusFilter !== "ALL" && q.status !== statusFilter) return false;
-    if (sourceFilter !== "ALL" && q.source !== sourceFilter) return false;
-    if (searchQuery.trim()) {
-      const s = searchQuery.toLowerCase();
-      if (!q.name.toLowerCase().includes(s) && !q.phone.includes(s) && !(q.email || "").toLowerCase().includes(s)) return false;
-    }
-    if (showOverdue) {
-      if (!["ACTIVE", "FOLLOW_UP"].includes(q.status)) return false;
-      if (!q.nextFollowUp || new Date(q.nextFollowUp).getTime() >= now) return false;
-    }
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const rows = queries.filter((q) => {
+      if (statusFilter !== "ALL" && q.status !== statusFilter) return false;
+      if (sourceFilter !== "ALL" && q.source !== sourceFilter) return false;
+      if (searchQuery.trim()) {
+        const s = searchQuery.toLowerCase();
+        if (!q.name.toLowerCase().includes(s) && !q.phone.includes(s) && !(q.email || "").toLowerCase().includes(s)) return false;
+      }
+      if (showOverdue) {
+        if (!["ACTIVE", "FOLLOW_UP"].includes(q.status)) return false;
+        if (!q.nextFollowUp || new Date(q.nextFollowUp).getTime() >= now) return false;
+      }
+      return true;
+    });
+
+    const due = (q: any) => (q.nextFollowUp ? new Date(q.nextFollowUp).getTime() : Infinity);
+    return rows.sort((a, b) => {
+      switch (querySort) {
+        case "overdue": {
+          // Most overdue first; anything without a date sinks to the bottom
+          // rather than pretending to be urgent.
+          const da = due(a);
+          const db = due(b);
+          if (da === db) return a.name.localeCompare(b.name);
+          return da - db;
+        }
+        case "next":
+          return due(b) - due(a);
+        case "newest":
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
+  }, [queries, statusFilter, sourceFilter, searchQuery, showOverdue, now, querySort]);
 
   const filterChip = (key: string, label: string, value: string, setValue: (v: string) => void) => (
     <button
@@ -6167,28 +6403,44 @@ export function AdmissionQueriesPanel({
           }))}
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[200px] max-w-xs">
-            <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
-            <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                type="text" placeholder="Search by name, phone or email..." value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
-              />
-            </div>
-          </div>
-          <FormSelect label="Source" value={sourceFilter} onChange={setSourceFilter}>
-            <option value="ALL">All sources</option>
-            {Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </FormSelect>
-          <div className="pb-1.5">
-            <StatusPill status={`${filtered.length} shown`} />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Name, phone or email…"
+            autoFocusKey={null}
+            className="max-w-xs"
+          />
+          <ToolbarSelect
+            label="Source"
+            value={sourceFilter}
+            onChange={setSourceFilter}
+            options={[
+              ["ALL", "All sources"],
+              ...Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => [k, v] as [string, string]),
+            ]}
+          />
+          <ToolbarSelect
+            label="Sort by"
+            value={querySort}
+            onChange={(v) => setQuerySort(v as typeof querySort)}
+            options={[
+              ["overdue", "Most overdue first"],
+              ["next", "Furthest away"],
+              ["newest", "Newest enquiry"],
+              ["name", "Name (A–Z)"],
+            ]}
+          />
+          <StatusPill status={`${filtered.length} shown`} />
+          <div className="ml-auto">
+            <ViewSwitch
+              value={queryPrefs.view}
+              onChange={(v) => patchQueryPrefs({ view: v })}
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "table", label: "List", icon: ClipboardList },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -6211,6 +6463,92 @@ export function AdmissionQueriesPanel({
         </div>
       ) : filtered.length === 0 ? (
         <EmptyInline text="No admission queries match these filters" />
+      ) : queryPrefs.view === "table" ? (
+        <DataTable
+          rows={filtered}
+          rowKey={(q: any) => q.id}
+          minWidth={860}
+          onRowClick={(q: any) => setSelected(q)}
+          rowClassName={(q: any) =>
+            ["ACTIVE", "FOLLOW_UP"].includes(q.status) &&
+            q.nextFollowUp &&
+            new Date(q.nextFollowUp).getTime() < now
+              ? "bg-rose-50/40"
+              : undefined
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Enquiry",
+              render: (q: any) => (
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-[#1f1a23]">{q.name}</p>
+                  <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                    {QUERY_SOURCES_LABELS[q.source] || q.source}
+                  </p>
+                </div>
+              ),
+            },
+            {
+              key: "contact",
+              label: "Contact",
+              render: (q: any) => <EnquiryContact query={q} />,
+            },
+            {
+              key: "class",
+              label: "Class",
+              secondary: true,
+              render: (q: any) => (
+                <span className="text-xs font-bold text-ink">
+                  {q.classInterested ? classLabel(q.classInterested) : "Not set"}
+                </span>
+              ),
+            },
+            {
+              key: "follow",
+              label: "Next follow-up",
+              render: (q: any) => {
+                const overdue =
+                  ["ACTIVE", "FOLLOW_UP"].includes(q.status) &&
+                  q.nextFollowUp &&
+                  new Date(q.nextFollowUp).getTime() < now;
+                if (!q.nextFollowUp) {
+                  return (
+                    <span className="text-[11px] font-bold text-ink-subtle">Not scheduled</span>
+                  );
+                }
+                return (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                      overdue ? "bg-rose-100 text-rose-600" : "bg-[#fbf0fe] text-[#8127cf]",
+                    )}
+                  >
+                    <CalendarClock className="h-3 w-3" />
+                    {overdue ? "Overdue · " : ""}
+                    {formatDate(q.nextFollowUp)}
+                  </span>
+                );
+              },
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              secondary: true,
+              render: (q: any) => (
+                <span className="text-xs font-bold text-ink-muted">
+                  {q.assignedTo?.fullName || "Unassigned"}
+                </span>
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              align: "right",
+              render: (q: any) => <StatusPill status={q.status} />,
+            },
+          ]}
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((q, i) => {
@@ -6247,6 +6585,9 @@ export function AdmissionQueriesPanel({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    {/* Returning a call is what this screen is for; it should
+                        not need the detail drawer first. */}
+                    <EnquiryContact query={q} />
                     <StatusPill status={q.status} />
                     <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                       {QUERY_SOURCES_LABELS[q.source] || q.source}
@@ -6309,6 +6650,46 @@ export function AdmissionQueriesPanel({
             onVersionBump();
           }}
         />
+      ) : null}
+    </div>
+  );
+}
+
+
+/**
+ * Call / WhatsApp / email an enquiry straight from the list. Stops propagation
+ * so tapping a number does not also open the detail drawer behind it.
+ */
+function EnquiryContact({ query }: { query: any }) {
+  const digits = String(query.phone || "").replace(/[^\d+]/g, "");
+  const wa = String(query.phone || "").replace(/\D/g, "");
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const cls =
+    "flex h-7 w-7 items-center justify-center rounded-full border border-[#cfc2d6]/25 bg-white text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]";
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {digits.length >= 6 ? (
+        <a href={`tel:${digits}`} onClick={stop} title={`Call ${query.phone}`} aria-label="Call enquiry" className={cls}>
+          <PhoneCall className="h-3 w-3" />
+        </a>
+      ) : null}
+      {wa.length >= 8 ? (
+        <a
+          href={`https://wa.me/${wa}`}
+          onClick={stop}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Message on WhatsApp"
+          aria-label="Message enquiry on WhatsApp"
+          className={cls}
+        >
+          <MessageCircle className="h-3 w-3" />
+        </a>
+      ) : null}
+      {query.email ? (
+        <a href={`mailto:${query.email}`} onClick={stop} title={query.email} aria-label="Email enquiry" className={cls}>
+          <Mail className="h-3 w-3" />
+        </a>
       ) : null}
     </div>
   );
@@ -6657,6 +7038,10 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Restoring one student at a time is fine for a mistake; it is not fine after
+  // a bulk archive, which the roster can now do in a single action.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -6690,6 +7075,27 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       s.guardianName?.toLowerCase().includes(q)
     );
   });
+
+  const runBulkStatus = async (status: string, verb: string) => {
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected), status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Update failed");
+      toast.success(`${data.updated} student${data.updated === 1 ? "" : "s"} ${verb}`);
+      setSelected(new Set());
+      await load();
+      onVersionBump();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const changeStatus = async (student: any, status: string, successMsg: string) => {
     setBusyId(student.id);
@@ -6750,19 +7156,50 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         ))}
       </div>
 
-      <div className="mb-4 max-w-xs">
-        <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Search</span>
-        <div className="group/search flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 h-14 w-full transition-all duration-200 focus-within:border-[#8127cf]/30 focus-within:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] focus-within:bg-white">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle transition-colors group-focus-within/search:text-[#8127cf]">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text" placeholder="Search archived students..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="ml-2 h-full w-full bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle tracking-wide"
-          />
-        </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <SearchField
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search archived students…"
+          autoFocusKey={null}
+          className="max-w-xs"
+        />
+        {filtered.length > 0 ? (
+          <button
+            type="button"
+            onClick={() =>
+              setSelected((prev) =>
+                filtered.every((s) => prev.has(s.id)) ? new Set() : new Set(filtered.map((s) => s.id)),
+              )
+            }
+            className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
+          >
+            {filtered.every((s) => selected.has(s.id)) ? "Deselect all" : `Select all ${filtered.length}`}
+          </button>
+        ) : null}
       </div>
+
+      <SelectionBar
+        total={selected.size}
+        busy={bulkBusy}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          {
+            key: "restore",
+            label: "Restore to roll",
+            icon: RotateCcw,
+            accent: "#10b981",
+            onRun: () => runBulkStatus("active", "restored to the active roll"),
+          },
+          {
+            key: "graduated",
+            label: "Mark graduated",
+            icon: Award,
+            accent: "#8127cf",
+            onRun: () => runBulkStatus("graduated", "marked as graduated"),
+          },
+        ]}
+      />
 
       {loading ? (
         <SkeletonList rows={4} label="Loading archived students" />
@@ -6776,6 +7213,20 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4 transition-all duration-300 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
+              <input
+                type="checkbox"
+                checked={selected.has(s.id)}
+                onChange={() =>
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(s.id)) next.delete(s.id);
+                    else next.add(s.id);
+                    return next;
+                  })
+                }
+                aria-label={`Select ${s.fullName}`}
+                className="h-4 w-4 shrink-0 cursor-pointer accent-[#8127cf]"
+              />
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f9] text-ink-muted">
                 <Archive className="h-5 w-5" />
               </div>
@@ -7962,6 +8413,10 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ roomNumber: "", capacity: "0" });
   const [saving, setSaving] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+  // Deleting a room was a single unguarded click that could unpick a term's
+  // worth of timetable assignments.
+  const [confirmRoom, setConfirmRoom] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -8037,6 +8492,17 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
     }
   };
 
+  const roomUsage = (r: any) =>
+    (r._count?.slots ?? 0) + (r._count?.examSchedules ?? 0) + (r._count?.examRooms ?? 0);
+  const totalSeats = rooms.reduce((sum, r) => sum + (r.capacity || 0), 0);
+  const roomsWithoutCapacity = rooms.filter((r) => !r.capacity).length;
+  const roomsInUse = rooms.filter((r) => roomUsage(r) > 0).length;
+  const visibleRooms = roomSearch.trim()
+    ? rooms.filter((r) =>
+        `${r.roomNumber} ${r.note || ""}`.toLowerCase().includes(roomSearch.trim().toLowerCase()),
+      )
+    : rooms;
+
   const deleteRoom = async (id: string) => {
     setDeleting(id);
     try {
@@ -8097,13 +8563,62 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
         </div>
       ) : null}
 
+      {rooms.length > 0 ? (
+        <>
+          <div className="mb-5">
+            <StatTiles
+              tiles={[
+                { key: "rooms", icon: Building, label: "Rooms", value: rooms.length, tone: "violet" },
+                {
+                  key: "seats",
+                  icon: Users,
+                  label: "Total seats",
+                  value: totalSeats,
+                  hint: roomsWithoutCapacity ? `${roomsWithoutCapacity} with no capacity set` : "All measured",
+                  tone: roomsWithoutCapacity ? "amber" : "teal",
+                },
+                {
+                  key: "used",
+                  icon: CalendarDays,
+                  label: "Rooms in use",
+                  value: roomsInUse,
+                  hint: `on the timetable or a date sheet`,
+                  tone: "emerald",
+                },
+                {
+                  key: "idle",
+                  icon: DoorOpen,
+                  label: "Never scheduled",
+                  value: rooms.length - roomsInUse,
+                  hint: rooms.length - roomsInUse ? "Free to remove or reuse" : "Every room is booked",
+                  tone: "slate",
+                },
+              ]}
+            />
+          </div>
+          {rooms.length > 6 ? (
+            <div className="mb-4">
+              <SearchField
+                value={roomSearch}
+                onChange={setRoomSearch}
+                placeholder="Find a room…"
+                autoFocusKey={null}
+                className="max-w-xs"
+              />
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
       {loading ? (
         <EmptyInline text="Loading rooms…" />
       ) : rooms.length === 0 ? (
         <EmptyInline text="No rooms yet. Add your first class room above." />
+      ) : visibleRooms.length === 0 ? (
+        <EmptyInline text="No room matches that search." />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rooms.map((room, i) => (
+          {visibleRooms.map((room, i) => (
             <div
               key={room.id}
               className="rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-5 transition-shadow hover:shadow-[0_8px_24px_-8px_rgba(129,39,207,0.25)]"
@@ -8133,10 +8648,11 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
                     </button>
                   )}
                   <button
-                    onClick={() => deleteRoom(room.id)}
+                    type="button"
+                    onClick={() => setConfirmRoom(room)}
                     disabled={deleting === room.id}
-                    className="rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
-                    aria-label="Delete room"
+                    className="cursor-pointer rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
+                    aria-label={`Delete room ${room.roomNumber}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -8197,6 +8713,27 @@ export function RoomsPanel({ campusId }: { campusId?: string }) {
           ))}
         </div>
       )}
+
+      <ConfirmAction
+        open={Boolean(confirmRoom)}
+        title={`Delete room ${confirmRoom?.roomNumber ?? ""}?`}
+        description={
+          confirmRoom
+            ? roomUsage(confirmRoom) > 0
+              ? `${confirmRoom.roomNumber} is booked ${roomUsage(confirmRoom)} time${roomUsage(confirmRoom) === 1 ? "" : "s"} on timetables and date sheets. Those bookings have to move to another room before it can be deleted.`
+              : `${confirmRoom.roomNumber} is not booked anywhere, so removing it affects nothing else.`
+            : ""
+        }
+        confirmLabel="Delete room"
+        tone="danger"
+        busy={deleting === confirmRoom?.id}
+        onCancel={() => setConfirmRoom(null)}
+        onConfirm={async () => {
+          const target = confirmRoom;
+          setConfirmRoom(null);
+          if (target) await deleteRoom(target.id);
+        }}
+      />
     </div>
   );
 }
@@ -8211,13 +8748,29 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
   const [form, setForm] = useState({ periodNumber: "", startTime: "08:00", endTime: "08:40" });
   const [busy, setBusy] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  /**
+   * Time inputs are edited locally and saved on blur. They used to be
+   * controlled straight off the server value with a PATCH on every change
+   * event, so typing "09:15" fired a request per keystroke — and then the blur
+   * handler saved it a second time.
+   */
+  const [drafts, setDrafts] = useState<Record<string, { startTime: string; endTime: string }>>({});
+  const [confirmPeriod, setConfirmPeriod] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/academic/periods?timeType=${timeType}${campusId ? `&campusId=${campusId}` : ""}`);
       const json = await res.json();
-      if (json.success) setPeriods(json.data || []);
+      if (json.success) {
+        const rows = json.data || [];
+        setPeriods(rows);
+        setDrafts(
+          Object.fromEntries(
+            rows.map((r: any) => [r.id, { startTime: r.startTime, endTime: r.endTime }]),
+          ),
+        );
+      }
     } catch {
     } finally {
       setLoading(false);
@@ -8288,6 +8841,16 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
     }
   };
 
+  const teachingMinutes = periods.reduce(
+    (sum, p) => sum + Math.max(0, minutesBetween(p.startTime, p.endTime)),
+    0,
+  );
+  const dayLength =
+    periods.length > 0
+      ? Math.max(0, minutesBetween(periods[0].startTime, periods[periods.length - 1].endTime))
+      : 0;
+  const breakMinutes = Math.max(0, dayLength - teachingMinutes);
+
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -8349,6 +8912,40 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         </div>
       ) : null}
 
+      {periods.length > 0 && !loading ? (
+        <div className="mb-5">
+          <StatTiles
+            tiles={[
+              { key: "count", icon: Clock, label: `${timeType === "CLASS" ? "Class" : "Exam"} periods`, value: periods.length, tone: "violet" },
+              {
+                key: "window",
+                icon: Sun,
+                label: "School day",
+                value: `${periods[0].startTime}–${periods[periods.length - 1].endTime}`,
+                hint: `${Math.round(dayLength / 60)}h ${dayLength % 60}m from first to last bell`,
+                tone: "teal",
+              },
+              {
+                key: "teaching",
+                icon: BookOpen,
+                label: "Teaching time",
+                value: `${Math.floor(teachingMinutes / 60)}h ${teachingMinutes % 60}m`,
+                hint: "Sum of every period",
+                tone: "emerald",
+              },
+              {
+                key: "breaks",
+                icon: CalendarClock,
+                label: "Break time",
+                value: `${breakMinutes} min`,
+                hint: breakMinutes ? "Unscheduled gaps between periods" : "No gaps — back-to-back",
+                tone: breakMinutes ? "amber" : "slate",
+              },
+            ]}
+          />
+        </div>
+      ) : null}
+
       {loading ? (
         <EmptyInline text="Loading periods…" />
       ) : periods.length === 0 ? (
@@ -8363,6 +8960,8 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             const prev = i > 0 ? periods[i - 1] : null;
             const gapMinutes =
               prev && prev.endTime && p.startTime ? minutesBetween(prev.endTime, p.startTime) : 0;
+            const draft = drafts[p.id] ?? { startTime: p.startTime, endTime: p.endTime };
+            const lengthMinutes = minutesBetween(p.startTime, p.endTime);
             return (
             <React.Fragment key={p.id}>
             {gapMinutes > 0 ? (
@@ -8383,30 +8982,51 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
               <input
                 type="time"
+                aria-label={`Period ${p.periodNumber} start time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
-                value={p.startTime}
-                onChange={(e) => updatePeriod(p.id, "startTime", e.target.value)}
+                value={draft.startTime}
+                onChange={(e) =>
+                  setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: e.target.value } }))
+                }
                 onBlur={(e) => {
-                  if (e.target.value !== p.startTime && e.target.value < p.endTime) updatePeriod(p.id, "startTime", e.target.value);
+                  const next = e.target.value;
+                  if (!next || next === p.startTime) return;
+                  if (next >= draft.endTime) {
+                    toast.error("Start time must be before the end time");
+                    setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: p.startTime } }));
+                    return;
+                  }
+                  updatePeriod(p.id, "startTime", next);
                 }}
               />
               <span className="text-xs font-bold text-ink-subtle">to</span>
               <input
                 type="time"
+                aria-label={`Period ${p.periodNumber} end time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
-                value={p.endTime}
-                onChange={(e) => updatePeriod(p.id, "endTime", e.target.value)}
+                value={draft.endTime}
+                onChange={(e) =>
+                  setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: e.target.value } }))
+                }
                 onBlur={(e) => {
-                  if (e.target.value !== p.endTime && e.target.value > p.startTime) updatePeriod(p.id, "endTime", e.target.value);
+                  const next = e.target.value;
+                  if (!next || next === p.endTime) return;
+                  if (next <= draft.startTime) {
+                    toast.error("End time must be after the start time");
+                    setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: p.endTime } }));
+                    return;
+                  }
+                  updatePeriod(p.id, "endTime", next);
                 }}
               />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                {timeType === "CLASS" ? "Class" : "Exam"} period
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                {lengthMinutes > 0 ? `${lengthMinutes} min` : "—"}
               </span>
               <button
-                onClick={() => deletePeriod(p.id)}
-                className="ml-auto rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
-                aria-label="Delete period"
+                type="button"
+                onClick={() => setConfirmPeriod(p)}
+                className="ml-auto cursor-pointer rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
+                aria-label={`Delete period ${p.periodNumber}`}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -8420,6 +9040,24 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           </p>
         </div>
       )}
+
+      <ConfirmAction
+        open={Boolean(confirmPeriod)}
+        title={`Delete period ${confirmPeriod?.periodNumber ?? ""}?`}
+        description={
+          confirmPeriod
+            ? `The ${confirmPeriod.startTime}–${confirmPeriod.endTime} slot disappears from every ${timeType === "CLASS" ? "class timetable" : "exam date sheet"} row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown.`
+            : ""
+        }
+        confirmLabel="Delete period"
+        tone="danger"
+        onCancel={() => setConfirmPeriod(null)}
+        onConfirm={async () => {
+          const target = confirmPeriod;
+          setConfirmPeriod(null);
+          if (target) await deletePeriod(target.id);
+        }}
+      />
     </div>
   );
 }

@@ -16,7 +16,9 @@ export async function GET(req: NextRequest) {
     const rooms = await prisma.classRoom.findMany({
       where: { campusId },
       orderBy: [{ roomNumber: "asc" }],
-      include: { _count: { select: { slots: true } } },
+      // Exam usage matters as much as timetable usage when deciding whether a
+      // room can be renamed or removed.
+      include: { _count: { select: { slots: true, examSchedules: true, examRooms: true } } },
     });
 
     return Response.json({ success: true, data: rooms });
@@ -106,9 +108,31 @@ export async function DELETE(req: NextRequest) {
 
     const room = await prisma.classRoom.findFirst({
       where: { id, campus: { schoolId: user.schoolId } },
-      select: { id: true, roomNumber: true, _count: { select: { slots: true } } },
+      select: {
+        id: true,
+        roomNumber: true,
+        _count: { select: { slots: true, examSchedules: true, examRooms: true } },
+      },
     });
     if (!room) throw new ApiError("Room not found", 404);
+
+    // The usage count was already being read here and then ignored, so deleting
+    // a room that timetables and date sheets point at silently unpicked those
+    // assignments. Refuse, and say exactly what is holding the room.
+    const holds: string[] = [];
+    if (room._count.slots > 0) {
+      holds.push(`${room._count.slots} timetable slot${room._count.slots === 1 ? "" : "s"}`);
+    }
+    const examUses = room._count.examSchedules + room._count.examRooms;
+    if (examUses > 0) {
+      holds.push(`${examUses} exam paper${examUses === 1 ? "" : "s"}`);
+    }
+    if (holds.length > 0) {
+      throw new ApiError(
+        `Room ${room.roomNumber} is still in use by ${holds.join(" and ")}. Move them to another room first.`,
+        409,
+      );
+    }
 
     await prisma.classRoom.delete({ where: { id } });
     return Response.json({ success: true, data: { id } });

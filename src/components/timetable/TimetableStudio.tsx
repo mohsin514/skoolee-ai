@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Calendar, Check, ChevronDown,
-  Clock, DoorOpen, GraduationCap, Loader2, Plus, Printer, Send, Trash2, User, X,
+  AlertTriangle, BookOpen, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight,
+  Clock, DoorOpen, GraduationCap, Loader2, Maximize2, Minimize2, Palette, Plus,
+  Printer, Rows3, Send, Trash2, User, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,7 +12,9 @@ import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
 import { SubjectPalette } from "./SubjectPalette";
 import { TeacherView } from "./TeacherView";
-import { TimetableGrid } from "./TimetableGrid";
+import { TimetableGrid, type GridDensity } from "./TimetableGrid";
+
+const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
 
 // ─── Exported shared types (imported by sub-components) ─────
 export interface StudioSlot {
@@ -588,6 +591,52 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   const [viewMode, setViewMode] = useState<"class" | "teacher" | "room">("class");
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [showPeriodConfig, setShowPeriodConfig] = useState(false);
+  /**
+   * The grid sat in a 260px / 1fr / 320px layout, which on a 1280px screen left
+   * it about 510px to render a table that asks for 760px — so the timetable,
+   * the thing this screen is for, was the one part you had to scroll sideways
+   * to read. The side panes now collapse to rails, and the choice sticks.
+   */
+  const [showPalette, setShowPalette] = useState(true);
+  const [showConflicts, setShowConflicts] = useState(true);
+  const [showLegend, setShowLegend] = useState(true);
+  const [density, setDensity] = useState<GridDensity>("comfortable");
+  const [layoutLoaded, setLayoutLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TIMETABLE_LAYOUT_KEY);
+      if (raw) {
+        const v = JSON.parse(raw) as Partial<{
+          showPalette: boolean;
+          showConflicts: boolean;
+          showLegend: boolean;
+          density: GridDensity;
+        }>;
+        if (typeof v.showPalette === "boolean") setShowPalette(v.showPalette);
+        if (typeof v.showConflicts === "boolean") setShowConflicts(v.showConflicts);
+        if (typeof v.showLegend === "boolean") setShowLegend(v.showLegend);
+        if (v.density) setDensity(v.density);
+      }
+    } catch {
+      /* ignore */
+    }
+    setLayoutLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!layoutLoaded) return;
+    try {
+      window.localStorage.setItem(
+        TIMETABLE_LAYOUT_KEY,
+        JSON.stringify({ showPalette, showConflicts, showLegend, density }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [layoutLoaded, showPalette, showConflicts, showLegend, density]);
+
+  const focused = !showPalette && !showConflicts;
   const [customPeriods, setCustomPeriods] = useState<{ period: number; start: string; end: string; type: string }[]>([]);
   const [periodDefs, setPeriodDefs] = useState<PeriodDef[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
@@ -1089,7 +1138,60 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* How much room each cell gets. Three settings, because a
+                      timetable is read at arm's length on a projector and at
+                      30cm while it is being built. */}
+                  <div className="flex items-center gap-0.5 rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] p-0.5">
+                    {(["compact", "comfortable", "roomy"] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDensity(d)}
+                        aria-pressed={density === d}
+                        title={
+                          d === "compact"
+                            ? "Compact — subject names only"
+                            : d === "comfortable"
+                            ? "Comfortable — subject, teacher and room"
+                            : "Roomy — full names on their own lines"
+                        }
+                        className={`h-8 cursor-pointer rounded-lg px-2.5 text-[9px] font-black uppercase tracking-wider transition-all ${
+                          density === d ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
+                        }`}
+                      >
+                        {d === "compact" ? "S" : d === "comfortable" ? "M" : "L"}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !focused;
+                      setShowPalette(!next);
+                      setShowConflicts(!next);
+                    }}
+                    aria-pressed={focused}
+                    title={focused ? "Show the subject and conflict panels" : "Give the grid the full width"}
+                    className={`flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all ${
+                      focused
+                        ? "bg-[#8127cf] text-white"
+                        : "bg-[#f3f4f9] text-ink-muted hover:bg-[#8127cf]/10 hover:text-[#8127cf]"
+                    }`}
+                  >
+                    {focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                    {focused ? "Exit Focus" : "Focus"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLegend((v) => !v)}
+                    aria-pressed={showLegend}
+                    title={showLegend ? "Hide the subject legend" : "Show the subject legend"}
+                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf]"
+                  >
+                    <Palette className="h-3.5 w-3.5" />
+                    Legend
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1129,34 +1231,65 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 </div>
               </div>
 
-              {/* Subject legend */}
-              <div className="flex flex-wrap gap-2">
-                {subjects.map((s) => {
-                  const c = subjectColorMap.get(s.id);
-                  return (
-                    <div key={s.id} className={`flex items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}>
-                      <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-gray-400"}`} />
-                      <span className={`text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
-                      {s.teacher && (
-                        <span className="text-[9px] font-semibold text-ink-subtle ml-1">({s.teacher.fullName})</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* 3-pane layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px] gap-4 items-stretch">
-                {/* LEFT: Subject palette */}
-                <div className="lg:max-h-[78vh] lg:sticky lg:top-4">
-                  <SubjectPalette
-                    subjects={subjects}
-                    placedBySubject={placedBySubject}
-                    targetDays={targetDays}
-                    totalClassSlots={totalClassSlots}
-                    subjectColorMap={subjectColorMap}
-                  />
+              {/* Subject legend. With a dozen subjects this wrapped to four
+                  rows and pushed the grid below the fold, so it caps its own
+                  height and can be put away entirely. */}
+              {showLegend ? (
+                <div className="max-h-24 overflow-y-auto rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-2.5 custom-scrollbar">
+                  <div className="flex flex-wrap gap-2">
+                    {subjects.map((s) => {
+                      const c = subjectColorMap.get(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          title={s.teacher ? `${s.name} — ${s.teacher.fullName}` : s.name}
+                          className={`flex max-w-[220px] items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}
+                        >
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-gray-400"}`} />
+                          <span className={`truncate text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
+                          {s.teacher && (
+                            <span className="ml-1 truncate text-[9px] font-semibold text-ink-subtle">
+                              {s.teacher.fullName}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              ) : null}
+
+              {/* 3-pane layout. The template is built from what is actually
+                  open, so collapsing a pane gives its width to the grid rather
+                  than leaving a gap. */}
+              <div
+                className="grid grid-cols-1 items-stretch gap-4 lg:[grid-template-columns:var(--panes)]"
+                style={
+                  {
+                    "--panes": `${showPalette ? "260px" : "44px"} minmax(0,1fr) ${showConflicts ? "320px" : "44px"}`,
+                  } as React.CSSProperties
+                }
+              >
+                {/* LEFT: Subject palette */}
+                {showPalette ? (
+                  <div className="relative lg:sticky lg:top-4 lg:max-h-[78vh]">
+                    <PaneToggle side="left" onClick={() => setShowPalette(false)} label="Hide subjects" />
+                    <SubjectPalette
+                      subjects={subjects}
+                      placedBySubject={placedBySubject}
+                      targetDays={targetDays}
+                      totalClassSlots={totalClassSlots}
+                      subjectColorMap={subjectColorMap}
+                    />
+                  </div>
+                ) : (
+                  <CollapsedPane
+                    label="Subjects"
+                    icon={BookOpen}
+                    side="left"
+                    onClick={() => setShowPalette(true)}
+                  />
+                )}
 
                 {/* CENTER: Timetable grid */}
                 <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
@@ -1173,6 +1306,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       pendingChanges={pendingChanges}
                       subjectColorMap={subjectColorMap}
                       weekendDays={weekendDays}
+                      density={density}
                       onCellClick={setEditingSlot}
                       onDropSubject={handleDropSubject}
                     />
@@ -1180,19 +1314,29 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 </div>
 
                 {/* RIGHT: Conflict panel */}
-                <div className="lg:max-h-[78vh] lg:sticky lg:top-4">
-                  <ConflictPanel
-                    timetables={timetables}
-                    activeTimetable={activeTimetable}
-                    subjects={subjects}
-                    placedBySubject={placedBySubject}
-                    targetDays={targetDays}
-                    visibleDays={visibleDays}
-                    pendingChanges={pendingChanges}
-                    campusId={campusId}
-                    onApplied={loadData}
+                {showConflicts ? (
+                  <div className="relative lg:sticky lg:top-4 lg:max-h-[78vh]">
+                    <PaneToggle side="right" onClick={() => setShowConflicts(false)} label="Hide checks" />
+                    <ConflictPanel
+                      timetables={timetables}
+                      activeTimetable={activeTimetable}
+                      subjects={subjects}
+                      placedBySubject={placedBySubject}
+                      targetDays={targetDays}
+                      visibleDays={visibleDays}
+                      pendingChanges={pendingChanges}
+                      campusId={campusId}
+                      onApplied={loadData}
+                    />
+                  </div>
+                ) : (
+                  <CollapsedPane
+                    label="Checks"
+                    icon={AlertTriangle}
+                    side="right"
+                    onClick={() => setShowConflicts(true)}
                   />
-                </div>
+                )}
               </div>
             </>
           )}
@@ -1272,5 +1416,66 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The chevron that puts a side pane away. It sits over the pane's own corner so
+ * it costs no layout, and it is a real button so the keyboard can reach it.
+ */
+function PaneToggle({
+  side,
+  label,
+  onClick,
+}: {
+  side: "left" | "right";
+  label: string;
+  onClick: () => void;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`absolute top-2 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#cfc2d6]/30 bg-white text-ink-subtle shadow-sm transition-colors hover:text-[#8127cf] lg:flex ${
+        side === "left" ? "right-2" : "left-2"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+/** A collapsed pane: a 44px rail that says what is behind it. */
+function CollapsedPane({
+  label,
+  icon: Icon,
+  side,
+  onClick,
+}: {
+  label: string;
+  icon: typeof BookOpen;
+  side: "left" | "right";
+  onClick: () => void;
+}) {
+  const Chevron = side === "left" ? ChevronRight : ChevronLeft;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`Show ${label.toLowerCase()}`}
+      className="hidden cursor-pointer flex-col items-center gap-3 rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-b from-white to-[#faf7fc] py-4 shadow-sm transition-colors hover:border-[#8127cf]/40 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
+    >
+      <Chevron className="h-4 w-4 text-ink-subtle" />
+      <Icon className="h-4 w-4 text-[#8127cf]" />
+      <span
+        className="text-[10px] font-black uppercase tracking-wider text-ink-muted"
+        style={{ writingMode: "vertical-rl" }}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
