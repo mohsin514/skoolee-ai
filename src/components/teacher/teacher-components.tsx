@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
 import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UrduInput } from "@/components/ui/urdu-input";
@@ -56,20 +55,6 @@ export function statusTone(status?: string) {
 
 /* ── Reusable UI components ── */
 
-export function PanelHeader({ icon: Icon, title, status }: { icon: any; title: string; status: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-          <Icon className="h-5 w-5" />
-        </div>
-        <h3 className="text-lg font-bold text-[#1d1b20]">{title}</h3>
-      </div>
-      <StatusPill status={status} />
-    </div>
-  );
-}
-
 export function PanelTitle({ icon: Icon, title }: { icon: any; title: string }) {
   return (
     <div className="flex items-center gap-3">
@@ -77,55 +62,6 @@ export function PanelTitle({ icon: Icon, title }: { icon: any; title: string }) 
         <Icon className="h-5 w-5" />
       </div>
       <h3 className="text-lg font-bold tracking-tight text-[#1d1b20]">{title}</h3>
-    </div>
-  );
-}
-
-export function ClassHubCard({ cls, students, onViewStudent }: { cls: any; students: any[]; onViewStudent?: (student: any) => void }) {
-  const [showStudents, setShowStudents] = useState(false);
-  return (
-    <div className="rounded-[30px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{cls.role || "Teacher"}</p>
-          <h3 className="mt-1 truncate text-xl font-bold text-[#1d1b20] tracking-tight">{classLabel(cls)}</h3>
-          <p className="mt-1 text-[11px] font-medium text-ink-subtle">Academic year {cls.academicYear || "N/A"}</p>
-        </div>
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-          <GraduationCap className="h-6 w-6" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <MiniMetric label="Students" value={students.length || cls._count?.students || 0} active />
-        <MiniMetric label="Subjects" value={cls.subjects?.length || cls._count?.subjects || 0} />
-      </div>
-      <div className="mt-5 flex flex-wrap gap-2">
-        {(cls.subjects || []).slice(0, 6).map((subject: any) => (
-          <span key={subject.id} className="rounded-full bg-[#fbf0fe] px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#8127cf]">{subject.name}</span>
-        ))}
-        {!cls.subjects?.length ? (
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">No subjects</span>
-        ) : null}
-      </div>
-      {students.length > 0 ? (
-        <div className="mt-5">
-          <button type="button" onClick={() => setShowStudents(!showStudents)} className="flex w-full cursor-pointer items-center justify-between rounded-2xl bg-[#fbf0fe]/50 px-4 py-2.5 text-left transition-all hover:bg-[#fbf0fe] hover:shadow-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{students.length} Student{students.length !== 1 ? "s" : ""}</span>
-            <span className="text-[10px] font-semibold text-ink-subtle">{showStudents ? "Hide" : "View"}</span>
-          </button>
-          {showStudents ? (
-            <div className="mt-3 max-h-48 space-y-1 overflow-y-auto custom-scrollbar">
-              {students.slice(0, 20).map((student: any) => (
-                <button key={student.id} type="button" onClick={() => onViewStudent?.(student)} className="flex w-full cursor-pointer items-center gap-3 rounded-xl bg-white/70 px-3 py-2 text-left text-xs font-semibold text-[#1d1b20] transition-all hover:bg-white hover:shadow-sm active:scale-[0.98]">
-                  <span className="text-[11px] font-bold text-ink-subtle">{student.rollNo || "#"}</span>
-                  <span className="truncate">{student.fullName}</span>
-                </button>
-              ))}
-              {students.length > 20 ? <p className="px-3 py-1 text-[11px] font-semibold text-ink-subtle">+{students.length - 20} more</p> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -151,15 +87,6 @@ export function MiniMetric({ label, value, active, danger }: { label: string; va
     <div className="rounded-2xl bg-[#fbf0fe]/70 px-3.5 py-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
       <p className={`mt-0.5 truncate text-lg font-bold ${danger ? "text-rose-600" : active ? "text-[#8127cf]" : "text-[#1d1b20]"}`}>{value}</p>
-    </div>
-  );
-}
-
-export function SideMetric({ label, value }: { label: string; value: any }) {
-  return (
-    <div className="rounded-2xl bg-white/10 px-3.5 py-3 transition-colors hover:bg-white/20">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">{label}</p>
-      <p className="mt-0.5 truncate text-lg font-bold text-white">{value}</p>
     </div>
   );
 }

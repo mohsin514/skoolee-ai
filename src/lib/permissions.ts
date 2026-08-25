@@ -180,8 +180,6 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, Perm
   },
 };
 
-export const FIXED_PERMISSION_ROLES: UserRole[] = ["APP_OWNER", "SUPER_ADMIN"];
-
 export function isFixedPermissionRole(role: UserRole | string | null | undefined) {
   return role === "APP_OWNER" || role === "SUPER_ADMIN";
 }

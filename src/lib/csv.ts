@@ -34,8 +34,3 @@ export function csvCell(value: unknown): string {
 
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-
-/** Join one row of already-raw values into a CSV line. */
-export function csvRow(values: unknown[]): string {
-  return values.map(csvCell).join(",");
-}

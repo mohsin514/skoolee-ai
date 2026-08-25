@@ -12,10 +12,6 @@ export const EXAM_STATUSES = [
 
 export type ExamStatus = (typeof EXAM_STATUSES)[number];
 
-export function isExamStatus(value: unknown): value is ExamStatus {
-  return typeof value === "string" && EXAM_STATUSES.includes(value as ExamStatus);
-}
-
 export function gradeForPercentage(percentage: number) {
   if (percentage >= 90) return "A+";
   if (percentage >= 80) return "A";

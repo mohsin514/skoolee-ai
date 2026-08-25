@@ -74,3 +74,6 @@ next-env.d.ts
 docs/qa/fixtures.json
 # Full database dump taken as a pre-QA restore point (~18MB).
 docs/qa/evidence/*.sql
+
+# JetBrains local caches (not shared config)
+.idea/caches/

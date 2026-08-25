@@ -95,23 +95,3 @@ export async function sendWhatsAppMessage(
     };
   }
 }
-
-/**
- * Send a report card notification to a parent via WhatsApp.
- */
-export async function sendReportCardNotification(
-  parentPhone: string,
-  studentName: string,
-  examName: string,
-  pdfUrl?: string
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const text = `Report Card Ready\n\nDear Parent,\n\nThe report card for *${studentName}* for *${examName}* is now ready.\n\n${
-    pdfUrl ? "Download the report card from the attached document." : "Please log in to the portal to view results."
-  }\n\n- SkooleeAI`;
-
-  return sendWhatsAppMessage({
-    to: parentPhone,
-    text,
-    pdfUrl,
-  });
-}

@@ -3,7 +3,6 @@ import { render } from "@react-email/render";
 import { InviteEmail } from "./email/templates/InviteEmail";
 import { MessageEmail } from "./email/templates/MessageEmail";
 import { PasswordResetEmail } from "./email/templates/PasswordResetEmail";
-import { ReportCardEmail } from "./email/templates/ReportCardEmail";
 import { VerifyEmail } from "./email/templates/VerifyEmail";
 import { sendSmtpMail, type SmtpConfig } from "./email/smtp";
 import { roleLabel } from "@/lib/roles";
@@ -223,51 +222,6 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   } catch (err) {
     if (process.env.EMAIL_DEV_MODE === "true") {
       console.log(`[EMAIL DEV MODE] Reset Link: ${getBaseUrl()}/forgot-password?token=${token}`);
-      return { success: true };
-    }
-    throw err;
-  }
-}
-
-export async function sendReportCardEmail(
-  email: string,
-  studentName: string,
-  examTitle: string,
-  pdfUrl?: string
-) {
-  try {
-    const absolutePdfUrl = pdfUrl?.startsWith("http")
-      ? pdfUrl
-      : pdfUrl
-        ? `${getBaseUrl()}${pdfUrl}`
-        : undefined;
-
-    const html = await renderTemplate(
-      ReportCardEmail({
-        studentName,
-        examTitle,
-        pdfUrl: absolutePdfUrl,
-        logoUrl: getLogoUrl(),
-      })
-    );
-    const result = await deliverEmail({
-      to: email,
-      subject: `${studentName}'s report card is ready`,
-      html,
-      text: `Dear Parent,\n\nThe report card for ${studentName} for ${examTitle} is ready.${
-        absolutePdfUrl ? `\n\nView PDF: ${absolutePdfUrl}` : "\n\nPlease log in to SkooleeAI to view the report card."
-      }`,
-      fromName: "SkooleeAI Reports",
-    });
-
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-
-    return result;
-  } catch (err) {
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Report card email for ${studentName}: ${pdfUrl || "portal only"}`);
       return { success: true };
     }
     throw err;

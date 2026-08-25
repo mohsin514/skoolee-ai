@@ -70,10 +70,6 @@ export function isStaffRole(role: unknown): boolean {
   return isUserRole(role) && !["APP_OWNER", "SUPER_ADMIN", "PARENT", "STUDENT"].includes(role);
 }
 
-export function isCampusScopedRole(role: unknown): boolean {
-  return role !== "SUPER_ADMIN" && role !== "APP_OWNER" && isUserRole(role);
-}
-
 export function canAccessRoleDashboard(role: unknown, pathname: string): boolean {
   const normalized = normalizeUserRole(role);
   if (!normalized) return false;

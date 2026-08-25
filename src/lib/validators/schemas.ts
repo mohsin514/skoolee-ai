@@ -188,7 +188,6 @@ export const bulkStudentSchema = z.object({
   students: z.array(studentSchema),
 });
 
-
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   section: optionalText,
@@ -254,12 +253,6 @@ export const bulkMarksSchema = z.object({
     subjectId: z.string(),
     marksObtained: z.coerce.number().min(0),
   })).min(1),
-});
-
-// Exam lock (principal action)
-export const lockExamSchema = z.object({
-  examId: z.string().min(1),
-  campusId: z.string().min(1),
 });
 
 // AI remarks generation
@@ -346,11 +339,6 @@ export const generateInvoicesSchema = z.object({
   classId: z.string().optional(),
   generationMonth: z.string().min(1),
   includeLateFees: z.boolean().default(true),
-});
-
-// Invoice generation job poll
-export const generationJobSchema = z.object({
-  jobId: z.string().min(1),
 });
 
 // Record a payment

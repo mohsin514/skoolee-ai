@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, BookOpen, Ban, Search, Sparkles, UserPlus } from "lucide-react";
+import { AlertTriangle, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
 
@@ -326,26 +326,5 @@ export function TeacherPicker({
         </>
       )}
     </div>
-  );
-}
-
-/** Small badge used outside the picker (e.g. subject rows) to show specialty. */
-export function SpecialtyBadge({ availability }: { availability?: TeacherAvailability }) {
-  if (!availability) return null;
-  if (availability.teachesAllSubjects) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-600">
-        <Sparkles className="h-2 w-2" />
-        All subjects
-      </span>
-    );
-  }
-  if (!availability.subjectSpecialties.length) return null;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
-      <BookOpen className="h-2 w-2" />
-      {availability.subjectSpecialties.slice(0, 2).join(", ")}
-      {availability.subjectSpecialties.length > 2 ? ` +${availability.subjectSpecialties.length - 2}` : ""}
-    </span>
   );
 }

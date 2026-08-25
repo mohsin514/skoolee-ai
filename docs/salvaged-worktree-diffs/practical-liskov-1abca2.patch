@@ -1,0 +1,21 @@
+diff --git a/src/app/parent/page.tsx b/src/app/parent/page.tsx
+index 7caebe2..7b33bca 100644
+--- a/src/app/parent/page.tsx
++++ b/src/app/parent/page.tsx
+@@ -8,6 +8,7 @@ import {
+ import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+ import { useParentData } from "./parent-data-context";
+ import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
++import { formatPKR } from "@/components/fees/fee-utils";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -128,7 +129,7 @@ export default function ParentOverviewPage() {
+               <QuickLink href={`/parent/results${q}`} icon={FileText} label="Results" sub={`${data.marksByExam.length} exams`} />
+               <QuickLink href={`/parent/attendance${q}`} icon={CalendarCheck} label="Attendance" sub={`${data.attendance.total} days recorded`} />
+               <QuickLink href={`/parent/timetable${q}`} icon={Clock} label="Timetable" sub="Weekly class schedule" />
+-              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `Rs ${feeOutstanding.toLocaleString()} outstanding` : "All cleared"} />
++              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `${formatPKR(feeOutstanding)} outstanding` : "All cleared"} />
+             </div>
+           </div>
+         </div>

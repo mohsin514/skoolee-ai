@@ -3,17 +3,6 @@ import { headers } from "next/headers";
 import { createHash } from "crypto";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 
-export async function createAuditLog(params: {
-  tableName: string;
-  recordId: string;
-  oldValue?: any;
-  newValue?: any;
-  userId: string;
-  schoolId: string;
-}) {
-  await prisma.auditLog.create({ data: params });
-}
-
 export async function logSuperAdminAction(params: {
   userId: string;
   action: string;

@@ -118,10 +118,6 @@ export function getAIModel() {
   return modelLabel(provider);
 }
 
-export function getAIProvider() {
-  return providerOrder()[0];
-}
-
 function estimateTokens(messages: ChatMessage[], output = "") {
   const text = `${messages.map((message) => message.content).join("\n")}\n${output}`;
   return Math.max(1, Math.ceil(text.length / 4));

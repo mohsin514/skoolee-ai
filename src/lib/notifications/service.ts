@@ -426,10 +426,6 @@ export async function sendReportCardPublishedNotifications({
   });
 }
 
-export function parseNotificationChannel(value: unknown, fallback: NotificationChannel = "WHATSAPP") {
-  return isNotificationChannel(value) ? value : fallback;
-}
-
 export function parseNotificationTemplateKey(value: unknown) {
   return isNotificationTemplateKey(value) ? value : null;
 }

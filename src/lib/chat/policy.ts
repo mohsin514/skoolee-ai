@@ -32,10 +32,6 @@ export function isLeadership(role: UserRole) {
   return LEADERSHIP_ROLES.includes(role);
 }
 
-export function isSupportStaff(role: UserRole) {
-  return SUPPORT_ROLES.includes(role);
-}
-
 export function isStaff(role: UserRole) {
   return STAFF_ROLES.includes(role);
 }
@@ -136,44 +132,6 @@ export async function teacherClassIds(userId: string): Promise<string[]> {
   for (const s of subjects) ids.add(s.classId);
   for (const s of slots) if (s.timetable?.classId) ids.add(s.timetable.classId);
   return [...ids];
-}
-
-/**
- * The students a user is connected to:
- *  - a guardian's own children,
- *  - a pupil's own record,
- *  - a teacher's whole roster.
- * Leadership is deliberately absent: they are not narrowed by roster, so
- * callers short-circuit before reaching here.
- */
-export async function linkedStudentIds(user: { userId: string; role: UserRole }): Promise<string[]> {
-  if (user.role === "PARENT") {
-    const kids = await prisma.student.findMany({
-      where: { parentUserId: user.userId, status: "active" },
-      select: { id: true },
-    });
-    return kids.map((k) => k.id);
-  }
-
-  if (user.role === "STUDENT") {
-    const self = await prisma.student.findFirst({
-      where: { studentUserId: user.userId },
-      select: { id: true },
-    });
-    return self ? [self.id] : [];
-  }
-
-  if (user.role === "TEACHER") {
-    const classIds = await teacherClassIds(user.userId);
-    if (classIds.length === 0) return [];
-    const roster = await prisma.student.findMany({
-      where: { classId: { in: classIds }, status: "active" },
-      select: { id: true },
-    });
-    return roster.map((s) => s.id);
-  }
-
-  return [];
 }
 
 /**

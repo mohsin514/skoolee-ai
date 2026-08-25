@@ -49,31 +49,6 @@ export async function createStripeCustomer(
 }
 
 /**
- * Create a checkout session for upgrading a plan.
- */
-export async function createCheckoutSession(
-  customerId: string,
-  priceId: string,
-  schoolId: string,
-  plan: Exclude<PlanType, "FREE" | "ENTERPRISE">
-): Promise<string> {
-  const session = await requireStripe().checkout.sessions.create({
-    customer: customerId,
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl()}/dashboard/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl()}/dashboard/billing?canceled=true`,
-    client_reference_id: schoolId,
-    allow_promotion_codes: true,
-    metadata: { schoolId, plan },
-    subscription_data: {
-      metadata: { schoolId, plan },
-    },
-  });
-  return session.url || "";
-}
-
-/**
  * Create a billing portal session for managing subscriptions.
  */
 export async function createPortalSession(

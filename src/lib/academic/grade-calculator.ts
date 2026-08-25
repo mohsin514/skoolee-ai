@@ -26,11 +26,6 @@ export function gradeForMark(obtained: number, total: number, thresholds?: Grade
   return gradeForPercentage(total > 0 ? (obtained / total) * 100 : 0, thresholds);
 }
 
-export function gradeToNumeric(grade: string): number {
-  const map: Record<string, number> = { "A+": 4.0, A: 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0 };
-  return map[grade] ?? 0;
-}
-
 export interface GradeThresholds {
   aplus: number;
   a: number;
@@ -40,20 +35,6 @@ export interface GradeThresholds {
 }
 
 export type WeightMode = "NORMALIZED" | "ABSOLUTE";
-
-export const WEIGHT_MODES: WeightMode[] = ["NORMALIZED", "ABSOLUTE"];
-
-export const WEIGHT_MODE_LABELS: Record<WeightMode, string> = {
-  NORMALIZED: "Rescale to exams held",
-  ABSOLUTE: "Score against the full year",
-};
-
-export const WEIGHT_MODE_HELP: Record<WeightMode, string> = {
-  NORMALIZED:
-    "Averages repeated exams of the same type, then rescales the weights of the exam types that have actually happened to 100. A student who scores full marks in the only exam so far shows 100%.",
-  ABSOLUTE:
-    "Every exam scores against the full 100-point year. Exam types that have not happened yet count as zero, so percentages stay low until the year is complete.",
-};
 
 export function normalizeWeightMode(mode: unknown): WeightMode {
   return mode === "ABSOLUTE" ? "ABSOLUTE" : "NORMALIZED";

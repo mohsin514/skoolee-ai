@@ -1,0 +1,58 @@
+diff --git a/prisma/seed.ts b/prisma/seed.ts
+index 5a7e88d..9f2621f 100644
+--- a/prisma/seed.ts
++++ b/prisma/seed.ts
+@@ -573,7 +573,7 @@ async function seedReportCards(campusId: string, classes: Array<{ id: string; na
+ // ---------------------------------------------------------------------------
+ 
+ async function seedAttendance(campusId: string) {
+-  const students = await prisma.student.findMany({ where: { campusId }, select: { id: true } });
++  const students = await prisma.student.findMany({ where: { campusId }, select: { id: true, classId: true } });
+   const random = seededRandom(99);
+ 
+   const days: Array<[number, number, number]> = [];
+@@ -587,12 +587,15 @@ async function seedAttendance(campusId: string) {
+   }
+   days.reverse();
+ 
+-  const rows: Array<{ campusId: string; studentId: string; date: Date; status: "PRESENT" | "ABSENT" | "LEAVE" }> = [];
++  // classId is what ties a day to an academic year (attendance rows carry no
++  // year of their own), so a row without it is invisible to every year-scoped
++  // reader — the parent portal read 0 of 30 seeded days for this reason.
++  const rows: Array<{ campusId: string; classId: string; studentId: string; date: Date; status: "PRESENT" | "ABSENT" | "LEAVE" }> = [];
+   for (const student of students) {
+     for (const [y, m, day] of days) {
+       const roll = random();
+       const status: "PRESENT" | "ABSENT" | "LEAVE" = roll < 0.85 ? "PRESENT" : roll < 0.94 ? "ABSENT" : "LEAVE";
+-      rows.push({ campusId, studentId: student.id, date: new Date(y, m, day), status });
++      rows.push({ campusId, classId: student.classId, studentId: student.id, date: new Date(y, m, day), status });
+     }
+   }
+ 
+diff --git a/src/lib/attendance.ts b/src/lib/attendance.ts
+index c0fb0e4..490cb60 100644
+--- a/src/lib/attendance.ts
++++ b/src/lib/attendance.ts
+@@ -50,6 +50,11 @@ export const ATTENDANCE_RISK_THRESHOLD = 75;
+  *
+  * Scope by the class's year rather than by the current classId, so a student
+  * who moves section mid-year keeps the days they earned in the old section.
++ *
++ * A row with no class at all cannot be attributed to any year, so it is kept
++ * rather than dropped: excluding it silently reports zero attendance for a
++ * child who has plenty. Only rows that positively belong to a *different* year
++ * are filtered out, which is all the promotion case needs.
+  */
+ export type YearScopedAttendance = {
+   status: AttendanceStatus | string;
+@@ -61,5 +66,9 @@ export function attendanceForYear<T extends YearScopedAttendance>(
+   academicYear: number | null | undefined
+ ): T[] {
+   if (academicYear === null || academicYear === undefined) return records;
+-  return records.filter((r) => r.class?.academicYear === academicYear);
++  return records.filter((r) => {
++    const rowYear = r.class?.academicYear;
++    if (rowYear === null || rowYear === undefined) return true;
++    return rowYear === academicYear;
++  });
+ }

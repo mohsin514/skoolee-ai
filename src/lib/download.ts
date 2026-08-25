@@ -27,12 +27,3 @@ export async function downloadReportCardPdf(reportCardId: string, fallbackName: 
   }
   await downloadPdfFile(json.pdfUrl, fallbackName);
 }
-
-export async function downloadReportCardPdfByStudent(studentId: string, fallbackName: string) {
-  const res = await fetch(`/api/reports/download?studentId=${encodeURIComponent(studentId)}`);
-  const json = await res.json();
-  if (!res.ok || !json?.success || !json.pdfUrl) {
-    throw new Error(json?.error || "No report card PDF available");
-  }
-  await downloadPdfFile(json.pdfUrl, fallbackName);
-}

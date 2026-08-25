@@ -37,11 +37,6 @@ export function canManageExamType(role: string, examType: string): examType is E
   return (allowedExamTypes(role) as readonly string[]).includes(examType);
 }
 
-/** Only office staff put exams on the school datesheet (date + period + room). */
-export function canScheduleExams(role: string) {
-  return isOfficeRole(role);
-}
-
 /**
  * Rejection message for a teacher reaching for a term exam. Kept in one place so
  * the API and the UI say the same thing.

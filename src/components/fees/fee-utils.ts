@@ -57,12 +57,6 @@ export function formatDate(iso: string): string {
   });
 }
 
-export function formatMonth(monthStr: string): string {
-  const [year, month] = monthStr.split("-");
-  const date = new Date(Number(year), Number(month) - 1);
-  return date.toLocaleDateString("en-PK", { month: "long", year: "numeric" });
-}
-
 export function classLabel(name: string, section?: string | null): string {
   return section ? `${name} ${section}` : name;
 }
