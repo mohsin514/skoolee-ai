@@ -89,6 +89,7 @@ import { TimetableStudio } from "@/components/timetable/TimetableStudio";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { AcademicHub } from "@/components/academic/AcademicHub";
+import { AcademicSubnav, ACADEMIC_VIEWS } from "@/components/academic/AcademicSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -457,6 +458,14 @@ export default function PrincipalDashboard() {
   return (
     <RoleShell navItems={navItems} bottomItems={bottomItems} eyebrow={`${data.schoolName} - ${data.campusName}`} userName={data.principalName} userRole="Principal Authority" avatarSeed={data.principalName} dashboardHref="/principal" logoUrl={data.logoUrl}>
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 p-8 overflow-y-auto custom-scrollbar">
+        {/* Academics is ten screens deep. This keeps them one click from each
+            other instead of one sidebar expansion away. */}
+        {ACADEMIC_VIEWS.has(activeView) ? (
+          <AcademicSubnav
+            active={activeView}
+            onNavigate={(v) => setActiveView(v as PrincipalView)}
+          />
+        ) : null}
         {activeView === "overview" ? (
           <div className="sk-rise flex flex-wrap justify-end gap-2 mb-8">
             <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassWizard(true)}>Add Class</BrandButton>

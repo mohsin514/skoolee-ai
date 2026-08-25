@@ -5,12 +5,12 @@ import { createPortal } from "react-dom";
 import {
   X,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   PenLine,
   SlidersHorizontal,
   FileText,
-  Loader2,
   CheckCircle2,
-  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,12 +33,20 @@ export function ExamDetailPanel({
   exam,
   campusId,
   role = "OFFICE",
+  initialTab,
+  sequence,
+  onNavigate,
   onClose,
   onChanged,
 }: {
   exam: ExamItem;
   campusId?: string;
   role?: ExamCycleRole;
+  /** Which tab to land on — set when the board opens the panel at a job. */
+  initialTab?: TabKey;
+  /** The exams currently on screen, so the panel can step through them. */
+  sequence?: { id: string; title: string }[];
+  onNavigate?: (examId: string) => void;
   onClose: () => void;
   onChanged?: () => void;
 }) {
@@ -48,9 +56,18 @@ export function ExamDetailPanel({
     () => (role === "TEACHER" ? TABS.filter((t) => t.key === "marks") : TABS),
     [role],
   );
-  const [tab, setTab] = useState<TabKey>(role === "TEACHER" ? "marks" : "schedule");
+  const [tab, setTab] = useState<TabKey>(
+    role === "TEACHER" ? "marks" : initialTab ?? "schedule",
+  );
   const [show, setShow] = useState(false);
   const closingRef = useRef(false);
+
+  // The board can open this panel straight at a job — "set dates", "enter
+  // marks" — so a later request for a different tab has to win over whatever
+  // the user last clicked.
+  useEffect(() => {
+    if (initialTab && role !== "TEACHER") setTab(initialTab);
+  }, [initialTab, role]);
 
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 10);
@@ -63,6 +80,36 @@ export function ExamDetailPanel({
     setShow(false);
     setTimeout(() => onClose(), 300);
   }, [onClose]);
+
+  // Stepping between exams without closing the panel is the difference between
+  // reviewing ten classes and closing ten drawers.
+  const index = useMemo(
+    () => (sequence ? sequence.findIndex((s) => s.id === exam.id) : -1),
+    [sequence, exam.id],
+  );
+  const prev = index > 0 ? sequence?.[index - 1] : undefined;
+  const next =
+    sequence && index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : undefined;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (e.key === "Escape") {
+        handleClose();
+      } else if (!typing && e.key === "ArrowDown" && next && onNavigate) {
+        e.preventDefault();
+        onNavigate(next.id);
+      } else if (!typing && e.key === "ArrowUp" && prev && onNavigate) {
+        e.preventDefault();
+        onNavigate(prev.id);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [handleClose, next, prev, onNavigate]);
 
   return createPortal(
     <div className="fixed inset-0 z-[150] flex justify-end">
@@ -95,13 +142,43 @@ export function ExamDetailPanel({
                 {exam.term} · {exam.academicYear} · {exam.totalMarks} marks
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-white/80 hover:bg-white/15 cursor-pointer transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              {sequence && sequence.length > 1 && onNavigate ? (
+                <div className="mr-1 flex items-center gap-1 rounded-2xl bg-white/12 px-1.5 py-1">
+                  <button
+                    type="button"
+                    disabled={!prev}
+                    onClick={() => prev && onNavigate(prev.id)}
+                    title={prev ? `Previous: ${prev.title}` : "First exam"}
+                    aria-label="Previous exam"
+                    className="flex h-7 w-7 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35 enabled:cursor-pointer"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="px-1 text-[10px] font-black tabular-nums text-white/80">
+                    {index + 1}/{sequence.length}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!next}
+                    onClick={() => next && onNavigate(next.id)}
+                    title={next ? `Next: ${next.title}` : "Last exam"}
+                    aria-label="Next exam"
+                    className="flex h-7 w-7 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35 enabled:cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Close"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-white/80 transition-colors hover:bg-white/15"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
 

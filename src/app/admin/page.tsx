@@ -53,6 +53,7 @@ import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendan
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetableStudio } from "@/components/timetable/TimetableStudio";
 import { AcademicHub } from "@/components/academic/AcademicHub";
+import { AcademicSubnav, ACADEMIC_VIEWS, ACADEMIC_VIEW_MODULE } from "@/components/academic/AcademicSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
@@ -930,6 +931,16 @@ export default function CampusAdminDashboard() {
     >
       <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20">
+          {/* Academics is ten screens deep. This keeps them one click from each
+              other instead of one sidebar expansion away. */}
+          {ACADEMIC_VIEWS.has(activeView) ? (
+            <AcademicSubnav
+              active={activeView}
+              onNavigate={(v) => setActiveView(v as AdminView)}
+              allowed={(v) => canViewModule(ACADEMIC_VIEW_MODULE[v] ?? "timetable")}
+            />
+          ) : null}
+
           {activeView === "leadership" ? (
             <LeadershipPanel
               data={data}
