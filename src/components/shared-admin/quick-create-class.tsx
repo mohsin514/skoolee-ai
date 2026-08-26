@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   BookOpen,
   Check,
   ChevronDown,
@@ -20,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ModalSurface } from "@/components/ui/modal";
+import { parseSections, parseSubjectList } from "@/lib/class-sections";
 import {
   TeacherPicker,
   useTeacherAvailability,
@@ -104,14 +106,59 @@ export function QuickCreateClass({
 
   /* ── Derived ──────────────────────────────────────────────────────── */
 
-  const sectionNames = useMemo(
+  /** Expanded, de-duplicated section names, in the order they were typed. */
+  const sectionNames = useMemo(() => parseSections(sectionsInput), [sectionsInput]);
+
+  const year = Number(academicYear) || new Date().getFullYear();
+
+  /**
+   * Sections of this class that already exist for this year.
+   *
+   * The clash was previously only discovered on submit, as a toast, *after*
+   * the office had filled in the whole form — and the API creates one row per
+   * section, so a duplicate found halfway leaves the earlier ones created.
+   * Checking as they type means the chip itself says so.
+   */
+  const takenSections = useMemo(() => {
+    const target = name.trim().toLowerCase();
+    const taken = new Set<string>();
+    if (!target) return taken;
+    for (const cls of classes || []) {
+      if ((cls.name || "").trim().toLowerCase() !== target) continue;
+      if (Number(cls.academicYear) !== year) continue;
+      taken.add((cls.section || "").trim().toLowerCase());
+    }
+    return taken;
+  }, [classes, name, year]);
+
+  const clashingSections = useMemo(
     () =>
-      sectionsInput
-        .split(/[,\n]+/)
-        .map((s) => s.trim())
-        .filter(Boolean),
-    [sectionsInput],
+      hasSections
+        ? sectionNames.filter((section) => takenSections.has(section.toLowerCase()))
+        : takenSections.has("")
+          ? ["\u2014"]
+          : [],
+    [hasSections, sectionNames, takenSections],
   );
+
+  /* What pressing Create will actually write. Sections become class rows; every
+     subject is created once per section. */
+  const classRowCount = hasSections ? sectionNames.length : 1;
+  const subjectRowCount = classRowCount * subjects.length;
+
+  /**
+   * Everything standing between the form and a successful create, said before
+   * the click rather than as a toast after it.
+   */
+  const blockedReason = !name.trim()
+    ? "Name the class to continue."
+    : hasSections && sectionNames.length === 0
+      ? "Add at least one section, or turn sections off."
+      : clashingSections.length > 0
+        ? hasSections
+          ? `${name.trim()} ${clashingSections.join(", ")} already exist${clashingSections.length === 1 ? "s" : ""} for ${year}.`
+          : `${name.trim()} already exists for ${year}.`
+        : null;
 
   const copyableClasses = useMemo(
     () =>
@@ -128,26 +175,69 @@ export function QuickCreateClass({
 
   /* ── Actions ──────────────────────────────────────────────────────── */
 
+  /**
+   * Adds whatever is in the box — which may be one subject or a whole pasted
+   * list. It used to reject anything with a comma in it as a single bad name.
+   */
   const addSubject = () => {
-    const trimmed = newSubjectName.trim();
-    if (!trimmed) {
+    const raw = newSubjectName.trim();
+    if (!raw) {
       toast.error("Enter a subject name");
       return;
     }
-    if (subjects.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
-      toast.error(`"${trimmed}" is already added`);
+
+    const parsed = parseSubjectList(raw);
+    const existing = new Set(subjects.map((s) => s.name.toLowerCase()));
+    const fresh: QuickSubject[] = [];
+    const skipped: string[] = [];
+
+    for (const item of parsed) {
+      const key = item.name.toLowerCase();
+      if (existing.has(key)) {
+        skipped.push(item.name);
+        continue;
+      }
+      existing.add(key);
+      fresh.push({
+        key: crypto.randomUUID(),
+        name: item.name,
+        // A single subject keeps whatever is in the marks box beside it; a
+        // pasted list carries its own totals, falling back to the same default.
+        totalMarks: parsed.length === 1 ? newSubjectMarks || "100" : item.totalMarks,
+      });
+    }
+
+    if (fresh.length === 0) {
+      toast.error(`${skipped.join(", ")} already added`);
       return;
     }
-    setSubjects((prev) => [
-      ...prev,
-      {
-        key: crypto.randomUUID(),
-        name: trimmed,
-        totalMarks: newSubjectMarks || "100",
-      },
-    ]);
+
+    setSubjects((prev) => [...prev, ...fresh]);
     setNewSubjectName("");
     setNewSubjectMarks("100");
+    if (fresh.length > 1) {
+      toast.success(`Added ${fresh.length} subjects`);
+    }
+    if (skipped.length > 0) {
+      toast.info(`Skipped ${skipped.join(", ")} — already added`);
+    }
+  };
+
+  /** Inline edit of a subject already in the list. */
+  const updateSubject = (key: string, patch: Partial<QuickSubject>) => {
+    setSubjects((prev) =>
+      prev.map((subject) => (subject.key === key ? { ...subject, ...patch } : subject)),
+    );
+  };
+
+  /**
+   * Removing a chip rewrites the field from the expanded list, so a range
+   * typed as "A-D" becomes "A, B, C" rather than silently dropping the range.
+   */
+  const removeSection = (target: string) => {
+    setSectionsInput(
+      sectionNames.filter((section) => section !== target).join(", "),
+    );
   };
 
   const removeSubject = (key: string) => {
@@ -172,57 +262,20 @@ export function QuickCreateClass({
 
   /* ── Validation ───────────────────────────────────────────────────── */
 
+  /**
+   * The name, section and clash rules are enforced live by `blockedReason`,
+   * which disables the button and says why — so this is only the last gate
+   * before a write, not the place the office first learns something is wrong.
+   */
   const validate = (): boolean => {
-    if (!name.trim()) {
-      toast.error("Class name is required");
+    if (blockedReason) {
+      toast.error(blockedReason);
       return false;
     }
-
-    if (hasSections && sectionNames.length === 0) {
-      toast.error("Add at least one section name, or turn off sections");
-      return false;
-    }
-
-    // Catch collisions: the API creates one row per section, so a duplicate
-    // discovered halfway would leave earlier sections already created.
-    const year = Number(academicYear) || new Date().getFullYear();
-    const targets = hasSections
-      ? sectionNames.map((s) => s.toLowerCase())
-      : [""];
-    const clash = (classes || []).filter(
-      (cls: any) =>
-        (cls.name || "").trim().toLowerCase() === name.trim().toLowerCase() &&
-        Number(cls.academicYear) === year &&
-        targets.includes((cls.section || "").trim().toLowerCase()),
-    );
-    if (clash.length > 0) {
-      toast.error(
-        `${clash
-          .map(
-            (c: any) =>
-              `${c.name}${c.section ? ` ${c.section}` : ""}`,
-          )
-          .join(", ")} already exists`,
-      );
-      return false;
-    }
-
-    // Check for duplicate section names
-    const lowerSections = sectionNames.map((s) => s.toLowerCase());
-    const dupes = lowerSections.filter(
-      (s, i) => lowerSections.indexOf(s) !== i,
-    );
-    if (dupes.length > 0) {
-      toast.error(`Duplicate section names: ${[...new Set(dupes)].join(", ")}`);
-      return false;
-    }
-
-    const incomplete = subjects.find((s) => !s.name.trim());
-    if (incomplete) {
+    if (subjects.some((subject) => !subject.name.trim())) {
       toast.error("Every subject needs a name");
       return false;
     }
-
     return true;
   };
 
@@ -325,6 +378,25 @@ export function QuickCreateClass({
   };
 
   /* ── Keyboard ─────────────────────────────────────────────────────── */
+
+  /**
+   * Cmd/Ctrl + Enter creates, from anywhere in the form.
+   *
+   * This is a form the office fills in dozens of times at the start of a year;
+   * plain Enter cannot submit it because Enter is already how you commit a
+   * subject, so the chord is the one that stays out of the way.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+      if (busy || blockedReason) return;
+      event.preventDefault();
+      handleCreate();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
+
 
   /* ── Render ───────────────────────────────────────────────────────── */
 
@@ -572,25 +644,29 @@ export function QuickCreateClass({
                 {hasSections && (
                   <div className="mt-4">
                     <label className="block">
-                      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                        Section Names{" "}
-                        <span className="text-ink-subtle">
-                          (comma separated)
+                      <span className="mb-2 flex items-baseline justify-between gap-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+                        <span>Section Names</span>
+                        <span className="font-bold normal-case tracking-normal text-ink-subtle">
+                          Type <code className="rounded bg-white px-1 font-mono text-[10px] text-[#0d9488]">A-D</code> for a run
                         </span>
                       </span>
                       <input
                         type="text"
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
-                        placeholder="A, B, C"
+                        placeholder="A, B, C  ·  or  A-D  ·  or  1-4"
                         className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#0d9488]/40 focus:shadow-[0_0_0_3px_rgba(13,148,136,0.08)]"
                       />
                     </label>
 
-                    {/* Live section chips */}
+                    {/* Live section chips. Each one is the row that will be
+                        created, named exactly as it will appear — and a chip
+                        that collides with an existing class says so here
+                        rather than as a toast after the form is submitted. */}
                     {sectionNames.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {sectionNames.map((sec, i) => {
+                          const taken = takenSections.has(sec.toLowerCase());
                           const color =
                             SECTION_CHIP_COLORS[
                               i % SECTION_CHIP_COLORS.length
@@ -598,22 +674,47 @@ export function QuickCreateClass({
                           return (
                             <span
                               key={`${sec}-${i}`}
+                              title={
+                                taken
+                                  ? `${name.trim()} ${sec} already exists for ${year}`
+                                  : undefined
+                              }
                               className={cn(
-                                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-black transition-all",
-                                color.bg,
-                                color.text,
-                                color.border,
+                                "group/chip inline-flex items-center gap-1.5 rounded-full border py-1.5 pl-3 pr-1.5 text-[10px] font-black transition-all",
+                                taken
+                                  ? "border-rose-300 bg-rose-50 text-rose-600 line-through decoration-rose-400/70"
+                                  : [color.bg, color.text, color.border],
                               )}
-                              style={{
-                                animationDelay: `${i * 40}ms`,
-                              }}
                             >
-                              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full bg-current",
+                                  taken ? "opacity-90" : "opacity-50",
+                                )}
+                              />
                               {name.trim() || "Class"} - {sec}
+                              <button
+                                type="button"
+                                onClick={() => removeSection(sec)}
+                                aria-label={`Remove section ${sec}`}
+                                className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full opacity-40 transition-all hover:bg-black/10 hover:opacity-100"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
                             </span>
                           );
                         })}
                       </div>
+                    )}
+
+                    {clashingSections.length > 0 && (
+                      <p className="mt-2.5 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-rose-600">
+                        <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                        <span>
+                          Struck-through sections already exist for {year}. Remove them, or
+                          change the class name or year.
+                        </span>
+                      </p>
                     )}
                   </div>
                 )}
@@ -666,7 +767,7 @@ export function QuickCreateClass({
                           addSubject();
                         }
                       }}
-                      placeholder="Subject name"
+                      placeholder="Subject name — or paste a whole list"
                       className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
                     />
                   </div>
@@ -694,6 +795,11 @@ export function QuickCreateClass({
                   </button>
                 </div>
 
+                <p className="mt-2 pl-2 text-[10px] font-bold leading-relaxed text-ink-subtle">
+                  Paste from a syllabus and it splits itself —{" "}
+                  <span className="font-mono text-[#8127cf]">Maths 100, English 75, Science</span>
+                </p>
+
                 {/* Subject chips/pills */}
                 {subjects.length > 0 ? (
                   <div className="mt-4 space-y-2">
@@ -702,23 +808,34 @@ export function QuickCreateClass({
                         key={subject.key}
                         className="group flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-2.5 transition-all hover:border-[#8127cf]/20 hover:shadow-[0_4px_12px_-4px_rgba(129,39,207,0.12)]"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[10px] font-black text-[#8127cf]">
+                        {/* Editable in place: a typo in a pasted list used to
+                            mean deleting the row and retyping it. */}
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[10px] font-black text-[#8127cf]">
                             {i + 1}
                           </div>
-                          <div>
-                            <p className="text-sm font-black text-[#1f1a23]">
-                              {subject.name}
-                            </p>
-                            <p className="text-[9px] font-bold text-ink-subtle">
-                              {subject.totalMarks} marks
-                            </p>
+                          <input
+                            value={subject.name}
+                            onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
+                            aria-label={`Subject ${i + 1} name`}
+                            className="min-w-0 flex-1 rounded-lg bg-transparent py-1 text-sm font-black text-[#1f1a23] outline-none transition-colors hover:bg-[#fbf0fe]/60 focus:bg-[#fbf0fe] focus:px-2"
+                          />
+                          <div className="flex shrink-0 items-baseline gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              value={subject.totalMarks}
+                              onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
+                              aria-label={`${subject.name || "Subject"} total marks`}
+                              className="w-12 rounded-lg bg-transparent py-1 text-right text-xs font-black text-ink-muted outline-none transition-colors hover:bg-[#fbf0fe]/60 focus:bg-[#fbf0fe]"
+                            />
+                            <span className="text-[9px] font-bold text-ink-subtle">marks</span>
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeSubject(subject.key)}
-                          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-0 transition-all hover:bg-[#fff1f2] hover:text-[#f43f5e] group-hover:opacity-100"
+                          className="ml-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-60 transition-all hover:bg-[#fff1f2] hover:text-[#f43f5e] focus-visible:opacity-100 group-hover:opacity-100 sm:opacity-0"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -768,23 +885,68 @@ export function QuickCreateClass({
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={!name.trim()}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] transition-all hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4" />
-                Create & Configure
-              </button>
+            <div className="flex flex-col gap-3">
+              {/* ── Build plan ──
+                  The form asks for a name, a range and a subject list; what it
+                  writes is a specific number of class rows and subject rows.
+                  Stating that before the click is the difference between
+                  "Create" and "Create 4 classes and 24 subjects". */}
+              {blockedReason ? (
+                <p className="flex items-start gap-2 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-[11px] font-bold leading-relaxed text-amber-800">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  {blockedReason}
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl bg-white px-3.5 py-2.5 text-[11px] font-bold text-ink-muted">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                    Will create
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#f3eeff] px-2 py-0.5 font-black text-[#8127cf]">
+                    <Layers className="h-3 w-3" />
+                    {classRowCount} class{classRowCount === 1 ? "" : "es"}
+                  </span>
+                  {subjects.length > 0 ? (
+                    <>
+                      <span className="text-ink-subtle">&times;</span>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#ccfbf1] px-2 py-0.5 font-black text-[#0d9488]">
+                        <BookOpen className="h-3 w-3" />
+                        {subjects.length} subject{subjects.length === 1 ? "" : "s"}
+                      </span>
+                      <span className="text-ink-subtle">=</span>
+                      <span className="font-black text-[#1f1a23]">
+                        {subjectRowCount} subject record{subjectRowCount === 1 ? "" : "s"}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-ink-subtle">
+                      no subjects yet &mdash; you can add them from the class manager
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={Boolean(blockedReason)}
+                  title={blockedReason || "Create this class (\u2318\u21A9)"}
+                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] transition-all hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {classRowCount > 1 ? `Create ${classRowCount} Classes` : "Create & Configure"}
+                  <kbd className="ml-1 hidden rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-[9px] font-black sm:inline">
+                    &#8984;&#8629;
+                  </kbd>
+                </button>
+              </div>
             </div>
           )}
         </div>

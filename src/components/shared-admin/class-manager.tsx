@@ -8,7 +8,9 @@ import React, {
   useState,
 } from "react";
 import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
+import { parseSections } from "@/lib/class-sections";
 import {
+  AlertCircle,
   BookOpen,
   Check,
   CheckCircle2,
@@ -89,6 +91,12 @@ interface ClassManagerProps {
   ) => void;
   onAddStudent: () => void;
   onViewStudent: (student: any) => void;
+  creatingSections?: boolean;
+  /** Adds sections to this class, optionally copying another section's subjects. */
+  onCreateSections?: (
+    source: any,
+    input: { sections: string[]; cloneFromClassId?: string; teacherId?: string },
+  ) => Promise<boolean>;
   onDeleteClass: (cls: any) => void;
   onUpdateClass: (
     classId: string,
@@ -129,6 +137,21 @@ const STATUS_DOT: Record<string, string> = {
   partial: "bg-amber-400",
   empty: "bg-gray-300",
 };
+
+/**
+ * What a section still needs before it can actually run.
+ *
+ * The rail already showed a red/amber/green dot, but a colour on its own only
+ * tells you that something is wrong — not what, and not where to go. These are
+ * the same two conditions `sectionSetupStatus` scores, named so they can be
+ * printed next to the section they belong to.
+ */
+function sectionGaps(section: any): string[] {
+  const gaps: string[] = [];
+  if (!section.classTeacher?.id) gaps.push("teacher");
+  if ((section.subjects?.length || 0) === 0) gaps.push("subjects");
+  return gaps;
+}
 
 function sectionStudentCount(
   section: any,
@@ -318,6 +341,182 @@ function SettingsDrawer({
 /* ------------------------------------------------------------------ */
 /*  Matrix View                                                        */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Add sections to an existing class.
+ *
+ * Lives in the rail beside the sections it creates, because that is where the
+ * question is asked: you are looking at "Section A" and the school has just
+ * opened a B. Cloning is the default posture rather than an option — a
+ * parallel section almost always teaches the same subjects, and rebuilding
+ * that list by hand is the tedium this replaces.
+ */
+function AddSectionPanel({
+  cls,
+  sections,
+  teachers,
+  busy,
+  onCreate,
+  onDone,
+}: {
+  cls: any;
+  sections: any[];
+  teachers: any[];
+  busy: boolean;
+  onCreate: NonNullable<ClassManagerProps["onCreateSections"]>;
+  onDone: () => void;
+}) {
+  const [input, setInput] = useState("");
+  const [cloneFromId, setCloneFromId] = useState<string>(() => {
+    // Default to whichever existing section has the most subjects — the one
+    // most likely to be the fully set-up template.
+    const richest = [...sections].sort(
+      (a, b) => (b.subjects?.length || 0) - (a.subjects?.length || 0),
+    )[0];
+    return (richest?.subjects?.length || 0) > 0 ? richest.id : "";
+  });
+  const [teacherId, setTeacherId] = useState("");
+
+  const names = useMemo(() => parseSections(input), [input]);
+
+  const taken = useMemo(
+    () => new Set(sections.map((sec) => (sec.section || "").trim().toLowerCase())),
+    [sections],
+  );
+  const clashing = names.filter((n) => taken.has(n.toLowerCase()));
+
+  const cloneSource = sections.find((sec) => sec.id === cloneFromId);
+  const cloneCount = cloneSource?.subjects?.length || 0;
+
+  const blocked = names.length === 0
+    ? "Type a section name, or a run like A-D."
+    : clashing.length > 0
+      ? `Section ${clashing.join(", ")} already exists.`
+      : null;
+
+  const submit = async () => {
+    if (blocked || busy) return;
+    const ok = await onCreate(cls, {
+      sections: names,
+      cloneFromClassId: cloneFromId || undefined,
+      teacherId: teacherId || undefined,
+    });
+    if (ok) {
+      setInput("");
+      onDone();
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-2xl border border-[#8127cf]/20 bg-white p-3.5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+          New section
+        </span>
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={busy}
+          aria-label="Cancel"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-40"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+        autoFocus
+        disabled={busy}
+        placeholder="B  ·  or  B-D"
+        className="mt-2 h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3 text-xs font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+      />
+
+      {names.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {names.map((n) => {
+            const isTaken = taken.has(n.toLowerCase());
+            return (
+              <span
+                key={n}
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[9px] font-black",
+                  isTaken
+                    ? "bg-rose-50 text-rose-600 line-through"
+                    : "bg-[#f3eeff] text-[#8127cf]",
+                )}
+              >
+                {cls.name} {n}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* Copy subjects from — the reason most sections get added at all. */}
+      {sections.some((sec) => (sec.subjects?.length || 0) > 0) ? (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+            Copy subjects from
+          </span>
+          <select
+            value={cloneFromId}
+            onChange={(e) => setCloneFromId(e.target.value)}
+            disabled={busy}
+            className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+          >
+            <option value="">Start empty</option>
+            {sections
+              .filter((sec) => (sec.subjects?.length || 0) > 0)
+              .map((sec) => (
+                <option key={sec.id} value={sec.id}>
+                  {sec.section ? `Section ${sec.section}` : "Main"} ({sec.subjects.length})
+                </option>
+              ))}
+          </select>
+        </label>
+      ) : null}
+
+      <label className="mt-2 block">
+        <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+          Class teacher
+        </span>
+        <select
+          value={teacherId}
+          onChange={(e) => setTeacherId(e.target.value)}
+          disabled={busy}
+          className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+        >
+          <option value="">Assign later</option>
+          {teachers.map((t: any) => (
+            <option key={t.id} value={t.id}>{t.fullName}</option>
+          ))}
+        </select>
+      </label>
+
+      {blocked && input.trim() ? (
+        <p className="mt-2 text-[9px] font-bold leading-relaxed text-rose-600">{blocked}</p>
+      ) : names.length > 0 ? (
+        <p className="mt-2 text-[9px] font-bold leading-relaxed text-ink-muted">
+          Creates {names.length} section{names.length === 1 ? "" : "s"}
+          {cloneCount > 0 ? ` with ${cloneCount} subject${cloneCount === 1 ? "" : "s"} each` : ""}.
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={Boolean(blocked) || busy}
+        className="mt-2.5 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[11px] font-black text-white transition-all hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        {busy ? "Creating\u2026" : "Add section"}
+      </button>
+    </div>
+  );
+}
 
 function MatrixView({
   sections,
@@ -1370,6 +1569,8 @@ export function ClassManager({
   onChangeSubjectTeacher,
   onAddStudent,
   onViewStudent,
+  creatingSections = false,
+  onCreateSections,
   onDeleteClass,
   onUpdateClass,
   onDeleteSubject,
@@ -1381,10 +1582,17 @@ export function ClassManager({
   >(cls.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [addingSection, setAddingSection] = useState(false);
 
   const { availability, refresh: refreshAvailability } =
     useTeacherAvailability();
   const { flashKey, flash } = useFlashCell();
+
+  /** Sections with both a class teacher and at least one subject. */
+  const readySections = useMemo(
+    () => allSections.filter((sec) => sectionGaps(sec).length === 0).length,
+    [allSections],
+  );
 
   // Sort sections alphabetically
   const sortedSections = useMemo(
@@ -1502,8 +1710,56 @@ export function ClassManager({
               </div>
             </div>
 
-            {/* Stats row */}
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            {/* Stats row.
+                The counts alone never said whether the class was actually
+                ready to run — a class can show "3 sections, 12 subjects" and
+                still have two sections nobody teaches. The readiness pill puts
+                that on the same line as everything else. */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {sortedSections.length > 0 ? (
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-sm",
+                    readySections === sortedSections.length
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-amber-200 bg-amber-50",
+                  )}
+                  title={
+                    readySections === sortedSections.length
+                      ? "Every section has a class teacher and at least one subject"
+                      : "A section is ready once it has a class teacher and at least one subject"
+                  }
+                >
+                  {readySections === sortedSections.length ? (
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-[10px] font-black",
+                      readySections === sortedSections.length ? "text-emerald-700" : "text-amber-700",
+                    )}
+                  >
+                    {readySections === sortedSections.length
+                      ? "All sections ready"
+                      : `${readySections}/${sortedSections.length} ready`}
+                  </span>
+                  <span
+                    className="h-1.5 w-12 overflow-hidden rounded-full bg-white/70"
+                    aria-hidden
+                  >
+                    <span
+                      className={cn(
+                        "block h-full rounded-full transition-all duration-500",
+                        readySections === sortedSections.length ? "bg-emerald-500" : "bg-amber-500",
+                      )}
+                      style={{ width: `${(readySections / sortedSections.length) * 100}%` }}
+                    />
+                  </span>
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-1.5 rounded-xl border border-[#8127cf]/10 bg-white px-3 py-1.5 shadow-sm">
                 <Layers className="h-3 w-3 text-[#8127cf]" />
                 <span className="text-[10px] font-black text-[#8127cf]">
@@ -1631,6 +1887,7 @@ export function ClassManager({
                   );
                   const sectionSubjectCount =
                     sec.subjects?.length || 0;
+                  const gaps = sectionGaps(sec);
 
                   return (
                     <button
@@ -1670,10 +1927,9 @@ export function ClassManager({
                             : "Main Section"}
                         </p>
                         <p className="mt-0.5 truncate text-[8px] font-bold text-ink-subtle">
-                          {sec.classTeacher?.fullName ||
-                            "No teacher"}
+                          {sec.classTeacher?.fullName || "No teacher yet"}
                         </p>
-                        <div className="mt-1 flex items-center gap-2">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-[8px] font-bold text-ink-subtle">
                             {studentCount} student
                             {studentCount !== 1 ? "s" : ""}
@@ -1682,12 +1938,54 @@ export function ClassManager({
                             {sectionSubjectCount} subject
                             {sectionSubjectCount !== 1 ? "s" : ""}
                           </span>
+                          {/* Says what the dot means. A section can look fine
+                              in the list and still have nobody teaching it. */}
+                          {gaps.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[8px] font-black text-amber-700">
+                              <AlertCircle className="h-2 w-2" />
+                              Needs {gaps.join(" & ")}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
+
+              {/* ── Add a section ──
+                  The manager could rename, re-teacher and retire a section but
+                  never create one, so "Grade 8 needs a B" sent the office back
+                  out to Quick Setup — which then rejected Grade 8 as a
+                  duplicate. It belongs here, next to the sections it joins. */}
+              {onCreateSections ? (
+                addingSection ? (
+                  <AddSectionPanel
+                    cls={cls}
+                    sections={sortedSections}
+                    teachers={teachers}
+                    busy={creatingSections}
+                    onCreate={onCreateSections}
+                    onDone={() => setAddingSection(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingSection(true)}
+                    className="mt-3 flex w-full cursor-pointer items-center gap-2.5 rounded-2xl border border-dashed border-[#8127cf]/25 px-3.5 py-3 text-left transition-all hover:border-[#8127cf]/50 hover:bg-white/70 active:scale-[0.99]"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                      <Plus className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-[#8127cf]">Add section</span>
+                      <span className="block text-[8px] font-bold text-ink-subtle">
+                        Copies subjects across
+                      </span>
+                    </span>
+                  </button>
+                )
+              ) : null}
             </div>
           </div>
 

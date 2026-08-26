@@ -239,6 +239,7 @@ export default function CampusAdminDashboard() {
   const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
   const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
+  const [creatingSections, setCreatingSections] = useState(false);
   const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
@@ -495,6 +496,95 @@ export default function CampusAdminDashboard() {
       return false;
     } finally {
       setCreatingSubjectClassId(null);
+    }
+  };
+
+  /**
+   * Add one or more sections to a class that already exists.
+   *
+   * The class manager could rename, retire and re-teacher a section but never
+   * create one — so "Grade 8 now needs a B" meant leaving the manager, opening
+   * Quick Setup, and re-entering a class that was already there (which the
+   * duplicate check then rejected). Sections are created against the existing
+   * class name and year, and can carry a copy of another section's subjects,
+   * which is what adding a parallel section almost always means.
+   */
+  const handleCreateSections = async (
+    source: any,
+    input: { sections: string[]; cloneFromClassId?: string; teacherId?: string },
+  ): Promise<boolean> => {
+    if (input.sections.length === 0) return false;
+
+    setCreatingSections(true);
+    try {
+      const res = await fetch("/api/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: source.name,
+          academicYear: Number(source.academicYear) || new Date().getFullYear(),
+          sections: input.sections,
+          teachingMode: source.teachingMode || "SINGLE",
+          classTeacherId: input.teacherId || undefined,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Section could not be created");
+
+      const created: any[] = Array.isArray(result.data) ? result.data : [result.data];
+
+      // Copy the chosen section's subjects across, if asked. Bounded
+      // concurrency for the same reason the setup wizard uses it: the database
+      // sits behind a pooler.
+      const cloneFrom = input.cloneFromClassId
+        ? (data?.classes || []).find((c: any) => c.id === input.cloneFromClassId)
+        : null;
+      const template: any[] = cloneFrom?.subjects || [];
+
+      if (template.length > 0) {
+        const jobs: (() => Promise<void>)[] = [];
+        for (const cls of created) {
+          if (!cls?.id) continue;
+          for (const subject of template) {
+            jobs.push(async () => {
+              await fetch("/api/subjects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  classId: cls.id,
+                  name: subject.name,
+                  totalMarks: subject.totalMarks || 100,
+                  teacherId: subject.teacher?.id || undefined,
+                }),
+              });
+            });
+          }
+        }
+        let cursor = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(6, jobs.length) }, async () => {
+            while (cursor < jobs.length) await jobs[cursor++]();
+          }),
+        );
+      }
+
+      toast.success(
+        created.length > 1
+          ? `${created.length} sections added to ${source.name}`
+          : `Section ${input.sections[0]} added to ${source.name}`,
+      );
+
+      const nextData = await loadData();
+      // Stay in the manager, on the section that was just created.
+      const landing = nextData?.classes?.find((c: any) => c.id === created[0]?.id);
+      if (landing) setSelectedClass(landing);
+      else syncSelectedClass(nextData, source.id);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Section could not be created");
+      return false;
+    } finally {
+      setCreatingSections(false);
     }
   };
 
@@ -1245,6 +1335,8 @@ export default function CampusAdminDashboard() {
             setSelectedClass(null);
             setSelectedStudent(student);
           }}
+          creatingSections={creatingSections}
+          onCreateSections={handleCreateSections}
           onDeleteClass={handleDeleteClass}
           onUpdateClass={handleUpdateClass}
           onDeleteSubject={handleDeleteSubject}
