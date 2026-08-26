@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, X as XIcon, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Menu, X as XIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 
@@ -147,6 +147,10 @@ export function RoleSidebar({
           </div>
         )}
 
+        {/* The handle rides the sidebar's own edge, halfway down, where the
+            eye already goes when it wants the panel out of the way — rather
+            than as a full-width button competing with the nav for the bottom
+            of the rail. */}
         {onToggleCollapse ? (
           <button
             type="button"
@@ -154,18 +158,12 @@ export function RoleSidebar({
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
             title={`${collapsed ? "Expand" : "Collapse"} sidebar  ( [ )`}
-            className={cn(
-              "mt-2 flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/70 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf]",
-              collapsed ? "w-full justify-center px-0" : "px-3",
-            )}
+            className="group/handle absolute -right-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#cfc2d6]/35 bg-white text-ink-subtle shadow-[0_2px_6px_rgba(31,26,35,0.10),0_8px_20px_-8px_rgba(129,39,207,0.35)] transition-all duration-200 hover:border-[#8127cf]/40 hover:bg-[#8127cf] hover:text-white hover:shadow-[0_4px_10px_rgba(129,39,207,0.30)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover/handle:translate-x-px" />
             ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4" />
-                Collapse
-              </>
+              <ChevronLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover/handle:-translate-x-px" />
             )}
           </button>
         ) : null}

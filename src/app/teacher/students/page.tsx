@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { LayoutGrid, Phone, Table2, Users, X } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -21,6 +22,13 @@ export default function TeacherStudentsPage() {
   const { data, loading, error, refetch } = useTeacherData();
   const [search, setSearch] = useState("");
   const [prefs, patchPrefs] = useWorkspacePrefs("teacher-students", { view: "cards" });
+  const searchParams = useSearchParams();
+
+  // Arriving from a class card should show that class, not everyone.
+  useEffect(() => {
+    const requested = searchParams.get("classId");
+    if (requested) setClassFilter(requested);
+  }, [searchParams]);
   const [classFilter, setClassFilter] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 

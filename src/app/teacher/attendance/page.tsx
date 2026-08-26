@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,7 @@ const STATUS_CONFIG = {
 export default function AttendancePage() {
   const { data, loading, error, loadData } = useTeacherData();
   const [activeTab, setActiveTab] = useState<ViewTab>("marking");
+  const searchParams = useSearchParams();
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [attendanceDate, setAttendanceDate] = useState(todayIso());
   const [attendanceRows, setAttendanceRows] = useState<any[]>([]);
@@ -52,8 +54,17 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!data) return;
-    if (!attendanceClassId && classHubs[0]?.id) setAttendanceClassId(classHubs[0].id);
-  }, [data, attendanceClassId, classHubs]);
+    if (attendanceClassId) return;
+    // A class card on "My Classes" links here with its own id. Landing on the
+    // first class in the list instead would quietly discard the one the
+    // teacher actually clicked.
+    const requested = searchParams.get("classId");
+    if (requested && classHubs.some((cls: any) => cls.id === requested)) {
+      setAttendanceClassId(requested);
+      return;
+    }
+    if (classHubs[0]?.id) setAttendanceClassId(classHubs[0].id);
+  }, [data, attendanceClassId, classHubs, searchParams]);
 
   const loadAttendance = useCallback(async (classId: string, date: string) => {
     if (!classId || !date) return;

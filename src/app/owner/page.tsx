@@ -390,7 +390,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
             <p className="text-2xl font-black mt-2">PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}</p>
             <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} payments</p>
           </div>
-          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "640ms" }}>
+          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "640ms" }}>
             <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60">Schools by Status</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {Object.entries(stats.schoolsByStatus).map(([s, count]) => (
@@ -415,7 +415,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
         </div>
       )}
 
-      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="flex-1 min-w-[200px] max-w-sm relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
@@ -466,7 +466,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                 return (
                   <div
                     key={school.id}
-                    className="rounded-2xl border-[#cfc2d6]/25 hover:border-[#8127cf]/25 transition-all overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+                    className="rounded-2xl border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 transition-all overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
                   >
                     <button
                       type="button"
@@ -549,7 +549,7 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
                         {school.campuses.length > 0 ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {school.campuses.map((campus) => (
-                              <div key={campus.id} className="rounded-xl bg-white border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                              <div key={campus.id} className="rounded-xl bg-white border border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                                 <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
                                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
                                 {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
@@ -684,7 +684,7 @@ function UsersView() {
         />
       )}
 
-      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="flex-1 min-w-[200px] max-w-sm relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
@@ -857,7 +857,7 @@ function AuditLogView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <select
             value={actionFilter}
@@ -1059,7 +1059,7 @@ function SessionsView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] flex items-center justify-center">
@@ -1218,7 +1218,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Plan</p>
               {Object.keys(stats.schoolsByPlan).length > 0 ? (
                 <div className="space-y-3">
@@ -1254,7 +1254,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
               )}
             </div>
 
-            <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Status</p>
               {Object.keys(stats.schoolsByStatus).length > 0 ? (
                 <div className="space-y-3">
@@ -1436,7 +1436,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </div>
       </div>
 
-      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Globe className="w-3 h-3" /> Default Plan Prices
         </p>
@@ -1474,7 +1474,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </button>
       </div>
 
-      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <DollarSign className="w-3 h-3" /> Plan Pricing Override
         </p>
@@ -1625,7 +1625,7 @@ function PaymentSettingsView() {
         </div>
       </div>
 
-      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <WalletCards className="w-3 h-3" /> Stripe Connect
         </p>
@@ -1678,7 +1678,7 @@ function PaymentSettingsView() {
         )}
       </div>
 
-      <div className="rounded-[24px] border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Building2 className="w-3 h-3" /> Bank Account (Fallback)
         </p>

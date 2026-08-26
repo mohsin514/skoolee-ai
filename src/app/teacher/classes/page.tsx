@@ -47,31 +47,31 @@ export default function TeacherClassesPage() {
                 const clsExams = (data.activeExams || []).filter((e: any) => e.classId === cls.id);
                 const clsMissingMarks = clsExams.reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
                 return (
-                  <div key={cls.id} className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5">
-                    <div className="flex items-start justify-between gap-3 mb-4">
+                  <div key={cls.id} className="group rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_2px_6px_rgba(31,26,35,0.06),0_18px_36px_-18px_rgba(129,39,207,0.45)]">
+                    <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">{cls.role || "Teacher"}</p>
-                        <h4 className="mt-0.5 truncate text-lg font-bold text-[#1d1b20] tracking-tight">{classLabel(cls)}</h4>
+                        <h4 className="mt-0.5 truncate text-base font-black tracking-tight text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{classLabel(cls)}</h4>
                       </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-                        <GraduationCap className="h-5 w-5" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-transform duration-200 group-hover:scale-105">
+                        <GraduationCap className="h-4 w-4" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
-                        <p className="text-lg font-bold text-[#8127cf]">{clsStudents.length}</p>
+                    <div className="mb-3 grid grid-cols-3 gap-1.5">
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-2 py-1.5 text-center">
+                        <p className="text-base font-black tabular-nums text-[#8127cf]">{clsStudents.length}</p>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
                       </div>
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
-                        <p className="text-lg font-bold text-[#1d1b20]">{cls.subjects?.length || 0}</p>
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-2 py-1.5 text-center">
+                        <p className="text-base font-black tabular-nums text-[#1d1b20]">{cls.subjects?.length || 0}</p>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Subjects</p>
                       </div>
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2 text-center">
-                        <p className={`text-lg font-bold ${clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600"}`}>{clsMissingMarks}</p>
+                      <div className="rounded-xl bg-[#fbf0fe]/70 px-2 py-1.5 text-center">
+                        <p className={`text-base font-black tabular-nums ${clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600"}`}>{clsMissingMarks}</p>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Pending</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5 mb-4">
+                    <div className="mb-3 flex flex-wrap gap-1.5">
                       {(cls.subjects || []).slice(0, 4).map((subject: any) => (
                         <span key={subject.id} className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-[#8127cf]">{subject.name}</span>
                       ))}
@@ -79,23 +79,28 @@ export default function TeacherClassesPage() {
                         <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-semibold text-ink-subtle">+{cls.subjects.length - 4}</span>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => router.push("/teacher/attendance")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                        <CalendarCheck className="h-3.5 w-3.5" /> Attendance
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/marks")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                        <Star className="h-3.5 w-3.5" /> Marks
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/reports")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                        <FileText className="h-3.5 w-3.5" /> Reports
-                      </button>
-                      <button type="button" onClick={() => router.push("/teacher/students")}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                        <Users className="h-3.5 w-3.5" /> Students
-                      </button>
+                    {/* Each action carries this class through. They used to
+                        link to the bare page, so tapping "Attendance" on Grade
+                        5A landed on whichever class sorted first and the
+                        teacher had to pick 5A again. */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { icon: CalendarCheck, label: "Attendance", href: "/teacher/attendance" },
+                        { icon: Star, label: "Marks", href: "/teacher/marks" },
+                        { icon: FileText, label: "Reports", href: "/teacher/reports" },
+                        { icon: Users, label: "Students", href: "/teacher/students" },
+                      ].map(({ icon: ActionIcon, label, href }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          title={`${label} for ${classLabel(cls)}`}
+                          onClick={() => router.push(`${href}?classId=${encodeURIComponent(cls.id)}`)}
+                          className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                        >
+                          <ActionIcon className="h-3.5 w-3.5" />
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 );

@@ -51,14 +51,16 @@ export default function TeacherInsightsPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
           {/* Attendance Donut */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Daily Overview</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Attendance Breakdown</h3>
-              </div>
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
-                <CalendarCheck className="h-5 w-5" />
+          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                  <CalendarCheck className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Attendance Breakdown</h3>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Daily overview</p>
+                </div>
               </div>
             </div>
             {attendanceChartData.length > 0 ? (
@@ -99,11 +101,16 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Marks Progress Bar Chart */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Entry Status</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Marks Progress</h3>
+          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                  <BarChart3 className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Marks Progress</h3>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Entry status</p>
+                </div>
               </div>
               <div className={`px-3 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${completionRate >= 80 ? "bg-emerald-50 text-emerald-600" : completionRate >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
                 {completionRate}% Complete
@@ -127,17 +134,19 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Performance Summary */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Snapshot</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Quick Insights</h3>
-              </div>
-              <div className="h-10 w-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
-                <TrendingUp className="h-5 w-5" />
+          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                  <TrendingUp className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Quick Insights</h3>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Snapshot</p>
+                </div>
               </div>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {[
                 {
                   label: "Marks Completion", value: `${completionRate}%`, sub: `${marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0)} of ${marksProgressData.reduce((s: number, d: any) => s + d.total, 0)} entries`,
@@ -149,19 +158,36 @@ export default function TeacherInsightsPage() {
                   progress: attendanceStats.total ? Math.round(attendanceStats.present / attendanceStats.total * 100) : 0, color: "bg-emerald-500",
                 },
                 {
-                  label: "Report Cards", value: String(reportCardCount), sub: "Generated",
-                  progress: Math.min(reportCardCount * 20, 100), color: "bg-rose-500",
+                  // A count is not a percentage. This drew a bar at
+                  // `count * 20`, so five report cards read as "100% complete"
+                  // of nothing in particular. It is a figure, so show a figure.
+                  label: "Report Cards", value: String(reportCardCount), sub: "Recently generated",
+                  progress: null, color: "bg-rose-500",
                 },
               ].map((item) => (
                 <div key={item.label}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
-                    <span className="text-sm font-bold text-[#1d1b20]">{item.value}</span>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">{item.label}</span>
+                    <span className="text-sm font-black tabular-nums text-[#1d1b20]">{item.value}</span>
                   </div>
-                  <div className="h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ${item.color}`} style={{ width: `${item.progress}%` }} />
-                  </div>
-                  {item.sub ? <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle uppercase tracking-wider">{item.sub}</p> : null}
+                  {typeof item.progress === "number" ? (
+                    <div
+                      className="h-2 overflow-hidden rounded-full bg-[#f3f4f9]"
+                      role="progressbar"
+                      aria-valuenow={item.progress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={item.label}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${item.color}`}
+                        style={{ width: `${item.progress}%` }}
+                      />
+                    </div>
+                  ) : null}
+                  {item.sub ? (
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{item.sub}</p>
+                  ) : null}
                 </div>
               ))}
             </div>

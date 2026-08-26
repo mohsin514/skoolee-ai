@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { BarChart3, CheckCircle2, Download, FileText, Loader2, Plus, Star } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -17,6 +18,7 @@ import { csvCell } from "@/lib/csv";
 
 export default function MarksPage() {
   const { data, loading, error, loadData } = useTeacherData();
+  const searchParams = useSearchParams();
   const [selectedExamId, setSelectedExamId] = useState("");
   const [markSheet, setMarkSheet] = useState<any>(null);
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
@@ -31,10 +33,24 @@ export default function MarksPage() {
 
   useEffect(() => {
     if (!data) return;
+    if (!selectedExamId) {
+      // A class card links here with its id; open that class's first
+      // assessment rather than whichever exam happens to sort first.
+      const requestedClass = searchParams.get("classId");
+      if (requestedClass) {
+        const match =
+          (data.activeExams || []).find((e: any) => e.classId === requestedClass) ||
+          (data.exams || []).find((e: any) => e.classId === requestedClass);
+        if (match) {
+          setSelectedExamId(match.id);
+          return;
+        }
+      }
+    }
     if (!selectedExamId && (data.activeExams?.[0]?.id || data.exams?.[0]?.id)) {
       setSelectedExamId(data.activeExams?.[0]?.id || data.exams?.[0]?.id);
     }
-  }, [data, selectedExamId]);
+  }, [data, selectedExamId, searchParams]);
 
   const loadMarks = useCallback(async (examId: string) => {
     if (!examId) { setMarkSheet(null); setMarksByKey({}); return; }

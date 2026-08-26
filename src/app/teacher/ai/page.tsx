@@ -1,6 +1,7 @@
 "use client";
 
 import { BrainCircuit, BookOpen, Users, GraduationCap, BarChart3, Sparkles, TrendingUp, Zap, Bot, Lightbulb, Stars } from "lucide-react";
+import { StatTiles } from "@/components/shared-admin/workspace";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { AiActionPanel } from "@/components/role-dashboard";
 import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
@@ -41,12 +42,14 @@ export default function AIPage() {
       }
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <AIStatCard icon={BookOpen} label="Subjects" value={totalSubjects} sub="Assigned" />
-          <AIStatCard icon={GraduationCap} label="Classes" value={totalClasses} sub={totalClasses === 1 ? "1 class hub" : `${totalClasses} class hubs`} tone="emerald" />
-          <AIStatCard icon={BarChart3} label="Active Exams" value={activeExamsCount} sub={activeExamsCount === 1 ? "1 in progress" : `${activeExamsCount} in progress`} tone="indigo" />
-          <AIStatCard icon={Users} label="Students" value={totalStudents} sub={totalStudents === 1 ? "1 student" : `${totalStudents} enrolled`} tone="rose" />
-        </div>
+        <StatTiles
+            tiles={[
+              { key: "subjects", icon: BookOpen, label: "Subjects", value: totalSubjects, hint: "Assigned", tone: "violet" },
+              { key: "classes", icon: GraduationCap, label: "Classes", value: totalClasses, hint: totalClasses === 1 ? "1 class hub" : `${totalClasses} class hubs`, tone: "emerald" },
+              { key: "exams", icon: BarChart3, label: "Active exams", value: activeExamsCount, hint: activeExamsCount === 1 ? "1 in progress" : `${activeExamsCount} in progress`, tone: "teal" },
+              { key: "students", icon: Users, label: "Students", value: totalStudents, hint: totalStudents === 1 ? "1 student" : `${totalStudents} enrolled`, tone: "rose" },
+            ]}
+          />
 
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 min-w-0">
@@ -200,32 +203,6 @@ export default function AIPage() {
   );
 }
 
-function AIStatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
-  return (
-    <div className="group relative bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border border-[#8127cf]/8 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/20 overflow-hidden rounded-[28px]">
-      <div className="absolute -inset-3 bg-gradient-to-br from-[#8127cf]/6 via-[#b876f0]/4 to-transparent rounded-[32px] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-      <div className="absolute -top-16 -right-16 w-40 h-40 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-[70px]" />
-      <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-gradient-to-tr from-[#b876f0]/6 to-transparent rounded-full blur-[60px]" />
-      <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
-        <div className="relative">
-          <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/8 to-[#b876f0]/6 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className={cn(
-            "relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:shadow-lg",
-            tone === "emerald" ? "bg-gradient-to-br from-emerald-50 to-white text-emerald-600 group-hover:from-emerald-600 group-hover:to-emerald-500 group-hover:text-white group-hover:shadow-emerald-500/20" :
-            tone === "rose" ? "bg-gradient-to-br from-rose-50 to-white text-rose-600 group-hover:from-rose-600 group-hover:to-rose-500 group-hover:text-white group-hover:shadow-rose-500/20" :
-            tone === "indigo" ? "bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] group-hover:from-[#8127cf] group-hover:to-[#b876f0] group-hover:text-white group-hover:shadow-[#8127cf]/20" :
-            "bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] group-hover:from-[#8127cf] group-hover:to-[#b876f0] group-hover:text-white group-hover:shadow-[#8127cf]/20"
-          )}>
-            <Icon className="w-[18px] h-[18px]" />
-          </div>
-        </div>
-      </div>
-      <p className="relative text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="relative mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
-    </div>
-  );
-}
 
 function AISideMetric({ label, value }: { label: string; value: any }) {
   return (
@@ -237,6 +214,3 @@ function AISideMetric({ label, value }: { label: string; value: any }) {
   );
 }
 
-function cn(...classes: (string | boolean | undefined | null)[]) {
-  return classes.filter(Boolean).join(" ");
-}

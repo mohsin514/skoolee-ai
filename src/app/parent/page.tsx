@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Award, CalendarCheck, ChevronRight, Clock, CreditCard, FileText, GraduationCap, LayoutGrid } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  CalendarCheck,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  FileText,
+  GraduationCap,
+  LayoutGrid,
+} from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
@@ -53,7 +63,7 @@ export default function ParentOverviewPage() {
               "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white",
             ];
             return (
-              <div key={s.label} className="sk-rise group relative rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+              <div key={s.label} className="sk-rise group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2 transition-colors group-hover:text-ink-muted">{s.label}</p>
@@ -69,12 +79,12 @@ export default function ParentOverviewPage() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div className="rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
                 <FileText className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Latest Report Card</h3>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Latest Report Card</h3>
             </div>
             {data.reportCards[0] ? (
               <div className="rounded-2xl bg-[#fbf0fe]/30 p-5 border border-[#cfc2d6]/8 space-y-3">
@@ -103,18 +113,44 @@ export default function ParentOverviewPage() {
             </Link>
           </div>
 
-          <div className="rounded-[28px] bg-white border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <GraduationCap className="w-5 h-5" />
-              </div>
-              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Quick Access</h3>
+          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <GraduationCap className="h-4 w-4" />
+              </span>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Quick Access</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <QuickLink href={`/parent/results${q}`} icon={FileText} label="Results" sub={`${data.marksByExam.length} exams`} />
-              <QuickLink href={`/parent/attendance${q}`} icon={CalendarCheck} label="Attendance" sub={`${data.attendance.total} days recorded`} />
-              <QuickLink href={`/parent/timetable${q}`} icon={Clock} label="Timetable" sub="Weekly class schedule" />
-              <QuickLink href={`/parent/fees${q}`} icon={CreditCard} label="Fees" sub={feeOutstanding ? `${formatPKR(feeOutstanding)} outstanding` : "All cleared"} />
+              <QuickLink
+                href={`/parent/results${q}`}
+                icon={FileText}
+                label="Exams marked"
+                value={String(data.marksByExam.length)}
+                sub="View results"
+              />
+              <QuickLink
+                href={`/parent/attendance${q}`}
+                icon={CalendarCheck}
+                label="Days recorded"
+                value={String(data.attendance.total)}
+                sub={data.attendance.rate !== null ? `${data.attendance.rate}% attendance` : "No rate yet"}
+                tone="emerald"
+              />
+              <QuickLink
+                href={`/parent/timetable${q}`}
+                icon={Clock}
+                label="This week"
+                value="Timetable"
+                sub="Weekly class schedule"
+              />
+              <QuickLink
+                href={`/parent/fees${q}`}
+                icon={CreditCard}
+                label={feeOutstanding ? "Outstanding" : "Fees"}
+                value={feeOutstanding ? formatPKR(feeOutstanding) : "Cleared"}
+                sub={feeOutstanding ? "Tap to pay" : "Nothing due"}
+                tone={feeOutstanding ? "rose" : "emerald"}
+              />
             </div>
           </div>
         </div>
@@ -125,19 +161,53 @@ export default function ParentOverviewPage() {
   );
 }
 
-function QuickLink({ href, icon: Icon, label, sub }: { href: string; icon: any; label: string; sub: string }) {
+/**
+ * With the section strip above carrying the same five destinations, four tiles
+ * labelled "Results / Attendance / Timetable / Fees" would be navigation said
+ * twice. The figure is what this panel actually adds, so the figure leads and
+ * the destination follows.
+ */
+function QuickLink({
+  href,
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone = "violet",
+}: {
+  href: string;
+  icon: any;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "violet" | "emerald" | "amber" | "rose";
+}) {
+  const tones = {
+    violet: "bg-[#fbf0fe] text-[#8127cf]",
+    emerald: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-600",
+    rose: "bg-rose-50 text-rose-600",
+  } as const;
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:border-[#8127cf]/20"
+      className="group flex items-center gap-3 rounded-[18px] border border-[#cfc2d6]/20 bg-white p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_2px_6px_rgba(31,26,35,0.06),0_16px_32px_-18px_rgba(129,39,207,0.45)]"
     >
-      <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center text-[#8127cf] shadow-sm transition-all group-hover:bg-[#8127cf] group-hover:text-white">
-        <Icon className="w-4 h-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs font-bold text-[#1d1b20]">{label}</p>
-        <p className="text-[9px] font-semibold text-ink-subtle truncate">{sub}</p>
-      </div>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${tones[tone]}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-black leading-none tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+          {value}
+        </span>
+        <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+          {label}
+        </span>
+        {sub ? (
+          <span className="block truncate text-[10px] font-semibold text-ink-subtle">{sub}</span>
+        ) : null}
+      </span>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#cfc2d6] transition-all group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
     </Link>
   );
 }

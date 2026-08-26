@@ -99,7 +99,7 @@ export default function StudentAttendancePage() {
     >
       <div className="space-y-3">
         {isAtRisk && (
-          <div className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200/50 px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3 rounded-[18px] border border-amber-200/60 bg-amber-50 px-4 py-3">
             <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
             </div>
@@ -113,43 +113,66 @@ export default function StudentAttendancePage() {
           </div>
         )}
 
-        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
+        <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
           <StatCard icon={CalendarDays} label="Total Days" value={stats.total} sub="School days recorded" />
           <StatCard icon={CheckCircle2} label="Present" value={stats.present} sub={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% of total`} tone="green" />
           <StatCard icon={X} label="Absent" value={stats.absent} sub={consecutiveAbsences > 0 ? `${consecutiveAbsences} consecutive` : "No consecutive"} tone="rose" />
           <StatCard icon={Clock} label="Leave" value={stats.leave} sub="Approved leaves" tone="amber" />
         </div>
 
-        <div className="sk-rise group rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Monthly Calendar</h3>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
-                <button onClick={() => adjustMonth(-1)} className="relative h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-lg">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+        <div className="sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "120ms" }}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <CalendarDays className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Monthly Calendar</h3>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                  {monthStats.rate ?? 0}% this month
+                </p>
               </div>
-              <span className="text-sm font-bold text-[#1d1b20] min-w-[140px] text-center">{monthLabel}</span>
-              <div className="relative">
-                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
-                <button onClick={() => adjustMonth(1)} className="relative h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-lg">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+            </div>
+            {/* The arrows had no accessible name and no pointer cursor, and
+                their glow fired on any hover of the whole card. */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => adjustMonth(-1)}
+                aria-label="Previous month"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-[130px] text-center text-xs font-black tabular-nums text-[#1d1b20]">
+                {monthLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => adjustMonth(1)}
+                aria-label="Next month"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/50 px-3 py-1.5 border border-[#cfc2d6]/10">
-              <span className="text-xs font-bold text-[#1d1b20]">{monthStats.rate ?? 0}%</span>
-              <span className="text-[9px] font-semibold text-ink-muted">this month</span>
-            </div>
-            <div className="flex gap-3">
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />P: {monthStats.present}</span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500" />A: {monthStats.absent}</span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600"><span className="h-2 w-2 rounded-full bg-amber-500" />L: {monthStats.leave}</span>
-            </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {[
+              { label: "Present", value: monthStats.present, dot: "bg-emerald-500", text: "text-emerald-600" },
+              { label: "Absent", value: monthStats.absent, dot: "bg-rose-500", text: "text-rose-600" },
+              { label: "Leave", value: monthStats.leave, dot: "bg-amber-500", text: "text-amber-600" },
+            ].map((k) => (
+              <span
+                key={k.label}
+                className={`inline-flex items-center gap-1.5 rounded-full bg-[#faf7fc] px-2.5 py-1 text-[10px] font-bold ${k.text}`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${k.dot}`} />
+                {k.label}
+                <span className="tabular-nums opacity-70">{k.value}</span>
+              </span>
+            ))}
           </div>
 
           <div className="grid grid-cols-7 gap-1">
@@ -167,7 +190,19 @@ export default function StudentAttendancePage() {
                 ? "bg-amber-50 border-amber-200/50 text-amber-700"
                 : "bg-[#f3f4f9]/30 border-transparent text-ink-subtle";
               return (
-                <div key={cell.day} className={`relative flex flex-col items-center justify-center rounded-xl border py-2.5 transition-all ${bg} ${status ? "hover:shadow-md hover:-translate-y-0.5" : ""}`}>
+                <div
+                  key={cell.day}
+                  title={`${monthLabel} ${cell.day} — ${
+                    status === "PRESENT"
+                      ? "Present"
+                      : status === "ABSENT"
+                        ? "Absent"
+                        : status === "LEAVE"
+                          ? "Approved leave"
+                          : "No record"
+                  }`}
+                  className={`relative flex flex-col items-center justify-center rounded-xl border py-2 transition-all ${bg} ${status ? "hover:-translate-y-0.5 hover:shadow-md" : ""}`}
+                >
                   <span className="text-xs font-bold">{cell.day}</span>
                   {status && (
                     <span className="text-[7px] font-bold uppercase tracking-wider mt-0.5">
@@ -181,8 +216,8 @@ export default function StudentAttendancePage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Attendance History</h3>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Attendance History</h3>
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />Present</span>
               <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500" />Absent</span>

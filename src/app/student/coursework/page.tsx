@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import { Award, BookOpen, ChevronRight, MapPin, TrendingUp, UserRound } from "lucide-react";
+import { StatCard } from "@/components/student/student-ui";
+import { cn } from "@/lib/utils";
 import { StudentPage } from "@/components/student/student-page";
 import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
@@ -35,25 +37,25 @@ export default function CourseworkPage() {
         {/* Moved here when the duplicate "Schedule" page was retired — this is
             the natural home for class and enrolment details. */}
         <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
-          <div className="md:col-span-2 rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-                <MapPin className="w-5 h-5" />
+          <div className="md:col-span-2 rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <MapPin className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Current Class</p>
-                <p className="text-lg font-bold text-[#1d1b20]">{user.className}</p>
+                <p className="text-base font-black text-[#1d1b20]">{user.className}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
+              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3">
                 <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Class Teacher</p>
                 <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.classTeacher?.fullName || "Not assigned"}</p>
                 {user.classTeacher?.email && (
                   <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">{user.classTeacher.email}</p>
                 )}
               </div>
-              <div className="rounded-2xl bg-[#fbf0fe]/30 p-4 border border-[#cfc2d6]/8">
+              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3">
                 <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Enrolled Subjects</p>
                 <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.subjects.length} subjects</p>
                 <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle line-clamp-2">
@@ -63,14 +65,14 @@ export default function CourseworkPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                <UserRound className="w-5 h-5" />
+          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <UserRound className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Roll Number</p>
-                <p className="text-lg font-bold text-[#1d1b20]">{user.rollNo || "N/A"}</p>
+                <p className="text-base font-black text-[#1d1b20]">{user.rollNo || "N/A"}</p>
               </div>
             </div>
             <div className="space-y-2">
@@ -86,17 +88,24 @@ export default function CourseworkPage() {
           </div>
         </div>
 
-        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-          <SummaryCard icon={BookOpen} label="Subjects" value={user.subjects.length} sub="Enrolled" />
-          <SummaryCard icon={Award} label="Average" value={`${averages.overall}%`} sub={user.marks.length ? `From ${user.marks.length} scores` : "No data"} tone="green" />
-          <SummaryCard icon={TrendingUp} label="Best Score" value={`${averages.best}%`} sub={averages.best >= 80 ? "Excellent" : averages.best >= 60 ? "Good" : "Needs work"} tone="purple" />
-          <SummaryCard icon={BookOpen} label="Exams" value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub="Attempted" tone="rose" />
+        <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
+          <StatCard icon={BookOpen} label="Subjects" value={user.subjects.length} sub="Enrolled" />
+          <StatCard
+            icon={Award}
+            label="Average"
+            value={`${averages.overall}%`}
+            sub={user.marks.length ? `From ${user.marks.length} scores` : "No data"}
+            tone="green"
+            ring={user.marks.length ? averages.overall : undefined}
+          />
+          <StatCard icon={TrendingUp} label="Best score" value={`${averages.best}%`} sub={averages.best >= 80 ? "Excellent" : averages.best >= 60 ? "Good" : "Needs work"} tone="purple" />
+          <StatCard icon={BookOpen} label="Exams" value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub="Attempted" tone="rose" />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          <div className="sk-rise xl:col-span-2 space-y-6" style={{ animationDelay: "80ms" }}>
+          <div className="sk-rise xl:col-span-2 space-y-3" style={{ animationDelay: "80ms" }}>
             <div>
-              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight mb-4">Subjects & Teachers</h3>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20] mb-4">Subjects & Teachers</h3>
               {user.subjects.length ? (
                 <div className="space-y-3">
                   {user.subjects.map((subject: any) => {
@@ -119,7 +128,7 @@ export default function CourseworkPage() {
             </div>
 
             <div>
-              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight mb-4">Academic Performance</h3>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20] mb-4">Academic Performance</h3>
               {user.marks.length > 0 ? (
                 <div className="space-y-4">
                   {user.marks.slice(0, 5).map((mark: any, index: number) => (
@@ -208,30 +217,6 @@ export default function CourseworkPage() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, sub, tone = "dark" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
-  const toneMap: Record<string, string> = {
-    dark: "from-[#1d1b20] to-[#2d2833] text-white group-hover:shadow-black/20",
-    green: "from-emerald-600 to-emerald-500 text-white group-hover:shadow-emerald-500/20",
-    purple: "from-[#8127cf] to-[#9c48ea] text-white group-hover:shadow-[#8127cf]/20",
-    rose: "from-rose-600 to-rose-500 text-white group-hover:shadow-rose-500/20",
-  };
-
-  return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
-      <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
-        <div className="relative">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
-          <div className="relative h-9 w-9 rounded-xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:bg-[#8127cf] group-hover:text-white group-hover:shadow-lg group-hover:scale-110">
-            <Icon className="w-[18px] h-[18px]" />
-          </div>
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
-    </div>
-  );
-}
 
 function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teacher: string; totalMarks: number; score: number | null }) {
   return (
@@ -281,6 +266,3 @@ function PerfBar({ label, score, color }: { label: string; score: number; color:
   );
 }
 
-function cn(...classes: (string | boolean | undefined | null)[]) {
-  return classes.filter(Boolean).join(" ");
-}

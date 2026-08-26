@@ -146,3 +146,60 @@ export function ParentEmptyState({ icon: Icon, title, description }: { icon: any
     </div>
   );
 }
+
+/**
+ * The guardian console's one metric tile.
+ *
+ * This lived as a private `MiniStat` in each of the attendance, fees and
+ * results pages — three copies that had already drifted apart. One definition
+ * means a change lands everywhere, and it matches the compact proportions the
+ * rest of the app now uses.
+ */
+export function ParentStat({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone = "violet",
+}: {
+  icon: any;
+  label: string;
+  value: string | number;
+  sub?: string;
+  tone?: "violet" | "green" | "rose" | "amber";
+}) {
+  const tones = {
+    violet: { chip: "bg-[#fbf0fe] text-[#8127cf]", bar: "bg-[#8127cf]" },
+    green: { chip: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
+    rose: { chip: "bg-rose-50 text-rose-600", bar: "bg-rose-500" },
+    amber: { chip: "bg-amber-50 text-amber-600", bar: "bg-amber-500" },
+  } as const;
+  const t = tones[tone];
+
+  return (
+    <div className="group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
+      />
+      <div className="relative flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
+            {value}
+          </p>
+          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+            {label}
+          </p>
+          {sub ? (
+            <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>
+          ) : null}
+        </div>
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.chip}`}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+    </div>
+  );
+}

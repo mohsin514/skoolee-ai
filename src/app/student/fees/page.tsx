@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
+import { StatCard } from "@/components/student/student-ui";
 import { StudentPage } from "@/components/student/student-page";
 import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 
 export default function FeesPage() {
@@ -63,10 +65,17 @@ export default function FeesPage() {
     >
       <div className="space-y-3">
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-          <SummaryStat icon={Receipt} label="Total Invoiced" value={`Rs ${summary.total.toLocaleString()}`} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
-          <SummaryStat icon={CheckCircle2} label="Paid" value={`Rs ${summary.paid.toLocaleString()}`} sub={`${summary.total ? Math.round(summary.paid / summary.total * 100) : 0}% of total`} tone="green" />
-          <SummaryStat icon={Banknote} label="Outstanding" value={`Rs ${summary.outstanding.toLocaleString()}`} sub={`${summary.pending} invoice${summary.pending > 1 ? "s" : ""} pending`} tone="rose" />
-          <SummaryStat icon={Calendar} label="Overdue" value={summary.overdue} sub={summary.overdue === 1 ? "1 overdue invoice" : `${summary.overdue} overdue invoices`} tone="purple" />
+          <StatCard icon={Receipt} label="Total invoiced" value={`Rs ${summary.total.toLocaleString()}`} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
+          <StatCard
+            icon={CheckCircle2}
+            label="Paid"
+            value={`Rs ${summary.paid.toLocaleString()}`}
+            sub={`${summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}% of total`}
+            tone="green"
+            ring={summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}
+          />
+          <StatCard icon={Banknote} label="Outstanding" value={`Rs ${summary.outstanding.toLocaleString()}`} sub={`${summary.pending} invoice${summary.pending > 1 ? "s" : ""} pending`} tone="rose" />
+          <StatCard icon={Calendar} label="Overdue" value={summary.overdue} sub={summary.overdue === 1 ? "1 overdue invoice" : `${summary.overdue} overdue invoices`} tone={summary.overdue ? "amber" : "purple"} />
         </div>
 
         <div className="sk-rise rounded-[32px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] p-7 shadow-xl relative overflow-hidden" style={{ animationDelay: "100ms" }}>
@@ -98,7 +107,7 @@ export default function FeesPage() {
         {invoices.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Invoices</h3>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Invoices</h3>
               <span className="text-[10px] font-semibold text-ink-subtle">{invoices.length} records</span>
             </div>
             <div className="sk-rise grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ animationDelay: "160ms" }}>
@@ -108,9 +117,9 @@ export default function FeesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/30 bg-white py-14 text-center">
             <CreditCard className="w-12 h-12 text-ink-subtle mb-4" />
-            <p className="text-lg font-bold text-[#1d1b20] tracking-tight">No invoices yet</p>
+            <p className="text-base font-black tracking-tight text-[#1d1b20]">No invoices yet</p>
             <p className="mt-1 text-sm font-semibold text-ink-muted">Fee invoices will appear here once assigned to your profile.</p>
           </div>
         )}
@@ -119,35 +128,6 @@ export default function FeesPage() {
   );
 }
 
-function SummaryStat({ icon: Icon, label, value, sub, tone = "dark" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
-  const iconGlows: Record<string, string> = {
-    green: "bg-emerald-500/18",
-    rose: "bg-rose-500/18",
-    purple: "bg-[#8127cf]/18",
-    dark: "bg-[#8127cf]/18",
-  };
-  return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
-      <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
-        <div className="relative">
-          <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.dark}`} />
-          <div className={cn(
-            "relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg",
-            tone === "green" ? "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white" :
-            tone === "rose" ? "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white" :
-            tone === "purple" ? "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white" :
-            "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white"
-          )}>
-            <Icon className="w-[18px] h-[18px]" />
-          </div>
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
-    </div>
-  );
-}
 
 function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean; onPay: () => void }) {
   const paid = invoice.totalAmountPaid || 0;
@@ -245,6 +225,3 @@ function formatDate(value?: string | Date | null) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function cn(...classes: (string | boolean | undefined | null)[]) {
-  return classes.filter(Boolean).join(" ");
-}
