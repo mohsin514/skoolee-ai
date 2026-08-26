@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { BrainCircuit, FileText, Loader2 } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
@@ -128,20 +129,13 @@ export default function ReportsPage() {
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <FileText className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">{data.recentReportCards?.length || 0} recent report cards</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards & Remarks</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Generate report cards, draft remarks, and send results to guardians.</p>
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+    <TeacherPage
+      icon={FileText}
+      eyebrow="Report Cards"
+      title="Report Cards & Remarks"
+      summary={`${data.recentReportCards?.length || 0} recent · generate report cards, draft remarks and send results to guardians`}
+    >
+      <div className="space-y-3">
 
         {/* Controls */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -250,6 +244,6 @@ export default function ReportsPage() {
           onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
         />
       ) : null}
-    </section>
+    </TeacherPage>
   );
 }

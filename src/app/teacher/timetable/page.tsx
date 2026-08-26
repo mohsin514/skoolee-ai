@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Calendar, CalendarX2, Loader2 } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { toast } from "sonner";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
@@ -56,19 +57,12 @@ export default function TeacherTimetablePage() {
   const clashIds = clashingSlotIds(slots);
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <Calendar className="w-4 h-4" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider">My Schedule</p>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Your published class schedule across all assigned classes</p>
-        </div>
-      </div>
-
+    <TeacherPage
+      icon={Calendar}
+      eyebrow="My Schedule"
+      title="Weekly Timetable"
+      summary="Your published class schedule across all assigned classes"
+    >
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
       {slots.length === 0 ? (
         <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
@@ -133,6 +127,6 @@ export default function TeacherTimetablePage() {
         </>
       )}
       </div>
-    </section>
+    </TeacherPage>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { BrainCircuit, BookOpen, Users, GraduationCap, BarChart3, Sparkles, TrendingUp, Zap, Bot, Lightbulb, Stars } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { AiActionPanel } from "@/components/role-dashboard";
 import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -29,23 +30,17 @@ export default function AIPage() {
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-        <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-gradient-to-tr from-[#8127cf]/3 to-transparent rounded-full blur-3xl translate-y-1/3" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <BrainCircuit className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {data.aiInsights?.length ? `${data.aiInsights.length} AI insights available` : "AI-Powered Teaching Assistant"}
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">AI Insights & Tools</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Weak topics, homework suggestions, lesson plans, and remark generation.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <TeacherPage
+      icon={BrainCircuit}
+      eyebrow="Teaching Assistant"
+      title="AI Insights & Tools"
+      summary={
+        data.aiInsights?.length
+          ? `${data.aiInsights.length} insight${data.aiInsights.length === 1 ? "" : "s"} available · weak topics, homework, lesson plans and remarks`
+          : "Weak topics, homework suggestions, lesson plans and remark generation"
+      }
+    >
+      <div className="space-y-3">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <AIStatCard icon={BookOpen} label="Subjects" value={totalSubjects} sub="Assigned" />
           <AIStatCard icon={GraduationCap} label="Classes" value={totalClasses} sub={totalClasses === 1 ? "1 class hub" : `${totalClasses} class hubs`} tone="emerald" />
@@ -201,7 +196,7 @@ export default function AIPage() {
           </div>
         </div>
       </div>
-    </section>
+    </TeacherPage>
   );
 }
 

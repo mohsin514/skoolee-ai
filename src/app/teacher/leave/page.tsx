@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
@@ -145,30 +146,25 @@ export default function LeavePage() {
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
 
   return (
-    /* Every other teacher page is a rounded card with a gradient header band;
-       this one was a bare div, so it read as a different product. */
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <Plane className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Time off</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Leave</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            Academic year {academicYear} · {daysLabel(totalRemaining)} remaining across {balances.length} leave type{balances.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div className="relative flex flex-wrap gap-2">
-          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowApply(true)} disabled={types.length === 0}
-            title={types.length === 0 ? "No leave types have been configured for your campus yet" : "Submit a new leave request"}>
-            Apply for Leave
-          </BrandButton>
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+    <TeacherPage
+      icon={Plane}
+      eyebrow="Time Off"
+      title="My Leave"
+      summary={`Academic year ${academicYear} · ${daysLabel(totalRemaining)} remaining across ${balances.length} leave type${balances.length === 1 ? "" : "s"}`}
+      actions={
+        <BrandButton
+          variant="dark"
+          className="min-h-10"
+          icon={<Plus className="h-4 w-4" />}
+          onClick={() => setShowApply(true)}
+          disabled={types.length === 0}
+          title={types.length === 0 ? "No leave types have been configured for your campus yet" : "Submit a new leave request"}
+        >
+          Apply for Leave
+        </BrandButton>
+      }
+    >
+      <div className="space-y-3">
       {loading ? (
         <SkeletonList rows={4} label="Loading leave requests" />
       ) : (
@@ -354,6 +350,6 @@ export default function LeavePage() {
           </div>
         </div>
       ) : null}
-    </section>
+    </TeacherPage>
   );
 }

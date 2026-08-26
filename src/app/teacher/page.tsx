@@ -8,6 +8,9 @@ import {
   ClipboardList, GraduationCap, Loader2, UserCheck, Users,
 } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
+import { cn } from "@/lib/utils";
+import { TeacherPage } from "@/components/teacher/teacher-page";
+import { StatTiles } from "@/components/shared-admin/workspace";
 import {
   DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
@@ -104,125 +107,77 @@ export default function TeacherDashboardHub() {
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      {/* ── Header ── */}
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative p-7 px-9 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
-                <GraduationCap className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                {/* Viewer-clock values — see the note in RoleHeader. */}
-                <p suppressHydrationWarning className="text-[12px] font-bold uppercase tracking-wider text-[#8127cf]">
-                  {greeting}, {data.teacherName?.split(" ")[0] || "Teacher"}
-                </p>
-                <p suppressHydrationWarning className="text-[10px] font-semibold text-ink-muted">
-                  {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3 mt-3">
-              {[
-                { label: "Subjects", value: teacherSubjects.length, color: "bg-[#8127cf]/10 text-[#8127cf]" },
-                { label: "Classes", value: classHubs.length, color: "bg-rose-50 text-rose-600" },
-                { label: "Students", value: data.totalStudents, color: "bg-emerald-50 text-emerald-600" },
-              ].map((pill) => (
-                <span key={pill.label} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider ${pill.color}`}>
-                  <span className="font-bold">{pill.value}</span>
-                  <span className="opacity-60">{pill.label}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 xl:justify-end">
-            <GradingToolbar grading={grading} classHubs={classHubs} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-7">
-
-        {/* ── Self Attendance Card ── */}
-        {selfAttendanceStatus === "loading" ? (
-          <div className="rounded-[28px] overflow-hidden border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] p-5 flex items-center gap-4 animate-skeleton-in">
-            <div className="skeleton-shimmer h-12 w-12 shrink-0 rounded-2xl bg-[#e8e0ec]/60" />
-            <div className="flex-1 space-y-2">
-              <div className="skeleton-shimmer h-4 w-52 rounded-full bg-[#e8e0ec]/50" />
-              <div className="skeleton-shimmer h-3 w-72 rounded-full bg-[#e8e0ec]/40" />
-            </div>
-            <div className="skeleton-shimmer h-10 w-28 shrink-0 rounded-2xl bg-[#e8e0ec]/50" />
-          </div>
-        ) : (
-          <div className="rounded-[28px] overflow-hidden border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex items-center justify-between p-5">
-              <div className="flex items-center gap-4">
-                <div className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center shadow-sm ${selfAttendanceStatus === "marked" ? "bg-emerald-100 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
-                  {selfAttendanceStatus === "marked" ? <CheckCircle2 className="h-6 w-6" /> : <UserCheck className="h-6 w-6" />}
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#1d1b20]">
-                    {selfAttendanceStatus === "marked" ? "You're Checked In Today" : "Mark Your Attendance"}
-                  </p>
-                  <p className="text-[10px] font-semibold text-ink-muted mt-0.5">
-                    {selfAttendanceStatus === "marked" && selfAttendanceTime
-                      ? `Checked in at ${selfAttendanceTime}`
-                      : "Tap to mark yourself present for today"}
-                  </p>
-                </div>
-              </div>
-              {selfAttendanceStatus === "unmarked" && (
-                <BrandButton variant="dark" onClick={handleMarkSelfAttendance} disabled={markingSelf}>
-                  {markingSelf ? <Loader2 className="w-4 h-4 animate-spin" /> : "I'm Present"}
-                </BrandButton>
-              )}
-              {selfAttendanceStatus === "marked" && (
-                <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600">Present</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Action Alerts ── */}
+    <TeacherPage
+      icon={GraduationCap}
+      eyebrow="Faculty Console"
+      /* Viewer-clock values — see the note in RoleHeader. */
+      title={`${greeting}, ${data.teacherName?.split(" ")[0] || "Teacher"}`}
+      summary={
+        <span suppressHydrationWarning>
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          {` · ${teacherSubjects.length} subject${teacherSubjects.length === 1 ? "" : "s"}`}
+          {` · ${classHubs.length} class${classHubs.length === 1 ? "" : "es"}`}
+          {` · ${data.totalStudents} students`}
+        </span>
+      }
+      actions={
+        <>
+          {/* Checking in was a full-width card of its own for one button. It is
+              a two-second daily action, so it belongs in the header. */}
+          {selfAttendanceStatus === "loading" ? (
+            <span className="skeleton-shimmer h-10 w-32 rounded-xl bg-[#e8e0ec]/50" />
+          ) : selfAttendanceStatus === "marked" ? (
+            <span
+              title={selfAttendanceTime ? `Checked in at ${selfAttendanceTime}` : "Checked in today"}
+              className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-700"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Checked in
+              {selfAttendanceTime ? (
+                <span className="font-bold tabular-nums opacity-70">{selfAttendanceTime}</span>
+              ) : null}
+            </span>
+          ) : (
+            <BrandButton
+              variant="dark"
+              className="min-h-10"
+              icon={markingSelf ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+              onClick={handleMarkSelfAttendance}
+              disabled={markingSelf}
+            >
+              I&apos;m Present
+            </BrandButton>
+          )}
+          <GradingToolbar grading={grading} classHubs={classHubs} />
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {/* ── What needs doing, before anything else ── */}
         {(hasUnmarkedAttendance || hasMissingMarks) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {hasUnmarkedAttendance && (
-              <button type="button" onClick={() => router.push("/teacher/attendance")}
-                className="group flex items-center gap-4 rounded-[28px] bg-gradient-to-r from-amber-50 to-amber-50/30 border border-amber-200/50 p-5 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-sm">
-                  <CalendarCheck className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-amber-800">Unmarked Attendance</p>
-                  <p className="text-xs font-semibold text-amber-600/70 mt-0.5">
-                    {attendanceStats.unmarked} student{attendanceStats.unmarked !== 1 ? "s" : ""} not marked today
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-amber-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all shrink-0" />
-              </button>
+              <AlertRow
+                tone="amber"
+                icon={CalendarCheck}
+                title="Unmarked attendance"
+                detail={`${attendanceStats.unmarked} student${attendanceStats.unmarked !== 1 ? "s" : ""} not marked today`}
+                onClick={() => router.push("/teacher/attendance")}
+              />
             )}
             {hasMissingMarks && (
-              <button type="button" onClick={() => router.push("/teacher/marks")}
-                className="group flex items-center gap-4 rounded-[28px] bg-gradient-to-r from-rose-50 to-rose-50/30 border border-rose-200/50 p-5 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-sm">
-                  <AlertCircle className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-rose-800">Missing Marks</p>
-                  <p className="text-xs font-semibold text-rose-600/70 mt-0.5">
-                    {missingMarksTotal} mark{missingMarksTotal !== 1 ? "s" : ""} pending across {activeExamCount} active test{activeExamCount !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-rose-400 group-hover:text-rose-600 group-hover:translate-x-1 transition-all shrink-0" />
-              </button>
+              <AlertRow
+                tone="rose"
+                icon={AlertCircle}
+                title="Missing marks"
+                detail={`${missingMarksTotal} mark${missingMarksTotal !== 1 ? "s" : ""} pending across ${activeExamCount} active test${activeExamCount !== 1 ? "s" : ""}`}
+                onClick={() => router.push("/teacher/marks")}
+              />
             )}
           </div>
         )}
 
-        {/* ── Today's Schedule ── */}
+        {/* ── Today ── */}
         {!slotsLoading && todaySlots.length > 0 && (
           <ScheduleConflictsBanner slots={todaySlots} scope="today" />
         )}
@@ -233,37 +188,80 @@ export default function TeacherDashboardHub() {
           onOpenTimetable={() => router.push("/teacher/timetable")}
         />
 
-        {/* ── Stat Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          {[
-            { icon: BookOpen, label: "Subjects", value: teacherSubjects.length, color: "from-[#8127cf] to-[#9c48ea]", onClick: () => router.push("/teacher/marks") },
-            { icon: GraduationCap, label: "Classes", value: classHubs.length, color: "from-rose-500 to-rose-600", onClick: () => router.push("/teacher/classes") },
-            { icon: Users, label: "Students", value: data.totalStudents, color: "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/students") },
-            { icon: ClipboardList, label: "Active Tests", value: activeExamCount, color: "from-violet-500 to-violet-600", onClick: () => router.push("/teacher/tests") },
-            { icon: AlertCircle, label: "Missing Marks", value: missingMarksTotal, color: missingMarksTotal > 0 ? "from-rose-500 to-rose-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/marks") },
-            { icon: CalendarCheck, label: "Unmarked Today", value: attendanceStats.unmarked, color: attendanceStats.unmarked > 0 ? "from-amber-500 to-amber-600" : "from-emerald-500 to-emerald-600", onClick: () => router.push("/teacher/attendance") },
-          ].map((card, index) => (
-            <button key={card.label} type="button" onClick={card.onClick}
-              title={`${card.value} ${card.label} — click to view`}
-              style={{ animationDelay: `${index * 70}ms` }}
-              className="sk-rise group relative cursor-pointer rounded-3xl bg-white p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-[#cfc2d6]/10 overflow-hidden active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-300`} />
-              <div className="relative mb-3">
-                <div className={`absolute -inset-2 rounded-xl bg-gradient-to-br ${card.color} opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-20`} />
-                <div className={`relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-md`}>
-                  <card.icon className="h-5 w-5 text-white" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{card.value}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{card.label}</p>
-            </button>
-          ))}
-        </div>
+        {/* ── The numbers, each one a way in ── */}
+        <StatTiles
+          columns={6}
+          tiles={[
+            { key: "subjects", icon: BookOpen, label: "Subjects", value: teacherSubjects.length, tone: "violet", onClick: () => router.push("/teacher/marks") },
+            { key: "classes", icon: GraduationCap, label: "Classes", value: classHubs.length, tone: "rose", onClick: () => router.push("/teacher/classes") },
+            { key: "students", icon: Users, label: "Students", value: data.totalStudents, tone: "emerald", onClick: () => router.push("/teacher/students") },
+            { key: "tests", icon: ClipboardList, label: "Active tests", value: activeExamCount, tone: "violet", onClick: () => router.push("/teacher/tests") },
+            {
+              key: "missing",
+              icon: AlertCircle,
+              label: "Missing marks",
+              value: missingMarksTotal,
+              hint: missingMarksTotal > 0 ? "Needs you" : "All entered",
+              tone: missingMarksTotal > 0 ? "rose" : "emerald",
+              onClick: () => router.push("/teacher/marks"),
+            },
+            {
+              key: "unmarked",
+              icon: CalendarCheck,
+              label: "Unmarked today",
+              value: attendanceStats.unmarked,
+              hint: attendanceStats.unmarked > 0 ? "Needs you" : "All marked",
+              tone: attendanceStats.unmarked > 0 ? "amber" : "emerald",
+              onClick: () => router.push("/teacher/attendance"),
+            },
+          ]}
+        />
       </div>
 
-      {/* ── Modals ── */}
       <GradingModals grading={grading} classHubs={classHubs} />
-    </section>
+    </TeacherPage>
+  );
+}
+
+/** A one-line "this needs you" row. Reads faster than a card and costs less. */
+function AlertRow({
+  tone,
+  icon: Icon,
+  title,
+  detail,
+  onClick,
+}: {
+  tone: "amber" | "rose";
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  const tones = {
+    amber: "border-amber-200/70 bg-gradient-to-r from-amber-50 to-amber-50/20 text-amber-800",
+    rose: "border-rose-200/70 bg-gradient-to-r from-rose-50 to-rose-50/20 text-rose-800",
+  } as const;
+  const chips = {
+    amber: "bg-amber-100 text-amber-600",
+    rose: "bg-rose-100 text-rose-600",
+  } as const;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group flex cursor-pointer items-center gap-3 rounded-[18px] border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(31,26,35,0.5)] active:scale-[0.99]",
+        tones[tone],
+      )}
+    >
+      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black leading-tight">{title}</span>
+        <span className="block truncate text-[11px] font-semibold opacity-70">{detail}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
+    </button>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { CalendarCheck, FileText, GraduationCap, Star, Users } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
   classLabel, DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
@@ -17,20 +18,13 @@ export default function TeacherClassesPage() {
   const classHubs = data?.classHubs || [];
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <GraduationCap className="w-4 h-4" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider">My Teaching Load</p>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Classes</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Every class assigned to you, with students and pending work</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20">
+    <TeacherPage
+      icon={GraduationCap}
+      eyebrow="My Teaching Load"
+      title="My Classes"
+      summary="Every class assigned to you, with students and pending work"
+    >
+      <div className="space-y-3">
         {classHubs.length === 0 ? (
           <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">
@@ -42,7 +36,7 @@ export default function TeacherClassesPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-[#1d1b20] uppercase tracking-wider">Assigned Classes</h3>
               <span className="text-[10px] font-semibold text-ink-muted">{classHubs.length} active</span>
@@ -110,6 +104,6 @@ export default function TeacherClassesPage() {
           </div>
         )}
       </div>
-    </section>
+    </TeacherPage>
   );
 }

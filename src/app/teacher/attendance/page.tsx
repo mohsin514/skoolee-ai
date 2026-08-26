@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   AlertTriangle, BarChart3, CalendarCheck, CheckCheck, CheckCircle2, ChevronLeft, ChevronRight, Copy, History, ListChecks, Loader2, Plus, TrendingUp,
 } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
@@ -169,36 +170,39 @@ export default function AttendancePage() {
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <CalendarCheck className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Attendance Management</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Daily Attendance</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Mark student attendance per class and date.</p>
-          <div className="flex gap-2 mt-4">
-            {([
-              { key: "marking" as ViewTab, label: "Mark Attendance", icon: CalendarCheck },
-              { key: "monthly" as ViewTab, label: "Monthly Report", icon: BarChart3 },
-            ]).map(({ key, label, icon: Icon }) => (
-              <button key={key} type="button" onClick={() => setActiveTab(key)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/30",
-                  activeTab === key
-                    ? "bg-[#8127cf] text-white border-[#8127cf] shadow-lg shadow-[#8127cf]/20"
-                    : "bg-white text-ink border-[#cfc2d6]/20 hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/50"
-                )}>
-                <Icon className="w-3.5 h-3.5" />{label}
-              </button>
-            ))}
-          </div>
+    <TeacherPage
+      icon={CalendarCheck}
+      eyebrow="Attendance"
+      title="Daily Attendance"
+      summary="Mark student attendance per class and date"
+      actions={
+        // The two views were tabs stacked under the description; as a segmented
+        // control in the header they cost no extra row.
+        <div className="flex h-10 items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+          {([
+            { key: "marking" as ViewTab, label: "Mark", icon: CalendarCheck },
+            { key: "monthly" as ViewTab, label: "Monthly", icon: BarChart3 },
+          ]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              aria-pressed={activeTab === key}
+              className={cn(
+                "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black uppercase tracking-wider transition-all",
+                activeTab === key
+                  ? "bg-white text-[#8127cf] shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
+                  : "text-ink-muted hover:text-[#8127cf]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+      }
+    >
+      <div className="space-y-3">
 
         {/* Monthly Report View */}
         {activeTab === "monthly" ? (
@@ -419,7 +423,7 @@ export default function AttendancePage() {
 
         </>)}
       </div>
-    </section>
+    </TeacherPage>
   );
 }
 

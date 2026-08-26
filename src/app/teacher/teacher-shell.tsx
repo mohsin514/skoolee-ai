@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BarChart3, BookOpen, Calendar, CalendarCheck, CalendarDays, ClipboardList, FileText, GraduationCap, LogOut, MessageCircle, Plane, Star, Users, Zap } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
 import { useTeacherData } from "./teacher-data-context";
+import { TEACHER_NAV } from "@/components/teacher/teacher-page";
 
 export function TeacherShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -17,20 +18,11 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   };
 
+  // Built from the same list the in-page subnav uses, so the two can never
+  // drift apart. Messaging is not a teacher "screen", so it is appended.
   const navItems: RoleNavItem[] = [
-    { icon: BookOpen, label: "Dashboard", href: "/teacher" },
-    { icon: GraduationCap, label: "My Classes", href: "/teacher/classes" },
-    { icon: CalendarCheck, label: "Attendance", href: "/teacher/attendance" },
-    { icon: Star, label: "Marks & Tests", href: "/teacher/marks" },
-    { icon: ClipboardList, label: "Assessments", href: "/teacher/tests" },
-    { icon: Users, label: "My Students", href: "/teacher/students" },
+    ...TEACHER_NAV.map((item) => ({ icon: item.icon, label: item.label, href: item.href })),
     { icon: MessageCircle, label: "Messages", href: "/messages" },
-    { icon: FileText, label: "Reports", href: "/teacher/reports" },
-    { icon: Calendar, label: "Timetable", href: "/teacher/timetable" },
-    { icon: CalendarDays, label: "Calendar", href: "/teacher/calendar" },
-    { icon: BarChart3, label: "Insights", href: "/teacher/insights" },
-    { icon: Plane, label: "Leave", href: "/teacher/leave" },
-    { icon: Zap, label: "AI Insights", href: "/teacher/ai" },
   ];
   const bottomItems: RoleNavItem[] = [];
 

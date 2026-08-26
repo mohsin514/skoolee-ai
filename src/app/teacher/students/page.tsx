@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Phone, Search, Users, X } from "lucide-react";
+import { LayoutGrid, Phone, Table2, Users, X } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
+import {
+  DataTable,
+  SearchField,
+  ToolbarSelect,
+  ViewSwitch,
+  WorkspaceToolbar,
+  useWorkspacePrefs,
+} from "@/components/shared-admin/workspace";
 import { useTeacherData } from "../teacher-data-context";
 import {
   classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
@@ -11,6 +20,7 @@ import {
 export default function TeacherStudentsPage() {
   const { data, loading, error, refetch } = useTeacherData();
   const [search, setSearch] = useState("");
+  const [prefs, patchPrefs] = useWorkspacePrefs("teacher-students", { view: "cards" });
   const [classFilter, setClassFilter] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
@@ -38,67 +48,124 @@ export default function TeacherStudentsPage() {
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <Users className="w-4 h-4" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider">Student Directory</p>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Students</h1>
-          {/* The filter list marks out-of-cycle classes, so a bare "across N
-              classes" total silently disagreed with it. Call the split out. */}
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class{classHubs.length !== 1 ? "es" : ""}
-            {outOfCycleCount > 0
-              ? ` · ${outOfCycleCount} outside the active cycle`
-              : ""}
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-6">
+    <TeacherPage
+      icon={Users}
+      eyebrow="Student Directory"
+      title="My Students"
+      /* The filter list marks out-of-cycle classes, so a bare "across N
+         classes" total silently disagreed with it. Call the split out. */
+      summary={
+        <>
+          {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class
+          {classHubs.length !== 1 ? "es" : ""}
+          {outOfCycleCount > 0 ? ` · ${outOfCycleCount} outside the active cycle` : ""}
+        </>
+      }
+    >
+      <div className="space-y-3">
 
         {/* Filters */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
-            <input
-              type="text"
-              placeholder="Search by name, roll no, or guardian..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white pl-11 pr-10 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:shadow-md hover:border-[#8127cf]/20"
+        <WorkspaceToolbar
+          trailing={
+            <ViewSwitch
+              value={prefs.view}
+              onChange={(v) => patchPrefs({ view: v })}
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "table", label: "List", icon: Table2 },
+              ]}
             />
-            {search && (
-              <button type="button" onClick={() => setSearch("")} aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-rose-500 cursor-pointer">
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <select
+          }
+        >
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder="Name, roll no or guardian…"
+          />
+          <ToolbarSelect
             value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            className="h-12 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-semibold outline-none transition-all cursor-pointer focus:border-[#8127cf]/35 hover:border-[#8127cf]/20"
-          >
-            <option value="">All Classes</option>
-            {classHubs.map((cls: any) => (
-              <option key={cls.id} value={cls.id}>
-                {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
-              </option>
-            ))}
-          </select>
-          <span className="text-[11px] font-bold text-ink-subtle uppercase tracking-wider">
+            onChange={setClassFilter}
+            label="Class"
+            options={[
+              ["", "All classes"],
+              ...classHubs.map(
+                (cls: any) =>
+                  [
+                    cls.id,
+                    `${classLabel(cls)}${cls.inActiveCycle === false ? " (outside active cycle)" : ""}`,
+                  ] as [string, string],
+              ),
+            ]}
+          />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
             {filtered.length} student{filtered.length !== 1 ? "s" : ""}
           </span>
-        </div>
+        </WorkspaceToolbar>
 
-        {/* Student Cards */}
-        {filtered.length > 0 ? (
+        {/* A class of forty is a scanning job, not a browsing one — the table
+            puts roll number, grade and attendance in comparable columns. */}
+        {filtered.length > 0 && prefs.view === "table" ? (
+          <DataTable
+            rows={filtered}
+            rowKey={(st: any) => st.id}
+            minWidth={720}
+            onRowClick={(st: any) => setSelectedStudent(st)}
+            columns={[
+              {
+                key: "name",
+                label: "Student",
+                render: (st: any) => (
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
+                      <AvatarImage src={st.profileImageUrl} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-[#1d1b20]">{st.fullName}</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                        {st.rollNo || "No roll"}
+                      </span>
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: "class",
+                label: "Class",
+                render: (st: any) => (
+                  <span className="text-xs font-bold text-ink">{classLabel(st.class)}</span>
+                ),
+              },
+              {
+                key: "grade",
+                label: "Latest grade",
+                align: "center",
+                render: (st: any) => {
+                  const report = st.reportCards?.[0];
+                  return report?.grade || report?.percentage != null ? (
+                    <span className="text-sm font-black text-[#8127cf]">
+                      {report.grade || `${Math.round(report.percentage)}%`}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                  );
+                },
+              },
+              {
+                key: "guardian",
+                label: "Guardian",
+                secondary: true,
+                render: (st: any) => (
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-ink">{st.guardianName || "Not linked"}</p>
+                    <p className="truncate text-[10px] font-semibold text-ink-subtle">
+                      {st.guardianPhone || "No phone"}
+                    </p>
+                  </div>
+                ),
+              },
+            ]}
+          />
+        ) : filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((student: any, index: number) => {
               const report = student.reportCards?.[0];
@@ -194,6 +261,6 @@ export default function TeacherStudentsPage() {
           onClose={() => setSelectedStudent(null)}
         />
       ) : null}
-    </section>
+    </TeacherPage>
   );
 }

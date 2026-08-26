@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BarChart3, CheckCircle2, Download, FileText, Loader2, Plus, Star } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
@@ -139,25 +140,14 @@ export default function MarksPage() {
     : [];
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <header className="relative overflow-hidden p-7 px-9 border-b border-[#cfc2d6]/12 bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <FileText className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">{data.exams?.length || 0} exam cycles</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Tests, Exams & Marks</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Enter marks, create assessments, and manage grade configurations.</p>
-        </div>
-        {/* justify-end so a wrapped third button lines up with the header's
-            right edge instead of stranding itself under the first one. */}
-        <div className="relative flex flex-wrap gap-2 xl:justify-end">
-          <GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/20 space-y-6">
+    <TeacherPage
+      icon={FileText}
+      eyebrow="Marks Entry"
+      title="Tests, Exams & Marks"
+      summary={`${data.exams?.length || 0} exam cycle${(data.exams?.length || 0) === 1 ? "" : "s"} · enter marks, create assessments and manage grading`}
+      actions={<GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />}
+    >
+      <div className="space-y-3">
 
         {/* Zero state — with no assessments the selector, sheet and save bar are
             all inert, so show the way forward instead of three dead controls. */}
@@ -360,6 +350,6 @@ export default function MarksPage() {
       </div>
 
       <GradingModals grading={grading} classHubs={classHubs} />
-    </section>
+    </TeacherPage>
   );
 }

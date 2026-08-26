@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { BarChart3, CalendarCheck, TrendingUp } from "lucide-react";
+import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -41,23 +42,16 @@ export default function TeacherInsightsPage() {
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white border-b border-[#cfc2d6]/12 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <BarChart3 className="w-4 h-4" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider">My Performance</p>
-          </div>
-          <h1 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Insights</h1>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Attendance, marks progress and quick metrics across your work</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 bg-[#fbf0fe]/20 space-y-6">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <TeacherPage
+      icon={BarChart3}
+      eyebrow="My Performance"
+      title="Insights"
+      summary="Attendance, marks progress and quick metrics across your work"
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
           {/* Attendance Donut */}
-          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Daily Overview</p>
@@ -68,7 +62,7 @@ export default function TeacherInsightsPage() {
               </div>
             </div>
             {attendanceChartData.length > 0 ? (
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
                 <div className="shrink-0">
                   <ResponsiveContainer width={140} height={140}>
                     <PieChart>
@@ -105,7 +99,7 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Marks Progress Bar Chart */}
-          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Entry Status</p>
@@ -133,7 +127,7 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Performance Summary */}
-          <div className="sk-rise bg-white rounded-[32px] p-6 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-rise bg-white rounded-[24px] p-4 border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Snapshot</p>
@@ -174,6 +168,6 @@ export default function TeacherInsightsPage() {
           </div>
         </div>
       </div>
-    </section>
+    </TeacherPage>
   );
 }
