@@ -57,6 +57,7 @@ export default function TeacherStudentsPage() {
 
   return (
     <TeacherPage
+      tone="students"
       icon={Users}
       eyebrow="Student Directory"
       title="My Students"

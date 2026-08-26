@@ -157,6 +157,7 @@ export default function MarksPage() {
 
   return (
     <TeacherPage
+      tone="exams"
       icon={FileText}
       eyebrow="Marks Entry"
       title="Tests, Exams & Marks"

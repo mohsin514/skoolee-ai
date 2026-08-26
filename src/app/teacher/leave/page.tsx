@@ -147,6 +147,7 @@ export default function LeavePage() {
 
   return (
     <TeacherPage
+      tone="leave"
       icon={Plane}
       eyebrow="Time Off"
       title="My Leave"

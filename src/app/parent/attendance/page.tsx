@@ -25,6 +25,7 @@ export default function ParentAttendancePage() {
 
   return (
     <ParentPage
+      tone="attendance"
       icon={CalendarCheck}
       eyebrow={<>{attendance.rate !== null ? `${attendance.rate}% overall · ${attendance.total} days recorded` : "No attendance data yet"}</>}
       title="Attendance"

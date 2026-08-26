@@ -7,6 +7,7 @@ import { TeacherPage } from "@/components/teacher/teacher-page";
 export default function TeacherTestsPage() {
   return (
     <TeacherPage
+      tone="exams"
       icon={ClipboardList}
       eyebrow="Assessment Pipeline"
       title="My Tests & Quizzes"

@@ -91,6 +91,7 @@ export default function ParentTimetablePage() {
 
   return (
     <ParentPage
+      tone="timetable"
       icon={Clock}
       eyebrow={<>{timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}</>}
       title="Timetable"

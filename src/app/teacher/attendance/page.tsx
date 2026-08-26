@@ -182,6 +182,7 @@ export default function AttendancePage() {
 
   return (
     <TeacherPage
+      tone="attendance"
       icon={CalendarCheck}
       eyebrow="Attendance"
       title="Daily Attendance"

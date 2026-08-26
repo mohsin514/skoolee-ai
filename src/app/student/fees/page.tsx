@@ -58,6 +58,7 @@ export default function FeesPage() {
 
   return (
     <StudentPage
+      tone="fees"
       icon={CreditCard}
       eyebrow={<>{summary.outstanding ? `Rs ${summary.outstanding.toLocaleString()} outstanding · ${summary.overdue} overdue` : "All fees cleared"}</>}
       title="Fee Tokens"

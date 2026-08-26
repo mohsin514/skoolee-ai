@@ -58,6 +58,7 @@ export default function TeacherTimetablePage() {
 
   return (
     <TeacherPage
+      tone="timetable"
       icon={Calendar}
       eyebrow="My Schedule"
       title="Weekly Timetable"

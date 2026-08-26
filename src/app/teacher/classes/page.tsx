@@ -19,6 +19,7 @@ export default function TeacherClassesPage() {
 
   return (
     <TeacherPage
+      tone="classes"
       icon={GraduationCap}
       eyebrow="My Teaching Load"
       title="My Classes"

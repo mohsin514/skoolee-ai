@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -114,6 +115,7 @@ export function WorkspaceHeader({
   summary,
   actions,
   children,
+  tone = "brand",
 }: {
   icon: LucideIcon;
   eyebrow: string;
@@ -122,23 +124,30 @@ export function WorkspaceHeader({
   summary?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
+  /** The domain this screen belongs to — drives its accent colour. */
+  tone?: ModuleTone;
 }) {
+  const t = toneOf(tone);
   return (
     <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
       {/* A gradient rail reads as considered where a full gradient panel reads
           as decoration — and it costs no vertical space. */}
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[#8127cf] via-[#9c48ea] to-[#8127cf]"
+        className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", t.rail)}
       />
       <span
         aria-hidden
-        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/8 to-transparent blur-2xl"
+        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
+        style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
       />
 
       <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-2px_rgba(129,39,207,0.45)]">
+          <span
+            className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
+            style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}
+          >
             <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
@@ -149,7 +158,7 @@ export function WorkspaceHeader({
               <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
                 {title}
               </h2>
-              <span className="hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-[#8127cf]/70 sm:inline">
+              <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
                 {eyebrow}
               </span>
             </div>

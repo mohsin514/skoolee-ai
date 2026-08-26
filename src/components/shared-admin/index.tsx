@@ -673,6 +673,7 @@ export function AcademicPanel({
         icon={School}
         eyebrow="Academics"
         title="Classes & Subjects"
+        tone="classes"
         summary={
           <>
             {classGroups.length} class{classGroups.length === 1 ? "" : "es"} ·{" "}
@@ -1320,6 +1321,7 @@ export function ReportCardsPanel({
         icon={ClipboardList}
         eyebrow="Academics"
         title="Report Cards"
+        tone="reports"
         summary={
           <>
             {filtered.length} of {reports.length} shown

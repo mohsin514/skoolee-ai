@@ -47,6 +47,7 @@ export default function ParentFeesPage() {
 
   const page = (body: React.ReactNode) => (
     <ParentPage
+      tone="fees"
       icon={CreditCard}
       eyebrow={<>{outstanding ? `Rs ${rupees(outstanding)} outstanding` : "All fees cleared"}</>}
       title="Fee Status"

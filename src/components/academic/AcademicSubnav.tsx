@@ -16,6 +16,7 @@ import {
   School,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 
 /**
  * The academic area is ten screens deep, and every hop between them used to
@@ -29,19 +30,20 @@ export interface AcademicNavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Short grouping label shown above the strip. */
   group: "Set up" | "Run the year" | "Assess";
+  tone: ModuleTone;
 }
 
 export const ACADEMIC_NAV: AcademicNavItem[] = [
-  { view: "academic-hub", label: "Overview", icon: LayoutDashboard, group: "Set up" },
-  { view: "year-setup", label: "Set Up New Year", icon: CalendarRange, group: "Set up" },
-  { view: "classes", label: "Classes & Subjects", icon: School, group: "Set up" },
-  { view: "year-cycle", label: "Academic Years", icon: History, group: "Set up" },
-  { view: "timetable", label: "Class Timetable", icon: Calendar, group: "Run the year" },
-  { view: "period-setup", label: "Daily Periods", icon: Clock, group: "Run the year" },
-  { view: "class-rooms", label: "Rooms", icon: DoorOpen, group: "Run the year" },
-  { view: "school-calendar", label: "Holidays & Calendar", icon: CalendarDays, group: "Run the year" },
-  { view: "exam-cycles", label: "Exams & Results", icon: FileText, group: "Assess" },
-  { view: "report-cards", label: "Report Cards", icon: ClipboardList, group: "Assess" },
+  { view: "academic-hub", label: "Overview", icon: LayoutDashboard, group: "Set up", tone: "brand" },
+  { view: "year-setup", label: "Set Up New Year", icon: CalendarRange, group: "Set up", tone: "brand" },
+  { view: "classes", label: "Classes & Subjects", icon: School, group: "Set up", tone: "classes" },
+  { view: "year-cycle", label: "Academic Years", icon: History, group: "Set up", tone: "classes" },
+  { view: "timetable", label: "Class Timetable", icon: Calendar, group: "Run the year", tone: "timetable" },
+  { view: "period-setup", label: "Daily Periods", icon: Clock, group: "Run the year", tone: "timetable" },
+  { view: "class-rooms", label: "Rooms", icon: DoorOpen, group: "Run the year", tone: "staff" },
+  { view: "school-calendar", label: "Holidays & Calendar", icon: CalendarDays, group: "Run the year", tone: "leave" },
+  { view: "exam-cycles", label: "Exams & Results", icon: FileText, group: "Assess", tone: "exams" },
+  { view: "report-cards", label: "Report Cards", icon: ClipboardList, group: "Assess", tone: "reports" },
 ];
 
 export const ACADEMIC_VIEWS = new Set(ACADEMIC_NAV.map((i) => i.view));
@@ -158,7 +160,9 @@ export function AcademicSubnav({
                       : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]",
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon
+                    className={cn("h-3.5 w-3.5", isActive ? "text-white" : toneOf(item.tone).text)}
+                  />
                   {item.label}
                 </button>
               </React.Fragment>

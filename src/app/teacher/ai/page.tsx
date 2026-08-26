@@ -32,6 +32,7 @@ export default function AIPage() {
 
   return (
     <TeacherPage
+      tone="ai"
       icon={BrainCircuit}
       eyebrow="Teaching Assistant"
       title="AI Insights & Tools"

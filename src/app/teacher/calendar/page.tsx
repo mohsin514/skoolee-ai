@@ -7,6 +7,7 @@ import { TeacherPage } from "@/components/teacher/teacher-page";
 export default function TeacherCalendarPage() {
   return (
     <TeacherPage
+      tone="timetable"
       icon={CalendarDays}
       eyebrow="School Calendar"
       title="Academic Calendar"

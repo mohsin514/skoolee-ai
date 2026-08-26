@@ -58,6 +58,7 @@ export default function StudentTimetablePage() {
 
   return (
     <StudentPage
+      tone="timetable"
       icon={Clock}
       eyebrow={<>{data ? `${data.slots.length} class slots scheduled` : "Weekly schedule"}</>}
       title="Weekly Timetable"

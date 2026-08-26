@@ -32,6 +32,7 @@ export default function ReportsPage() {
 
   return (
     <StudentPage
+      tone="reports"
       icon={FileText}
       eyebrow={
         <>

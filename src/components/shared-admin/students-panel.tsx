@@ -596,6 +596,7 @@ export function StudentsPanel({
         icon={GraduationCap}
         eyebrow="Students"
         title="Student Directory"
+        tone="students"
         summary={
           <>
             {filtered.length} of {students.length} shown

@@ -130,6 +130,7 @@ export default function ReportsPage() {
 
   return (
     <TeacherPage
+      tone="reports"
       icon={FileText}
       eyebrow="Report Cards"
       title="Report Cards & Remarks"

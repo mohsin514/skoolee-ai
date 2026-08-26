@@ -35,6 +35,7 @@ export default function ParentResultsPage() {
 
   return (
     <ParentPage
+      tone="reports"
       icon={FileText}
       eyebrow={<>{reportCards.length ? `${reportCards.length} report card${reportCards.length > 1 ? "s" : ""} · ${marksByExam.length} exams` : "Academic results"}</>}
       title="Results"

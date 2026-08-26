@@ -30,6 +30,10 @@ import {
 import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
+import { toneOf } from "@/lib/ui/module-tones";
+
+/** Constant lookup — hoisted so it is not recomputed on every render. */
+const examTone = toneOf("exams");
 import { ExamDetailPanel } from "@/components/academic/ExamDetailPanel";
 import { ExamBoardCard, type DetailTab } from "@/components/academic/ExamBoardCard";
 import { ExamTableView, type SortKey } from "@/components/academic/ExamTableView";
@@ -935,15 +939,19 @@ export function ExamCycleManager({
       <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
         <span
           aria-hidden
-          className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[#8127cf] via-[#9c48ea] to-[#8127cf]"
+          className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", examTone.rail)}
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/8 to-transparent blur-2xl"
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
+          style={{ background: `radial-gradient(circle, ${examTone.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-2px_rgba(129,39,207,0.45)]">
+            <span
+              className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", examTone.tile)}
+              style={{ boxShadow: `0 4px 12px -2px ${examTone.hex}73` }}
+            >
               <GraduationCap className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -951,7 +959,7 @@ export function ExamCycleManager({
                 <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
                   {isTeacher ? "My Tests & Quizzes" : "Exams & Results"}
                 </h2>
-                <span className="hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-[#8127cf]/70 sm:inline">
+                <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", examTone.text)}>
                   {isTeacher ? "My Classroom" : "Academics"}
                 </span>
               </div>

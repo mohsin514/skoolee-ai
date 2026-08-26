@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 
 /**
  * The shell every teacher screen sits in.
@@ -36,21 +37,22 @@ export interface TeacherNavItem {
   label: string;
   icon: LucideIcon;
   group: "Teach" | "Assess" | "Me";
+  tone: ModuleTone;
 }
 
 export const TEACHER_NAV: TeacherNavItem[] = [
-  { href: "/teacher", label: "Dashboard", icon: BookOpen, group: "Teach" },
-  { href: "/teacher/classes", label: "My Classes", icon: GraduationCap, group: "Teach" },
-  { href: "/teacher/timetable", label: "Timetable", icon: Calendar, group: "Teach" },
-  { href: "/teacher/students", label: "My Students", icon: Users, group: "Teach" },
-  { href: "/teacher/attendance", label: "Attendance", icon: CalendarCheck, group: "Assess" },
-  { href: "/teacher/marks", label: "Marks", icon: Star, group: "Assess" },
-  { href: "/teacher/tests", label: "Assessments", icon: ClipboardList, group: "Assess" },
-  { href: "/teacher/reports", label: "Reports", icon: FileText, group: "Assess" },
-  { href: "/teacher/insights", label: "Insights", icon: BarChart3, group: "Me" },
-  { href: "/teacher/calendar", label: "Calendar", icon: CalendarDays, group: "Me" },
-  { href: "/teacher/leave", label: "Leave", icon: Plane, group: "Me" },
-  { href: "/teacher/ai", label: "AI Insights", icon: Zap, group: "Me" },
+  { href: "/teacher", label: "Dashboard", icon: BookOpen, group: "Teach", tone: "brand" },
+  { href: "/teacher/classes", label: "My Classes", icon: GraduationCap, group: "Teach", tone: "classes" },
+  { href: "/teacher/timetable", label: "Timetable", icon: Calendar, group: "Teach", tone: "timetable" },
+  { href: "/teacher/students", label: "My Students", icon: Users, group: "Teach", tone: "students" },
+  { href: "/teacher/attendance", label: "Attendance", icon: CalendarCheck, group: "Assess", tone: "attendance" },
+  { href: "/teacher/marks", label: "Marks", icon: Star, group: "Assess", tone: "exams" },
+  { href: "/teacher/tests", label: "Assessments", icon: ClipboardList, group: "Assess", tone: "exams" },
+  { href: "/teacher/reports", label: "Reports", icon: FileText, group: "Assess", tone: "reports" },
+  { href: "/teacher/insights", label: "Insights", icon: BarChart3, group: "Me", tone: "brand" },
+  { href: "/teacher/calendar", label: "Calendar", icon: CalendarDays, group: "Me", tone: "timetable" },
+  { href: "/teacher/leave", label: "Leave", icon: Plane, group: "Me", tone: "leave" },
+  { href: "/teacher/ai", label: "AI Insights", icon: Zap, group: "Me", tone: "ai" },
 ];
 
 /**
@@ -137,7 +139,9 @@ export function TeacherSubnav() {
                     : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]",
                 )}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon
+                  className={cn("h-3.5 w-3.5", isActive ? "text-white" : toneOf(item.tone).text)}
+                />
                 {item.label}
               </button>
             </React.Fragment>
@@ -169,6 +173,7 @@ export function TeacherPage({
   /** Rendered flush under the header, outside the scroll area. */
   banner,
   contentClassName,
+  tone = "brand",
 }: {
   icon: LucideIcon;
   eyebrow: string;
@@ -178,21 +183,26 @@ export function TeacherPage({
   children: ReactNode;
   banner?: ReactNode;
   contentClassName?: string;
+  /** The domain this screen belongs to — drives its accent colour. */
+  tone?: ModuleTone;
 }) {
+  const t = toneOf(tone);
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]">
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#8127cf] via-[#9c48ea] to-[#8127cf]"
+          className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)}
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-gradient-to-bl from-[#8127cf]/8 to-transparent blur-2xl"
+          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full blur-2xl"
+          style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-2px_rgba(129,39,207,0.45)]">
+            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
+                style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}>
               <Icon className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -200,7 +210,7 @@ export function TeacherPage({
                 <h1 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
                   {title}
                 </h1>
-                <span className="hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-[#8127cf]/70 sm:inline">
+                <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
                   {eyebrow}
                 </span>
               </div>

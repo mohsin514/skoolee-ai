@@ -92,6 +92,7 @@ export default function StudentAttendancePage() {
 
   return (
     <StudentPage
+      tone="attendance"
       icon={CalendarCheck}
       eyebrow={<>{stats.total ? `${stats.rate}% overall · ${stats.total} days recorded` : "No attendance data yet"}</>}
       title="My Attendance"

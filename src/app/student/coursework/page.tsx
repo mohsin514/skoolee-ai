@@ -28,6 +28,7 @@ export default function CourseworkPage() {
 
   return (
     <StudentPage
+      tone="classes"
       icon={BookOpen}
       eyebrow={<>{`${user.subjects.length} subjects enrolled`}</>}
       title="Coursework & Performance"
