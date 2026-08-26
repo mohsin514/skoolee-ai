@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import {
   classLabel, CreateAssessmentModal, EmptyInline, FinalGradesModal, GradeConfigModal, MarksSkeleton, MiniMetric, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
+import { NavGuardPrompt } from "@/components/ui/confirm-action";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
@@ -172,7 +174,7 @@ export default function MarksPage() {
   const resetMarks = useCallback(() => setMarksByKey(baselineMarks), [baselineMarks]);
 
   useUnsavedGuard(dirtyKeys.size > 0);
-  useNavGuard(dirtyKeys.size > 0, "You have unsaved marks. Leave this page and lose them?");
+  const navGuard = useNavGuard(dirtyKeys.size > 0, "You have unsaved marks. Leave this page and lose them?");
 
   /* Move the caret around the sheet the way a spreadsheet does. Entering a
      column of forty marks previously meant Tab-Tab-Tab across every subject to
@@ -214,15 +216,35 @@ export default function MarksPage() {
     return targets.length;
   }, [markSheet, marksByKey]);
 
+  /* Wiping a column of marks was gated behind a native `window.confirm` — an
+     OS dialog with no styling, no icon, and no way to say how many entries are
+     about to go. It now asks through the same ConfirmAction the rest of the
+     product uses, and states the count. */
+  const [clearTarget, setClearTarget] = useState<{ subjectId: string; subjectName: string } | null>(null);
+
   const clearColumn = useCallback((subjectId: string, subjectName: string) => {
     if (!markSheet) return;
-    if (!window.confirm(`Clear every entered mark in ${subjectName}? This is undoable until you save.`)) return;
+    setClearTarget({ subjectId, subjectName });
+  }, [markSheet]);
+
+  const confirmClearColumn = useCallback(() => {
+    if (!markSheet || !clearTarget) return;
+    const { subjectId } = clearTarget;
     setMarksByKey((current) => {
       const next = { ...current };
       for (const student of markSheet.students) delete next[`${student.id}:${subjectId}`];
       return next;
     });
-  }, [markSheet]);
+    setClearTarget(null);
+  }, [markSheet, clearTarget]);
+
+  const clearTargetCount = useMemo(() => {
+    if (!markSheet || !clearTarget) return 0;
+    return markSheet.students.reduce((n: number, student: { id: string }) => {
+      const v = marksByKey[`${student.id}:${clearTarget.subjectId}`];
+      return n + (v !== undefined && v !== "" ? 1 : 0);
+    }, 0);
+  }, [markSheet, clearTarget, marksByKey]);
 
   if (loading && !data) return <MarksSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
@@ -633,6 +655,23 @@ export default function MarksPage() {
       </div>
 
       <GradingModals grading={grading} classHubs={classHubs} />
+
+      <NavGuardPrompt {...navGuard} />
+
+      <ConfirmAction
+        open={clearTarget !== null}
+        tone="danger"
+        title={`Clear every mark in ${clearTarget?.subjectName ?? "this subject"}?`}
+        description="This empties the whole column on this sheet. Nothing is sent to the server until you save, so you can still leave without saving to get the marks back."
+        detail={
+          clearTargetCount > 0
+            ? `${clearTargetCount} entered mark${clearTargetCount === 1 ? "" : "s"} will be removed from the sheet.`
+            : "Nothing has been entered in this column yet."
+        }
+        confirmLabel="Clear column"
+        onCancel={() => setClearTarget(null)}
+        onConfirm={confirmClearColumn}
+      />
     </TeacherPage>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   CalendarDays,
   DoorOpen,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 
@@ -530,23 +530,35 @@ function AssignmentPopover({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md animate-backdrop-enter">
-      <div className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
-        <div className="flex items-center justify-between bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-5 text-white">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-white/70">Schedule</p>
-            <h3 className="text-lg font-black">{subject?.name}</h3>
-          </div>
+  return (
+    <Modal
+      title={subject?.name ?? "Schedule paper"}
+      eyebrow="Schedule"
+      icon={CalendarDays}
+      size="xs"
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-2xl text-white/80 hover:bg-white/15 cursor-pointer transition-colors"
+            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
           >
-            <X className="h-5 w-5" />
+            Cancel
           </button>
+          <BrandButton
+            variant="gradient"
+            onClick={submit}
+            disabled={busy || blocked}
+            title={blocked ? "Seat the whole class before scheduling" : undefined}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Schedule
+          </BrandButton>
         </div>
-        <div className="space-y-4 p-6">
+      }
+    >
+        <div className="space-y-4">
           <div className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-sm font-bold text-[#1d1b20]">
             <CalendarDays className="h-4 w-4 text-[#8127cf]" />
             {new Date(date).toLocaleDateString(undefined, {
@@ -658,26 +670,6 @@ function AssignmentPopover({
             )}
           </label>
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-[#cfc2d6]/10 bg-[#faf7fc] px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
-          >
-            Cancel
-          </button>
-          <BrandButton
-            variant="gradient"
-            onClick={submit}
-            disabled={busy || blocked}
-            title={blocked ? "Seat the whole class before scheduling" : undefined}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Schedule
-          </BrandButton>
-        </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

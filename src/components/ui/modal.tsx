@@ -789,7 +789,14 @@ function ModalChrome({
                   {eyebrow ? (
                     <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
                   ) : null}
-                  <h2 id={titleId} className="truncate text-xl font-black tracking-tight text-[#1f1a23] sm:text-2xl">
+                  {/* Wraps rather than truncates. `truncate` clipped the title
+                      of any dialog whose question did not fit one line — the
+                      leave withdrawal confirm read "Withdraw this leave re…",
+                      losing the noun and the question mark, and an alertdialog
+                      whose question is unreadable is the one place that cannot
+                      happen. The header is not height-constrained, so a second
+                      line costs nothing. */}
+                  <h2 id={titleId} className="text-balance text-xl font-black leading-tight tracking-tight text-[#1f1a23] sm:text-2xl">
                     {title}
                   </h2>
                   {subtitle ? (
@@ -821,8 +828,18 @@ function ModalChrome({
             </div>
           </div>
 
-          {/* ── Scrolling body, with a fade at whichever edge is cut off ── */}
-          <div className="relative min-h-0 flex-1">
+          {/* ── Scrolling body, with a fade at whichever edge is cut off ──
+              The panel is sized by `max-height`, not `height`, so there is no
+              free space for `flex-grow` to hand out — the body has to be the
+              child that *shrinks*. Hence `flex-1 min-h-0` on the scroller
+              itself, in flow: the panel overflows its max-height, flex-shrink
+              applies, `min-h-0` lets it shrink below its content, and it
+              scrolls. An earlier attempt put `h-full` on the scroller inside a
+              plain wrapper, which silently resolved to `auto` (percentages need
+              a definite parent height) and let a long body paint over the
+              pinned footer; making the wrapper's only child absolute instead
+              collapsed the wrapper to zero. */}
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
               className={cn(
                 "pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-white to-transparent transition-opacity duration-200",
@@ -832,7 +849,7 @@ function ModalChrome({
             />
             <div
               ref={bodyRef}
-              className={cn("custom-scrollbar h-full overflow-y-auto overscroll-contain px-5 py-5 sm:px-7", bodyClassName)}
+              className={cn("custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-7", bodyClassName)}
             >
               {children}
             </div>

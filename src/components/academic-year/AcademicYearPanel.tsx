@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 import { AvatarImage } from "@/components/ui/avatar-image";
 
 interface ClassSummary {
@@ -411,18 +412,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
       {/* ── History Modal ── */}
       {historyYear && historyClassId && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" onClick={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}>
-          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
-            <div className="flex justify-between items-start gap-5 mb-6">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Academic Year {historyYear}</p>
-                <h3 className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">Class History</h3>
-              </div>
-              <button type="button" onClick={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Modal
+          title="Class History"
+          eyebrow={`Academic Year ${historyYear}`}
+          icon={History}
+          size="lg"
+          onClose={() => { setHistoryYear(null); setHistoryClassId(""); setHistoryRecords([]); }}
+        >
 
             {historyLoading ? (
               <div className="space-y-2 py-4 animate-skeleton-in">
@@ -482,29 +478,23 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             ) : (
               <p className="text-center text-sm font-semibold text-ink-muted py-12">No history records for this class.</p>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── Promotion Wizard ── */}
       {showPromoteModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4 animate-backdrop-enter" onClick={closePromotionWizard}>
-          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
-            <div className="flex justify-between items-start gap-5 mb-6">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Promotion</p>
-                <h3 className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">
-                  {promoteStep === "source" ? "Select Source Class" :
-                   promoteStep === "review" ? "Review Students & Results" :
-                   promoteStep === "target" ? "Select Target & Preview" :
-                   "Promotion Complete"}
-                </h3>
-              </div>
-              <button type="button" onClick={closePromotionWizard}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Modal
+          title={
+            promoteStep === "source" ? "Select Source Class" :
+            promoteStep === "review" ? "Review Students & Results" :
+            promoteStep === "target" ? "Select Target & Preview" :
+            "Promotion Complete"
+          }
+          eyebrow="Student Promotion"
+          icon={GraduationCap}
+          size="xl"
+          onClose={closePromotionWizard}
+        >
 
             {/* Step indicators */}
             {promoteStep !== "confirm" && (
@@ -922,8 +912,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

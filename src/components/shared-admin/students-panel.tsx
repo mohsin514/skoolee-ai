@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import {
   DataTable,
@@ -1027,36 +1028,19 @@ function BulkSheet({
   footer: React.ReactNode;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+    <Modal
+      title={title}
+      eyebrow="Bulk change"
+      subtitle={subtitle}
+      icon={Users}
+      size="xs"
+      onClose={onClose}
+      disableBackdropClose={busy}
+      hideClose={busy}
+      footer={<div className="flex gap-2">{footer}</div>}
     >
-      <div
-        className="w-full max-w-md overflow-hidden rounded-[30px] bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-[#cfc2d6]/10 px-6 py-5">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Bulk change</p>
-            <h3 className="text-lg font-black text-[#1f1a23]">{title}</h3>
-            <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            disabled={busy}
-            className="cursor-pointer rounded-full p-1 text-ink-muted transition hover:bg-[#f3f4f9] disabled:opacity-40"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-        <div className="flex gap-2 border-t border-[#cfc2d6]/10 bg-[#faf7fc] px-6 py-4">{footer}</div>
-      </div>
-    </div>
+      {children}
+    </Modal>
   );
 }
 

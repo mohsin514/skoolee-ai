@@ -76,8 +76,10 @@ function SafePayForm() {
         1500
       );
     } catch (err: any) {
-      toast.error("Payment failed. Please try again.");
-      alert(err.message);
+      // A native alert() on top of the toast said the same thing twice, in a
+      // dialog the page cannot style and the user must dismiss before doing
+      // anything else. The underlying reason belongs in the toast itself.
+      toast.error(err?.message || "Payment failed. Please try again.");
     } finally {
       setSubmitting(false);
     }

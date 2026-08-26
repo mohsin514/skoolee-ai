@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
 import {
   BookOpen,
   Check,
@@ -212,15 +212,25 @@ function SettingsDrawer({
     onClose();
   };
 
+  /* A side drawer rather than a centred dialog, so it keeps its own layout —
+     but it had no focus trap, no scroll lock and a hand-picked `z-[150]`. */
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const { z } = useDialogBehaviour(drawerRef, { onClose });
+
   return (
     <div
-      className="fixed inset-0 z-[150] flex justify-end"
-      onClick={onClose}
+      className="fixed inset-0 flex justify-end"
+      style={{ zIndex: z }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="absolute inset-0 bg-[#1f1a23]/30 backdrop-blur-sm animate-backdrop-enter" />
+      <div className="absolute inset-0 bg-[#1f1a23]/30 backdrop-blur-sm animate-backdrop-enter" onMouseDown={onClose} />
       <div
-        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter"
-        onClick={(e) => e.stopPropagation()}
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${classLabel(section)} settings`}
+        tabIndex={-1}
+        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter focus:outline-none"
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between border-b border-[#cfc2d6]/15 px-6 py-5">
@@ -1366,7 +1376,6 @@ export function ClassManager({
   onUpdateSubject,
   onRefresh,
 }: ClassManagerProps) {
-  const [mounted, setMounted] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<
     string | "all"
   >(cls.id);
@@ -1376,15 +1385,6 @@ export function ClassManager({
   const { availability, refresh: refreshAvailability } =
     useTeacherAvailability();
   const { flashKey, flash } = useFlashCell();
-
-  useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
 
   // Sort sections alphabetically
   const sortedSections = useMemo(
@@ -1429,19 +1429,15 @@ export function ClassManager({
   const primaryTeachingMode =
     cls.teachingMode === "SUBJECT" ? "SUBJECT" : "SINGLE";
 
-  if (!mounted) return null;
-
-  return createPortal(
+  return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[120] bg-[#1f1a23]/50 backdrop-blur-md animate-backdrop-enter"
-        onClick={onClose}
-      />
-
-      {/* Modal container */}
-      <div className="fixed inset-0 z-[125] flex items-center justify-center p-4 sm:p-6 animate-modal-enter pointer-events-none">
-      <div className="pointer-events-auto relative flex w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]" style={{ maxHeight: "min(92vh, 900px)" }}>
+      {/* The header here is bespoke — a gradient title, mode badges and a tab
+          rail — so this sits on `ModalSurface` rather than `Modal`. Everything
+          structural (portal, layer, focus trap, scroll lock, Escape, the mobile
+          sheet) is the shared implementation. The old markup split the backdrop
+          and the panel into two separate fixed layers at `z-[120]`/`z-[125]`
+          with `pointer-events-none` juggling between them. */}
+      <ModalSurface onClose={onClose} size="xl">
         {/* ============================================================ */}
         {/*  HEADER                                                       */}
         {/* ============================================================ */}
@@ -1841,23 +1837,18 @@ export function ClassManager({
             </button>
           </div>
         </div>
-      </div>
-      </div>
+      </ModalSurface>
 
       {/* Settings drawer */}
-      {settingsOpen && selectedSection
-        ? createPortal(
-            <SettingsDrawer
-              section={selectedSection}
-              classUpdateBusy={classUpdateBusy}
-              onUpdateClass={onUpdateClass}
-              onDeleteClass={onDeleteClass}
-              onClose={() => setSettingsOpen(false)}
-            />,
-            document.body,
-          )
-        : null}
-    </>,
-    document.body,
+      {settingsOpen && selectedSection ? (
+        <SettingsDrawer
+          section={selectedSection}
+          classUpdateBusy={classUpdateBusy}
+          onUpdateClass={onUpdateClass}
+          onDeleteClass={onDeleteClass}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }

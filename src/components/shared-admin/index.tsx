@@ -862,42 +862,37 @@ export function ExamDetailModal({
   const canPublish = exam.status === "PRINCIPAL_REVIEWED";
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-4 animate-backdrop-enter">
-      <div className="bg-white w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{exam.examType?.replaceAll("_", " ") || "Exam"}</p>
-              <StatusPill status={exam.status} />
-            </div>
-            <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">{exam.title}</h2>
-            <p className="text-xs font-semibold text-ink-muted mt-1">{exam.term} — {classLabel(exam.class)} — Total: {exam.totalMarks} marks</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {canLock && (
-              <button type="button" onClick={handleLock} disabled={actionBusy !== null}
-                className="flex items-center gap-1.5 rounded-2xl bg-amber-50 border border-amber-200/40 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer disabled:opacity-50">
-                {actionBusy === "lock" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />} Lock Exam
-              </button>
-            )}
-            {canReview && (
-              <button type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
-                className="flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/20 px-4 py-2.5 text-xs font-bold text-[#8127cf] hover:bg-[#f0d6fa] transition-all cursor-pointer disabled:opacity-50">
-                {actionBusy === "PRINCIPAL_REVIEWED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mark Reviewed
-              </button>
-            )}
-            {canPublish && (
-              <button type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
-                className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200/40 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer disabled:opacity-50">
-                {actionBusy === "PUBLISHED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />} Publish
-              </button>
-            )}
-            <button type="button" onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all duration-200 active:scale-95">
-              <X className="w-5 h-5" />
+    <Modal
+      title={exam.title}
+      eyebrow={exam.examType?.replaceAll("_", " ") || "Exam"}
+      subtitle={`${exam.term} — ${classLabel(exam.class)} — Total: ${exam.totalMarks} marks`}
+      chips={<StatusPill status={exam.status} />}
+      icon={FileText}
+      size="xl"
+      onClose={onClose}
+      headerActions={
+        <>
+          {canLock && (
+            <button type="button" onClick={handleLock} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 rounded-2xl bg-amber-50 border border-amber-200/40 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer disabled:opacity-50">
+              {actionBusy === "lock" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />} Lock Exam
             </button>
-          </div>
-        </div>
+          )}
+          {canReview && (
+            <button type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/20 px-4 py-2.5 text-xs font-bold text-[#8127cf] hover:bg-[#f0d6fa] transition-all cursor-pointer disabled:opacity-50">
+              {actionBusy === "PRINCIPAL_REVIEWED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mark Reviewed
+            </button>
+          )}
+          {canPublish && (
+            <button type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200/40 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer disabled:opacity-50">
+              {actionBusy === "PUBLISHED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />} Publish
+            </button>
+          )}
+        </>
+      }
+    >
 
         <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1 mb-6">
           {(["marks", "reports", "analytics"] as const).map((t) => (
@@ -1119,8 +1114,7 @@ export function ExamDetailModal({
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -535,12 +536,24 @@ function DayPopover({
      something to lose. */
   const dirty = canEdit && name.trim().length > 0;
 
+  /* The guard used to be a native `window.confirm`, which is unstyled and
+     arrives detached from the popover it is asking about. It now asks with the
+     same ConfirmAction as everywhere else. */
+  const [askDiscard, setAskDiscard] = useState(false);
+
   const requestClose = useCallback(() => {
-    if (dirty && !window.confirm("Discard this holiday?")) return;
+    if (dirty) {
+      setAskDiscard(true);
+      return;
+    }
     onClose();
   }, [dirty, onClose]);
 
   useEffect(() => {
+    // While the discard question is up it owns Escape and the outside click —
+    // the confirm is portaled to <body>, so without this the click that
+    // answered it also counted as a click outside the popover.
+    if (askDiscard) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) requestClose();
@@ -551,7 +564,7 @@ function DayPopover({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
-  }, [requestClose]);
+  }, [requestClose, askDiscard]);
 
   const datesReversed = fromDate > toDate;
   /* Both of these were checked on submit and reported as toasts, so the
@@ -671,6 +684,18 @@ function DayPopover({
           </div>
         </div>
       )}
+
+      <ConfirmAction
+        open={askDiscard}
+        tone="warning"
+        title="Discard this holiday?"
+        description="The holiday has not been added yet. Closing now throws away what you typed."
+        detail={name.trim() ? <span>&ldquo;{name.trim()}&rdquo;</span> : undefined}
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onCancel={() => setAskDiscard(false)}
+        onConfirm={() => { setAskDiscard(false); onClose(); }}
+      />
     </div>
   );
 }

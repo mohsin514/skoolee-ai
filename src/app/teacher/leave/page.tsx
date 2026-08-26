@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertCircle, CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { cn } from "@/lib/utils";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -46,6 +48,8 @@ export default function LeavePage() {
   const [applyForm, setApplyForm] = useState({ leaveTypeId: "", fromDate: "", toDate: "", reason: "" });
   const [applying, setApplying] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,9 +154,28 @@ export default function LeavePage() {
     }
   };
 
-  const totalAllocated = balances.reduce((s, b) => s + b.allocated, 0);
   const totalRemaining = balances.reduce((s, b) => s + b.remaining, 0);
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
+
+  /* The single question this page exists to answer — "when am I next off?" —
+     was buried in a reverse-chronological list where an approved request from
+     March sat above one starting next Monday. */
+  const nextLeave = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return requests
+      .filter((r) => ["APPROVED", "PENDING"].includes(r.status) && new Date(r.toDate) >= startOfToday)
+      .sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime())[0] || null;
+  }, [requests]);
+
+  const statuses = useMemo(
+    () => [...new Set(requests.map((r) => r.status).filter(Boolean))],
+    [requests],
+  );
+  const visibleRequests = useMemo(
+    () => (statusFilter ? requests.filter((r) => r.status === statusFilter) : requests),
+    [requests, statusFilter],
+  );
 
   return (
     <TeacherPage
@@ -179,6 +202,48 @@ export default function LeavePage() {
         <SkeletonList rows={4} label="Loading leave requests" />
       ) : (
         <>
+          {nextLeave ? (
+            <div className={cn(
+              "sk-rise flex flex-wrap items-center gap-4 rounded-[24px] border p-5",
+              nextLeave.status === "APPROVED"
+                ? "border-emerald-200/70 bg-gradient-to-r from-emerald-50 to-emerald-50/20"
+                : "border-amber-200/70 bg-gradient-to-r from-amber-50 to-amber-50/20",
+            )}>
+              <span className={cn(
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+                nextLeave.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+              )}>
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className={cn(
+                  "text-[10px] font-black uppercase tracking-wider",
+                  nextLeave.status === "APPROVED" ? "text-emerald-700" : "text-amber-700",
+                )}>
+                  {nextLeave.status === "APPROVED" ? "Your next leave" : "Awaiting approval"}
+                </p>
+                <p className="mt-0.5 text-sm font-black text-[#1f1a23]">
+                  {nextLeave.leaveType?.name || "Leave"} · {formatDate(nextLeave.fromDate)}
+                  {nextLeave.fromDate !== nextLeave.toDate ? ` → ${formatDate(nextLeave.toDate)}` : ""}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">
+                  {daysLabel(nextLeave.days)}
+                  {(() => {
+                    const startOfToday = new Date();
+                    startOfToday.setHours(0, 0, 0, 0);
+                    const days = Math.round(
+                      (new Date(nextLeave.fromDate).setHours(0, 0, 0, 0) - startOfToday.getTime()) / 86400000,
+                    );
+                    if (days > 1) return ` · in ${days} days`;
+                    if (days === 1) return " · tomorrow";
+                    if (days === 0) return " · today";
+                    return " · in progress";
+                  })()}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {balances.map((b) => {
               const pct = b.allocated > 0 ? Math.min(100, Math.round((b.approved / b.allocated) * 100)) : 0;
@@ -220,9 +285,34 @@ export default function LeavePage() {
               <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-[#1f1a23]">
                 <Plane className="h-4 w-4 text-[#8127cf]" /> Request History
               </h3>
-              <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-ink-muted">
-                {pendingCount} pending
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {statuses.length > 1 ? (
+                  ["", ...statuses].map((st) => (
+                    <button
+                      key={st || "all"}
+                      type="button"
+                      onClick={() => setStatusFilter(st)}
+                      aria-pressed={statusFilter === st}
+                      className={cn(
+                        "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
+                        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                        statusFilter === st
+                          ? "border-[#8127cf] bg-[#8127cf] text-white"
+                          : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
+                      )}
+                    >
+                      {st || "All"}
+                      {st === "PENDING" && pendingCount > 0 ? (
+                        <span className="ml-1 opacity-70">{pendingCount}</span>
+                      ) : null}
+                    </button>
+                  ))
+                ) : (
+                  <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+                    {pendingCount} pending
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -230,8 +320,18 @@ export default function LeavePage() {
                 <p className="rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center text-sm font-bold text-ink-subtle">
                   No leave requests yet — apply for leave and it will appear here.
                 </p>
+              ) : visibleRequests.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center">
+                  <p className="text-sm font-bold text-ink-subtle">
+                    No {String(statusFilter).toLowerCase()} requests.
+                  </p>
+                  <button type="button" onClick={() => setStatusFilter("")}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+                    <X className="h-3.5 w-3.5" /> Show all
+                  </button>
+                </div>
               ) : (
-                requests.map((r) => {
+                visibleRequests.map((r) => {
                   const Icon = STATUS_ICONS[r.status] || Clock;
                   return (
                     <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
@@ -258,7 +358,11 @@ export default function LeavePage() {
                           variant="soft"
                           icon={<X className="w-4 h-4" />}
                           disabled={cancelling === r.id}
-                          onClick={() => cancelRequest(r.id)}
+                          /* Cancelling withdraws the request outright; there
+                             is no undo, only re-applying and queueing behind
+                             everyone else. It used to fire on one click. */
+                          onClick={() => setConfirmCancel(r)}
+                          title="Withdraw this leave request"
                           className="h-9"
                         >
                           {cancelling === r.id ? "..." : "Cancel"}
@@ -382,6 +486,30 @@ export default function LeavePage() {
           </form>
         </ModalFrame>
       ) : null}
+
+      <ConfirmAction
+        open={Boolean(confirmCancel)}
+        tone="danger"
+        title="Withdraw this leave request?"
+        description="The request is removed from your approver's queue. You can apply again, but it goes to the back of the queue."
+        detail={
+          confirmCancel ? (
+            <span>
+              {confirmCancel.leaveType?.name || "Leave"} · {daysLabel(confirmCancel.days)} ·{" "}
+              {formatDate(confirmCancel.fromDate)}
+              {confirmCancel.fromDate !== confirmCancel.toDate ? ` → ${formatDate(confirmCancel.toDate)}` : ""}
+            </span>
+          ) : null
+        }
+        confirmLabel="Withdraw request"
+        busy={cancelling === confirmCancel?.id}
+        onConfirm={() => {
+          const id = confirmCancel?.id;
+          setConfirmCancel(null);
+          if (id) cancelRequest(id);
+        }}
+        onCancel={() => setConfirmCancel(null)}
+      />
     </TeacherPage>
   );
 }

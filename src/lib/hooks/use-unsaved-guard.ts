@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * Warn before losing unsaved work.
@@ -35,10 +36,32 @@ export function useUnsavedGuard(dirty: boolean) {
  * This runs in the capture phase on the document so it fires before the
  * router's own handler, which is the only point at which the navigation can
  * still be stopped without reaching into the router internals.
+ *
+ * The click is always cancelled and the destination parked, because the answer
+ * now arrives asynchronously: this used to call `window.confirm`, which blocks
+ * the thread and draws an OS dialog with no styling, no icon and no room to say
+ * what is about to be lost. The caller renders `<NavGuardPrompt {...guard} />`
+ * and the navigation resumes only if the teacher says so.
  */
-export function useNavGuard(dirty: boolean, message: string) {
+export interface NavGuard {
+  /** Where the intercepted click was heading, or null when nothing is parked. */
+  pendingHref: string | null;
+  message: string;
+  /** Discard the work and go. */
+  proceed: () => void;
+  /** Stay on the page. */
+  cancel: () => void;
+}
+
+export function useNavGuard(dirty: boolean, message: string): NavGuard {
+  const router = useRouter();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty) {
+      setPendingHref(null);
+      return;
+    }
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -51,12 +74,24 @@ export function useNavGuard(dirty: boolean, message: string) {
       // Same URL is not a navigation.
       if (href === window.location.pathname) return;
 
-      if (!window.confirm(message)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingHref(href);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [dirty, message]);
+  }, [dirty]);
+
+  const proceed = useCallback(() => {
+    const href = pendingHref;
+    setPendingHref(null);
+    // The guard reads `dirty` from the render that registered the listener, so
+    // navigating on the next tick lets the caller clear its dirty state first
+    // if it wants to.
+    if (href) router.push(href);
+  }, [pendingHref, router]);
+
+  const cancel = useCallback(() => setPendingHref(null), []);
+
+  return { pendingHref, message, proceed, cancel };
 }

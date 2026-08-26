@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { shiftDateOnly } from "@/lib/date-only";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
+import { NavGuardPrompt } from "@/components/ui/confirm-action";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
@@ -155,7 +156,7 @@ export default function AttendancePage() {
 
   const unsavedSheet = attendanceRows.length > 0 && !attendanceExists;
   useUnsavedGuard(dirtyIds.size > 0);
-  useNavGuard(
+  const navGuard = useNavGuard(
     dirtyIds.size > 0,
     "You have unsaved attendance changes. Leave this page and lose them?",
   );
@@ -631,6 +632,8 @@ export default function AttendancePage() {
 
         </>)}
       </div>
+
+      <NavGuardPrompt {...navGuard} />
     </TeacherPage>
   );
 }

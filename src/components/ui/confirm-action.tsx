@@ -125,3 +125,35 @@ export function ConfirmAction({
     </Modal>
   );
 }
+
+/**
+ * The unsaved-work question raised by `useNavGuard` when a click would leave a
+ * page mid-edit. Spread the guard straight in:
+ *
+ *   const guard = useNavGuard(dirty, "…");
+ *   <NavGuardPrompt {...guard} />
+ */
+export function NavGuardPrompt({
+  pendingHref,
+  message,
+  proceed,
+  cancel,
+}: {
+  pendingHref: string | null;
+  message: string;
+  proceed: () => void;
+  cancel: () => void;
+}) {
+  return (
+    <ConfirmAction
+      open={pendingHref !== null}
+      tone="warning"
+      title="Leave without saving?"
+      description={message}
+      confirmLabel="Leave anyway"
+      cancelLabel="Stay on this page"
+      onCancel={cancel}
+      onConfirm={proceed}
+    />
+  );
+}

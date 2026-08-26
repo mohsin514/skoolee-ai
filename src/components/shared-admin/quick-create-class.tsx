@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ModalSurface } from "@/components/ui/modal";
 import {
   TeacherPicker,
   useTeacherAvailability,
@@ -325,29 +326,18 @@ export function QuickCreateClass({
 
   /* ── Keyboard ─────────────────────────────────────────────────────── */
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, busy]);
-
   /* ── Render ───────────────────────────────────────────────────────── */
 
   return (
-    <div
-      className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md sm:p-5"
-      onClick={() => {
-        if (!busy) onClose();
-      }}
+    <ModalSurface
+      onClose={onClose}
+      size="lg"
+      // A half-created class should not disappear on a stray backdrop click,
+      // and never while the create request is in flight.
+      disableBackdropClose={busy}
+      dirty={Boolean(name.trim()) && !busy}
+      dirtyMessage="This class has not been created yet. Discard it?"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-        className="animate-modal-enter flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]"
-      >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 px-6 pt-5 pb-4 sm:px-7">
           <div className="flex items-center justify-between">
@@ -798,7 +788,6 @@ export function QuickCreateClass({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalSurface>
   );
 }
