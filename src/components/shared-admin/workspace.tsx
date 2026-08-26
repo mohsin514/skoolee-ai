@@ -124,17 +124,39 @@ export function WorkspaceHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
+      {/* A gradient rail reads as considered where a full gradient panel reads
+          as decoration — and it costs no vertical space. */}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[#8127cf] via-[#9c48ea] to-[#8127cf]"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/8 to-transparent blur-2xl"
+      />
+
+      <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
-            <Icon className="h-5 w-5" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-2px_rgba(129,39,207,0.45)]">
+            <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-            <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">{title}</h2>
+            {/* Eyebrow rides beside the title rather than above it: it is
+                context, not a heading, and a whole line for one word was the
+                single biggest waste of height on every screen. */}
+            <div className="flex items-baseline gap-2">
+              <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
+                {title}
+              </h2>
+              <span className="hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-[#8127cf]/70 sm:inline">
+                {eyebrow}
+              </span>
+            </div>
             {summary ? (
-              <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{summary}</p>
+              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
+                {summary}
+              </p>
             ) : null}
           </div>
         </div>
@@ -159,19 +181,26 @@ export interface StatTileSpec {
 }
 
 const TILE_TONES = {
-  violet: { chip: "bg-[#f3eeff] text-[#8127cf]", dot: "#8127cf" },
-  teal: { chip: "bg-teal-50 text-teal-600", dot: "#0d9488" },
-  amber: { chip: "bg-amber-50 text-amber-600", dot: "#f59e0b" },
-  emerald: { chip: "bg-emerald-50 text-emerald-600", dot: "#10b981" },
-  rose: { chip: "bg-rose-50 text-rose-600", dot: "#e11d48" },
-  slate: { chip: "bg-[#f3f4f9] text-ink-muted", dot: "#6b7280" },
+  violet: { chip: "bg-[#f3eeff] text-[#8127cf]", ring: "rgba(129,39,207,0.9)", bar: "bg-[#8127cf]" },
+  teal: { chip: "bg-teal-50 text-teal-600", ring: "rgba(13,148,136,0.9)", bar: "bg-teal-500" },
+  amber: { chip: "bg-amber-50 text-amber-600", ring: "rgba(245,158,11,0.9)", bar: "bg-amber-500" },
+  emerald: { chip: "bg-emerald-50 text-emerald-600", ring: "rgba(16,185,129,0.9)", bar: "bg-emerald-500" },
+  rose: { chip: "bg-rose-50 text-rose-600", ring: "rgba(225,29,72,0.9)", bar: "bg-rose-500" },
+  slate: { chip: "bg-[#f3f4f9] text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-[#9aa1ae]" },
 } as const;
 
+/**
+ * Metric tiles, laid out horizontally.
+ *
+ * Stacked vertically — icon, then number, then label, then hint — each tile ran
+ * about 110px tall, which is a lot of screen to spend on four numbers before
+ * any actual data appears. Side by side they read the same and cost half that.
+ */
 export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; columns?: 4 | 5 | 6 }) {
   return (
     <div
       className={cn(
-        "grid gap-3 sm:gap-4",
+        "grid gap-2.5",
         columns === 6
           ? "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
           : columns === 5
@@ -191,31 +220,35 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               ? { type: "button" as const, onClick: t.onClick, "aria-pressed": Boolean(t.active) }
               : {})}
             className={cn(
-              "flex flex-col rounded-[24px] border bg-white p-4 text-left transition-all duration-200",
+              "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-left transition-all duration-200",
               t.active
-                ? "border-[#8127cf] shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
-                : "border-[#cfc2d6]/25 shadow-sm",
-              interactive && "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md",
+                ? "border-transparent"
+                : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]",
+              interactive &&
+                "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
             )}
+            style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
           >
+            {/* A tinted edge keeps the tone readable without a coloured card. */}
+            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
             {t.icon ? (
-              <span className={cn("flex h-9 w-9 items-center justify-center rounded-2xl", tone.chip)}>
-                <t.icon className="h-4.5 w-4.5" />
+              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
+                <t.icon className="h-4 w-4" />
               </span>
-            ) : (
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tone.dot }} />
-            )}
-            <p className="mt-2.5 text-2xl font-black leading-none tracking-tight text-[#1f1a23] sm:text-3xl">
-              {t.value}
-            </p>
-            {/* Wrapping beats truncating — a clipped label is not a name
-                anyone can act on. */}
-            <p className="mt-1.5 text-[11px] font-semibold leading-tight text-ink-muted">{t.label}</p>
-            {t.hint ? (
-              <p className="mt-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-subtle">
-                {t.hint}
-              </p>
             ) : null}
+            <span className="min-w-0 flex-1">
+              <span className="block text-xl font-black leading-none tracking-tight tabular-nums text-[#1f1a23] sm:text-[22px]">
+                {t.value}
+              </span>
+              <span className="mt-1 block truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+                {t.label}
+              </span>
+              {t.hint ? (
+                <span className="mt-0.5 block truncate text-[10px] font-semibold leading-tight text-ink-subtle">
+                  {t.hint}
+                </span>
+              ) : null}
+            </span>
           </Tag>
         );
       })}
@@ -233,9 +266,9 @@ export function WorkspaceToolbar({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5 rounded-[28px] border border-[#cfc2d6]/25 bg-white p-3 shadow-sm">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
       {children}
-      {trailing ? <div className="ml-auto flex flex-wrap items-center gap-2.5">{trailing}</div> : null}
+      {trailing ? <div className="ml-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
     </div>
   );
 }
@@ -290,7 +323,7 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
         aria-label={label}
-        className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+        className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
       />
       {value ? (
         <button
@@ -324,7 +357,7 @@ export function ToolbarSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="h-11 cursor-pointer appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition focus:border-[#8127cf]/40 focus:ring-4 focus:ring-[#8127cf]/10"
+        className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -363,10 +396,10 @@ export function ToolbarToggle({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border px-3 text-[11px] font-black uppercase tracking-wider transition-colors",
+        "flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-[11px] font-black uppercase tracking-wider transition-all",
         active
           ? tones[tone].on
-          : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:text-[#8127cf]",
+          : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
       )}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -388,7 +421,7 @@ export function ViewSwitch({
   options: { value: WorkspaceView; label: string; icon: LucideIcon }[];
 }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
       {options.map((o) => (
         <button
           key={o.value}
@@ -397,9 +430,9 @@ export function ViewSwitch({
           aria-pressed={value === o.value}
           title={o.label}
           className={cn(
-            "flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
+            "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black uppercase tracking-wider transition-all",
             value === o.value
-              ? "bg-white text-[#8127cf] shadow-sm"
+              ? "bg-white text-[#8127cf] shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
               : "text-ink-muted hover:text-[#8127cf]",
           )}
         >
@@ -418,7 +451,7 @@ export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () =>
       onClick={onToggle}
       aria-label={dir === "asc" ? "Sort descending" : "Sort ascending"}
       title={dir === "asc" ? "Ascending" : "Descending"}
-      className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:text-[#8127cf]"
+      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf]"
     >
       {dir === "asc" ? (
         <ArrowUpWideNarrow className="h-4 w-4" />
@@ -457,7 +490,7 @@ export function SelectionBar({
 }) {
   if (total === 0) return null;
   return (
-    <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2.5 rounded-[28px] border border-[#8127cf]/25 bg-white/95 p-3 shadow-[0_16px_40px_-14px_rgba(129,39,207,0.35)] backdrop-blur">
+    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
       <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
         {total} selected
       </span>

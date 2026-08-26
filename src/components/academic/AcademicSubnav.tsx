@@ -118,7 +118,7 @@ export function AcademicSubnav({
   return (
     <nav
       aria-label="Academics"
-      className="relative mb-6 rounded-3xl border border-[#cfc2d6]/15 bg-white/80 p-2 shadow-sm backdrop-blur"
+      className="relative mb-3 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-1.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl"
     >
       <div className="flex items-center gap-1">
         {overflow.left ? (
@@ -126,7 +126,7 @@ export function AcademicSubnav({
             type="button"
             onClick={() => nudge(-1)}
             aria-label="Scroll left"
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="flex h-8 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -143,7 +143,7 @@ export function AcademicSubnav({
             return (
               <React.Fragment key={item.view}>
                 {startsGroup ? (
-                  <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-[#cfc2d6]/30" />
+                  <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-[#cfc2d6]/30" />
                 ) : null}
                 <button
                   type="button"
@@ -152,9 +152,9 @@ export function AcademicSubnav({
                   aria-current={isActive ? "page" : undefined}
                   title={`${item.group} · ${item.label}`}
                   className={cn(
-                    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-2xl px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
+                    "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black uppercase tracking-wider transition-all",
                     isActive
-                      ? "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.6)]"
+                      ? "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.65)]"
                       : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]",
                   )}
                 >
@@ -171,7 +171,7 @@ export function AcademicSubnav({
             type="button"
             onClick={() => nudge(1)}
             aria-label="Scroll right"
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="flex h-8 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -187,7 +187,7 @@ export function AcademicSubnav({
               onClick={() => onNavigate(items[index - 1].view)}
               aria-label="Previous academic screen"
               title={index > 0 ? items[index - 1].label : undefined}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors enabled:cursor-pointer hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30"
+              className="flex h-8 w-7 items-center justify-center rounded-lg text-ink-subtle transition-colors enabled:cursor-pointer hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -197,7 +197,7 @@ export function AcademicSubnav({
               onClick={() => onNavigate(items[index + 1].view)}
               aria-label="Next academic screen"
               title={index < items.length - 1 ? items[index + 1].label : undefined}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors enabled:cursor-pointer hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30"
+              className="flex h-8 w-7 items-center justify-center rounded-lg text-ink-subtle transition-colors enabled:cursor-pointer hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

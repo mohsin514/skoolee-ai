@@ -926,39 +926,49 @@ export function ExamCycleManager({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
 
       {/* ── Header ── */}
-      <div className="relative overflow-hidden rounded-3xl border border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
-                {isTeacher ? "My Classroom" : "Academics"}
-              </p>
-              <h2 className="text-xl font-black tracking-tight text-[#1d1b20]">
-                {isTeacher ? "My Tests & Quizzes" : "Exams & Results"}
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">
+      <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[#8127cf] via-[#9c48ea] to-[#8127cf]"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/8 to-transparent blur-2xl"
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-2px_rgba(129,39,207,0.45)]">
+              <GraduationCap className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                  {isTeacher ? "My Tests & Quizzes" : "Exams & Results"}
+                </h2>
+                <span className="hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-[#8127cf]/70 sm:inline">
+                  {isTeacher ? "My Classroom" : "Academics"}
+                </span>
+              </div>
+              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
                 {filtered.length} exam{filtered.length === 1 ? "" : "s"} shown
                 {flagged.size > 0 ? ` · ${flagged.size} need your attention` : ""}
                 {overallProgress !== null ? ` · ${overallProgress}% of marks entered` : ""}
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <select
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 aria-label="Filter by term"
-                className="appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white py-2.5 pl-4 pr-9 text-xs font-bold text-[#1d1b20] shadow-sm focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
               >
                 <option value="ALL">All Terms</option>
                 {termOptions.map((t) => (
@@ -967,13 +977,13 @@ export function ExamCycleManager({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8127cf]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
             </div>
             <button
               type="button"
               onClick={() => load(true)}
               aria-label="Refresh"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-[#8127cf] shadow-sm transition-colors hover:bg-[#fbf0fe]"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#8127cf] transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
             </button>
@@ -981,6 +991,7 @@ export function ExamCycleManager({
               variant="gradient"
               icon={<Plus className="h-4 w-4" />}
               onClick={() => setCreating(true)}
+              className="min-h-10"
             >
               {isTeacher ? "New Test" : "New Exam"}
             </BrandButton>
@@ -991,7 +1002,7 @@ export function ExamCycleManager({
       {/* ── Stage tiles: the fastest way to narrow the board ── */}
       <div
         className={cn(
-          "grid gap-3",
+          "grid gap-2.5",
           isTeacher ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6",
         )}
       >
@@ -1015,7 +1026,7 @@ export function ExamCycleManager({
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="flex flex-wrap items-center gap-2.5 rounded-3xl border border-[#cfc2d6]/15 bg-white p-3 shadow-sm">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
         <div className="relative min-w-[190px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
           <input
@@ -1574,20 +1585,29 @@ function StageTile({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex cursor-pointer flex-col justify-between rounded-2xl border bg-white p-3 text-left transition-all hover:-translate-y-0.5",
-        active ? "border-transparent shadow-md ring-2" : "border-[#cfc2d6]/15 shadow-sm",
+        "group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[18px] border bg-white px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5",
+        active
+          ? "border-transparent"
+          : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] hover:border-[#8127cf]/30",
       )}
-      style={active ? { boxShadow: `0 0 0 2px ${accent}` } : undefined}
+      style={active ? { boxShadow: `0 0 0 1.5px ${accent}, 0 10px 24px -14px ${accent}` } : undefined}
     >
-      <div className="flex items-start gap-1.5">
-        <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
-        {/* Wrapping beats truncating: "On the Dateshee…" and "Awaiting Appr…"
-            are not names anyone can act on. */}
-        <p className="text-[10px] font-black uppercase leading-tight tracking-wider text-ink-muted">
-          {label}
-        </p>
-      </div>
-      <p className="mt-1 text-2xl font-black tracking-tight text-[#1d1b20]">{count}</p>
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-y-0 left-0 w-[3px]",
+          active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60",
+        )}
+        style={{ backgroundColor: accent }}
+      />
+      <span className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+        {count}
+      </span>
+      {/* Wrapping beats truncating: "On the Dateshee…" and "Awaiting Appr…"
+          are not names anyone can act on. */}
+      <span className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+        {label}
+      </span>
     </button>
   );
 }
@@ -1669,7 +1689,7 @@ function BulkBar({
   busy: boolean;
 }) {
   return (
-    <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2.5 rounded-3xl border border-[#8127cf]/25 bg-white/95 p-3 shadow-[0_16px_40px_-14px_rgba(129,39,207,0.35)] backdrop-blur">
+    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
       <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
         {total} selected
       </span>

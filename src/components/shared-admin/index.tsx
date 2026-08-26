@@ -735,7 +735,7 @@ export function AcademicPanel({
                     setClassSearch("");
                     setOnlyGaps(false);
                   }}
-                  className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+                  className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
                 >
                   <X className="h-3 w-3" /> Clear
                 </button>
@@ -746,7 +746,7 @@ export function AcademicPanel({
       ) : null}
 
       {visibleGroups.length > 0 ? (
-        <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
           {visibleGroups.map((group) => (
             <ClassGroupCard
               key={group.key}
@@ -1175,7 +1175,7 @@ export function ExamCreateModal({
 
   return (
     <ModalFrame title="New Exam Cycle" eyebrow="Exams & Grading" icon={ClipboardList} onClose={onClose}>
-      <div className="space-y-5">
+      <div className="space-y-3">
         <FormInput label="Exam Title" value={title} placeholder="e.g. Final Term 2026" onChange={setTitle} />
         <div className="grid grid-cols-2 gap-4">
           <FormSelect label="Class" value={classId} onChange={setClassId}>
@@ -1315,7 +1315,7 @@ export function ReportCardsPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <WorkspaceHeader
         icon={ClipboardList}
         eyebrow="Academics"
@@ -1424,7 +1424,7 @@ export function ReportCardsPanel({
           <button
             type="button"
             onClick={resetFilters}
-            className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
           >
             <X className="h-3 w-3" /> Clear
           </button>
@@ -1513,7 +1513,7 @@ export function ReportCardsPanel({
           ]}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {paged.rows.map((report: any, i: number) => (
             <div
               key={report.id}
@@ -1584,7 +1584,7 @@ export function ReportCardsPanel({
       )}
 
       {filtered.length > 0 ? (
-        <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white px-6 py-4 shadow-sm">
+        <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-4 py-2.5 shadow-sm">
           <Pagination
             page={paged.page}
             totalPages={paged.totalPages}
@@ -1770,7 +1770,7 @@ export function FacultyPanel({
             <button
               type="button"
               onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
-              className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+              className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
             >
               <X className="h-3 w-3" /> Clear
             </button>
@@ -2290,7 +2290,7 @@ export function ClassDetailModal({
       </div>
 
       {tab === "overview" ? (
-        <div className="space-y-5">
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <MiniMetric label="Students" value={students.length} active />
             <MiniMetric label="Subjects" value={subjectCount} />
@@ -5640,7 +5640,7 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
 export function HelpModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalFrame title="Help Center" eyebrow="Campus Support" icon={Sparkles} tone="emerald" onClose={onClose}>
-      <div className="space-y-5">
+      <div className="space-y-3">
         <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
           <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Getting Started</p>
           <p className="mt-2 text-sm font-semibold leading-relaxed text-ink">
@@ -7172,7 +7172,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                 filtered.every((s) => prev.has(s.id)) ? new Set() : new Set(filtered.map((s) => s.id)),
               )
             }
-            className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/30 hover:text-[#8127cf]"
           >
             {filtered.every((s) => selected.has(s.id)) ? "Deselect all" : `Select all ${filtered.length}`}
           </button>

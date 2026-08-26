@@ -464,7 +464,7 @@ export default function PrincipalDashboard() {
 
   return (
     <RoleShell navItems={navItems} bottomItems={bottomItems} eyebrow={`${data.schoolName} - ${data.campusName}`} userName={data.principalName} userRole="Principal Authority" avatarSeed={data.principalName} dashboardHref="/principal" logoUrl={data.logoUrl}>
-      <section className="bg-white rounded-[40px] shadow-2xl flex-1 p-8 overflow-y-auto custom-scrollbar">
+      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 p-4 sm:p-5 overflow-y-auto custom-scrollbar">
         {/* Academics is ten screens deep. This keeps them one click from each
             other instead of one sidebar expansion away. */}
         {ACADEMIC_VIEWS.has(activeView) ? (

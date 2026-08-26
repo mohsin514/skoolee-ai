@@ -41,7 +41,7 @@ export function RoleShell({
     <ChatProvider>
       <div className="min-h-screen bg-[#fbf0fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
         <RoleSidebar tagline={tagline} items={navItems} bottomItems={bottomItems} logoUrl={logoUrl} />
-        <main className={cn("flex-1 min-w-0 md:ml-64 p-4 md:p-8 pb-20 md:pb-8 flex flex-col h-screen overflow-hidden", className)}>
+        <main className={cn("flex-1 min-w-0 md:ml-64 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-screen overflow-hidden", className)}>
           <RoleHeader
             eyebrow={eyebrow}
             searchPlaceholder={searchPlaceholder}

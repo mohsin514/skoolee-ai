@@ -591,7 +591,7 @@ export function StudentsPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <WorkspaceHeader
         icon={GraduationCap}
         eyebrow="Students"
@@ -718,7 +718,7 @@ export function StudentsPanel({
           <button
             type="button"
             onClick={resetFilters}
-            className="flex h-11 cursor-pointer items-center gap-1.5 rounded-2xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
           >
             <X className="h-3 w-3" /> Clear
           </button>
@@ -758,7 +758,7 @@ export function StudentsPanel({
           empty="No students match your search and filters."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
           {paged.rows.map((student, i) => (
             <StudentCard
               key={student.id}
@@ -778,7 +778,7 @@ export function StudentsPanel({
         </div>
       )}
 
-      <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white px-6 py-4 shadow-sm">
+      <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-4 py-2.5 shadow-sm">
         <Pagination
           page={paged.page}
           totalPages={paged.totalPages}
@@ -876,7 +876,7 @@ function StudentCard({
         }
       }}
       className={cn(
-        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[24px] border bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
+        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-12px_rgba(31,26,35,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
         selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/25 hover:border-[#8127cf]/30",
       )}
       style={{ animationDelay: `${index * 60}ms` }}
