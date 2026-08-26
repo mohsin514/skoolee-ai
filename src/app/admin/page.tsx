@@ -1395,7 +1395,7 @@ function AdminSkeleton({ standalone }: { standalone?: boolean }) {
         </div>
 
         {/* Main Content Area */}
-        <div className="bg-white rounded-[40px] shadow-2xl flex-1 overflow-hidden p-8">
+        <div className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden p-5">
           {/* Page Header Banner Skeleton */}
           <div className="rounded-[32px] bg-gradient-to-br from-[#fbf0fe]/80 via-white to-[#f3eeff]/50 border border-[#cfc2d6]/10 p-7 mb-7">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">

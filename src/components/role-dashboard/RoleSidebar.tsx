@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
-import { ChevronDown, Menu, X as XIcon, type LucideIcon } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, X as XIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 
@@ -36,6 +36,9 @@ interface RoleSidebarProps {
   items: SidebarEntry[];
   bottomItems?: RoleNavItem[];
   logoUrl?: string | null;
+  /** Desktop only — the mobile drawer is always full width. */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 /** First letters of the institution/campus name, e.g. "Main Campus · Lahore" → "MC". */
@@ -88,6 +91,8 @@ export function RoleSidebar({
   items,
   bottomItems = [],
   logoUrl,
+  collapsed = false,
+  onToggleCollapse,
 }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -101,34 +106,69 @@ export function RoleSidebar({
   return (
     <MotionConfig reducedMotion="user">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 bg-white/70 backdrop-blur-xl border-r border-[#cfc2d6]/25 flex-col p-6 fixed h-full z-50 shadow-[12px_0_40px_rgba(129,39,207,0.05)]">
-        <div className="mb-6 shrink-0 flex items-center gap-3">
+      <aside
+        className={cn(
+          "fixed z-50 hidden h-full flex-col border-r border-[#cfc2d6]/25 bg-white/70 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl transition-[width] duration-300 ease-out md:flex",
+          collapsed ? "w-[72px] px-2 py-4" : "w-64 p-6",
+        )}
+      >
+        <div className={cn("mb-5 flex shrink-0 items-center gap-3", collapsed && "justify-center")}>
           <InstitutionBadge logoUrl={logoUrl} name={tagline} />
-          <div className="min-w-0">
-            <SkooleeLogo size="1.2rem" />
-            <p className="text-[9px] font-bold text-[#b10e6b] uppercase tracking-wider truncate">
-              {tagline}
-            </p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <SkooleeLogo size="1.2rem" />
+              <p className="truncate text-[9px] font-bold uppercase tracking-wider text-[#b10e6b]">
+                {tagline}
+              </p>
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+        <nav className={cn("scrollbar-thin min-h-0 flex-1 space-y-1 overflow-y-auto", collapsed ? "px-0" : "pr-1")}>
           {items.map((entry) =>
             isNavGroup(entry) ? (
-              <NavGroup key={entry.label} group={entry} />
+              <NavGroup
+                key={entry.label}
+                group={entry}
+                collapsed={collapsed}
+                onExpandSidebar={onToggleCollapse}
+              />
             ) : (
-              <SidebarButton key={entry.label} item={entry} />
+              <SidebarButton key={entry.label} item={entry} collapsed={collapsed} />
             )
           )}
         </nav>
 
         {bottomItems.length > 0 && (
-          <div className="pt-4 border-t border-[#cfc2d6]/20 space-y-1 shrink-0">
+          <div className="shrink-0 space-y-1 border-t border-[#cfc2d6]/20 pt-3">
             {bottomItems.map((item) => (
-              <SidebarButton key={item.label} item={item} />
+              <SidebarButton key={item.label} item={item} collapsed={collapsed} />
             ))}
           </div>
         )}
+
+        {onToggleCollapse ? (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={`${collapsed ? "Expand" : "Collapse"} sidebar  ( [ )`}
+            className={cn(
+              "mt-2 flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/70 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf]",
+              collapsed ? "w-full justify-center px-0" : "px-3",
+            )}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                Collapse
+              </>
+            )}
+          </button>
+        ) : null}
       </aside>
 
       {/* Mobile bottom tab bar */}
@@ -202,7 +242,15 @@ export function RoleSidebar({
   );
 }
 
-function NavGroup({ group }: { group: RoleNavGroup }) {
+function NavGroup({
+  group,
+  collapsed,
+  onExpandSidebar,
+}: {
+  group: RoleNavGroup;
+  collapsed?: boolean;
+  onExpandSidebar?: () => void;
+}) {
   const active = hasActiveChild(group);
   const [open, setOpen] = useState(active);
 
@@ -216,26 +264,41 @@ function NavGroup({ group }: { group: RoleNavGroup }) {
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        onClick={() => {
+          // On the rail there is nowhere to show the children, so opening the
+          // group means opening the sidebar with it.
+          if (collapsed) {
+            setOpen(true);
+            onExpandSidebar?.();
+            return;
+          }
+          setOpen((v) => !v);
+        }}
+        aria-expanded={collapsed ? undefined : open}
+        title={collapsed ? group.label : undefined}
         className={cn(
-          "w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 text-[13px] font-bold tracking-wide cursor-pointer",
+          "flex w-full cursor-pointer items-center rounded-2xl text-[13px] font-bold tracking-wide transition-all duration-200",
+          collapsed ? "h-11 justify-center px-0" : "gap-3 px-4 py-2.5",
           active
             ? "text-[#8127cf]"
-            : "text-[#1f1a23]/70 hover:text-[#1f1a23] hover:bg-white/50"
+            : "text-[#1f1a23]/70 hover:bg-white/50 hover:text-[#1f1a23]"
         )}
       >
-        <Icon className={cn("w-[18px] h-[18px] shrink-0", active ? "text-[#8127cf]" : "text-ink-muted")} />
-        <span className="flex-1 text-left truncate">{group.label}</span>
-        <ChevronDown
-          className={cn(
-            "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
+        <Icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-[#8127cf]" : "text-ink-muted")} />
+        {!collapsed && (
+          <>
+            <span className="flex-1 truncate text-left">{group.label}</span>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                open && "rotate-180"
+              )}
+            />
+          </>
+        )}
       </button>
       <AnimatePresence initial={false}>
-        {open && (
+        {open && !collapsed && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -280,7 +343,15 @@ function MobileTabButton({ item }: { item: RoleNavItem }) {
   );
 }
 
-function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean }) {
+function SidebarButton({
+  item,
+  compact,
+  collapsed,
+}: {
+  item: RoleNavItem;
+  compact?: boolean;
+  collapsed?: boolean;
+}) {
   const Icon = item.icon;
   const router = useRouter();
   const pathname = usePathname();
@@ -303,8 +374,9 @@ function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean
       title={item.label}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative isolate w-full flex cursor-pointer items-center gap-3 rounded-2xl transition-all duration-300 font-semibold hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
-        compact ? "px-3 py-2.5 text-[13px]" : "px-4 py-3 text-sm",
+        "relative isolate flex w-full cursor-pointer items-center rounded-2xl font-semibold transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
+        collapsed ? "h-11 justify-center px-0" : "gap-3",
+        collapsed ? "" : compact ? "px-3 py-2.5 text-[13px]" : "px-4 py-3 text-sm",
         isActive
           ? "text-[#8127cf] font-bold"
           : "text-ink hover:bg-white/70 hover:text-[#1f1a23] hover:shadow-sm"
@@ -319,9 +391,9 @@ function SidebarButton({ item, compact }: { item: RoleNavItem; compact?: boolean
           <span className="absolute left-0 top-1/2 -translate-y-1/2 h-7 w-[3px] rounded-full bg-gradient-to-b from-[#8127cf] to-[#9c48ea] sk-glow" />
         </motion.span>
       )}
-      <span className="relative z-10 flex items-center gap-3 min-w-0">
-        <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-[#8127cf]" : "text-ink-muted")} />
-        <span className="truncate">{item.label}</span>
+      <span className={cn("relative z-10 flex min-w-0 items-center", collapsed ? "" : "gap-3")}>
+        <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-[#8127cf]" : "text-ink-muted")} />
+        {!collapsed && <span className="truncate">{item.label}</span>}
       </span>
     </button>
   );

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Award, BookOpen, ChevronRight, MapPin, TrendingUp, UserRound } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
 import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
@@ -24,20 +25,13 @@ export default function CourseworkPage() {
   const user = data.user;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <BookOpen className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">{user.subjects.length} subjects enrolled</span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Coursework & Performance</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Your subjects, teachers, and academic progress.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <StudentPage
+      icon={BookOpen}
+      eyebrow={<>{`${user.subjects.length} subjects enrolled`}</>}
+      title="Coursework & Performance"
+      summary={<>"Your subjects, teachers, and academic progress."</>}
+    >
+      <div className="space-y-3">
         {/* Moved here when the duplicate "Schedule" page was retired — this is
             the natural home for class and enrolment details. */}
         <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
@@ -99,7 +93,7 @@ export default function CourseworkPage() {
           <SummaryCard icon={BookOpen} label="Exams" value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub="Attempted" tone="rose" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
           <div className="sk-rise xl:col-span-2 space-y-6" style={{ animationDelay: "80ms" }}>
             <div>
               <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight mb-4">Subjects & Teachers</h3>
@@ -210,7 +204,7 @@ export default function CourseworkPage() {
           </div>
         </div>
       </div>
-    </section>
+    </StudentPage>
   );
 }
 

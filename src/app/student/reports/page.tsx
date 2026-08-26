@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Award, ChevronRight, FileText, GraduationCap } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
 import { ReportsSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
@@ -28,22 +29,19 @@ export default function ReportsPage() {
   const user = data.user;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <FileText className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {summary.total ? `${summary.total} report card${summary.total > 1 ? "s" : ""} · ${summary.published} published` : "No report cards"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Report Cards</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Your published academic records and performance summaries.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <StudentPage
+      icon={FileText}
+      eyebrow={
+        <>
+          {summary.total
+            ? `${summary.total} report card${summary.total > 1 ? "s" : ""} · ${summary.published} published`
+            : "No report cards"}
+        </>
+      }
+      title="Report Cards"
+      summary="Your published academic records and performance summaries."
+    >
+      <div className="space-y-3">
         {user.reportCards.length > 0 ? (
           <>
             <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
@@ -53,14 +51,14 @@ export default function ReportsPage() {
               <SummaryStat icon={FileText} label="Published" value={summary.published} sub={`${summary.draft} still in draft`} tone="rose" />
             </div>
 
-            <div className="sk-rise grid grid-cols-1 md:grid-cols-2 gap-6" style={{ animationDelay: "80ms" }}>
+            <div className="sk-rise grid grid-cols-1 md:grid-cols-2 gap-4" style={{ animationDelay: "80ms" }}>
               {user.reportCards.map((report: any) => (
                 <ReportCard key={report.id} report={report} />
               ))}
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center rounded-[40px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10">
+          <div className="flex flex-col items-center justify-center py-14 text-center rounded-[24px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10">
             <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
               <FileText className="w-8 h-8 text-[#8127cf]/40" />
             </div>
@@ -71,7 +69,7 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
-    </section>
+    </StudentPage>
   );
 }
 

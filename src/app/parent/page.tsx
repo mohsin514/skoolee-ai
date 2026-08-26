@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import {
-  Award, CalendarCheck, ChevronRight, Clock, CreditCard, FileText, GraduationCap,
-} from "lucide-react";
+import { Award, CalendarCheck, ChevronRight, Clock, CreditCard, FileText, GraduationCap, LayoutGrid } from "lucide-react";
+import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -32,33 +31,19 @@ export default function ParentOverviewPage() {
   ];
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative p-7 px-9">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-            <div className="flex gap-6 items-start group">
-              <div className="h-16 w-16 sm:h-24 sm:w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
-                <AvatarImage src={profileImage} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              </div>
-              <div className="pt-2 min-w-0">
-                {/* Fixed at text-4xl this broke a three-word name onto three
-                    lines on a phone; the avatar and type both step down so a
-                    longer real name still fits. */}
-                <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight text-[#1d1b20] leading-tight sm:leading-none mb-2 transition-colors group-hover:text-[#8127cf]">{student.fullName}</h2>
-                <p className="text-sm font-semibold text-ink-muted uppercase tracking-wider">
-                  {student.rollNo} - {student.className}
-                </p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
-                  {campus.name}{campus.city ? ` - ${campus.city}` : ""}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <ParentPage
+      avatar={<AvatarImage src={profileImage} className="h-full w-full object-cover" />}
+      icon={LayoutGrid}
+      eyebrow={<>{student.rollNo}</>}
+      title={student.fullName}
+      summary={
+        <>
+          {student.className} · {campus.name}
+          {campus.city ? ` · ${campus.city}` : ""}
+        </>
+      }
+    >
+      <div className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {stats.map((s, i) => {
             const Icon = s.icon;
@@ -136,7 +121,7 @@ export default function ParentOverviewPage() {
 
         <AcademicCalendar readOnly role="PARENT" />
       </div>
-    </section>
+    </ParentPage>
   );
 }
 

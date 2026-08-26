@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarCheck, CheckCircle2, Clock, X } from "lucide-react";
+import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 
@@ -23,24 +24,13 @@ export default function ParentAttendancePage() {
   };
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <CalendarCheck className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {attendance.rate !== null ? `${attendance.rate}% overall · ${attendance.total} days recorded` : "No attendance data yet"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Attendance</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            {student.className} · {student.fullName}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-6">
+    <ParentPage
+      icon={CalendarCheck}
+      eyebrow={<>{attendance.rate !== null ? `${attendance.rate}% overall · ${attendance.total} days recorded` : "No attendance data yet"}</>}
+      title="Attendance"
+      summary={<>{`${student.className} · ${student.fullName}`}</>}
+    >
+      <div className="space-y-3">
         {attendance.total === 0 ? (
           <ParentEmptyState icon={CalendarCheck} title="No attendance data" description="Attendance records will appear here once marked." />
         ) : (
@@ -77,7 +67,7 @@ export default function ParentAttendancePage() {
           </>
         )}
       </div>
-    </section>
+    </ParentPage>
   );
 }
 

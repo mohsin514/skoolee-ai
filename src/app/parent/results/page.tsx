@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Award, ChevronDown, ChevronUp, Download, FileText, Loader2 } from "lucide-react";
+import { ParentPage } from "@/components/parent/parent-page";
 import { toast } from "sonner";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
@@ -33,22 +34,13 @@ export default function ParentResultsPage() {
   const { reportCards, marksByExam } = data;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <FileText className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {reportCards.length ? `${reportCards.length} report card${reportCards.length > 1 ? "s" : ""} · ${marksByExam.length} exams` : "Academic results"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Results</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Report cards and subject-wise marks for your child.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-6">
+    <ParentPage
+      icon={FileText}
+      eyebrow={<>{reportCards.length ? `${reportCards.length} report card${reportCards.length > 1 ? "s" : ""} · ${marksByExam.length} exams` : "Academic results"}</>}
+      title="Results"
+      summary={<>"Report cards and subject-wise marks for your child."</>}
+    >
+      <div className="space-y-3">
         {reportCards.length === 0 && marksByExam.length === 0 ? (
           <ParentEmptyState icon={FileText} title="No results yet" description="Results will appear here after exams are published." />
         ) : (
@@ -148,7 +140,7 @@ export default function ParentResultsPage() {
           </>
         )}
       </div>
-    </section>
+    </ParentPage>
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BookOpen, Calendar, CalendarCheck, Clock, CreditCard, FileText, HelpCircle, LayoutGrid, LogOut, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useStudentData } from "./student-data-context";
+import { STUDENT_NAV } from "@/components/student/student-page";
 
 export function StudentShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,13 +19,10 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
   // "Schedule" used to sit here as a second attendance page. Its unique
   // content (class teacher, enrolled subjects) now lives on Coursework, so the
   // nav has one entry per destination.
+  //
+  // Built from the same list the in-page subnav uses, so the two cannot drift.
   const navItems: RoleNavItem[] = [
-    { icon: LayoutGrid, label: "Dashboard", href: "/student" },
-    { icon: BookOpen, label: "Coursework", href: "/student/coursework" },
-    { icon: CalendarCheck, label: "Attendance", href: "/student/attendance" },
-    { icon: Clock, label: "Timetable", href: "/student/timetable" },
-    { icon: FileText, label: "Report Cards", href: "/student/reports" },
-    { icon: CreditCard, label: "Fees", href: "/student/fees" },
+    ...STUDENT_NAV.map((item) => ({ icon: item.icon, label: item.label, href: item.href })),
     { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
   const bottomItems: RoleNavItem[] = [];

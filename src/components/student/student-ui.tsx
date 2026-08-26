@@ -169,31 +169,31 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise group relative overflow-hidden rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+      className="sk-rise group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
-      <div className="relative flex items-center justify-between gap-4">
+      {/* A tinted edge carries the tone without a coloured card. */}
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.solid}`}
+      />
+      <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle transition-colors group-hover:text-ink-muted">
-            {label}
-          </p>
-          <p className="mt-2 text-3xl font-bold leading-none text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
             {value}
           </p>
-          {sub && <p className="mt-1.5 truncate text-[10px] font-semibold text-ink-subtle">{sub}</p>}
+          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+            {label}
+          </p>
+          {sub && <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
-          <ProgressRing value={ring} tone={tone} size={64} stroke={6} />
+          <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
         ) : (
-          <div className="relative shrink-0">
-            <div
-              className={`absolute -inset-2 rounded-xl blur-lg opacity-0 transition-opacity duration-500 group-hover:opacity-100 ${t.soft}`}
-            />
-            <div
-              className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${t.soft} ${t.text} group-hover:${t.solid} group-hover:text-white`}
-            >
-              <Icon className="h-5 w-5" />
-            </div>
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.soft} ${t.text}`}
+          >
+            <Icon className="h-4 w-4" />
           </div>
         )}
       </div>
@@ -217,13 +217,13 @@ export function PanelHeading({
 }) {
   const t = TONES[tone];
   return (
-    <div className="mb-5 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${t.soft} ${t.text}`}>
-          <Icon className="h-5 w-5" />
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.soft} ${t.text}`}>
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-lg font-bold tracking-tight text-[#1d1b20]">{title}</h3>
+          <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
           {sub && (
             <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
           )}
@@ -246,7 +246,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] ${className}`}
+      className={`sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}

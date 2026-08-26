@@ -279,7 +279,7 @@ export default function OwnerDashboard() {
       avatarSeed="mohsin@skooleeai.com"
       dashboardHref="/owner"
     >
-      <section className="bg-white rounded-[40px] shadow-2xl flex-1 overflow-hidden flex flex-col">
+      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
         {activeView === "schools" && <SchoolsView stats={stats} onRefreshStats={loadStats} />}
         {activeView === "users" && <UsersView />}
         {activeView === "billing" && <BillingView stats={stats} />}

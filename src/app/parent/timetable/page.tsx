@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Clock } from "lucide-react";
+import { ParentPage } from "@/components/parent/parent-page";
 import { ParentEmptyState } from "@/components/parent/parent-components";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { useParentData } from "../parent-data-context";
@@ -89,24 +90,15 @@ export default function ParentTimetablePage() {
   const hasTable = slots.length > 0;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <Clock className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-               {timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Timetable</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Your child&apos;s weekly class schedule.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <ParentPage
+      icon={Clock}
+      eyebrow={<>{timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}</>}
+      title="Timetable"
+      summary={<>"Your child\u2019s weekly class schedule."</>}
+    >
+      <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-24">
+          <div className="flex items-center justify-center py-14">
             <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] animate-pulse" />
           </div>
         ) : hasTable ? (
@@ -176,6 +168,6 @@ export default function ParentTimetablePage() {
         )}
         <ExamDateSheet token={token || undefined} />
       </div>
-    </section>
+    </ParentPage>
   );
 }

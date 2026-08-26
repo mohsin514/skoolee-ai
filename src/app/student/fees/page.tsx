@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
 import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 import { toast } from "sonner";
@@ -54,22 +55,13 @@ export default function FeesPage() {
   if (!data || !data.user) return null;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <CreditCard className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {summary.outstanding ? `Rs ${summary.outstanding.toLocaleString()} outstanding · ${summary.overdue} overdue` : "All fees cleared"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Fee Tokens</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">Invoices, payment progress, and outstanding balances.</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <StudentPage
+      icon={CreditCard}
+      eyebrow={<>{summary.outstanding ? `Rs ${summary.outstanding.toLocaleString()} outstanding · ${summary.overdue} overdue` : "All fees cleared"}</>}
+      title="Fee Tokens"
+      summary={<>"Invoices, payment progress, and outstanding balances."</>}
+    >
+      <div className="space-y-3">
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <SummaryStat icon={Receipt} label="Total Invoiced" value={`Rs ${summary.total.toLocaleString()}`} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
           <SummaryStat icon={CheckCircle2} label="Paid" value={`Rs ${summary.paid.toLocaleString()}`} sub={`${summary.total ? Math.round(summary.paid / summary.total * 100) : 0}% of total`} tone="green" />
@@ -123,7 +115,7 @@ export default function FeesPage() {
           </div>
         )}
       </div>
-    </section>
+    </StudentPage>
   );
 }
 

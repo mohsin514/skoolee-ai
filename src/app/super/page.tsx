@@ -309,7 +309,7 @@ const bottomItems: RoleNavItem[] = [];
         </div>
       }
     >
-      <section className="bg-white rounded-[40px] shadow-2xl flex-1 overflow-hidden flex flex-col">
+      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
         {activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">

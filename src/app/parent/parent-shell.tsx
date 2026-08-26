@@ -1,8 +1,9 @@
 "use client";
 
-import { CalendarCheck, Clock, CreditCard, FileText, LayoutGrid, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
+import { PARENT_NAV } from "@/components/parent/parent-page";
 
 export function ParentShell({ children }: { children: React.ReactNode }) {
   const { data, token } = useParentData();
@@ -10,12 +11,9 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const link = (path: string) => `${path}${q}`;
 
+  // Built from the same list the in-page subnav uses, so the two cannot drift.
   const navItems: RoleNavItem[] = [
-    { icon: LayoutGrid, label: "Overview", href: link("/parent") },
-    { icon: FileText, label: "Results", href: link("/parent/results") },
-    { icon: CalendarCheck, label: "Attendance", href: link("/parent/attendance") },
-    { icon: Clock, label: "Timetable", href: link("/parent/timetable") },
-    { icon: CreditCard, label: "Fees", href: link("/parent/fees") },
+    ...PARENT_NAV.map((item) => ({ icon: item.icon, label: item.label, href: link(item.href) })),
     // Only for guardians who are actually signed in. A portal token grants
     // 30 days of unauthenticated read access with no account behind it, so
     // there is nobody for the other side of a conversation to be talking to —
@@ -54,7 +52,7 @@ function ChildSwitcher() {
   if (siblings.length < 2) return null;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
       <span className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
         Viewing
       </span>
@@ -68,8 +66,8 @@ function ChildSwitcher() {
             aria-pressed={active}
             className={
               active
-                ? "cursor-pointer rounded-full bg-[#8127cf] px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-3.5 py-1.5 text-xs font-bold text-ink transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+                ? "cursor-pointer rounded-full bg-[#8127cf] px-3 py-1 text-[11px] font-bold text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+                : "cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
             }
           >
             {s.fullName}

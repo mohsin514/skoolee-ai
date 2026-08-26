@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Calendar, Clock } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
@@ -56,28 +57,23 @@ export default function StudentTimetablePage() {
   if (error) return <StudentErrorState error={error} onRetry={load} />;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <Clock className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {data ? `${data.slots.length} class slots scheduled` : "Weekly schedule"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Weekly Timetable</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            {data ? `${data.className}${data.classSection ? ` - ${data.classSection}` : ""}` : "Your class timetable"}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <StudentPage
+      icon={Clock}
+      eyebrow={<>{data ? `${data.slots.length} class slots scheduled` : "Weekly schedule"}</>}
+      title="Weekly Timetable"
+      summary={
+        <>
+          {data
+            ? `${data.className}${data.classSection ? ` - ${data.classSection}` : ""}`
+            : "Your class timetable"}
+        </>
+      }
+    >
+      <div className="space-y-3">
         {data ? (
           <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
         ) : (
-          <div className="sk-rise flex flex-col items-center justify-center py-24 text-center rounded-[40px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10" style={{ animationDelay: "80ms" }}>
+          <div className="sk-rise flex flex-col items-center justify-center py-14 text-center rounded-[24px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10" style={{ animationDelay: "80ms" }}>
             <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
               <Calendar className="w-8 h-8 text-[#8127cf]/40" />
             </div>
@@ -89,6 +85,6 @@ export default function StudentTimetablePage() {
         )}
         <ExamDateSheet classId={data?.classId} />
       </div>
-    </section>
+    </StudentPage>
   );
 }

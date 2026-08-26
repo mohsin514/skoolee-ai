@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ATTENDANCE_RISK_THRESHOLD, summarizeAttendance } from "@/lib/attendance";
 import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, X, Clock } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
 import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 
@@ -90,24 +91,13 @@ export default function StudentAttendancePage() {
   const isAtRisk = stats.rate !== null && stats.rate < ATTENDANCE_RISK_THRESHOLD;
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <CalendarCheck className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {stats.total ? `${stats.rate}% overall · ${stats.total} days recorded` : "No attendance data yet"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">My Attendance</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            {data.user.className} · {data.user.campusName}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+    <StudentPage
+      icon={CalendarCheck}
+      eyebrow={<>{stats.total ? `${stats.rate}% overall · ${stats.total} days recorded` : "No attendance data yet"}</>}
+      title="My Attendance"
+      summary={<>{`${data.user.className} · ${data.user.campusName}`}</>}
+    >
+      <div className="space-y-3">
         {isAtRisk && (
           <div className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200/50 px-5 py-4 shadow-sm">
             <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
@@ -200,7 +190,7 @@ export default function StudentAttendancePage() {
             </div>
           </div>
           {data.user.attendance.length > 0 ? (
-            <div className="space-y-5">
+            <div className="space-y-3">
               {groupedByMonth.map((group) => (
                 <div key={group.key}>
                   <p className="text-[11px] font-bold text-ink-subtle uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
@@ -221,7 +211,7 @@ export default function StudentAttendancePage() {
           )}
         </div>
       </div>
-    </section>
+    </StudentPage>
   );
 }
 

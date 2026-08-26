@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
+import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { toast } from "sonner";
@@ -44,22 +45,26 @@ export default function ParentFeesPage() {
   const outstanding = fees.reduce((sum, f) => sum + (f.balance || 0), 0);
   const rupees = (v: number) => Math.round(v / 100).toLocaleString();
 
+  const page = (body: React.ReactNode) => (
+    <ParentPage
+      icon={CreditCard}
+      eyebrow={<>{outstanding ? `Rs ${rupees(outstanding)} outstanding` : "All fees cleared"}</>}
+      title="Fee Status"
+      summary={<>{`Invoices and payment progress for ${student.fullName}.`}</>}
+    >
+      {body}
+    </ParentPage>
+  );
+
   if (fees.length === 0) {
-    return (
-      <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-        <PageHeader />
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9">
-          <ParentEmptyState icon={Receipt} title="No fee records" description="Fee invoices will appear here when generated." />
-        </div>
-      </section>
+    return page(
+      <ParentEmptyState icon={Receipt} title="No fee records" description="Fee invoices will appear here when generated." />
     );
   }
 
-  return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      <PageHeader />
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-6">
-        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
+  return page(
+    <div className="space-y-3">
+        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-3" style={{ animationDelay: "40ms" }}>
           <MiniStat icon={Receipt} label="Total Invoiced" value={`Rs ${rupees(total)}`} />
           <MiniStat icon={CheckCircle2} label="Paid" value={`Rs ${rupees(paid)}`} tone="green" />
           <MiniStat icon={Banknote} label="Outstanding" value={`Rs ${rupees(outstanding)}`} tone="rose" />
@@ -71,29 +76,8 @@ export default function ParentFeesPage() {
             <FeeRow key={fee.id} fee={fee} paying={payingId === fee.id} onPay={() => handlePayNow(fee.id)} />
           ))}
         </div>
-      </div>
-    </section>
+    </div>
   );
-
-  function PageHeader() {
-    return (
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/4 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative p-7 px-9">
-          <div className="flex items-center gap-2 text-[#8127cf] mb-2">
-            <CreditCard className="w-4 h-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              {outstanding ? `Rs ${rupees(outstanding)} outstanding` : "All fees cleared"}
-            </span>
-          </div>
-          <h2 className="text-3xl font-bold text-[#1d1b20] tracking-tight">Fee Status</h2>
-          <p className="mt-1 text-sm font-semibold text-ink-muted">
-            Invoices and payment progress for {student.fullName}.
-          </p>
-        </div>
-      </div>
-    );
-  }
 }
 
 function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () => void }) {

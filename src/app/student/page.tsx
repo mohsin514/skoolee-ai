@@ -7,6 +7,8 @@ import {
   Award, BookOpen, CalendarClock, CheckCircle2, ChevronRight, Clock, CreditCard,
   GraduationCap, Loader2, MapPin, Printer, Sparkles, TrendingUp,
 } from "lucide-react";
+import { StudentPage } from "@/components/student/student-page";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { DashboardSkeleton, StudentErrorState } from "@/components/student/student-components";
@@ -157,73 +159,54 @@ export default function StudentDashboard() {
   const upNext = todayWithState.find((s) => s.current) || todayWithState.find((s) => s.isNext);
 
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col">
-      {/* Hero */}
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] border-b border-[#cfc2d6]/15 shrink-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative p-7 px-9">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-            <div className="flex gap-6 items-start group">
-              <div className="h-16 w-16 sm:h-24 sm:w-24 rounded-[32px] bg-gradient-to-br from-[#fbf0fe] to-white border-4 border-[#cfc2d6]/20 shadow-xl overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-[1.03] group-hover:border-[#8127cf]/30 group-hover:shadow-2xl">
-                <AvatarImage src={user.profileImageUrl} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              </div>
-              <div className="pt-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf]/70">
-                  {greeting()}
-                </p>
-                {/* Fixed at text-4xl this wrapped a three-word name onto three
-                    lines on a phone; type and avatar both step down so a
-                    longer real name still fits. */}
-                <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight text-[#1d1b20] leading-tight sm:leading-none mt-1 mb-2 transition-colors group-hover:text-[#8127cf]">
-                  {user.fullName}
-                </h2>
-                <p className="text-sm font-semibold text-ink-muted uppercase tracking-wider">
-                  {user.rollNo || "No roll number"} · {user.className}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <span className="text-[10px] font-bold text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-lg uppercase tracking-wider">
-                    {user.campusName}
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg uppercase tracking-wider">
-                    Enrolled
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* At-a-glance: what matters right now, without scrolling */}
-            <div className="flex items-center gap-4">
-              {upNext && (
-                <div className="hidden lg:flex items-center gap-3 rounded-[24px] bg-white/80 backdrop-blur px-5 py-3.5 border border-[#cfc2d6]/20 shadow-sm">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${upNext.current ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-                      {upNext.current ? "In class now" : "Up next"}
-                    </p>
-                    <p className="text-sm font-bold text-[#1d1b20] truncate max-w-[160px]">
-                      {upNext.subject?.name || upNext.slotType || "Class"}
-                    </p>
-                    <p className="text-[10px] font-semibold text-ink-subtle">
-                      {upNext.startTime}–{upNext.endTime}
-                    </p>
-                  </div>
-                </div>
+    <StudentPage
+      avatar={<AvatarImage src={user.profileImageUrl} className="h-full w-full object-cover" />}
+      icon={GraduationCap}
+      eyebrow={<>{greeting()}</>}
+      title={user.fullName}
+      summary={
+        <>
+          {user.rollNo || "No roll number"} · {user.className} · {user.campusName}
+        </>
+      }
+      actions={
+        <>
+          {/* "In class now / Up next" was a 90px card in the hero. It is one
+              live fact, so it reads better as a pill beside the action. */}
+          {upNext ? (
+            <span
+              title={`${upNext.subject?.name || upNext.slotType || "Class"} · ${upNext.startTime}–${upNext.endTime}`}
+              className={cn(
+                "hidden h-10 items-center gap-2 rounded-xl border px-3 lg:flex",
+                upNext.current
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-[#cfc2d6]/25 bg-white text-[#8127cf]",
               )}
-              <BrandButton
-                variant="dark"
-                icon={downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                onClick={handleDownloadPdf}
-                disabled={downloading}
-              >
-                {downloading ? "Generating..." : "Report Card"}
-              </BrandButton>
-            </div>
-          </div>
-        </div>
-      </div>
-
+            >
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-[9px] font-black uppercase leading-none tracking-wider opacity-70">
+                  {upNext.current ? "In class now" : "Up next"}
+                </span>
+                <span className="block max-w-[150px] truncate text-[11px] font-black leading-tight">
+                  {upNext.subject?.name || upNext.slotType || "Class"}
+                  <span className="ml-1 font-bold tabular-nums opacity-70">{upNext.startTime}</span>
+                </span>
+              </span>
+            </span>
+          ) : null}
+          <BrandButton
+            variant="dark"
+            className="min-h-10"
+            icon={downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+          >
+            {downloading ? "Generating…" : "Report Card"}
+          </BrandButton>
+        </>
+      }
+    >
       {data.profileMissing ? (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
@@ -233,9 +216,9 @@ export default function StudentDashboard() {
           />
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-7 px-9 space-y-8">
+        <div className="space-y-3">
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             <StatCard
               icon={Award}
               label="Average"
@@ -273,7 +256,7 @@ export default function StudentDashboard() {
           </div>
 
           {/* Today + next paper */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
             <Panel className="xl:col-span-2" delay={360}>
               <PanelHeading
                 icon={Clock}
@@ -410,7 +393,7 @@ export default function StudentDashboard() {
 
           {/* AI */}
           <div
-            className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-8"
+            className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-4"
             style={{ animationDelay: "480ms" }}
           >
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
@@ -452,6 +435,6 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
-    </section>
+    </StudentPage>
   );
 }
