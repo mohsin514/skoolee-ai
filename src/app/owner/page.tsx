@@ -59,6 +59,7 @@ import {
   StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
+import { Modal } from "@/components/ui/modal";
 
 type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
 
@@ -1750,40 +1751,40 @@ function SchoolDetailModal({
   const inactiveTabClass = "text-sm font-bold text-ink-subtle pb-2 cursor-pointer hover:text-ink transition-colors";
   const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-sm p-5" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="animate-modal-enter bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[34px] shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
-              {school.logoUrl ? (
-                <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
-              ) : (
-                <School className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-[#1f1a23] tracking-tight">{school.name}</h2>
-                <StatusPill status={school.status} />
-              </div>
-              {school.tagline ? <p className="text-[10px] font-bold text-[#8127cf]/50 italic mt-0.5">"{school.tagline}"</p> : null}
-              <p className="text-xs font-semibold text-ink-muted mt-0.5">{school.contactEmail || "—"} · {school.city || "—"} {school.phone ? `· ${school.phone}` : ""}</p>
-              {school.website ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{school.website}</p> : null}
-              {school.establishedYear ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Est. {school.establishedYear}</p> : null}
-            </div>
-          </div>
-          <button onClick={onClose} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Modal
+      title={school.name}
+      eyebrow="School"
+      subtitle={
+        <>
+          {school.contactEmail || "—"} · {school.city || "—"}
+          {school.phone ? ` · ${school.phone}` : ""}
+          {school.website ? <span className="block">{school.website}</span> : null}
+          {school.establishedYear ? <span className="block">Est. {school.establishedYear}</span> : null}
+        </>
+      }
+      chips={
+        <>
+          <StatusPill status={school.status} />
+          {school.tagline ? (
+            <span className="text-[10px] font-bold italic text-[#8127cf]/60">&ldquo;{school.tagline}&rdquo;</span>
+          ) : null}
+        </>
+      }
+      avatar={
+        school.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]">
+            <School className="h-5 w-5" />
+          </span>
+        )
+      }
+      size="md"
+      onClose={onClose}
+      bodyClassName="px-0 py-0 sm:px-0"
+    >
         <div className="px-7 pt-5 flex gap-6 border-b border-[#f3f4f9]">
           <button className={tab === "overview" ? activeTabClass : inactiveTabClass} onClick={() => setTab("overview")}>Overview</button>
           <button className={tab === "campuses" ? activeTabClass : inactiveTabClass} onClick={() => setTab("campuses")}>Campuses</button>
@@ -1926,8 +1927,7 @@ function SchoolDetailModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1988,17 +1988,34 @@ function ChangePasswordModal({
   };
 
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="animate-modal-enter bg-white w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-start gap-5 mb-6">
-          <div>
-            <p className="text-[10px] font-black uppercase text-[#8127cf]">Security action</p>
-            <h3 className="mt-1 text-2xl font-black text-[#1f1a23] tracking-normal">Change Password</h3>
-          </div>
-          <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
-            <X className="w-5 h-5" />
+    <Modal
+      title="Change Password"
+      eyebrow="Security action"
+      icon={KeyRound}
+      tone="amber"
+      size="xs"
+      onClose={onClose}
+      dirty={Boolean(newPassword) && !loading}
+      dirtyMessage="The new password has not been set yet. Leave without applying it?"
+      footer={
+        <div className="flex gap-4">
+          <button
+            onClick={onClose}
+            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !newPassword || newPassword !== confirmPassword}
+            className="flex-[2] h-14 rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-sm font-black text-white hover:from-black hover:to-[#1f1a23] disabled:opacity-40 transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+            {loading ? "Updating..." : "Change Password"}
           </button>
         </div>
+      }
+    >
 
         <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 mb-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
           <div className="flex items-center gap-3">
@@ -2093,24 +2110,7 @@ function ChangePasswordModal({
           </div>
         )}
 
-        <div className="flex gap-4">
-          <button
-            onClick={onClose}
-            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-14 rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-sm font-black text-white hover:from-black hover:to-[#1f1a23] disabled:opacity-40 transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {loading ? "Updating..." : "Change Password"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

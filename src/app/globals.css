@@ -248,6 +248,73 @@ button:disabled,
   animation: dropdown-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ─── Dialog motion ──────────────────────────────────────────
+   Enter and exit are deliberately asymmetric. Arriving is the moment that
+   needs to feel considered, so it takes 280ms on a decelerating curve;
+   leaving only needs to read as "gone on purpose" rather than "vanished",
+   which 180ms of accelerating ease covers. The exit durations here are the
+   contract EXIT_MS in ui/modal.tsx unmounts against — change both together
+   or the dialog is torn out of the DOM mid-animation. */
+
+@keyframes modal-exit {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.97) translateY(6px); }
+}
+
+@keyframes backdrop-exit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* On a phone the dialog is a sheet hinged to the bottom edge, so it travels
+   along the axis the thumb already pushes it. */
+@keyframes sheet-enter {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes sheet-exit {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.animate-modal-exit {
+  animation: modal-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-backdrop-exit {
+  animation: backdrop-exit 180ms ease-in both;
+}
+
+.animate-sheet-enter {
+  animation: sheet-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-sheet-exit {
+  animation: sheet-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Vestibular triggers are the reason this exists: a sheet flying up the screen
+   is exactly the large-area movement that provokes them. Collapse the motion
+   to a cross-fade rather than removing feedback entirely, so the dialog still
+   reads as arriving and leaving. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-enter,
+  .animate-modal-exit,
+  .animate-sheet-enter,
+  .animate-sheet-exit,
+  .animate-dropdown-enter,
+  .animate-drawer-enter {
+    animation-name: fade-in;
+    animation-duration: 120ms;
+  }
+
+  .animate-modal-exit,
+  .animate-sheet-exit {
+    animation-name: backdrop-exit;
+  }
+}
+
 /* ─── Skoolee Brand Motion (shared) ───────────────────── */
 
 @keyframes skDrift {
@@ -359,12 +426,39 @@ button:disabled,
   background-size: 100% 100%, 100% 100%, 22px 22px;
 }
 
+/* ─── Corner sparkles ─────────────────────────────────────
+   CornerSparkles renders twelve animated dots and used to ship its own
+   <style>{keyframes}</style> with every instance. Several screens mount three
+   or more of them, so the same @keyframes block was parsed and inserted into
+   the document repeatedly, and the dots animated forever regardless of the
+   viewer's motion preference. The rule lives here once instead. */
+@keyframes skTwinkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  25% { opacity: 1; transform: scale(1) rotate(45deg); }
+  60% { opacity: 0.3; transform: scale(0.5) rotate(90deg); }
+}
+
+.sk-sparkle {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  width: 12px;
+  height: 12px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: skTwinkle var(--sk-sparkle-duration, 2s) ease-in-out var(--sk-sparkle-delay, 0s) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sk-blob, .sk-rise, .sk-shake, .sk-shimmer, .sk-check-pop,
   .sk-glow, .sk-float, .sk-sweep,
-  .sk-typing-dot, .sk-bubble-in, .sk-ping {
+  .sk-typing-dot, .sk-bubble-in, .sk-ping, .sk-sparkle {
     animation: none !important;
   }
+  /* A sparkle frozen mid-cycle would sit as a static dot in the corner of
+     every card; the decoration is purely motion, so it goes entirely. */
+  .sk-sparkle { display: none !important; }
   .sk-parallax { transition: none !important; }
 }
 

@@ -9,10 +9,10 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
-import { ChatPortal } from "./chat-portal";
 
 interface ChatSettingsDialogProps {
   open: boolean;
@@ -108,37 +108,41 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
   }
 
   return (
-    <ChatPortal>
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-[#1f1a23]/40 p-4 backdrop-blur-sm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="chat-settings-title"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
-      >
-        <div className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#cfc2d6]/25 px-5 py-4">
-            <div>
-              <h2 id="chat-settings-title" className="text-sm font-black text-[#1f1a23]">
-                Messaging policy
-              </h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">
-                Applies to everyone in your school.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="cursor-pointer rounded-xl p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </header>
-
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
+    <Modal
+      title="Messaging policy"
+      eyebrow="Messaging"
+      subtitle="Applies to everyone in your school."
+      icon={Settings2}
+      size="sm"
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p
+            className={cn(
+              "text-[11px] font-bold",
+              error ? "text-rose-600" : "text-ink-muted"
+            )}
+            role={error ? "alert" : "status"}
+          >
+            {error
+              ? error
+              : isSaving
+                ? "Saving…"
+                : hasSaved
+                  ? "Saved"
+                  : "Changes save as you make them"}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[11px] font-black text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+          >
+            Done
+          </button>
+        </div>
+      }
+    >
+          <div>
             {!settings ? (
               <p className="flex items-center justify-center gap-2 py-10 text-xs font-bold text-ink-muted">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -207,34 +211,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
               </div>
             )}
           </div>
-
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#cfc2d6]/25 px-5 py-3">
-            <p
-              className={cn(
-                "text-[11px] font-bold",
-                error ? "text-rose-600" : "text-ink-muted"
-              )}
-              role={error ? "alert" : "status"}
-            >
-              {error
-                ? error
-                : isSaving
-                  ? "Saving…"
-                  : hasSaved
-                    ? "Saved"
-                    : "Changes save as you make them"}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[11px] font-black text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
-            >
-              Done
-            </button>
-          </footer>
-        </div>
-      </div>
-    </ChatPortal>
+    </Modal>
   );
 }
 

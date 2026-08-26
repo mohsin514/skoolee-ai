@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard";
+import { useModalShell } from "@/lib/hooks/use-modal-shell";
 import { cn } from "@/lib/utils";
 import { toneOf } from "@/lib/ui/module-tones";
 
@@ -1786,17 +1787,23 @@ function ConfirmMoveModal({
 }) {
   const consequence = plan.eligible.find((e) => "confirm" in e.verdict && e.verdict.confirm);
   const verdictLabel = plan.eligible[0]?.verdict.label ?? "Move";
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // Escape, focus trapping and a scroll lock — none of which this dialog had.
+  useModalShell({ ref: dialogRef, onClose: onCancel });
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-move-title"
+      className="animate-backdrop-enter fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md"
+      role="presentation"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-[30px] bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="animate-modal-enter w-full max-w-md overflow-hidden rounded-[30px] bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 border-b border-[#cfc2d6]/10 px-6 py-5">
@@ -1807,7 +1814,7 @@ function ConfirmMoveModal({
             <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
               {plan.eyebrow}
             </p>
-            <h3 id="confirm-move-title" className="text-lg font-black text-[#1d1b20]">
+            <h3 id={titleId} className="text-lg font-black text-[#1d1b20]">
               {verdictLabel}
             </h3>
           </div>
@@ -1881,27 +1888,39 @@ function RejectMarksModal({
   const tooShort = reason.trim().length < 5;
   const reportCards = exams.reduce((sum, e) => sum + (e._count?.reportCards ?? 0), 0);
   const single = exams.length === 1 ? exams[0] : null;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // The reason is typed prose; a mistimed backdrop click used to bin it.
+  const requestClose = useModalShell({
+    ref: dialogRef,
+    onClose,
+    dirty: reason.trim().length > 0,
+    dirtyMessage: "Discard the reason you have written?",
+  });
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="reject-marks-title"
-      onClick={onClose}
+      className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+      role="presentation"
+      onClick={requestClose}
     >
       <div
-        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="animate-modal-enter w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
-          <h3 id="reject-marks-title" className="text-base font-black text-[#1d1b20]">
+          <h3 id={titleId} className="text-base font-black text-[#1d1b20]">
             Send marks back
           </h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
+            title="Close (Esc)"
             className="cursor-pointer rounded-full p-1 text-ink-muted transition hover:bg-[#f3f4f9]"
           >
             <X className="h-4 w-4" />
@@ -1941,15 +1960,27 @@ function RejectMarksModal({
             className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/50"
           />
         </label>
+        {/* Send back was simply disabled until the reason was long enough,
+            with nothing on screen saying so — the admin was left clicking a
+            dead button. */}
+        <p className={cn(
+          "mt-1.5 text-[11px] font-semibold",
+          tooShort ? "text-amber-700" : "text-ink-subtle",
+        )}>
+          {tooShort
+            ? "Write at least a few words — this is the only thing the teacher will see."
+            : `${reason.trim().length} characters · the teacher sees this verbatim`}
+        </p>
 
         <div className="mt-5 flex gap-2">
-          <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
+          <BrandButton variant="soft" onClick={requestClose} disabled={busy} className="flex-1">
             Cancel
           </BrandButton>
           <BrandButton
             variant="gradient"
             onClick={onSubmit}
             disabled={busy || tooShort}
+            title={tooShort ? "Write a reason for the teacher first" : "Send these marks back to the teacher"}
             className="flex-1"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
@@ -2034,11 +2065,30 @@ function CreateExamModal({
     loadClasses();
   }, [loadClasses]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const requestClose = useModalShell({
+    ref: dialogRef,
+    onClose,
+    dirty: Boolean(form.title.trim() || form.classId),
+    dirtyMessage: role === "TEACHER" ? "Discard this test without creating it?" : "Discard this exam without creating it?",
+  });
+
+  /* Class and title were "required", but the button stayed live and the check
+     ran on submit as a toast — so a missing class was reported as an error the
+     office had made rather than a field they had not filled in yet. */
+  const missing = [
+    !form.classId && "a class",
+    !form.title.trim() && "a title",
+  ].filter(Boolean) as string[];
+  const blockedReason = classesError
+    ? "Classes could not be loaded — retry above first."
+    : missing.length
+      ? `Choose ${missing.join(" and ")} to continue.`
+      : null;
+
   const submit = async () => {
-    if (!form.classId || !form.title) {
-      toast.error("Class and title are required");
-      return;
-    }
+    if (blockedReason) return;
     setBusy(true);
     try {
       const res = await fetch("/api/exams", {
@@ -2065,8 +2115,19 @@ function CreateExamModal({
   };
 
   return createPortal(
-    <div className="animate-backdrop-enter fixed inset-0 z-[140] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md">
-      <div className="animate-modal-enter w-full max-w-lg overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]">
+    <div
+      className="animate-backdrop-enter fixed inset-0 z-[140] flex items-center justify-center bg-[#1f1a23]/45 p-4 backdrop-blur-md"
+      role="presentation"
+      onClick={requestClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+        className="animate-modal-enter w-full max-w-lg overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]"
+      >
         <div className="flex items-center justify-between bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-5 text-white">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15">
@@ -2074,12 +2135,16 @@ function CreateExamModal({
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-white/70">New</p>
-              <h3 className="text-lg font-black">Create Exam</h3>
+              <h3 id={titleId} className="text-lg font-black">
+                {role === "TEACHER" ? "Create Test" : "Create Exam"}
+              </h3>
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
+            aria-label="Close dialog"
+            title="Close (Esc)"
             className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-2xl text-white/80 transition-colors hover:bg-white/15"
           >
             <X className="h-5 w-5" />
@@ -2172,18 +2237,31 @@ function CreateExamModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-[#cfc2d6]/10 bg-[#faf7fc] px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted transition-colors hover:bg-[#4d4354]/5"
-          >
-            Cancel
-          </button>
-          <BrandButton variant="gradient" onClick={submit} disabled={busy || loadingClasses}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-            Create Exam
-          </BrandButton>
+        <div className="border-t border-[#cfc2d6]/10 bg-[#faf7fc] px-6 py-4">
+          {blockedReason && !loadingClasses ? (
+            <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {blockedReason}
+            </p>
+          ) : null}
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={requestClose}
+              className="cursor-pointer rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted transition-colors hover:bg-[#4d4354]/5"
+            >
+              Cancel
+            </button>
+            <BrandButton
+              variant="gradient"
+              onClick={submit}
+              disabled={busy || loadingClasses || Boolean(blockedReason)}
+              title={blockedReason || (role === "TEACHER" ? "Create this test" : "Create this exam")}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+              {role === "TEACHER" ? "Create Test" : "Create Exam"}
+            </BrandButton>
+          </div>
         </div>
       </div>
     </div>,

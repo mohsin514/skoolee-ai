@@ -14,6 +14,7 @@ import {
   FileText,
   GraduationCap,
   Plane,
+  Search,
   Star,
   Users,
   Zap,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import { openTeacherPalette } from "@/components/teacher/palette-bus";
 
 /**
  * The shell every teacher screen sits in.
@@ -159,6 +161,19 @@ export function TeacherSubnav() {
           <ChevronRight className="h-4 w-4" />
         </button>
       ) : null}
+
+      {/* A keyboard shortcut nobody can see is a shortcut nobody uses. */}
+      <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-[#cfc2d6]/30" />
+      <button
+        type="button"
+        onClick={() => openTeacherPalette()}
+        title="Jump to any section, class or student (⌘K)"
+        className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle transition-all hover:border-[#8127cf]/25 hover:bg-[#fbf0fe] hover:text-[#8127cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+      >
+        <Search className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Jump to</span>
+        <kbd className="rounded border border-[#cfc2d6]/40 px-1 text-[9px] font-black">⌘K</kbd>
+      </button>
     </nav>
   );
 }

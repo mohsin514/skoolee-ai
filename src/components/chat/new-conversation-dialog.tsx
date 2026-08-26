@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDialogBehaviour } from "@/components/ui/modal";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Loader2, Search, UserRoundSearch, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,17 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
   const canCreateGroup = viewer?.canCreateGroup ?? false;
 
+  /**
+   * The sheet's presentation was already right — a real bottom sheet on a
+   * phone, a spring on the way in, an exit that plays. What it did not have was
+   * a focus trap, a scroll lock, or a layer that clears the app chrome: it sat
+   * at `z-[100]` while the account menus sit at `z-[999]`, so opening it from
+   * the header put it underneath the menu that opened it. Escape was its own
+   * window listener, which fired even when a confirm was stacked on top.
+   */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { z } = useDialogBehaviour(panelRef, { onClose, active: open });
+
   useEffect(() => {
     if (!open) {
       setQuery("");
@@ -65,16 +77,6 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
       setMode("direct");
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -157,20 +159,23 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
-            className="fixed inset-0 z-[100] flex items-end justify-center bg-[#1f1a23]/45 backdrop-blur-sm sm:items-center sm:p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-conversation-title"
+            style={{ zIndex: z }}
+            className="fixed inset-0 flex items-end justify-center bg-[#1f1a23]/45 backdrop-blur-sm sm:items-center sm:p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) onClose();
             }}
           >
             <motion.div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-conversation-title"
+              tabIndex={-1}
               initial={{ opacity: 0, y: 28, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
+              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] focus:outline-none sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
             >
               {/* ── Head ── */}
               <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-br from-white via-white to-[#fbf0fe]/70 px-5 pb-4 pt-4">

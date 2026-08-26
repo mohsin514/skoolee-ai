@@ -414,7 +414,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
         </Card>
 
         <Dialog open={!!paymentModal} onOpenChange={() => setPaymentModal(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent size="xs">
             <DialogHeader>
               <DialogTitle>Record Payment</DialogTitle>
             </DialogHeader>
@@ -462,7 +462,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
         </Dialog>
 
         <Dialog open={feeModal} onOpenChange={setFeeModal}>
-          <DialogContent className="max-w-md">
+          <DialogContent size="xs">
             <DialogHeader>
               <DialogTitle>Fee Structure</DialogTitle>
             </DialogHeader>
@@ -509,7 +509,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
         </Dialog>
 
         <Dialog open={generateModal} onOpenChange={setGenerateModal}>
-          <DialogContent className="max-w-md">
+          <DialogContent size="xs">
             <DialogHeader>
               <DialogTitle>Generate Fee Invoices</DialogTitle>
             </DialogHeader>

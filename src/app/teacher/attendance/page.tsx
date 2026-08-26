@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { toast } from "sonner";
 import {
-  AlertTriangle, BarChart3, CalendarCheck, CheckCheck, CheckCircle2, ChevronLeft, ChevronRight, Copy, History, ListChecks, Loader2, Plus, TrendingUp,
+  AlertTriangle, BarChart3, CalendarCheck, CheckCheck, ChevronLeft, ChevronRight, Command, Copy, History, Keyboard, Loader2, Plane, Search, UserX, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
@@ -16,14 +16,23 @@ import {
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { shiftDateOnly } from "@/lib/date-only";
+import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
+import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
 
 const STATUS_CONFIG = {
-  PRESENT: { label: "Present", short: "P", activeClass: "bg-emerald-500 text-white ring-2 ring-emerald-300", chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100", dot: "bg-emerald-500" },
-  ABSENT: { label: "Absent", short: "A", activeClass: "bg-rose-500 text-white ring-2 ring-rose-300", chipClass: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100", dot: "bg-rose-500" },
-  LEAVE: { label: "Leave", short: "L", activeClass: "bg-amber-500 text-white ring-2 ring-amber-300", chipClass: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", dot: "bg-amber-500" },
+  PRESENT: { label: "Present", short: "P", key: "P", activeClass: "bg-emerald-500 text-white ring-2 ring-emerald-300", chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100", dot: "bg-emerald-500" },
+  ABSENT: { label: "Absent", short: "A", key: "A", activeClass: "bg-rose-500 text-white ring-2 ring-rose-300", chipClass: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100", dot: "bg-rose-500" },
+  LEAVE: { label: "Leave", short: "L", key: "L", activeClass: "bg-amber-500 text-white ring-2 ring-amber-300", chipClass: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", dot: "bg-amber-500" },
+};
+
+/** Keystroke → status, for the roster's keyboard mode. */
+const KEY_TO_STATUS: Record<string, AttendanceStatus> = {
+  p: "PRESENT", "1": "PRESENT",
+  a: "ABSENT", "2": "ABSENT",
+  l: "LEAVE", "3": "LEAVE",
 };
 
 export default function AttendancePage() {
@@ -40,6 +49,13 @@ export default function AttendancePage() {
   const [attendanceHistoryLoading, setAttendanceHistoryLoading] = useState(false);
   const [attendanceExists, setAttendanceExists] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
+  /* Statuses exactly as the server last returned them. Every "is this dirty"
+     question on this page is answered against this snapshot, so the teacher is
+     told what *they* changed rather than what merely differs from a default. */
+  const [baseline, setBaseline] = useState<Record<string, AttendanceStatus>>({});
+  const [rosterQuery, setRosterQuery] = useState("");
+  const [keyboardMode, setKeyboardMode] = useState(false);
+  const rosterRef = useRef<HTMLDivElement>(null);
   const [copyingPrevious, setCopyingPrevious] = useState(false);
   const [monthlyData, setMonthlyData] = useState<any>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
@@ -77,12 +93,15 @@ export default function AttendancePage() {
       const summary = { total: sum.total || 0, present: sum.present || 0, absent: sum.absent || 0, leave: sum.leave || 0, unmarked: sum.unmarked || 0 };
       setAttendanceSummary(summary);
       if (result.students) {
-        setAttendanceRows(result.students.map((s: any) => ({ ...s, status: s.attendance?.status || "PRESENT" })));
+        const rows = result.students.map((s: any) => ({ ...s, status: s.attendance?.status || "PRESENT" }));
+        setAttendanceRows(rows);
+        setBaseline(Object.fromEntries(rows.map((r: any) => [r.id, r.status as AttendanceStatus])));
       } else {
         setAttendanceRows([]);
+        setBaseline({});
       }
       setAttendanceExists(result.students?.some((s: any) => s.attendance !== null) || false);
-    } catch { setAttendanceSummary(null); setAttendanceRows([]); setAttendanceExists(false); }
+    } catch { setAttendanceSummary(null); setAttendanceRows([]); setBaseline({}); setAttendanceExists(false); }
     finally { setAttendanceLoading(false); }
   }, []);
 
@@ -102,9 +121,44 @@ export default function AttendancePage() {
 
   useEffect(() => { if (attendanceClassId) loadAttendanceHistory(attendanceClassId); }, [attendanceClassId, loadAttendanceHistory]);
 
-  const markAllAttendance = useCallback((status: AttendanceStatus) => {
-    setAttendanceRows((rows) => rows.map((row) => ({ ...row, status })));
+  const setStatus = useCallback((studentId: string, status: AttendanceStatus) => {
+    setAttendanceRows((rows) => rows.map((r) => (r.id === studentId ? { ...r, status } : r)));
   }, []);
+
+  /* Bulk actions only ever touched every row, which is wrong the moment the
+     roster is filtered — "All Absent" while searching "Ahmed" is a request
+     about Ahmed. Scope it to what is on screen. */
+  const markAllAttendance = useCallback((status: AttendanceStatus, ids?: Set<string>) => {
+    setAttendanceRows((rows) => rows.map((row) => (!ids || ids.has(row.id) ? { ...row, status } : row)));
+  }, []);
+
+  const dirtyIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of attendanceRows) {
+      if (baseline[row.id] !== undefined && baseline[row.id] !== row.status) set.add(row.id);
+    }
+    return set;
+  }, [attendanceRows, baseline]);
+
+  const resetChanges = useCallback(() => {
+    setAttendanceRows((rows) => rows.map((r) => ({ ...r, status: baseline[r.id] ?? r.status })));
+  }, [baseline]);
+
+  /* A roster is a list of names; searching it is how a teacher finds one. */
+  const visibleRows = useMemo(() => {
+    const q = rosterQuery.trim().toLowerCase();
+    if (!q) return attendanceRows;
+    return attendanceRows.filter(
+      (r) => r.fullName?.toLowerCase().includes(q) || String(r.rollNo || "").toLowerCase().includes(q),
+    );
+  }, [attendanceRows, rosterQuery]);
+
+  const unsavedSheet = attendanceRows.length > 0 && !attendanceExists;
+  useUnsavedGuard(dirtyIds.size > 0);
+  useNavGuard(
+    dirtyIds.size > 0,
+    "You have unsaved attendance changes. Leave this page and lose them?",
+  );
 
   const saveAttendance = useCallback(async () => {
     if (!attendanceClassId || !attendanceRows.length) return;
@@ -304,19 +358,25 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* Bulk actions */}
+        {/* Bulk actions + roster search */}
         {attendanceRows.length > 0 && (
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle mb-2.5">Quick Actions</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Scoped to whatever the search is currently showing — the label
+                  says so, so "All Present" can never quietly overwrite the
+                  thirty-eight students the teacher has filtered out. */}
               {([
-                { status: "PRESENT" as AttendanceStatus, label: "All Present", icon: CheckCheck },
-                { status: "ABSENT" as AttendanceStatus, label: "All Absent", icon: Plus },
-                { status: "LEAVE" as AttendanceStatus, label: "All Leave", icon: Plus },
+                { status: "PRESENT" as AttendanceStatus, label: "Present", icon: CheckCheck },
+                { status: "ABSENT" as AttendanceStatus, label: "Absent", icon: UserX },
+                { status: "LEAVE" as AttendanceStatus, label: "Leave", icon: Plane },
               ]).map(({ status, label, icon: Icon }) => (
-                <button key={status} type="button" onClick={() => markAllAttendance(status)} title={`Mark all as ${label.toLowerCase()}`}
+                <button key={status} type="button"
+                  onClick={() => markAllAttendance(status, new Set(visibleRows.map((r) => r.id)))}
+                  title={`Mark ${visibleRows.length} shown student${visibleRows.length === 1 ? "" : "s"} as ${label.toLowerCase()}`}
                   className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25", STATUS_CONFIG[status].chipClass)}>
-                  <Icon className="w-3.5 h-3.5" />{label}
+                  <Icon className="w-3.5 h-3.5" />
+                  All {label}
+                  {rosterQuery ? <span className="opacity-60">({visibleRows.length})</span> : null}
                 </button>
               ))}
               <button type="button" onClick={copyFromPrevious} disabled={copyingPrevious}
@@ -325,7 +385,56 @@ export default function AttendancePage() {
                 {copyingPrevious ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                 Copy Yesterday
               </button>
+
+              {/* Roster search — a forty-name list is not something you scroll
+                  to find one child in. */}
+              <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+                <input
+                  value={rosterQuery}
+                  onChange={(e) => setRosterQuery(e.target.value)}
+                  placeholder="Find a student…"
+                  aria-label="Search this roster"
+                  className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                />
+                {rosterQuery ? (
+                  <button type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
+                    className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
+
+              <button type="button" onClick={() => setKeyboardMode((v) => !v)} aria-pressed={keyboardMode}
+                title="Show the keyboard shortcuts for marking a roster without the mouse"
+                className={cn(
+                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  keyboardMode
+                    ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
+                    : "border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
+                )}>
+                <Keyboard className="h-3.5 w-3.5" />
+                Keys
+              </button>
             </div>
+
+            {keyboardMode ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 px-4 py-2.5">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+                  <Command className="h-3 w-3" /> Roster shortcuts
+                </span>
+                {[
+                  ["P / 1", "Present"], ["A / 2", "Absent"], ["L / 3", "Leave"],
+                  ["↑ ↓", "Move between students"], ["⌘S", "Save"],
+                ].map(([k, meaning]) => (
+                  <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
+                    <kbd className="rounded-md border border-[#cfc2d6]/50 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1d1b20]">{k}</kbd>
+                    {meaning}
+                  </span>
+                ))}
+                <span className="text-[11px] font-semibold text-ink-subtle">Click any row first, then type.</span>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -346,32 +455,99 @@ export default function AttendancePage() {
                 </div>
               ))}
             </div>
-          ) : attendanceRows.length ? (
-            <div className="divide-y divide-[#f3f4f9]">
-              <div className="hidden sm:grid sm:grid-cols-[1fr_200px] gap-3 px-6 py-3 bg-[#fbf0fe]/30">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Student</span>
+          ) : visibleRows.length ? (
+            /* The roster is one keyboard surface: a row takes focus, P/A/L set
+               its status and the arrows walk the list, so a class of forty is a
+               forty-keystroke job instead of forty round trips to the mouse. */
+            <div
+              ref={rosterRef}
+              className="divide-y divide-[#f3f4f9]"
+              onKeyDown={(event) => {
+                const row = (event.target as HTMLElement).closest<HTMLElement>("[data-row-idx]");
+                if (!row) return;
+                const idx = Number(row.dataset.rowIdx);
+                const move = (delta: number) => {
+                  event.preventDefault();
+                  const next = rosterRef.current?.querySelector<HTMLElement>(
+                    `[data-row-idx="${Math.min(Math.max(idx + delta, 0), visibleRows.length - 1)}"]`,
+                  );
+                  next?.focus();
+                  next?.scrollIntoView({ block: "nearest" });
+                };
+                if (event.key === "ArrowDown") return move(1);
+                if (event.key === "ArrowUp") return move(-1);
+                const status = KEY_TO_STATUS[event.key.toLowerCase()];
+                if (!status) return;
+                event.preventDefault();
+                setStatus(visibleRows[idx].id, status);
+                // Marking one student almost always means the next one is up.
+                move(1);
+              }}
+            >
+              <div className="sticky top-0 z-10 hidden gap-3 border-b border-[#f3f4f9] bg-[#fbf0fe]/80 px-6 py-3 backdrop-blur-sm sm:grid sm:grid-cols-[1fr_240px]">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                  Student
+                  {rosterQuery ? (
+                    <span className="ml-2 normal-case text-[#8127cf]">
+                      {visibleRows.length} of {attendanceRows.length} shown
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Status</span>
               </div>
-              {attendanceRows.map((student) => (
-                <div key={student.id} className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3 px-5 py-3.5 sm:items-center hover:bg-[#fbf0fe]/20 transition-colors">
-                  <StudentMini student={student} />
-                  <div className="flex gap-1.5 sm:justify-end">
-                    {(["PRESENT", "ABSENT", "LEAVE"] as AttendanceStatus[]).map((status) => (
-                      <button key={status} type="button"
-                        onClick={() => setAttendanceRows((rows) => rows.map((r) => (r.id === student.id ? { ...r, status } : r)))}
-                        title={`Mark as ${STATUS_CONFIG[status].label.toLowerCase()}`}
-                        className={cn(
-                          "flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                          student.status === status
-                            ? STATUS_CONFIG[status].activeClass
-                            : "bg-white text-ink-muted border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
-                        )}>
-                        {STATUS_CONFIG[status].label}
-                      </button>
-                    ))}
+              {visibleRows.map((student, idx) => {
+                const changed = dirtyIds.has(student.id);
+                return (
+                  <div
+                    key={student.id}
+                    data-row-idx={idx}
+                    tabIndex={0}
+                    role="radiogroup"
+                    aria-label={`Attendance for ${student.fullName}`}
+                    className={cn(
+                      "group relative grid grid-cols-1 gap-3 px-5 py-3.5 outline-none transition-colors sm:grid-cols-[1fr_240px] sm:items-center",
+                      "hover:bg-[#fbf0fe]/20 focus-visible:bg-[#fbf0fe]/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8127cf]/40",
+                      changed && "bg-amber-50/40",
+                    )}
+                  >
+                    {/* An edited row is worth marking: without it, "12 unsaved
+                        changes" gives no way to see which twelve. */}
+                    {changed ? (
+                      <span
+                        aria-label="Changed, not yet saved"
+                        title={`Changed from ${STATUS_CONFIG[baseline[student.id] as AttendanceStatus]?.label ?? "unmarked"}`}
+                        className="absolute inset-y-0 left-0 w-1 bg-amber-400"
+                      />
+                    ) : null}
+                    <StudentMini student={student} />
+                    <div className="flex gap-1.5 sm:justify-end">
+                      {(["PRESENT", "ABSENT", "LEAVE"] as AttendanceStatus[]).map((status) => (
+                        <button key={status} type="button" tabIndex={-1}
+                          role="radio"
+                          aria-checked={student.status === status}
+                          onClick={() => setStatus(student.id, status)}
+                          title={`Mark ${student.fullName} as ${STATUS_CONFIG[status].label.toLowerCase()} (${STATUS_CONFIG[status].key})`}
+                          className={cn(
+                            "flex-1 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer active:scale-[0.95] sm:flex-none",
+                            student.status === status
+                              ? STATUS_CONFIG[status].activeClass
+                              : "bg-white text-ink-muted border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
+                          )}>
+                          {STATUS_CONFIG[status].label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+          ) : attendanceRows.length ? (
+            <div className="flex flex-col items-center gap-3 p-10 text-center">
+              <p className="text-sm font-bold text-[#1d1b20]">No student matches “{rosterQuery}”</p>
+              <button type="button" onClick={() => setRosterQuery("")}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+                <X className="h-3.5 w-3.5" /> Clear search
+              </button>
             </div>
           ) : (
             <div className="p-8">
@@ -380,18 +556,38 @@ export default function AttendancePage() {
           )}
         </div>
 
-        {/* Save + history toggle */}
+        {/* Save bar — floats with the roster instead of sitting below forty
+            rows the teacher would have to scroll past to reach it. */}
+        <StickySaveBar
+          dirtyCount={dirtyIds.size}
+          forceShow={unsavedSheet}
+          label={dirtyIds.size === 0 ? "This day has not been saved yet" : undefined}
+          saving={attendanceSaving}
+          onSave={saveAttendance}
+          onReset={resetChanges}
+          saveLabel={isEditingAttendance ? "Update" : "Save attendance"}
+          savingLabel="Saving…"
+          hint={
+            <>
+              {selectedAttendanceClass ? `${classLabel(selectedAttendanceClass)} · ` : ""}
+              {attendanceDate}
+              {` · ${stats.present} present, ${stats.absent} absent, ${stats.leave} leave`}
+            </>
+          }
+        />
+
+        {/* History toggle */}
         <div className="flex items-center justify-between gap-4">
           <button type="button" onClick={() => setHistoryOpen(!historyOpen)} title={historyOpen ? "Collapse history" : "Expand history"}
             className="inline-flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer active:scale-[0.97]">
             <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", historyOpen && "rotate-90")} />
             Recent Attendance ({attendanceHistory.length})
           </button>
-          <BrandButton variant="dark" icon={attendanceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
-            onClick={saveAttendance} disabled={attendanceSaving || !attendanceRows.length}
-            title={!attendanceRows.length ? "No students to save" : isEditingAttendance ? "Update existing attendance record" : "Save today's attendance"}>
-            {attendanceSaving ? "Saving..." : isEditingAttendance ? "Update Attendance" : "Save Attendance"}
-          </BrandButton>
+          {attendanceHistoryLoading ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-subtle">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading history
+            </span>
+          ) : null}
         </div>
 
         {/* History section */}

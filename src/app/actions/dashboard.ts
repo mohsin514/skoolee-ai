@@ -899,13 +899,23 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
     unmarked: Math.max(students.length - attendanceToday.length, 0),
   };
 
+  // Today's attendance is already loaded for the summary counts, so folding it
+  // onto each student costs nothing and gives the directory the one live fact
+  // it was missing — "is this child in today?" — which previously required
+  // opening the attendance screen and picking the class by hand.
+  const attendanceByStudent = new Map(attendanceToday.map((entry) => [entry.studentId, entry.status]));
+  const studentsWithToday = students.map((student) => ({
+    ...student,
+    todayAttendance: attendanceByStudent.get(student.id) ?? null,
+  }));
+
   return {
     teacherName: session.fullName || "Teacher",
     logoUrl: teacherCampus?.logoUrl || teacherCampus?.school.logoUrl || null,
     subjects,
     ledClasses,
     classHubs,
-    students,
+    students: studentsWithToday,
     exams: examSummaries,
     lockedExams: examSummaries.filter((exam) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "")),
     activeExams: examSummaries.filter((exam) => ["ACTIVE", "MARKS_ENTRY"].includes(exam.status || "")),

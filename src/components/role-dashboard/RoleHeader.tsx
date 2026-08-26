@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Modal } from "@/components/ui/modal";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -385,38 +386,23 @@ export function RoleHeader({
       </header>
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter" onClick={() => setSettingsOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-label="Account Settings" onClick={(e) => e.stopPropagation()} className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
-            <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10 sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white shadow-inner ring-1 ring-[#cfc2d6]/15">
-                  <AvatarImage src={displayAvatar} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Account Settings</h2>
-                  <p className="text-xs font-semibold text-ink-muted">Manage your profile details</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(false)}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <EditableProfileCard
-                initialProfile={{
-                  fullName: displayName,
-                  roleLabel: displayRole,
-                  profileImageUrl: headerProfile?.profileImageUrl || "",
-                }}
-                onSaved={setHeaderProfile}
-              />
-            </div>
-          </div>
-        </div>
+        <Modal
+          title="Account Settings"
+          eyebrow="Your account"
+          subtitle="Manage your profile details"
+          avatar={<AvatarImage src={displayAvatar} />}
+          size="md"
+          onClose={() => setSettingsOpen(false)}
+        >
+          <EditableProfileCard
+            initialProfile={{
+              fullName: displayName,
+              roleLabel: displayRole,
+              profileImageUrl: headerProfile?.profileImageUrl || "",
+            }}
+            onSaved={setHeaderProfile}
+          />
+        </Modal>
       )}
 
       {passwordModalOpen && (
@@ -473,28 +459,36 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#1f1a23]/45 p-5 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Change Password" onClick={(e) => e.stopPropagation()} className="w-full max-w-md overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
-        <div className="flex items-center justify-between px-7 py-5 border-b border-[#cfc2d6]/10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] shadow-sm ring-1 ring-[#cfc2d6]/15">
-              <KeyRound className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[#1d1b20] tracking-tight">Change Password</h2>
-              <p className="text-xs font-semibold text-ink-muted">Update your account password</p>
-            </div>
-          </div>
+    <Modal
+      title="Change Password"
+      eyebrow="Security"
+      subtitle="Update your account password"
+      icon={KeyRound}
+      tone="amber"
+      size="xs"
+      onClose={onClose}
+      dirty={Boolean(currentPassword || newPassword) && !loading}
+      dirtyMessage="Your new password has not been saved yet. Leave without changing it?"
+      footer={
+        <div className="flex gap-3">
           <button
-            type="button"
             onClick={onClose}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-90"
+            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
+            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+            {loading ? "Updating..." : "Update Password"}
           </button>
         </div>
-
-        <div className="p-6 space-y-4">
+      }
+    >
+        <div className="space-y-4">
           <div>
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Current Password
@@ -589,24 +583,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="flex gap-3 px-6 pb-6">
-          <button
-            onClick={onClose}
-            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {loading ? "Updating..." : "Update Password"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

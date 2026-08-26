@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { AlertTriangle, Check, Info, Loader2, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, Check, Info, Loader2, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Modal, type ModalTone } from "./modal";
 import { cn } from "@/lib/utils";
 
 interface ConfirmActionProps {
@@ -19,52 +19,47 @@ interface ConfirmActionProps {
 }
 
 /**
- * Each tone carries its own icon as well as its own colour: colour alone is not
- * a reliable signal, and "delete forever" and "save this" should not be
- * distinguishable only by hue.
+ * The confirm step, built on the shared dialog shell.
+ *
+ * It used to be its own overlay pinned at `z-[130]`, which was fine until it
+ * was raised from a dialog that had picked a higher number for itself — the
+ * exam, datesheet and year-end dialogs sit at 140–200 — and then the question
+ * rendered *behind* the thing that asked it. The screen dimmed twice and
+ * nothing appeared to happen. Sitting on `Modal` means depth comes from the
+ * open stack, so a confirm is on top because it opened last, and it inherits
+ * the focus trap, the scroll lock and the Escape-goes-to-the-top-one rule
+ * rather than reimplementing three of the four.
  */
-const TONES = {
+
+const TONES: Record<
+  NonNullable<ConfirmActionProps["tone"]>,
+  { icon: LucideIcon; modal: ModalTone; eyebrow: string; button: string }
+> = {
   danger: {
     icon: ShieldAlert,
-    wash: "from-rose-50/80 via-white to-rose-50/40",
-    rule: "border-rose-200/50",
-    tile: "from-rose-500 to-rose-600 shadow-rose-500/25",
-    eyebrow: "text-rose-600",
-    orb: "from-rose-400/15",
+    modal: "rose",
+    eyebrow: "This cannot be undone",
     button: "bg-rose-500 hover:bg-rose-600 shadow-rose-500/25",
-    label: "This cannot be undone",
   },
   warning: {
     icon: AlertTriangle,
-    wash: "from-amber-50/80 via-white to-amber-50/40",
-    rule: "border-amber-200/50",
-    tile: "from-amber-500 to-amber-600 shadow-amber-500/25",
-    eyebrow: "text-amber-600",
-    orb: "from-amber-400/15",
+    modal: "amber",
+    eyebrow: "Please confirm",
     button: "bg-amber-500 hover:bg-amber-600 shadow-amber-500/25",
-    label: "Please confirm",
   },
   primary: {
     icon: Info,
-    wash: "from-[#faf7fc] via-white to-[#f3eeff]",
-    rule: "border-[#cfc2d6]/20",
-    tile: "from-[#8127cf] to-[#6a1fb0] shadow-[#8127cf]/25",
-    eyebrow: "text-[#8127cf]",
-    orb: "from-[#8127cf]/15",
+    modal: "violet",
+    eyebrow: "Please confirm",
     button: "bg-[#8127cf] hover:bg-[#6a1fb0] shadow-[#8127cf]/25",
-    label: "Please confirm",
   },
   success: {
     icon: Check,
-    wash: "from-emerald-50/80 via-white to-emerald-50/40",
-    rule: "border-emerald-200/50",
-    tile: "from-emerald-500 to-emerald-700 shadow-emerald-500/25",
-    eyebrow: "text-emerald-600",
-    orb: "from-emerald-400/15",
+    modal: "emerald",
+    eyebrow: "Please confirm",
     button: "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25",
-    label: "Please confirm",
   },
-} as const;
+};
 
 export function ConfirmAction({
   open,
@@ -78,66 +73,26 @@ export function ConfirmAction({
   onConfirm,
   onCancel,
 }: ConfirmActionProps) {
-  // Escape cancels. The dialog previously trapped the user into clicking.
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onCancel();
-    };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [open, busy, onCancel]);
-
   if (!open) return null;
 
   const t = TONES[tone];
-  const Icon = t.icon;
 
   return (
-    <div
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-[#1f1a23]/50 p-4 backdrop-blur-md animate-backdrop-enter"
-      onClick={() => { if (!busy) onCancel(); }}
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.28)] animate-modal-enter"
-      >
-        <div className={cn("relative overflow-hidden border-b bg-gradient-to-br p-6", t.rule, t.wash)}>
-          <div className={cn("pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)} />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", t.tile)}>
-                <Icon className="h-6 w-6" />
-              </span>
-              <div className="min-w-0">
-                <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{t.label}</p>
-                <h2 className="mt-0.5 text-xl font-black leading-tight tracking-tight text-[#1f1a23]">{title}</h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={busy}
-              className="group/x flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-white hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <X className="h-4 w-4 transition-transform duration-300 group-hover/x:rotate-90" />
-              <span className="sr-only">Cancel</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="px-6 py-5">
-          <p className="text-sm font-semibold leading-relaxed text-ink">{description}</p>
-          {detail ? (
-            <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3 text-xs font-semibold text-ink">
-              {detail}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col-reverse gap-3 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-6 py-4 sm:flex-row sm:justify-end">
+    <Modal
+      title={title}
+      eyebrow={t.eyebrow}
+      icon={t.icon}
+      tone={t.modal}
+      size="xs"
+      role="alertdialog"
+      onClose={onCancel}
+      // Mid-write is the worst moment to lose the question: a stray click on the
+      // backdrop or a reflexive Escape while the request is in flight would
+      // leave the caller's `busy` state stranded with nothing on screen.
+      disableBackdropClose={busy}
+      hideClose={busy}
+      footer={
+        <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
@@ -159,7 +114,14 @@ export function ConfirmAction({
             {confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <p className="text-sm font-semibold leading-relaxed text-ink">{description}</p>
+      {detail ? (
+        <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3 text-xs font-semibold text-ink">
+          {detail}
+        </div>
+      ) : null}
+    </Modal>
   );
 }

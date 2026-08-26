@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Modal } from "@/components/ui/modal";
 import { downloadPdfFile } from "@/lib/download";
 import type { ClassOption, Invoice, InvoiceStatus } from "./fee-types";
 import {
@@ -398,12 +399,6 @@ function InvoiceDetailModal({
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
     <>
     <ConfirmAction
@@ -424,14 +419,14 @@ function InvoiceDetailModal({
       tone="danger"
       confirmLabel="Cancel Invoice"
     />
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-black text-[#1f1a23]">Invoice Detail</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal
+      title="Invoice Detail"
+      eyebrow="Fees"
+      subtitle={inv ? `${inv.invoiceNumber} · ${inv.student?.fullName ?? ""}` : undefined}
+      icon={Receipt}
+      size="sm"
+      onClose={onClose}
+    >
 
         {loading || !inv ? (
           <div className="space-y-4 py-2 animate-skeleton-in">
@@ -542,8 +537,7 @@ function InvoiceDetailModal({
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
     </>
   );
 }
@@ -603,21 +597,21 @@ function GenerateInvoicesModal({
 
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-black text-[#1f1a23]">Generate Invoices</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal
+      title="Generate Invoices"
+      eyebrow="Fees"
+      subtitle="Raises one invoice per active student for the month you pick."
+      icon={FileText}
+      size="xs"
+      onClose={onClose}
+      footer={
+        <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating}>
+          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+          {generating ? "Generating..." : "Generate Invoices"}
+        </BrandButton>
+      }
+    >
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Month</label>
@@ -641,12 +635,7 @@ function GenerateInvoicesModal({
             />
             <span className="text-xs font-bold text-ink-muted">Include late fees from overdue invoices</span>
           </label>
-          <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating}>
-            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            {generating ? "Generating..." : "Generate Invoices"}
-          </BrandButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

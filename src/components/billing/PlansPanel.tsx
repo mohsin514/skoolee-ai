@@ -12,6 +12,7 @@ import {
   Mail,
   RefreshCw,
 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -381,12 +382,33 @@ export function PlansPanel() {
       )}
 
       {paymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={() => setPaymentModalOpen(false)}>
-          <div role="dialog" aria-modal="true" className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <Building2 className="w-5 h-5 text-[#1f1a23]" />
-              <h3 className="text-lg font-bold text-[#1f1a23]">Bank Transfer</h3>
+        <Modal
+          title="Bank Transfer"
+          eyebrow="Billing"
+          icon={Building2}
+          size="xs"
+          onClose={() => setPaymentModalOpen(false)}
+          footer={
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentModalOpen(false)}
+                className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-ink hover:bg-[#f3f4f9] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitPaymentNotification}
+                disabled={isPlanAction !== null}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+              >
+                {isPlanAction ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Notify Owner
+              </button>
             </div>
+          }
+        >
             <p className="text-sm font-semibold text-ink-muted mb-4">
               Transfer <strong>{bankInfo?.amountLabel}</strong> to the account below, then submit your payment reference.
             </p>
@@ -410,7 +432,7 @@ export function PlansPanel() {
                 No bank details configured yet. Please contact the platform owner.
               </p>
             )}
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2">
               <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block">Payment Reference (optional)</label>
               <input
                 value={receiptRef}
@@ -419,26 +441,7 @@ export function PlansPanel() {
                 className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPaymentModalOpen(false)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-ink hover:bg-[#f3f4f9] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submitPaymentNotification}
-                disabled={isPlanAction !== null}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
-              >
-                {isPlanAction ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Notify Owner
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

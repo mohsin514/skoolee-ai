@@ -529,10 +529,21 @@ function DayPopover({
   const [saving, setSaving] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  /* A click anywhere outside dismissed this instantly. That is right for a
+     popover showing a day's events, and wrong the moment the office has typed
+     a holiday name into it, so the dismissal asks first once there is
+     something to lose. */
+  const dirty = canEdit && name.trim().length > 0;
+
+  const requestClose = useCallback(() => {
+    if (dirty && !window.confirm("Discard this holiday?")) return;
+    onClose();
+  }, [dirty, onClose]);
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (ref.current && !ref.current.contains(e.target as Node)) requestClose();
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
@@ -540,11 +551,19 @@ function DayPopover({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
-  }, [onClose]);
+  }, [requestClose]);
+
+  const datesReversed = fromDate > toDate;
+  /* Both of these were checked on submit and reported as toasts, so the
+     button looked ready and the failure arrived after the click. */
+  const blockedReason = !name.trim()
+    ? "Name this holiday to add it."
+    : datesReversed
+      ? "The end date is before the start date."
+      : null;
 
   const addHoliday = async () => {
-    if (!name.trim()) { toast.error("Enter a holiday name"); return; }
-    if (fromDate > toDate) { toast.error("End date must be on or after start"); return; }
+    if (blockedReason) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/academic/calendar${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`, {
@@ -562,6 +581,8 @@ function DayPopover({
     }
   };
 
+  const dayLabel = new Date(`${popover.iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
   const pos = { top: Math.min(popover.y, (typeof window !== "undefined" ? window.innerHeight - 320 : popover.y)), left: Math.min(popover.x, (typeof window !== "undefined" ? window.innerWidth - 300 : popover.x)) };
 
   const events: { kind: string; color: string; text: string }[] = [];
@@ -576,13 +597,14 @@ function DayPopover({
     <div
       ref={ref}
       style={pos}
+      role="dialog"
+      aria-label={`Events on ${dayLabel}`}
       className="fixed z-[200] w-[290px] rounded-2xl border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_24px_70px_rgba(31,26,35,0.28)] animate-modal-enter"
     >
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-black text-[#1d1b20]">
-          {new Date(`${popover.iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-        </p>
-        <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-subtle hover:bg-rose-50 hover:text-rose-500">
+        <p className="text-sm font-black text-[#1d1b20]">{dayLabel}</p>
+        <button type="button" onClick={requestClose} aria-label="Close" title="Close (Esc)"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle hover:bg-rose-50 hover:text-rose-500">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -612,26 +634,37 @@ function DayPopover({
             </label>
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">To</span>
-              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
+              {/* The picker itself now refuses a date before the start. */}
+              <input type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
+                className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/30 focus:border-[#8127cf]/60"}`} />
             </label>
           </div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}
             placeholder="Holiday name"
+            aria-label={`Holiday name for ${dayLabel}`}
             className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none focus:border-[#8127cf]/60"
           />
+          {blockedReason ? (
+            <p className="text-[10px] font-semibold text-amber-700">{blockedReason}</p>
+          ) : null}
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={addHoliday}
-              disabled={saving}
-              className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#0d9488] px-3 py-2 text-[11px] font-black text-white disabled:opacity-50"
+              disabled={saving || Boolean(blockedReason)}
+              title={blockedReason || `Add a holiday from ${fromDate} to ${toDate}`}
+              className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-[#0d9488] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PartyPopper className="h-3.5 w-3.5" /> Add Holiday
             </button>
             <button
+              type="button"
               onClick={() => { onClose(); if (onScheduleExam) onScheduleExam(); else toast.info("Open the Exam Cycles manager to schedule an exam."); }}
-              className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-3 py-2 text-[11px] font-black text-white"
+              title="Schedule an exam on this date"
+              className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97]"
             >
               <BookOpen className="h-3.5 w-3.5" /> Schedule Exam
             </button>

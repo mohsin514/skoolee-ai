@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDialogBehaviour } from "@/components/ui/modal";
 import {
   X,
   CalendarDays,
@@ -97,9 +98,7 @@ export function ExamDetailPanel({
       const typing =
         el &&
         (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (e.key === "Escape") {
-        handleClose();
-      } else if (!typing && e.key === "ArrowDown" && next && onNavigate) {
+      if (!typing && e.key === "ArrowDown" && next && onNavigate) {
         e.preventDefault();
         onNavigate(next.id);
       } else if (!typing && e.key === "ArrowUp" && prev && onNavigate) {
@@ -109,10 +108,20 @@ export function ExamDetailPanel({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [handleClose, next, prev, onNavigate]);
+  }, [next, prev, onNavigate]);
+
+  /**
+   * This is a side drawer, not a centred dialog, so it keeps its own slide-in
+   * presentation rather than moving to `Modal`. What it takes from the shared
+   * shell are the parts that were missing: a stack-assigned layer instead of a
+   * hand-picked `z-[150]`, a focus trap, a scroll lock on the page behind, and
+   * an Escape that defers to whatever is stacked above it.
+   */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { z } = useDialogBehaviour(panelRef, { onClose: handleClose });
 
   return createPortal(
-    <div className="fixed inset-0 z-[150] flex justify-end">
+    <div className="fixed inset-0 flex justify-end" style={{ zIndex: z }}>
       <div
         className={cn(
           "absolute inset-0 bg-[#1f1a23]/45 backdrop-blur-md transition-opacity duration-300",
@@ -121,8 +130,13 @@ export function ExamDetailPanel({
         onClick={handleClose}
       />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={exam.title}
+        tabIndex={-1}
         className={cn(
-          "relative flex h-full w-full max-w-3xl flex-col bg-[#faf7fc] shadow-[0_34px_90px_rgba(31,26,35,0.22)] transition-transform duration-300 ease-out",
+          "relative flex h-full w-full max-w-3xl flex-col bg-[#faf7fc] shadow-[0_34px_90px_rgba(31,26,35,0.22)] transition-transform duration-300 ease-out focus:outline-none",
           show ? "translate-x-0" : "translate-x-full"
         )}
       >

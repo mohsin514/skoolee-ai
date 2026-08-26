@@ -15,10 +15,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  X, Loader2, Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
+  Loader2, Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
   AlertCircle, ShieldCheck, KeyRound, ArrowRight, Eye, EyeOff, Users,
   GraduationCap, Layers, Zap,
+  type LucideIcon,
 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 
@@ -41,51 +43,33 @@ function makePassword(len = 14) {
   return out.slice(0, -1) + "23456789"[Math.floor(Math.random() * 8)];
 }
 
+/**
+ * The shell for every owner provisioning dialog.
+ *
+ * Delegates to the shared `Modal`. Its own version pinned itself at `z-[100]`,
+ * which put it under the account menus at `z-[999]`, and it set
+ * `document.body.style.overflow = ""` on close rather than restoring the
+ * previous value — so closing a provisioning dialog that had been opened from
+ * another dialog unlocked the page underneath both of them.
+ */
 function Shell({
   title, subtitle, icon: Icon, onClose, children, wide,
 }: {
-  title: string; subtitle: string; icon: any; onClose: () => void;
+  title: string; subtitle: string; icon: LucideIcon; onClose: () => void;
   children: React.ReactNode; wide?: boolean;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#1f1a23]/50 p-4 backdrop-blur-sm sm:p-8">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={`animate-modal-enter my-auto w-full ${wide ? "max-w-3xl" : "max-w-xl"} rounded-[28px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)]`}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[#cfc2d6]/15 p-6">
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
-              <Icon className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
-              <p className="mt-0.5 text-[13px] font-semibold leading-snug text-ink-muted">{subtitle}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 cursor-pointer rounded-xl p-2 text-ink-subtle transition-colors hover:bg-[#f3f4f9] hover:text-[#1f1a23]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Modal
+      title={title}
+      subtitle={subtitle}
+      icon={Icon}
+      eyebrow="Provisioning"
+      size={wide ? "md" : "sm"}
+      onClose={onClose}
+      bodyClassName="px-0 py-0 sm:px-0"
+    >
+      {children}
+    </Modal>
   );
 }
 

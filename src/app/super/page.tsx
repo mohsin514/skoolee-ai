@@ -52,6 +52,7 @@ import { FeesPanel } from "@/components/fees/FeesPanel";
 import { getPlanLimits } from "@/config/plans";
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/modal";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -1062,27 +1063,15 @@ function ModalFrame({
   onClose: () => void;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
   return (
-    <div className="animate-backdrop-enter fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onClick={(e) => e.stopPropagation()} className={`animate-modal-enter bg-white w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/20 custom-scrollbar`}>
-        <div className="flex justify-between items-start gap-5 mb-8">
-          <div>
-            <p className="text-[10px] font-black uppercase text-[#8127cf]">Network action</p>
-            <h3 className="mt-1 text-2xl font-black text-[#1f1a23] tracking-normal">{title}</h3>
-          </div>
-          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer transition-all">
-            <X className="w-5 h-5" /><span className="sr-only">Close</span>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Modal
+      title={title}
+      eyebrow="Network action"
+      size={wide ? "md" : "xs"}
+      onClose={onClose}
+    >
+      {children}
+    </Modal>
   );
 }
 

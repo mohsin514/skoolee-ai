@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Modal, MODAL_TONES, type ModalTone, type ModalSize } from "@/components/ui/modal";
 import {
   AlertTriangle,
   ArrowRight,
@@ -4422,66 +4423,26 @@ function AmountRowsEditor({
 /**
  * Accent colours a modal can carry. The tone drives the header wash, the icon
  * tile and the eyebrow, so a destructive dialog never looks like a create one.
+ *
+ * Re-exported from the shared dialog shell rather than redefined here — the two
+ * copies had drifted to slightly different ambers.
  */
-export const MODAL_TONES = {
-  violet: {
-    wash: "from-[#faf7fc] via-white to-[#f3eeff]",
-    tile: "from-[#8127cf] to-[#6a1fb0] shadow-[#8127cf]/25",
-    eyebrow: "text-[#8127cf]",
-    orb: "from-[#8127cf]/12",
-    rule: "border-[#cfc2d6]/20",
-  },
-  emerald: {
-    wash: "from-emerald-50/70 via-white to-emerald-50/40",
-    tile: "from-emerald-500 to-emerald-700 shadow-emerald-500/25",
-    eyebrow: "text-emerald-600",
-    orb: "from-emerald-400/12",
-    rule: "border-emerald-200/50",
-  },
-  amber: {
-    wash: "from-amber-50/70 via-white to-amber-50/40",
-    tile: "from-amber-500 to-amber-600 shadow-amber-500/25",
-    eyebrow: "text-amber-600",
-    orb: "from-amber-400/12",
-    rule: "border-amber-200/50",
-  },
-  rose: {
-    wash: "from-rose-50/70 via-white to-rose-50/40",
-    tile: "from-rose-500 to-rose-600 shadow-rose-500/25",
-    eyebrow: "text-rose-600",
-    orb: "from-rose-400/12",
-    rule: "border-rose-200/50",
-  },
-  sky: {
-    wash: "from-sky-50/70 via-white to-sky-50/40",
-    tile: "from-sky-500 to-sky-700 shadow-sky-500/25",
-    eyebrow: "text-sky-600",
-    orb: "from-sky-400/12",
-    rule: "border-sky-200/50",
-  },
-} as const;
-
-export type ModalTone = keyof typeof MODAL_TONES;
-
-const MODAL_SIZES = {
-  sm: "max-w-lg",
-  md: "max-w-2xl",
-  lg: "max-w-4xl",
-  xl: "max-w-6xl",
-} as const;
+export { MODAL_TONES };
+export type { ModalTone, ModalSize };
 
 /**
  * The shell every admin dialog sits in.
  *
- * The header and footer are pinned and only the body scrolls. They used to
- * scroll away with the content, so in the long profile dialogs you lost both
- * the title and the save button as soon as you started reading.
+ * The layout, layering and keyboard behaviour now come from the single `Modal`
+ * in ui/ — this stays as the admin-facing name and prop shape so the ~40 call
+ * sites in this file are untouched, and so `wide` keeps meaning what it always
+ * meant here.
  */
 export function ModalFrame({
   title,
   eyebrow,
   subtitle,
-  icon: Icon,
+  icon,
   avatar,
   chips,
   tone = "violet",
@@ -4491,6 +4452,8 @@ export function ModalFrame({
   size,
   footer,
   headerActions,
+  dirty,
+  dirtyMessage,
 }: {
   title: string;
   eyebrow?: string;
@@ -4506,155 +4469,33 @@ export function ModalFrame({
   onClose: () => void;
   /** Legacy shorthand for size="lg". */
   wide?: boolean;
-  size?: keyof typeof MODAL_SIZES;
+  size?: ModalSize;
   /** Pinned to the bottom, outside the scroll area. */
   footer?: ReactNode;
   /** Sits beside the close button, e.g. an Edit toggle. */
   headerActions?: ReactNode;
+  /** Holds typed-but-unsaved input — closing then asks before discarding. */
+  dirty?: boolean;
+  dirtyMessage?: string;
 }) {
-  const t = MODAL_TONES[tone];
-  const width = MODAL_SIZES[size ?? (wide ? "lg" : "sm")];
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Render to <body> via a portal. ModalFrame uses `position: fixed`, which
-  // positions relative to the nearest ancestor that has a transform/filter/
-  // backdrop-filter/will-change — several layout wrappers (and the `sk-rise`
-  // entrance animation) do, which pushed the dialog to the top of the card
-  // instead of centering over the viewport. Portaling escapes all of that.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  // Focus management. Without this the caret stays on whatever opened the
-  // dialog, so screen readers never enter it and Tab walks the page behind the
-  // backdrop. Move focus to the first real field (falling back to the dialog
-  // itself), keep Tab inside, and hand focus back to the opener on close.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const opener = document.activeElement as HTMLElement | null;
-
-    const focusables = () =>
-      Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
-
-    // Prefer a data-entry field over the close button, which is first in the DOM.
-    const items = focusables();
-    const firstField = items.find((el) => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
-    (firstField ?? items[0] ?? dialog).focus({ preventScroll: true });
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      const list = focusables();
-      if (!list.length) {
-        e.preventDefault();
-        return;
-      }
-      const first = list[0]!;
-      const last = list[list.length - 1]!;
-      const active = document.activeElement as HTMLElement | null;
-      if (e.shiftKey && (active === first || !dialog.contains(active))) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    dialog.addEventListener("keydown", onKeyDown);
-    return () => {
-      dialog.removeEventListener("keydown", onKeyDown);
-      opener?.focus?.({ preventScroll: true });
-    };
-    // Runs once the portal is actually in the DOM — before that dialogRef is null.
-  }, [mounted]);
-
-  // While a dialog is open the page behind it must not scroll — otherwise
-  // scrolling past the end of the dialog silently moved the page underneath.
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, []);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/50 backdrop-blur-md p-4 sm:p-6 animate-backdrop-enter"
-      onClick={onClose}
+  return (
+    <Modal
+      title={title}
+      eyebrow={eyebrow}
+      subtitle={subtitle}
+      icon={icon}
+      avatar={avatar}
+      chips={chips}
+      tone={tone}
+      size={size ?? (wide ? "lg" : "sm")}
+      footer={footer}
+      headerActions={headerActions}
+      onClose={onClose}
+      dirty={dirty}
+      dirtyMessage={dirtyMessage}
     >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.28)] animate-modal-enter",
-          width,
-        )}
-      >
-        {/* ── Pinned header ── */}
-        <div className={cn("relative shrink-0 overflow-hidden border-b bg-gradient-to-br px-6 py-5 sm:px-7", t.rule, t.wash)}>
-          <div className={cn("pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)} />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3.5">
-              {avatar ? (
-                <span className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-lg">
-                  {avatar}
-                </span>
-              ) : Icon ? (
-                <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", t.tile)}>
-                  <Icon className="h-6 w-6" />
-                </span>
-              ) : null}
-              <div className="min-w-0">
-                {eyebrow ? (
-                  <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
-                ) : null}
-                <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">{title}</h3>
-                {subtitle ? (
-                  <p className="mt-1 text-xs font-semibold leading-snug text-ink-muted">{subtitle}</p>
-                ) : null}
-                {chips ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{chips}</div> : null}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {headerActions}
-              <button
-                type="button"
-                onClick={onClose}
-                className="group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
-              >
-                <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
-                <span className="sr-only">Close</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Scrolling body ── */}
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-6 sm:px-7">{children}</div>
-
-        {/* ── Pinned footer ── */}
-        {footer ? (
-          <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-6 py-4 sm:px-7">{footer}</div>
-        ) : null}
-      </div>
-    </div>,
-    document.body
+      {children}
+    </Modal>
   );
 }
 

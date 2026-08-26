@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Loader2, Send, Sparkles, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Check, ClipboardCheck, Copy, Loader2, RefreshCw, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
@@ -39,6 +39,8 @@ export function AiActionPanel({
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [output, setOutput] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selected = useMemo(
     () => options.find((option) => option.feature === feature) || options[0],
@@ -77,6 +79,21 @@ export function AiActionPanel({
     }
   };
 
+  /* The panel drafts a lesson plan or a set of remarks and then showed it in a
+     scrolling box with no way to get it out — the whole point is to paste it
+     somewhere. Clipboard access can be refused (insecure origin, a locked-down
+     browser), so the failure is reported rather than silently doing nothing. */
+  const copyOutput = async () => {
+    try {
+      await navigator.clipboard.writeText(output);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Your browser blocked clipboard access — select the text and copy it manually.");
+    }
+  };
+
   if (options.length === 0) return null;
 
   return (
@@ -109,23 +126,63 @@ export function AiActionPanel({
         <Textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          /* Same problem the Select above had: the only description of this
+             field is its placeholder, which assistive tech does not announce
+             as a label. */
+          aria-label={`Context for ${selected?.label || "this AI action"}`}
           placeholder={selected?.placeholder || selected?.inputLabel || "Optional context"}
           rows={compact ? 3 : 4}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !busy) {
+              event.preventDefault();
+              runAI();
+            }
+          }}
           className="rounded-2xl border-[#cfc2d6]/30 bg-white/80"
         />
 
-        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy} icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}>
+        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy}
+          title="Run this AI action (⌘↵ from the context box)"
+          icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}>
           {busy ? "Drafting" : "Run AI"}
         </BrandButton>
 
         {output ? (
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-            <div className="flex items-center gap-2 text-emerald-700 mb-2">
-              <Check className="sk-check-pop w-4 h-4" />
-              <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <Check className="sk-check-pop w-4 h-4" />
+                <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={copyOutput}
+                  title="Copy this draft to the clipboard"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                >
+                  {copied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  type="button"
+                  onClick={runAI}
+                  disabled={busy}
+                  title="Draft this again with the same context"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                >
+                  <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
+                  Redo
+                </button>
+              </div>
             </div>
-            <p className="text-xs font-semibold leading-relaxed text-[#1f1a23] whitespace-pre-line max-h-40 overflow-y-auto custom-scrollbar">
+            {/* A long lesson plan scrolls inside this box; without the cue the
+                text simply appeared to stop mid-sentence. */}
+            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-xs font-semibold leading-relaxed text-[#1f1a23]">
               {output}
+            </p>
+            <p className="mt-2 text-[10px] font-semibold text-emerald-700/70">
+              {output.split(/\s+/).filter(Boolean).length} words · scroll for the rest · always read an AI draft before you use it
             </p>
           </div>
         ) : null}

@@ -1,14 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Languages, Loader2, Loader, LogOut, Mail, RefreshCw, Save, School, Send, Star, Trash2, Users, X, Zap,
+  AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Languages, Loader2, Loader, LogOut, Mail, MessageCircle, Phone, RefreshCw, Save, School, Send, Star, Trash2, Users, X, Zap,
 } from "lucide-react";
 import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
-import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
+import { cn } from "@/lib/utils";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UrduInput } from "@/components/ui/urdu-input";
@@ -151,34 +153,34 @@ export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
   );
 }
 
-export function ModalFrame({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
+/**
+ * The teacher console's dialog shell.
+ *
+ * This was one of two components in the codebase called `ModalFrame` — the
+ * other lives in shared-admin — and they had drifted into different behaviour
+ * under the same name. Both now delegate to the single `Modal` in ui/, so the
+ * focus trap, scroll lock, layering and mobile sheet are defined once. The
+ * teacher-facing prop shape is kept so the call sites in this file read the
+ * same as before.
+ */
+export function ModalFrame({ title, eyebrow, children, onClose, wide = false, footer, dirty = false, dirtyMessage = "You have unsaved changes. Discard them?" }: {
+  title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean; footer?: ReactNode;
+  /** Holds typed-but-unsaved input — closing then asks before discarding. */
+  dirty?: boolean;
+  dirtyMessage?: string;
+}) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter" role="presentation" onClick={onClose}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-        className={`bg-white w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] overflow-y-auto rounded-[34px] p-7 shadow-[0_34px_90px_rgba(31,26,35,0.22)] border border-[#cfc2d6]/15 custom-scrollbar animate-modal-enter`}>
-        <div className="flex justify-between items-start gap-5 mb-8">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-            <h3 id="modal-title" className="mt-1 text-2xl font-bold text-[#1d1b20] tracking-tight">{title}</h3>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close dialog"
-            className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500 cursor-pointer transition-all active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/50">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Modal
+      title={title}
+      eyebrow={eyebrow}
+      onClose={onClose}
+      size={wide ? "lg" : "sm"}
+      footer={footer}
+      dirty={dirty}
+      dirtyMessage={dirtyMessage}
+    >
+      {children}
+    </Modal>
   );
 }
 
@@ -217,13 +219,35 @@ export function FormSelect({ label, value, children, required, onChange }: { lab
   );
 }
 
-export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave }: { busy: boolean; busyLabel: string; actionLabel: string; onClose: () => void; onSave: () => void }) {
+export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave, blockedReason }: {
+  busy: boolean; busyLabel: string; actionLabel: string; onClose: () => void; onSave: () => void;
+  /** Non-empty means the form is not ready: the button is disabled and this
+      says exactly what is missing. The dialogs previously left the primary
+      action live regardless, so a required field the teacher had not filled in
+      was reported as a failed request instead of a visible gap in the form. */
+  blockedReason?: string | null;
+}) {
+  const blocked = Boolean(blockedReason);
   return (
-    <div className="mt-8 flex gap-4">
-      <BrandButton variant="soft" className="flex-1 h-14 hover:bg-rose-50 hover:text-rose-600 transition-all" onClick={onClose}>Cancel</BrandButton>
-      <BrandButton variant="dark" className="flex-[2] h-14" onClick={onSave} disabled={busy}>
-        {busy ? (<><Loader2 className="w-5 h-5 animate-spin" />{busyLabel}</>) : actionLabel}
-      </BrandButton>
+    <div className="space-y-2.5">
+      {blocked ? (
+        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-[12px] font-semibold text-amber-800">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {blockedReason}
+        </p>
+      ) : null}
+      <div className="flex gap-4">
+        <BrandButton variant="soft" className="flex-1 h-14 hover:bg-rose-50 hover:text-rose-600 transition-all" onClick={onClose}>Cancel</BrandButton>
+        <BrandButton
+          variant="dark"
+          className="flex-[2] h-14"
+          onClick={onSave}
+          disabled={busy || blocked}
+          title={blockedReason || actionLabel}
+        >
+          {busy ? (<><Loader2 className="w-5 h-5 animate-spin" />{busyLabel}</>) : actionLabel}
+        </BrandButton>
+      </div>
     </div>
   );
 }
@@ -266,10 +290,39 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
   open: boolean; classHubs: any[]; examForm: any; creatingExam: boolean;
   onClose: () => void; onFormChange: (field: string, value: string) => void; onCreate: () => void;
 }) {
+  const selectedClass = classHubs.find((c: any) => c.id === examForm.classId);
+  const subjects = selectedClass?.subjects || [];
+
+  // The three starred fields were decorative: Create stayed live with all of
+  // them blank and the server rejected the request, so a missing class read as
+  // a failure rather than as a form the teacher had not finished.
+  const missing = [
+    !examForm.title?.trim() && "a title",
+    !examForm.classId && "a class",
+    !examForm.term?.trim() && "a term",
+  ].filter(Boolean) as string[];
+  const blockedReason = missing.length
+    ? `Add ${missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`} to continue.`
+    : null;
+
   if (!open) return null;
   return (
-    <ModalFrame title="Create Assessment" eyebrow="Exam / Test setup" onClose={onClose}>
-      <div className="space-y-4">
+    <ModalFrame
+      title="Create Assessment"
+      eyebrow="Exam / Test setup"
+      onClose={onClose}
+      dirty={Boolean(examForm.title?.trim() || examForm.term?.trim())}
+      dirtyMessage="Discard this assessment without creating it?"
+      footer={
+        <ModalActions busy={creatingExam} busyLabel="Creating..." actionLabel="Create Assessment"
+          onClose={onClose} onSave={onCreate} blockedReason={blockedReason} />
+      }
+    >
+      {/* Enter submits, the way every other short form on the web does. */}
+      <form
+        className="space-y-4"
+        onSubmit={(e) => { e.preventDefault(); if (!blockedReason && !creatingExam) onCreate(); }}
+      >
         <FormInput label="Assessment Title" required value={examForm.title} placeholder="e.g. Week 3 Quiz, First Mid Term" onChange={(v) => onFormChange("title", v)} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormSelect label="Type" value={examForm.examType} onChange={(v) => onFormChange("examType", v)}>
@@ -289,14 +342,27 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
           </FormSelect>
         </div>
         <FormInput label="Term" required value={examForm.term} placeholder="e.g. First Term, Annual" onChange={(v) => onFormChange("term", v)} />
-        <FormSelect label="Subject (optional)" value={examForm.subjectId} onChange={(v) => onFormChange("subjectId", v)}>
-          <option value="">All Subjects</option>
-          {classHubs.find((c: any) => c.id === examForm.classId)?.subjects?.map((s: any) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </FormSelect>
-      </div>
-      <ModalActions busy={creatingExam} busyLabel="Creating..." actionLabel="Create Assessment" onClose={onClose} onSave={onCreate} />
+        <div>
+          <FormSelect label="Subject (optional)" value={examForm.subjectId} onChange={(v) => onFormChange("subjectId", v)}>
+            <option value="">All Subjects</option>
+            {subjects.map((s: any) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </FormSelect>
+          {/* This list is empty until a class is picked. Left unexplained it
+              reads as "this class has no subjects". */}
+          <p className="mt-1.5 pl-2 text-[11px] font-semibold text-ink-subtle">
+            {!examForm.classId
+              ? "Pick a class first to choose one of its subjects."
+              : subjects.length === 0
+                ? "This class has no subjects assigned yet — the assessment will cover all of them."
+                : `Leave as All Subjects to mark every subject in ${classLabel(selectedClass)} on one sheet.`}
+          </p>
+        </div>
+        {/* Submits the form on Enter from any field without adding a second
+            visible button next to the one in the footer. */}
+        <button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+      </form>
     </ModalFrame>
   );
 }
@@ -308,9 +374,74 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
   gradeConfigLoading: boolean; gradeConfigSaving: boolean;
   onClose: () => void; onClassChange: (id: string) => void; onConfigChange: (config: Record<string, number>) => void; onSave: () => void;
 }) {
+  const WEIGHTS = [
+    ["quizWeight", "Quiz"],
+    ["classTestWeight", "Class Test"],
+    ["midTermWeight", "Mid Term"],
+    ["finalWeight", "Final Exam"],
+  ] as const;
+
+  const weightTotal = WEIGHTS.reduce((sum, [key]) => sum + (Number(gradeConfig[key]) || 0), 0);
+  const weightsOk = weightTotal === 100;
+
+  /* The five grade bands have to descend strictly, or a student on 85% is
+     graded against whichever band the server happens to test first. The dialog
+     never checked, so an A set below a B saved silently and mis-graded a whole
+     class.
+
+     The pass mark is deliberately not part of that chain: it is a line drawn
+     across the same scale rather than another band, and setting it equal to
+     the D threshold — D being the lowest passing grade — is the ordinary
+     configuration. It only contradicts itself when it sits *above* D, which
+     would award a D to a student the same config counts as failing. */
+  const BANDS = [
+    ["gradeAplus", "A+"],
+    ["gradeA", "A"],
+    ["gradeB", "B"],
+    ["gradeC", "C"],
+    ["gradeD", "D"],
+  ] as const;
+  const THRESHOLDS = [...BANDS, ["passingPercentage", "Pass"]] as const;
+
+  const outOfOrder = BANDS.findIndex(
+    ([key], i) => i > 0 && (Number(gradeConfig[key]) || 0) >= (Number(gradeConfig[BANDS[i - 1][0]]) || 0),
+  );
+  const passAboveD =
+    (Number(gradeConfig.passingPercentage) || 0) > (Number(gradeConfig.gradeD) || 0);
+
+  const blockedReason = !selectedGradeClassId
+    ? "Select a class first."
+    : !weightsOk
+      ? `Weights total ${weightTotal}% — they must add up to exactly 100%.`
+      : outOfOrder > 0
+        ? `${BANDS[outOfOrder][1]} must be lower than ${BANDS[outOfOrder - 1][1]}.`
+        : passAboveD
+          ? "The pass mark is above the D threshold, so a student could be graded D and still fail."
+          : null;
+
+  /* One click to a valid split. Getting four numbers to land on 100 by hand is
+     arithmetic the teacher came here to delegate. */
+  const evenSplit = () => {
+    const each = Math.floor(100 / WEIGHTS.length);
+    const next: Record<string, number> = { ...gradeConfig };
+    WEIGHTS.forEach(([key], i) => {
+      next[key] = i === WEIGHTS.length - 1 ? 100 - each * (WEIGHTS.length - 1) : each;
+    });
+    onConfigChange(next);
+  };
+
   if (!open) return null;
   return (
-    <ModalFrame title="Grade Weight Configuration" eyebrow="Final grade calculation" onClose={onClose} wide>
+    <ModalFrame
+      title="Grade Weight Configuration"
+      eyebrow="Final grade calculation"
+      onClose={onClose}
+      wide
+      footer={
+        <ModalActions busy={gradeConfigSaving} busyLabel="Saving..." actionLabel="Save Grade Configuration"
+          onClose={onClose} onSave={onSave} blockedReason={blockedReason} />
+      }
+    >
       <div className="mb-4">
         <FormSelect label="Class" value={selectedGradeClassId} onChange={onClassChange}>
           <option value="">Select class</option>
@@ -321,32 +452,75 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
         <ModalSkeleton fieldRows={3} />
       ) : selectedGradeClassId ? (
         <div className="space-y-5">
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights (must total 100%)</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights</p>
+            <button type="button" onClick={evenSplit}
+              title="Split 100% evenly across the four exam types"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+              <RefreshCw className="h-3 w-3" /> Even split
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ConfigField label="Quiz Weight (%)" value={gradeConfig.quizWeight} onChange={(v) => onConfigChange({ ...gradeConfig, quizWeight: v })} />
-            <ConfigField label="Class Test Weight (%)" value={gradeConfig.classTestWeight} onChange={(v) => onConfigChange({ ...gradeConfig, classTestWeight: v })} />
-            <ConfigField label="Mid Term Weight (%)" value={gradeConfig.midTermWeight} onChange={(v) => onConfigChange({ ...gradeConfig, midTermWeight: v })} />
-            <ConfigField label="Final Exam Weight (%)" value={gradeConfig.finalWeight} onChange={(v) => onConfigChange({ ...gradeConfig, finalWeight: v })} />
+            {WEIGHTS.map(([key, label]) => (
+              <ConfigField key={key} label={`${label} Weight (%)`} value={gradeConfig[key]}
+                onChange={(v) => onConfigChange({ ...gradeConfig, [key]: v })} />
+            ))}
           </div>
-          <div className="rounded-2xl bg-[#fbf0fe]/60 p-4">
-            <p className="text-[10px] font-bold">Total: {Object.entries(gradeConfig).filter(([k]) => k.endsWith("Weight")).reduce((s, [, v]) => s + (v as number), 0)}%</p>
+
+          {/* The total used to be a grey line of text that read the same at 87%
+              as at 100%, next to a Save button that was live either way. */}
+          <div className={cn(
+            "rounded-2xl border p-4 transition-colors",
+            weightsOk ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70",
+          )}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider",
+                weightsOk ? "text-emerald-700" : "text-amber-800")}>
+                {weightsOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                Total {weightTotal}%
+              </span>
+              <span className={cn("text-[11px] font-semibold", weightsOk ? "text-emerald-700" : "text-amber-800")}>
+                {weightsOk
+                  ? "Ready to save"
+                  : weightTotal > 100
+                    ? `${weightTotal - 100}% over — take it off one of the four`
+                    : `${100 - weightTotal}% still to allocate`}
+              </span>
+            </div>
+            <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-white">
+              {WEIGHTS.map(([key], i) => {
+                const v = Number(gradeConfig[key]) || 0;
+                if (!v) return null;
+                const shades = ["bg-[#8127cf]", "bg-[#9c48ea]", "bg-[#b876f0]", "bg-[#d2aef7]"];
+                return (
+                  <span key={key} className={cn("h-full transition-all duration-300", shades[i])}
+                    style={{ width: `${Math.min(v, 100)}%` }} />
+                );
+              })}
+            </div>
           </div>
+
           <div className="border-t border-[#cfc2d6]/10 pt-5">
-            <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Grade Thresholds</p>
+            <p className="mb-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Grade Thresholds</p>
+            <p className="mb-3 text-[11px] font-semibold text-ink-subtle">
+              The lowest percentage that still earns each grade. Each one must sit below the grade above it.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <ConfigField label="A+ ≥" value={gradeConfig.gradeAplus} onChange={(v) => onConfigChange({ ...gradeConfig, gradeAplus: v })} />
-              <ConfigField label="A ≥" value={gradeConfig.gradeA} onChange={(v) => onConfigChange({ ...gradeConfig, gradeA: v })} />
-              <ConfigField label="B ≥" value={gradeConfig.gradeB} onChange={(v) => onConfigChange({ ...gradeConfig, gradeB: v })} />
-              <ConfigField label="C ≥" value={gradeConfig.gradeC} onChange={(v) => onConfigChange({ ...gradeConfig, gradeC: v })} />
-              <ConfigField label="D ≥" value={gradeConfig.gradeD} onChange={(v) => onConfigChange({ ...gradeConfig, gradeD: v })} />
-              <ConfigField label="Pass % ≥" value={gradeConfig.passingPercentage} onChange={(v) => onConfigChange({ ...gradeConfig, passingPercentage: v })} />
+              {THRESHOLDS.map(([key, label], i) => (
+                <div key={key} className={cn(
+                  (outOfOrder === i || (passAboveD && key === "passingPercentage")) &&
+                    "rounded-2xl ring-2 ring-rose-300 ring-offset-2",
+                )}>
+                  <ConfigField label={label === "Pass" ? "Pass % ≥" : `${label} ≥`} value={gradeConfig[key]}
+                    onChange={(v) => onConfigChange({ ...gradeConfig, [key]: v })} />
+                </div>
+              ))}
             </div>
           </div>
         </div>
       ) : (
         <EmptyInline text="Select a class to configure grade weights." />
       )}
-      <ModalActions busy={gradeConfigSaving} busyLabel="Saving..." actionLabel="Save Grade Configuration" onClose={onClose} onSave={onSave} />
     </ModalFrame>
   );
 }
@@ -376,9 +550,44 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
     }
   };
 
+  const summary = weightedGradeResult?.length
+    ? {
+        passed: weightedGradeResult.filter((g: any) => g.passed).length,
+        failed: weightedGradeResult.filter((g: any) => !g.passed).length,
+        average: Math.round(
+          weightedGradeResult.reduce((sum: number, g: any) => sum + (Number(g.overallPercentage) || 0), 0) /
+            weightedGradeResult.length,
+        ),
+      }
+    : null;
+
   if (!open) return null;
   return (
-    <ModalFrame title="Final Grades" eyebrow="Weighted grade calculation" onClose={onClose} wide>
+    <ModalFrame
+      title="Final Grades"
+      eyebrow="Weighted grade calculation"
+      onClose={onClose}
+      wide
+      footer={
+        weightedGradeResult?.length ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-bold text-ink-muted">
+              {weightedGradeResult.length} student{weightedGradeResult.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+                {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
+              </BrandButton>
+              <BrandButton variant="dark" icon={generatingReportCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}
+                title={reportCardsGenerated ? "These grades have already been saved" : "Write these weighted grades to each student's report card"}>
+                {generatingReportCards ? "Saving..." : reportCardsGenerated ? "Grades Saved" : "Generate & Save Grades"}
+              </BrandButton>
+            </div>
+          </div>
+        ) : null
+      }
+    >
       <div className="mb-4">
         <FormSelect label="Class" value={selectedGradeClassId} onChange={onClassChange}>
           <option value="">Select class</option>
@@ -390,6 +599,31 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
         <ModalSkeleton fieldRows={3} />
       ) : weightedGradeResult?.length ? (
         <>
+          {/* A ranked list of forty rows does not tell a teacher how the class
+              did. Three numbers above it do. */}
+          {summary ? (
+            <div className="mb-4 grid grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe]/60 px-4 py-3 text-center">
+                <p className="text-2xl font-black tabular-nums text-[#8127cf]">{summary.average}%</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Class average</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 text-center">
+                <p className="text-2xl font-black tabular-nums text-emerald-700">{summary.passed}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700/80">Passing</p>
+              </div>
+              <div className={cn(
+                "rounded-2xl border px-4 py-3 text-center",
+                summary.failed > 0 ? "border-rose-200/60 bg-rose-50/70" : "border-[#cfc2d6]/25 bg-white",
+              )}>
+                <p className={cn("text-2xl font-black tabular-nums", summary.failed > 0 ? "text-rose-700" : "text-ink-subtle")}>
+                  {summary.failed}
+                </p>
+                <p className={cn("text-[10px] font-black uppercase tracking-wider", summary.failed > 0 ? "text-rose-700/80" : "text-ink-subtle")}>
+                  Below pass
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="overflow-x-auto rounded-2xl border border-[#f3f4f9]">
             <table className="w-full min-w-[600px] text-left">
               <thead>
@@ -404,9 +638,21 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
               </thead>
               <tbody className="divide-y divide-[#f3f4f9]">
                 {weightedGradeResult.map((grade: any, i: number) => {
-                  const cls = classHubs.find((c: any) => c.id === selectedGradeClassId);
                   return (
-                    <tr key={grade.studentId} className="hover:bg-[#fbf0fe]/30 cursor-pointer transition-colors" onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}>
+                    /* Was a bare <tr onClick>: no role, no tab stop, no Enter.
+                       The only route from a grade to that student's report card
+                       was unavailable to anyone not using a mouse. */
+                    <tr key={grade.studentId} tabIndex={0} role="link"
+                      aria-label={`Open the report card for ${grade.studentName}`}
+                      title={`Open ${grade.studentName}'s report card`}
+                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-visible:bg-[#fbf0fe]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8127cf]/40"
+                      onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`);
+                        }
+                      }}>
                       <td className="px-5 py-4"><span className="text-sm font-bold text-ink-muted">#{grade.rank || i + 1}</span></td>
                       <td className="px-5 py-4"><p className="text-sm font-bold text-[#1d1b20]">{grade.studentName}</p></td>
                       <td className="px-4 py-4 text-center text-sm font-semibold text-ink-muted">{grade.rollNo || "—"}</td>
@@ -425,18 +671,6 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
             </table>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-bold text-ink-muted">{weightedGradeResult.length} students</p>
-            <div className="flex flex-wrap gap-3">
-              <BrandButton variant="dark" icon={generatingReportCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}>
-                {generatingReportCards ? "Saving..." : reportCardsGenerated ? "Grades Saved" : "Generate & Save Grades"}
-              </BrandButton>
-              <BrandButton variant="dark" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
-                {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
-              </BrandButton>
-            </div>
-          </div>
         </>
       ) : selectedGradeClassId ? (
         <div className="space-y-4">
@@ -454,13 +688,55 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
 
 /* ── Modal: Student Detail ── */
 
-export function StudentDetailModal({ student, exams, onClose }: { student: any; exams: any[]; onClose: () => void }) {
+export function StudentDetailModal({ student, onClose }: { student: any; exams?: any[]; onClose: () => void }) {
+  const router = useRouter();
   const report = student.reportCards?.[0];
   const avatar = student.profileImageUrl;
   const latestMarks = (student.marks || []).slice(0, 8);
+  const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
+  const whatsapp = student.guardianWhatsapp ? String(student.guardianWhatsapp).replace(/[^\d+]/g, "") : phone;
 
   return (
-    <ModalFrame title={student.fullName} eyebrow="Student profile" onClose={onClose} wide>
+    <ModalFrame
+      title={student.fullName}
+      eyebrow="Student profile"
+      onClose={onClose}
+      wide
+      /* The profile was read-only: a teacher who opened it to check on a child
+         then had to close it, navigate, and find them again to do anything
+         about what they had just read. */
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {phone ? (
+              <a href={`tel:${phone}`} title={`Call ${student.guardianName || "guardian"}`}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                <Phone className="h-3.5 w-3.5" /> Call guardian
+              </a>
+            ) : null}
+            {whatsapp ? (
+              <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
+                title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </a>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <BrandButton variant="soft" icon={<CalendarCheck className="h-4 w-4" />}
+              onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)}
+              title={`Mark attendance for ${classLabel(student.class)}`}>
+              Attendance
+            </BrandButton>
+            <BrandButton variant="dark" icon={<FileText className="h-4 w-4" />}
+              onClick={() => router.push(`/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || "")}`)}
+              title={`Open ${student.fullName}'s report card`}>
+              Report Card
+            </BrandButton>
+          </div>
+        </div>
+      }
+    >
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
           <AvatarImage src={avatar} />
@@ -471,6 +747,22 @@ export function StudentDetailModal({ student, exams, onClose }: { student: any; 
           <p className="mt-2 text-sm font-semibold text-ink-muted">
             {student.rollNo || "No roll number"} &mdash; {classLabel(student.class)}
           </p>
+          {student.todayAttendance !== undefined ? (
+            <p className="mt-2">
+              <span className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                student.todayAttendance === "PRESENT" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : student.todayAttendance === "ABSENT" ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : student.todayAttendance === "LEAVE" ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-[#cfc2d6]/30 bg-white text-ink-subtle",
+              )}>
+                {student.todayAttendance === "PRESENT" ? "In today"
+                  : student.todayAttendance === "ABSENT" ? "Absent today"
+                  : student.todayAttendance === "LEAVE" ? "On leave today"
+                  : "Not marked today"}
+              </span>
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -539,6 +831,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   const [remarks, setRemarks] = useState({ en: report.remarksEn || "", ur: report.remarksUr || "" });
   const [translatingUr, setTranslatingUr] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
   const urduTouchedRef = useRef(Boolean(report.remarksUr));
   const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translateSeq = useRef(0);
@@ -649,8 +942,55 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     viewReport.campus?.school?.website,
   ].filter(Boolean).join(" · ");
 
+  /* Remarks live in local state until Save Remarks is pressed. Closing the
+     dialog — including by a stray click on the backdrop — used to drop a page
+     of typed feedback without a word. */
+  const remarksDirty =
+    remarks.en !== (viewReport.remarksEn || "") || remarks.ur !== (viewReport.remarksUr || "");
+
   return (
-    <ModalFrame title={`${viewReport.student?.fullName || "Student"} \u2014 Report Card`} eyebrow="Academic result" onClose={onClose} wide>
+    <>
+    <ModalFrame
+      title={`${viewReport.student?.fullName || "Student"} \u2014 Report Card`}
+      eyebrow="Academic result"
+      onClose={onClose}
+      wide
+      dirty={Boolean(onSaveRemarks) && remarksDirty}
+      dirtyMessage="You have unsaved remarks. Close and discard them?"
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {remarksDirty && onSaveRemarks ? (
+            <span className="mr-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-amber-800">
+              <AlertCircle className="h-3.5 w-3.5" /> Unsaved remarks
+            </span>
+          ) : null}
+          {viewReport.exam?.id && viewReport.student?.id && onGenerateRemarks ? (
+            <BrandButton variant="soft" icon={<BrainCircuit className="w-4 h-4" />}
+              onClick={() => onGenerateRemarks(viewReport.student.id, viewReport.exam.id)}
+              disabled={remarkBusy === viewReport.student.id}
+              title="Draft remarks for this student with AI">
+              {remarkBusy === viewReport.student.id ? "Generating..." : "Generate Remarks"}
+            </BrandButton>
+          ) : null}
+          <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+            {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
+          </BrandButton>
+          {viewReport.isSent ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Already Sent
+            </span>
+          ) : (
+            /* Sending mails a family. It fired on a single click with no
+               confirmation, and there is no way to unsend it afterwards. */
+            <BrandButton variant="dark" icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              onClick={() => setConfirmSend(true)} disabled={busy}
+              title="Email this report card to the student's guardian">
+              {busy ? "Sending..." : "Send to Guardian"}
+            </BrandButton>
+          )}
+        </div>
+      }
+    >
       <div ref={printRef} id="report-card-print" className="space-y-6">
         {viewReport.campus ? (
           <div className="flex items-center gap-3 rounded-[30px] border border-[#8127cf]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
@@ -691,7 +1031,9 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <MiniMetric label="Roll No" value={viewReport.student?.rollNo || "N/A"} active />
           <MiniMetric label="Class" value={classLabel(viewReport.student?.class)} />
           <MiniMetric label="Status" value={<StatusPill status={viewReport.status} />} />
-          <MiniMetric label="Delivery" value={viewReport.deliveryStatus || "Pending"} />
+          {/* Rendered the raw enum, so this tile read "NOT_SENT" in a column
+              of title-cased values. formatStatus already existed for this. */}
+          <MiniMetric label="Delivery" value={formatStatus(viewReport.deliveryStatus)} />
         </div>
 
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
@@ -851,27 +1193,30 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           ) : (<div className="mt-4"><EmptyInline text="No remarks drafted yet." /></div>)}
         </div>
       </div>
-
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#cfc2d6]/10 pt-5">
-        {viewReport.exam?.id && viewReport.student?.id && onGenerateRemarks ? (
-          <BrandButton variant="soft" icon={<BrainCircuit className="w-4 h-4" />}
-            onClick={() => onGenerateRemarks(viewReport.student.id, viewReport.exam.id)}
-            disabled={remarkBusy === viewReport.student.id}>
-            {remarkBusy === viewReport.student.id ? "Generating..." : "Generate Remarks"}
-          </BrandButton>
-        ) : null}
-        {viewReport.isSent ? (
-          <span className="rounded-full bg-emerald-50 border border-emerald-200 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">Already Sent</span>
-        ) : (
-          <BrandButton variant="dark" icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} onClick={onSend} disabled={busy}>
-            {busy ? "Sending..." : "Send to Guardian"}
-          </BrandButton>
-        )}
-        <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
-          {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
-        </BrandButton>
-      </div>
     </ModalFrame>
+
+    <ConfirmAction
+      open={confirmSend}
+      tone="primary"
+      title="Send this report card?"
+      description={`${viewReport.student?.fullName || "This student"}'s guardian will be emailed the result for ${viewReport.exam?.title || "this assessment"}. A sent report card cannot be recalled.`}
+      detail={
+        remarksDirty ? (
+          <span className="text-amber-800">
+            Your remarks are not saved yet — save them first if they should go out with this report.
+          </span>
+        ) : (
+          <span>
+            {Math.round(viewReport.percentage || 0)}% · Grade {viewReport.grade || "—"} · {classLabel(viewReport.student?.class)}
+          </span>
+        )
+      }
+      confirmLabel="Send to guardian"
+      busy={busy}
+      onConfirm={() => { setConfirmSend(false); onSend(); }}
+      onCancel={() => setConfirmSend(false)}
+    />
+    </>
   );
 }
 

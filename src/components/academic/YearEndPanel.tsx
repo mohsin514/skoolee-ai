@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   Archive,
   ArrowRight,
@@ -20,6 +19,7 @@ import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
 
@@ -241,24 +241,32 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
       <AcademicYearPanel campusId={campusId} />
 
       {/* ── Archive confirmation modal ── */}
-      {showArchive && typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1f1a23]/45 backdrop-blur-md p-5 animate-backdrop-enter">
-            <div role="dialog" aria-modal="true" className="w-full max-w-md overflow-hidden rounded-[34px] border border-rose-200/40 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter">
-              <div className="bg-gradient-to-r from-rose-500 to-rose-600 px-7 py-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/20 text-white">
-                      <Archive className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">Archive Academic Year</h3>
-                  </div>
-                  <button onClick={() => setShowArchive(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 hover:bg-white/15">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-              <div className="p-7">
+      {showArchive && (
+        <Modal
+          title="Archive Academic Year"
+          eyebrow="This cannot be undone"
+          icon={Archive}
+          tone="rose"
+          role="alertdialog"
+          size="xs"
+          onClose={() => setShowArchive(false)}
+          // The typed confirmation is the whole safeguard; a backdrop click
+          // that wiped it would just make the user type the year again.
+          disableBackdropClose={archiving}
+          footer={
+            <div className="flex justify-end gap-3">
+              <BrandButton variant="soft" onClick={() => setShowArchive(false)}>Cancel</BrandButton>
+              <button
+                onClick={doArchive}
+                disabled={archiving || archiveConfirm.trim() !== activeCycle?.label}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-5 py-2.5 text-sm font-black text-white shadow-lg transition-all hover:bg-rose-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {archiving ? <><Loader2 className="h-4 w-4 animate-spin" /> Archiving…</> : <><Archive className="h-4 w-4" /> Archive Year</>}
+              </button>
+            </div>
+          }
+        >
+              <div>
                 <div className="mb-4 flex items-start gap-3 rounded-2xl border border-rose-200/50 bg-rose-50 p-4">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
                   <p className="text-xs font-semibold leading-relaxed text-rose-700">
@@ -276,21 +284,9 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     className="w-full rounded-xl border border-[#cfc2d6]/30 px-4 py-3 text-sm font-bold outline-none focus:border-rose-400"
                   />
                 </label>
-                <div className="mt-6 flex justify-end gap-3">
-                  <BrandButton variant="soft" onClick={() => setShowArchive(false)}>Cancel</BrandButton>
-                  <button
-                    onClick={doArchive}
-                    disabled={archiving || archiveConfirm.trim() !== activeCycle?.label}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-5 py-2.5 text-sm font-black text-white shadow-lg transition-all hover:bg-rose-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {archiving ? <><Loader2 className="h-4 w-4 animate-spin" /> Archiving…</> : <><Archive className="h-4 w-4" /> Archive Year</>}
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>,
-          document.body
-        )}
+        </Modal>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Modal } from "@/components/ui/modal";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure } from "./fee-types";
 import { API, classLabel, formatPKR } from "./fee-utils";
@@ -434,24 +435,21 @@ function StructureModal({
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
   const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-lg shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-black text-[#1f1a23]">
-            {editing ? "Edit Fee Structure" : "New Fee Structure"}
-          </h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
+    <Modal
+      title={editing ? "Edit Fee Structure" : "New Fee Structure"}
+      eyebrow="Fees"
+      subtitle="Sets what a class is billed each cycle, plus any standing discounts."
+      icon={editing ? Edit3 : Plus}
+      size="sm"
+      onClose={onClose}
+      footer={
+        <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {saving ? "Saving..." : editing ? "Update Structure" : "Create Structure"}
+        </BrandButton>
+      }
+    >
         <div className="space-y-4">
           <div>
             <label className={labelClass}>Class</label>
@@ -614,12 +612,7 @@ function StructureModal({
             </div>
           </div>
 
-          <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {saving ? "Saving..." : editing ? "Update Structure" : "Create Structure"}
-          </BrandButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

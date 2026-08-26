@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useId } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2, X, type LucideIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { ModalSurface, useModalSurface } from "@/components/ui/modal";
 
 export interface WizardStep {
   label: string;
@@ -21,22 +21,7 @@ export interface WizardStep {
  * apart (different progress bars, different chip styles, different footers).
  * One shell means a change to the flow lands in all three at once.
  */
-export function WizardShell({
-  eyebrow,
-  icon: Icon,
-  steps,
-  step,
-  onStepChange,
-  onClose,
-  onBack,
-  onNext,
-  onSubmit,
-  submitLabel,
-  submitIcon,
-  submitting,
-  submittingLabel = "Working…",
-  children,
-}: {
+interface WizardShellProps {
   eyebrow: string;
   icon: LucideIcon;
   steps: WizardStep[];
@@ -52,104 +37,56 @@ export function WizardShell({
   submitting: boolean;
   submittingLabel?: string;
   children: React.ReactNode;
-}) {
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
+}
+
+export function WizardShell(props: WizardShellProps) {
+  /**
+   * The shell keeps its own header — a step rail and a progress bar are not
+   * something the standard `Modal` header models — but the portal, the layer,
+   * the scroll lock, the focus trap and Escape all come from `ModalSurface`.
+   * They were ~70 lines of hand-rolled duplicate here, including a focus trap
+   * that had been copy-pasted from ModalFrame and then diverged.
+   */
+  return (
+    <ModalSurface onClose={props.onClose} size="md">
+      <WizardChrome {...props} />
+    </ModalSurface>
+  );
+}
+
+function WizardChrome({
+  eyebrow,
+  icon: Icon,
+  steps,
+  step,
+  onStepChange,
+  onClose,
+  onBack,
+  onNext,
+  onSubmit,
+  submitLabel,
+  submitIcon,
+  submitting,
+  submittingLabel = "Working…",
+  children,
+}: WizardShellProps) {
+  const { requestClose, dragHandleProps, titleId } = useModalSurface();
   const current = steps[step];
   const isLast = step === steps.length - 1;
   const progress = ((step + 1) / steps.length) * 100;
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  // Freeze the page behind the dialog, so scrolling past the end of the body
-  // does not quietly scroll the dashboard underneath it.
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, []);
 
   // Long steps left the user scrolled halfway down when they moved on.
   useEffect(() => {
     document.getElementById(`${titleId}-body`)?.scrollTo({ top: 0, behavior: "smooth" });
   }, [step, titleId]);
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Focus management, matching ModalFrame. Without it the caret stays on
-  // whatever opened the wizard, so screen readers never enter it and Tab walks
-  // the dashboard behind the backdrop.
-  // Hand focus back to whatever opened the wizard, once, when it closes.
-  // Kept apart from the trap below, which re-runs on every step and would
-  // otherwise bounce focus out to the opener between steps.
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    return () => opener?.focus?.({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const focusables = () =>
-      Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
-
-    const items = focusables();
-    const firstField = items.find((el) => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
-    (firstField ?? items[0] ?? dialog).focus({ preventScroll: true });
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      const list = focusables();
-      if (!list.length) {
-        e.preventDefault();
-        return;
-      }
-      const first = list[0]!;
-      const last = list[list.length - 1]!;
-      const active = document.activeElement as HTMLElement | null;
-      if (e.shiftKey && (active === first || !dialog.contains(active))) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    dialog.addEventListener("keydown", onKeyDown);
-    return () => dialog.removeEventListener("keydown", onKeyDown);
-    // Re-runs per step: each step swaps in a different set of fields, and focus
-    // should land on the new step's first input rather than stay behind.
-  }, [mounted, step]);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1a23]/50 p-4 backdrop-blur-md sm:p-6 animate-backdrop-enter"
-      onClick={onClose}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.28)] animate-modal-enter"
-      >
+  return (
+      <>
         {/* ── Pinned header ── */}
-        <div className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 pt-5 pb-4 sm:px-7">
+        <div
+          {...dragHandleProps}
+          className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 pb-4 pt-5 sm:touch-auto sm:px-7"
+        >
           <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3.5">
@@ -168,7 +105,7 @@ export function WizardShell({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               aria-label="Close"
               className="group/x flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-95"
             >
@@ -223,7 +160,7 @@ export function WizardShell({
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={step === 0 ? onClose : onBack}
+              onClick={step === 0 ? requestClose : onBack}
               disabled={submitting}
               className="flex h-12 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -255,9 +192,7 @@ export function WizardShell({
             )}
           </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      </>
   );
 }
 

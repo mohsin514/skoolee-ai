@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useDialogFocus } from "@/lib/hooks/use-dialog-focus";
+import { ModalActions, ModalFrame } from "@/components/teacher/teacher-components";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -46,8 +46,6 @@ export default function LeavePage() {
   const [applyForm, setApplyForm] = useState({ leaveTypeId: "", fromDate: "", toDate: "", reason: "" });
   const [applying, setApplying] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const applyDialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(applyDialogRef, showApply);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,20 +71,31 @@ export default function LeavePage() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (!showApply) return;
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setShowApply(false); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showApply]);
+  /* A backwards range used to return null, which rendered as nothing at all:
+     the day count simply vanished and Submit stayed live, so the teacher found
+     out from a server error. Both facts are surfaced now. */
+  const datesReversed = Boolean(
+    applyForm.fromDate && applyForm.toDate && new Date(applyForm.toDate) < new Date(applyForm.fromDate),
+  );
 
   const computedDays = (() => {
-    if (!applyForm.fromDate || !applyForm.toDate) return null;
+    if (!applyForm.fromDate || !applyForm.toDate || datesReversed) return null;
     const start = new Date(applyForm.fromDate);
     const end = new Date(applyForm.toDate);
-    if (end < start) return null;
     return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
   })();
+
+  const selectedBalance = balances.find((b: any) => b.leaveTypeId === applyForm.leaveTypeId);
+  const remainingDays = selectedBalance ? selectedBalance.remaining / 10 : null;
+  const overBalance = Boolean(computedDays && remainingDays !== null && computedDays > remainingDays);
+
+  const applyBlockedReason = !applyForm.leaveTypeId
+    ? "Choose a leave type."
+    : !applyForm.fromDate || !applyForm.toDate
+      ? "Pick both a from and a to date."
+      : datesReversed
+        ? "The end date is before the start date."
+        : null;
 
   const applyLeave = async () => {
     if (!applyForm.leaveTypeId) {
@@ -266,90 +275,112 @@ export default function LeavePage() {
       </div>
 
       {showApply ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-backdrop-enter" onClick={() => setShowApply(false)} />
-          <div ref={applyDialogRef} role="dialog" aria-modal="true" aria-label="Apply for Leave" className="relative z-[121] w-full max-w-xl overflow-hidden rounded-[34px] border border-[#cfc2d6]/15 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-7 py-5">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Leave Management</p>
-                <h3 className="mt-1 text-xl font-black tracking-tight text-[#1f1a23]">Apply for Leave</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowApply(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-rose-500 cursor-pointer"
+        <ModalFrame
+          title="Apply for Leave"
+          eyebrow="Leave Management"
+          onClose={() => setShowApply(false)}
+          dirty={Boolean(applyForm.fromDate || applyForm.toDate || applyForm.reason.trim())}
+          dirtyMessage="Discard this leave request?"
+          footer={
+            <ModalActions
+              busy={applying}
+              busyLabel="Submitting..."
+              actionLabel="Submit Request"
+              onClose={() => setShowApply(false)}
+              onSave={applyLeave}
+              blockedReason={applyBlockedReason}
+            />
+          }
+        >
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); if (!applyBlockedReason && !applying) applyLeave(); }}
+          >
+            <label className="block">
+              <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Leave Type</span>
+              <select
+                value={applyForm.leaveTypeId}
+                onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
+                className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                <option value="">Select leave type</option>
+                {types.map((t) => {
+                  const b = balances.find((x: any) => x.leaveTypeId === t.id);
+                  return (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({b ? `${daysLabel(b.remaining)} left` : `${daysLabel(t.defaultDays || 0)} default`})
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
 
-            <div className="space-y-4 px-7 py-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Leave Type</span>
-                <select
-                  value={applyForm.leaveTypeId}
-                  onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
-                  className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
-                >
-                  <option value="">Select leave type</option>
-                  {types.map((t) => {
-                    const b = balances.find((x: any) => x.leaveTypeId === t.id);
-                    return (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({b ? `${daysLabel(b.remaining)} left` : `${daysLabel(t.defaultDays || 0)} default`})
-                      </option>
-                    );
-                  })}
-                </select>
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">From Date</span>
+                <input
+                  type="date"
+                  value={applyForm.fromDate}
+                  onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
+                  className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
+                />
               </label>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">From Date</span>
-                  <input
-                    type="date"
-                    value={applyForm.fromDate}
-                    onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">To Date</span>
-                  <input
-                    type="date"
-                    value={applyForm.toDate}
-                    onChange={(e) => setApplyForm((p) => ({ ...p, toDate: e.target.value }))}
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
-                  />
-                </label>
-              </div>
-
-              {computedDays ? (
-                <p className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3 text-xs font-bold text-[#8127cf]">
-                  <CalendarDays className="h-4 w-4" /> {daysLabel(computedDays)} requested
-                </p>
-              ) : null}
-
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
-                <textarea
-                  value={applyForm.reason}
-                  onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
-                  rows={3}
-                  placeholder="Brief reason for the leave"
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white placeholder:text-ink-subtle"
+                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">To Date</span>
+                <input
+                  type="date"
+                  value={applyForm.toDate}
+                  /* The picker itself now refuses a date before the start, so
+                     the reversed range is prevented rather than reported. */
+                  min={applyForm.fromDate || undefined}
+                  onChange={(e) => setApplyForm((p) => ({ ...p, toDate: e.target.value }))}
+                  className={`h-14 w-full rounded-2xl border bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white ${
+                    datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/20 focus:border-[#8127cf]/40"
+                  }`}
                 />
               </label>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-[#cfc2d6]/10 px-7 py-4">
-              <BrandButton variant="soft" onClick={() => setShowApply(false)}>Cancel</BrandButton>
-              <BrandButton variant="dark" icon={applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plane className="w-4 h-4" />} onClick={applyLeave} disabled={applying}>
-                {applying ? "Submitting..." : "Submit Request"}
-              </BrandButton>
-            </div>
-          </div>
-        </div>
+            {datesReversed ? (
+              <p className="flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
+                <AlertCircle className="h-4 w-4 shrink-0" /> The end date falls before the start date.
+              </p>
+            ) : computedDays ? (
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3 text-xs font-bold text-[#8127cf]">
+                  <CalendarDays className="h-4 w-4" /> {daysLabel(computedDays * 10)} requested
+                  {remainingDays !== null ? (
+                    <span className="ml-auto font-semibold text-ink-muted">
+                      {daysLabel(selectedBalance.remaining)} available
+                    </span>
+                  ) : null}
+                </p>
+                {/* Requesting more than the balance is the approver's call, not
+                    a hard block — but the teacher should know before they send
+                    it, not after it comes back rejected. */}
+                {overBalance ? (
+                  <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    That is {daysLabel((computedDays - (remainingDays as number)) * 10)} more than your
+                    remaining balance — it can still be submitted, but may be declined.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <label className="block">
+              <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
+              <textarea
+                value={applyForm.reason}
+                onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
+                rows={3}
+                placeholder="Brief reason for the leave"
+                className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white placeholder:text-ink-subtle"
+              />
+            </label>
+            <button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+          </form>
+        </ModalFrame>
       ) : null}
     </TeacherPage>
   );

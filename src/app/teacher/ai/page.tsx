@@ -1,23 +1,86 @@
 "use client";
 
-import { BrainCircuit, BookOpen, Users, GraduationCap, BarChart3, Sparkles, TrendingUp, Zap, Bot, Lightbulb, Stars } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  BarChart3, BookOpen, Bot, BrainCircuit, ChevronDown, ClipboardCheck, Copy,
+  GraduationCap, Lightbulb, Search, Sparkles, Users, X,
+} from "lucide-react";
+import { toast } from "sonner";
 import { StatTiles } from "@/components/shared-admin/workspace";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { AiActionPanel } from "@/components/role-dashboard";
 import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { cn } from "@/lib/utils";
+
+/**
+ * The teacher's AI workspace.
+ *
+ * The previous version stacked eight to ten absolutely-positioned blur layers
+ * on every card — two ambient orbs, a hover wash, a radial overlay, a hairline
+ * gradient and a blurred halo behind each icon, repeated per card and again per
+ * insight row. It read as expensive rather than considered, and it pushed the
+ * actual content into a 360px column where every insight was clipped at three
+ * lines with no way to read the rest.
+ *
+ * The direction here: keep the AI identity — the purple gradient, the one dark
+ * surface, the sparkles — but carry depth with a single ambient wash per card,
+ * and spend the reclaimed room on the insights themselves, which are the only
+ * thing on this screen a teacher actually came for.
+ */
+
+const FEATURE_LABELS: Record<string, string> = {
+  weak_topics: "Weak topics",
+  homework_suggestions: "Homework",
+  lesson_plan: "Lesson plan",
+  rewrite_remark: "Rewritten remark",
+  translate_remark: "Translation",
+  generate_remarks: "Remarks",
+};
+
+function featureLabel(feature?: string) {
+  if (!feature) return "Insight";
+  return FEATURE_LABELS[feature] || feature.replaceAll("_", " ");
+}
+
+/** "3 days ago" beats a raw timestamp for judging whether a draft is stale. */
+function relativeTime(value?: string | Date | null) {
+  if (!value) return null;
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return null;
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 export default function AIPage() {
   const { data, loading, error, loadData } = useTeacherData();
+  const [query, setQuery] = useState("");
+  const [featureFilter, setFeatureFilter] = useState("");
 
   const classHubs = data?.classHubs || [];
   const teacherSubjects = data?.subjects || [];
   const aiCampusId = teacherSubjects[0]?.campusId || classHubs[0]?.campusId;
-  const attendanceStats = data?.attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
-  const activeExamsCount = (data?.activeExams || []).length;
-  const totalStudents = data?.totalStudents || 0;
-  const totalClasses = classHubs.length;
-  const totalSubjects = teacherSubjects.length;
+  const insights: any[] = useMemo(() => data?.aiInsights || [], [data]);
+
+  const features = useMemo(
+    () => [...new Set(insights.map((i) => i.feature).filter(Boolean))],
+    [insights],
+  );
+
+  const visibleInsights = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return insights.filter((insight) => {
+      if (featureFilter && insight.feature !== featureFilter) return false;
+      if (!q) return true;
+      return `${insight.title || ""} ${insight.summary || ""}`.toLowerCase().includes(q);
+    });
+  }, [insights, query, featureFilter]);
 
   const teacherAIFeatures = [
     { feature: "weak_topics", label: "Weak Topics", placeholder: "Subject or exam context" },
@@ -37,181 +100,267 @@ export default function AIPage() {
       eyebrow="Teaching Assistant"
       title="AI Insights & Tools"
       summary={
-        data.aiInsights?.length
-          ? `${data.aiInsights.length} insight${data.aiInsights.length === 1 ? "" : "s"} available · weak topics, homework, lesson plans and remarks`
+        insights.length
+          ? `${insights.length} draft${insights.length === 1 ? "" : "s"} saved · weak topics, homework, lesson plans and remarks`
           : "Weak topics, homework suggestions, lesson plans and remark generation"
       }
     >
       <div className="space-y-3">
+        {/* The tiles double as navigation, the same as on every other teacher
+            screen — the old dark "Academic Capacity" card restated three of
+            these four numbers immediately beside them. */}
         <StatTiles
-            tiles={[
-              { key: "subjects", icon: BookOpen, label: "Subjects", value: totalSubjects, hint: "Assigned", tone: "violet" },
-              { key: "classes", icon: GraduationCap, label: "Classes", value: totalClasses, hint: totalClasses === 1 ? "1 class hub" : `${totalClasses} class hubs`, tone: "emerald" },
-              { key: "exams", icon: BarChart3, label: "Active exams", value: activeExamsCount, hint: activeExamsCount === 1 ? "1 in progress" : `${activeExamsCount} in progress`, tone: "teal" },
-              { key: "students", icon: Users, label: "Students", value: totalStudents, hint: totalStudents === 1 ? "1 student" : `${totalStudents} enrolled`, tone: "rose" },
-            ]}
-          />
+          tiles={[
+            { key: "subjects", icon: BookOpen, label: "Subjects", value: teacherSubjects.length, hint: "Assigned", tone: "violet" },
+            { key: "classes", icon: GraduationCap, label: "Classes", value: classHubs.length, hint: classHubs.length === 1 ? "1 class hub" : `${classHubs.length} class hubs`, tone: "emerald" },
+            { key: "exams", icon: BarChart3, label: "Active exams", value: (data.activeExams || []).length, hint: "In progress", tone: "teal" },
+            { key: "students", icon: Users, label: "Students", value: data.totalStudents || 0, hint: "Enrolled", tone: "rose" },
+          ]}
+        />
 
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="flex-1 min-w-0">
-            <div className="group relative bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white p-6 rounded-[32px] border border-[#8127cf]/10 shadow-lg transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:border-[#8127cf]/25 overflow-hidden">
-              <CornerSparkles />
-              <div className="absolute -inset-4 bg-gradient-to-br from-[#8127cf]/8 via-[#b876f0]/5 to-transparent rounded-[40px] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-              <div className="absolute -top-24 -right-24 w-64 h-64 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-[80px]" />
-              <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-gradient-to-tr from-[#b876f0]/8 to-transparent rounded-full blur-[80px]" />
-              <div className="absolute top-1/3 -left-16 w-40 h-40 bg-gradient-to-r from-white/20 via-[#b876f0]/10 to-transparent rounded-full blur-[100px]" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_center,_#8127cf_0%,_#b876f0_30%,_transparent_70%)] opacity-0 group-hover:opacity-10 transition-opacity duration-700 pointer-events-none" />
-              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#8127cf]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-start gap-4 mb-6">
-                <div className="relative">
-                  <div className="absolute -inset-3 bg-gradient-to-br from-[#8127cf]/15 to-[#b876f0]/10 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#b876f0] flex items-center justify-center text-white shadow-lg shadow-[#8127cf]/20 transition-all duration-500 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-[#8127cf]/40">
-                    <Bot className="w-7 h-7" />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xl font-bold tracking-tight leading-none mb-1 text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">AI Assistant</h4>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0] px-2.5 py-0.5 text-[8px] font-bold text-white uppercase tracking-wider shadow-sm shadow-[#8127cf]/20">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      Powered
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">Teacher tools</p>
+        {/* ── The tool itself ── */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
+          <section className="group relative overflow-hidden rounded-[28px] border border-[#8127cf]/10 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+            {/* One wash, not six. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#8127cf]/[0.07] blur-3xl"
+            />
+            <CornerSparkles />
+            <div className="relative p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#b876f0] text-white shadow-[0_8px_20px_-6px_rgba(129,39,207,0.6)]">
+                  <Bot className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-base font-black tracking-tight text-[#1d1b20]">AI Assistant</h2>
+                  <p className="text-[11px] font-semibold text-ink-subtle">
+                    Drafts are saved below — nothing is sent to a guardian automatically.
+                  </p>
                 </div>
               </div>
-              <div className="relative">
-                <AiActionPanel
-                  title="Teacher AI"
-                  options={teacherAIFeatures}
-                  campusId={aiCampusId}
-                  onComplete={loadData}
-                />
+              <AiActionPanel
+                title="Teacher AI"
+                options={teacherAIFeatures}
+                campusId={aiCampusId}
+                onComplete={loadData}
+              />
+            </div>
+          </section>
+
+          {/* ── What the assistant is good for ──
+              The dark panel used to be four repeated stat numbers. A teacher
+              opening this screen for the first time has no idea what any of
+              the five actions actually produce; that is the gap worth
+              filling. */}
+          <aside className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1f1a23] via-[#2d2433] to-[#1f1a23] p-5 text-white shadow-[0_12px_32px_-12px_rgba(31,26,35,0.6)]">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#8127cf]/25 blur-3xl"
+            />
+            <CornerSparkles color="#c084fc" />
+            <div className="relative">
+              <div className="mb-4 flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
+                  <Sparkles className="h-3.5 w-3.5 text-[#c084fc]" />
+                </span>
+                <p className="text-[11px] font-black uppercase tracking-wider text-white/60">What it can do</p>
+              </div>
+              <ul className="space-y-2.5">
+                {[
+                  ["Weak topics", "Where a class is losing marks, from your entered results"],
+                  ["Homework", "Practice suggestions aimed at a weak area"],
+                  ["Lesson plan", "A structured plan for one topic and period length"],
+                  ["Rewrite remark", "Turns a blunt note into report-card language"],
+                  ["Translate", "An English remark rendered into Urdu"],
+                ].map(([label, what]) => (
+                  <li key={label} className="rounded-xl bg-white/[0.06] px-3 py-2.5 transition-colors hover:bg-white/[0.11]">
+                    <p className="text-[12px] font-black text-white">{label}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold leading-snug text-white/50">{what}</p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 rounded-xl bg-white/[0.06] px-3 py-2.5 text-[11px] font-semibold leading-snug text-white/55">
+                Student names are never sent to the model — drafts are written from
+                pseudonymised data and always need your review.
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        {/* ── Saved drafts ── */}
+        <section className="overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="flex flex-wrap items-center gap-3 border-b border-[#cfc2d6]/12 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <Lightbulb className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Saved AI drafts</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                  {insights.length} total{featureFilter || query ? ` · ${visibleInsights.length} shown` : ""}
+                </p>
               </div>
             </div>
-          </div>
 
-          <div className="space-y-6 w-full lg:w-[360px] shrink-0">
-            <div className="relative group bg-gradient-to-br from-[#1f1a23] via-[#2d2433] to-[#1f1a23] p-6 rounded-[32px] text-white overflow-hidden shadow-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
-              <CornerSparkles color="#c084fc" />
-              <div className="absolute -inset-4 bg-gradient-to-br from-[#8127cf]/12 via-[#b876f0]/8 to-transparent rounded-[40px] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-              <div className="absolute -top-32 -right-32 w-72 h-72 bg-gradient-to-bl from-[#8127cf]/15 to-transparent rounded-full blur-[100px]" />
-              <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-gradient-to-tr from-[#b876f0]/10 to-transparent rounded-full blur-[100px]" />
-              <div className="absolute top-1/4 -left-20 w-48 h-48 bg-gradient-to-r from-white/[0.08] via-[#b876f0]/8 to-transparent rounded-full blur-[120px]" />
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#8127cf]/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="relative">
-                    <div className="absolute -inset-2 bg-[#b876f0]/15 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative h-6 w-6 rounded-lg bg-gradient-to-br from-[#8127cf]/20 to-[#b876f0]/20 flex items-center justify-center">
-                      <Stars className="w-3.5 h-3.5 text-[#b876f0]" />
-                    </div>
-                  </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Academic Capacity</p>
+            {insights.length > 0 ? (
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[180px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search drafts…"
+                    aria-label="Search saved AI drafts"
+                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                  />
+                  {query ? (
+                    <button type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
+                      className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : null}
                 </div>
-                <div className="flex items-baseline gap-2 mb-1">
-                  <h4 className="text-4xl font-bold tracking-tight transition-all duration-300 group-hover:text-[#b876f0] group-hover:drop-shadow-[0_0_20px_rgba(184,118,240,0.6)]">{totalStudents}</h4>
-                  <span className="text-sm font-semibold text-white/40">students</span>
-                </div>
-                <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Across {totalClasses} class{totalClasses !== 1 ? "es" : ""} · {totalSubjects} subject{totalSubjects !== 1 ? "s" : ""}</p>
-                <div className="mt-5 grid grid-cols-2 gap-2">
-                  <AISideMetric label="Present Today" value={attendanceStats.present} />
-                  <AISideMetric label="Report Cards" value={data.recentReportCards?.length || 0} />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <AISideMetric label="Active Exams" value={activeExamsCount} />
-                  <AISideMetric label="AI Insights" value={data.aiInsights?.length || 0} />
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative bg-gradient-to-br from-white via-[#fbf0fe]/30 to-white p-6 rounded-[32px] border border-[#8127cf]/10 shadow-lg transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:border-[#8127cf]/25 overflow-hidden">
-              <CornerSparkles />
-              <div className="absolute -inset-4 bg-gradient-to-br from-[#8127cf]/6 via-[#b876f0]/4 to-transparent rounded-[40px] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-              <div className="absolute -top-20 -right-20 w-56 h-56 bg-gradient-to-bl from-[#8127cf]/8 to-transparent rounded-full blur-[80px]" />
-              <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-gradient-to-tr from-[#b876f0]/6 to-transparent rounded-full blur-[80px]" />
-              <div className="absolute top-1/3 right-1/4 w-32 h-32 bg-gradient-to-l from-white/20 via-[#b876f0]/8 to-transparent rounded-full blur-[100px]" />
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#8127cf]/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="flex items-center gap-2 mb-4 relative">
-                <div className="relative">
-                  <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative h-7 w-7 rounded-lg bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-[#8127cf]" />
-                  </div>
-                </div>
-                <h4 className="text-sm font-bold text-[#1d1b20] tracking-tight transition-colors group-hover:text-[#8127cf]">Recent AI Insights</h4>
-                {data.aiInsights?.length > 0 && (
-                  <span className="ml-auto inline-flex items-center rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0] px-2 py-0.5 text-[8px] font-bold text-white uppercase tracking-wider shadow-sm shadow-[#8127cf]/20">
-                    {data.aiInsights.length} new
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                {data.aiInsights?.length ? (
-                  <div className="space-y-3">
-                    {data.aiInsights.map((insight: any, idx: number) => (
-                      <div key={insight.id} className="group/insight relative p-4 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/70 via-white to-[#fbf0fe]/40 border border-[#8127cf]/8 transition-all duration-300 hover:bg-[#fbf0fe]/90 hover:shadow-lg hover:-translate-y-0.5 hover:border-[#8127cf]/25 overflow-hidden">
-                        <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/6 via-[#b876f0]/3 to-transparent rounded-2xl blur-lg opacity-0 group-hover/insight:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-[60px]" />
-                        <div className="absolute -bottom-8 -left-8 w-20 h-20 bg-gradient-to-tr from-[#b876f0]/8 to-transparent rounded-full blur-[50px]" />
-                        <div className="relative flex items-start gap-3">
-                          <div className="relative shrink-0 mt-0.5">
-                            <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-xl blur-md opacity-0 group-hover/insight:opacity-100 transition-opacity duration-500" />
-                            <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center transition-all duration-300 group-hover/insight:from-[#8127cf] group-hover/insight:to-[#b876f0] group-hover/insight:text-white">
-                              {idx === 0 ? <Lightbulb className="w-4 h-4 text-[#8127cf] transition-colors group-hover/insight:text-white" /> :
-                               idx === 1 ? <TrendingUp className="w-4 h-4 text-[#8127cf] transition-colors group-hover/insight:text-white" /> :
-                               <Zap className="w-4 h-4 text-[#8127cf] transition-colors group-hover/insight:text-white" />}
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[9px] font-bold text-[#8127cf] bg-white/80 rounded-full px-2 py-0.5 uppercase tracking-wider border border-[#8127cf]/10 transition-all group-hover/insight:bg-[#8127cf] group-hover/insight:text-white group-hover/insight:border-transparent group-hover/insight:shadow-md group-hover/insight:shadow-[#8127cf]/20">
-                                {insight.feature.replaceAll("_", " ")}
-                              </span>
-                              {insight.approvalStatus === "APPROVED" && (
-                                <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">Approved</span>
-                              )}
-                            </div>
-                            <p className="text-[11px] font-semibold leading-relaxed text-ink line-clamp-3 transition-colors group-hover/insight:text-[#1d1b20]">{insight.summary}</p>
-                          </div>
-                        </div>
-                      </div>
+                {features.length > 1 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {["", ...features].map((f) => (
+                      <button
+                        key={f || "all"}
+                        type="button"
+                        onClick={() => setFeatureFilter(f)}
+                        aria-pressed={featureFilter === f}
+                        className={cn(
+                          "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
+                          "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                          featureFilter === f
+                            ? "border-[#8127cf] bg-[#8127cf] text-white"
+                            : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
+                        )}
+                      >
+                        {f ? featureLabel(f) : "All"}
+                      </button>
                     ))}
                   </div>
-                ) : (
-                  <div className="relative p-6 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/30 border border-dashed border-[#8127cf]/15 text-center transition-all hover:bg-[#fbf0fe]/70 hover:shadow-md overflow-hidden">
-                    <div className="absolute -inset-3 bg-gradient-to-br from-[#8127cf]/4 to-transparent rounded-2xl blur-xl opacity-0 hover:opacity-100 transition-opacity duration-500" />
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#8127cf_0%,_transparent_70%)] opacity-[0.04]" />
-                    <div className="relative">
-                      <div className="relative inline-flex mb-3">
-                        <div className="absolute -inset-3 bg-gradient-to-br from-[#8127cf]/8 to-[#b876f0]/6 rounded-2xl blur-lg" />
-                        <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center">
-                          <Zap className="w-6 h-6 text-[#8127cf]/40" />
-                        </div>
-                      </div>
-                      <p className="text-[11px] font-medium leading-relaxed italic text-ink-muted">
-                        AI drafts for remarks, weak topics, homework, and lesson planning will appear here.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                ) : null}
               </div>
-            </div>
+            ) : null}
           </div>
-        </div>
+
+          {visibleInsights.length ? (
+            <ul className="divide-y divide-[#f3f4f9]">
+              {visibleInsights.map((insight) => (
+                <InsightRow key={insight.id} insight={insight} />
+              ))}
+            </ul>
+          ) : insights.length ? (
+            <div className="flex flex-col items-center gap-3 p-10 text-center">
+              <p className="text-sm font-bold text-[#1d1b20]">No draft matches that</p>
+              <button type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                <Lightbulb className="h-7 w-7" />
+              </span>
+              <h3 className="mt-2 text-base font-black text-[#1d1b20]">No drafts yet</h3>
+              <p className="max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
+                Pick an action above and run it. Every draft is saved here so you can come
+                back to it, copy it, and edit it before it goes anywhere.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
     </TeacherPage>
   );
 }
 
+/**
+ * One saved draft.
+ *
+ * The old list clipped every summary at three lines with no way to open it, so
+ * a lesson plan the assistant had written was effectively write-only.
+ */
+function InsightRow({ insight }: { insight: any }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const body = insight.summary || "";
+  const when = relativeTime(insight.createdAt);
 
-function AISideMetric({ label, value }: { label: string; value: any }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${insight.title ? `${insight.title}\n\n` : ""}${body}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Your browser blocked clipboard access — select the text and copy it manually.");
+    }
+  };
+
   return (
-    <div className="relative rounded-2xl bg-white/8 border border-white/5 px-3.5 py-3 transition-all duration-300 hover:bg-white/[0.14] hover:border-[#8127cf]/20 hover:shadow-lg hover:-translate-y-0.5 group/metric overflow-hidden">
-      <div className="absolute -inset-2 bg-gradient-to-br from-[#b876f0]/6 to-transparent rounded-2xl blur-lg opacity-0 group-hover/metric:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      <p className="relative text-[10px] font-semibold uppercase tracking-wider text-white/50 transition-colors group-hover/metric:text-[#b876f0]/80">{label}</p>
-      <p className="relative mt-0.5 truncate text-lg font-bold text-white transition-all group-hover/metric:text-[#b876f0] group-hover/metric:drop-shadow-[0_0_12px_rgba(184,118,240,0.5)]">{value}</p>
-    </div>
+    <li className="group transition-colors hover:bg-[#fbf0fe]/20">
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+          <Sparkles className="h-4 w-4" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+              {featureLabel(insight.feature)}
+            </span>
+            {insight.approvalStatus === "APPROVED" ? (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                Approved
+              </span>
+            ) : insight.approvalStatus === "REJECTED" ? (
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-700">
+                Rejected
+              </span>
+            ) : null}
+            {when ? (
+              <span className="text-[10px] font-semibold text-ink-subtle">{when}</span>
+            ) : null}
+          </div>
+
+          {/* `title` was selected by the server and then never rendered — the
+              row led with the summary and dropped the headline entirely. */}
+          {insight.title ? (
+            <p className="text-sm font-black leading-snug text-[#1d1b20]">{insight.title}</p>
+          ) : null}
+          <p className={cn(
+            "mt-0.5 whitespace-pre-line text-[12px] font-semibold leading-relaxed text-ink-muted",
+            !open && "line-clamp-2",
+          )}>
+            {body}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={copy}
+            title="Copy this draft"
+            aria-label={`Copy the ${featureLabel(insight.feature)} draft`}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+          >
+            {copied ? <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            title={open ? "Collapse" : "Read the full draft"}
+            aria-label={open ? "Collapse this draft" : "Read the full draft"}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
+          </button>
+        </div>
+      </div>
+    </li>
   );
 }
-

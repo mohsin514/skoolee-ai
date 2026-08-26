@@ -1,13 +1,27 @@
 // ===========================================
-// shadcn/ui - Dialog Component (Headless)
+// Dialog — the compound (shadcn-shaped) API
 // ===========================================
 
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
-import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
+
+/**
+ * The trigger/content compound API, for the handful of screens written against
+ * it — the class list, the bulk student import and the fee management panel.
+ *
+ * The shell underneath is now the shared `ModalSurface`, so these six dialogs
+ * pick up the same portal, layering, focus trap, scroll lock and mobile sheet
+ * as everything else. Previously this file had its own copy that portaled and
+ * handled Escape but never moved focus, and stacked itself at a fixed `z-[120]`
+ * — under the account dropdowns, which sit at `z-[999]`.
+ *
+ * `Modal` is the better starting point for anything new; this stays for the
+ * call sites that compose their own header.
+ */
 
 interface DialogContextType {
   open: boolean;
@@ -18,6 +32,9 @@ const DialogContext = React.createContext<DialogContextType>({
   open: false,
   setOpen: () => {},
 });
+
+/** Lets DialogContent hand its close action down to a nested DialogClose. */
+const DialogCloseContext = React.createContext<() => void>(() => {});
 
 function Dialog({
   children,
@@ -64,66 +81,83 @@ function DialogTrigger({
 function DialogContent({
   children,
   className,
+  size,
+  dirty,
+  dirtyMessage,
 }: {
   children: React.ReactNode;
   className?: string;
+  size?: ModalSize;
+  /** Holds typed-but-unsaved input — closing then asks before discarding. */
+  dirty?: boolean;
+  dirtyMessage?: string;
 }) {
   const { open, setOpen } = React.useContext(DialogContext);
-  const contentRef = React.useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = React.useState(false);
 
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  if (!open) return null;
 
-  React.useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, setOpen]);
+  return (
+    <ModalSurface
+      onClose={() => setOpen(false)}
+      size={size}
+      dirty={dirty}
+      dirtyMessage={dirtyMessage}
+      className={className}
+    >
+      <DialogBody>{children}</DialogBody>
+    </ModalSurface>
+  );
+}
 
-  React.useEffect(() => {
-    if (open && contentRef.current) {
-      contentRef.current.focus();
-    }
-  }, [open]);
+function DialogBody({ children }: { children: React.ReactNode }) {
+  const { requestClose, dragHandleProps } = useModalSurface();
 
-  if (!open || !mounted) return null;
+  return (
+    <DialogCloseContext.Provider value={requestClose}>
+      {/* No pinned header here — these call sites compose their own with
+          DialogHeader. The grab strip is still the phone's drag target, so
+          the sheet stays dismissable by gesture. */}
+      <div {...dragHandleProps} className="shrink-0 touch-none pt-3 sm:hidden">
+        <div className="mx-auto h-1.5 w-11 rounded-full bg-[#1f1a23]/15" aria-hidden />
+      </div>
 
-  const dialog = (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div
-        className="fixed inset-0 bg-[#1f1a23]/45 backdrop-blur-md animate-in fade-in-0"
-        onClick={() => setOpen(false)}
-      />
-      <div
-        ref={contentRef}
-        tabIndex={-1}
-        className={cn(
-          "relative z-[121] max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-[0_34px_90px_rgba(31,26,35,0.22)] animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 custom-scrollbar focus:outline-none",
-          className
-        )}
+      <button
+        type="button"
+        className="absolute right-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+        onClick={requestClose}
       >
-        <button
-          type="button"
-          className="absolute right-4 top-4 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
-          onClick={() => setOpen(false)}
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
+        <X className="h-4 w-4" />
+        <span className="sr-only">Close</span>
+      </button>
+
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
         {children}
       </div>
-    </div>
+    </DialogCloseContext.Provider>
   );
+}
 
-  return createPortal(dialog, document.body);
+/** Closes the surrounding DialogContent, playing its exit animation. */
+function DialogClose({
+  children,
+  asChild,
+}: {
+  children: React.ReactNode;
+  asChild?: boolean;
+}) {
+  const close = React.useContext(DialogCloseContext);
+
+  if (asChild && React.isValidElement(children)) {
+    return React.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
+      onClick: close,
+    });
+  }
+
+  return (
+    <button type="button" onClick={close}>
+      {children}
+    </button>
+  );
 }
 
 function DialogHeader({
@@ -132,7 +166,7 @@ function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mb-5 flex flex-col space-y-1.5 pr-10 text-center sm:text-left", className)}
+      className={cn("mb-5 flex flex-col space-y-1.5 pr-10 text-left", className)}
       {...props}
     />
   );
@@ -181,6 +215,7 @@ export {
   Dialog,
   DialogTrigger,
   DialogContent,
+  DialogClose,
   DialogHeader,
   DialogTitle,
   DialogDescription,

@@ -7,6 +7,7 @@ import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
 import { useTeacherData } from "./teacher-data-context";
 import { TEACHER_NAV } from "@/components/teacher/teacher-page";
+import { TeacherCommandPalette } from "@/components/teacher/command-palette";
 
 export function TeacherShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -41,6 +42,10 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
         <CycleGate>
           {children}
         </CycleGate>
+        {/* ⌘K from anywhere in the console. Mounted at the shell so it survives
+            route changes and can reach the already-loaded class and student
+            lists without a second fetch. */}
+        <TeacherCommandPalette data={data} />
       </RoleShell>
     </CycleProvider>
   );

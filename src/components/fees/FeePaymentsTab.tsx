@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Modal } from "@/components/ui/modal";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
 import type { PaymentRecord } from "./fee-types";
@@ -410,21 +411,20 @@ function PaymentModal({
 
   const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-black text-[#1f1a23]">Record Payment</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal
+      title="Record Payment"
+      eyebrow="Fees"
+      subtitle="Find the student, pick the invoice, then take the payment."
+      icon={Banknote}
+      tone={step === "receipt" ? "emerald" : "violet"}
+      size="xs"
+      onClose={onClose}
+      // A recorded payment is money that has changed hands; a stray click on the
+      // backdrop must not be what discards the half-entered form behind it.
+      dirty={step === "payment" && !saving}
+      dirtyMessage="This payment has not been recorded yet. Leave without saving it?"
+    >
 
         {step === "receipt" && receipt ? (
           <div className="space-y-5">
@@ -623,8 +623,7 @@ function PaymentModal({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -642,12 +641,6 @@ function BankImportModal({
   const [statementFrom, setStatementFrom] = useState("");
   const [statementTo, setStatementTo] = useState("");
   const [importing, setImporting] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
 
   const handleImport = async () => {
     if (!file || !accountName || !statementFrom || !statementTo) {
@@ -679,14 +672,20 @@ function BankImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="bg-white rounded-[32px] p-6 w-full max-w-md shadow-2xl mx-4 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-black text-[#1f1a23]">Import Bank Statement</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#e8e0ec] transition-colors cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal
+      title="Import Bank Statement"
+      eyebrow="Fees"
+      subtitle="Uploads a CSV and matches its transactions against open invoices."
+      icon={Landmark}
+      size="xs"
+      onClose={onClose}
+      footer={
+        <BrandButton className="w-full h-12" onClick={handleImport} disabled={importing || !file}>
+          {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
+          {importing ? "Importing..." : "Import & Auto-Match"}
+        </BrandButton>
+      }
+    >
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Account Name</label>
@@ -721,12 +720,7 @@ function BankImportModal({
               )}
             </label>
           </div>
-          <BrandButton className="w-full h-12" onClick={handleImport} disabled={importing || !file}>
-            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
-            {importing ? "Importing..." : "Import & Auto-Match"}
-          </BrandButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -2,9 +2,28 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, DoorOpen, GraduationCap, Loader2, Maximize2, Minimize2, Palette, Plus,
-  Printer, Rows3, Send, Trash2, User, X,
+  AlertTriangle,
+  BookOpen,
+  Calendar,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  DoorOpen,
+  GraduationCap,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Palette,
+  Pencil,
+  Plus,
+  Printer,
+  Rows3,
+  Send,
+  Trash2,
+  User,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +32,7 @@ import { RoomView } from "./RoomView";
 import { SubjectPalette } from "./SubjectPalette";
 import { TeacherView } from "./TeacherView";
 import { TimetableGrid, type GridDensity } from "./TimetableGrid";
+import { Modal, ModalActions } from "@/components/ui/modal";
 
 const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
 
@@ -215,12 +235,6 @@ function PeriodConfigModal({
   onSave: (periods: { period: number; start: string; end: string; type: string }[]) => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
   const [localPeriods, setLocalPeriods] = useState(periods.length > 0 ? periods : defaultPeriods);
 
   const updatePeriod = (index: number, field: string, value: string) => {
@@ -240,17 +254,26 @@ function PeriodConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Configure Periods" className="relative w-full max-w-lg rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter" onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
-          <X className="w-4 h-4" /><span className="sr-only">Close</span>
-        </button>
-        <div className="mb-6">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Timetable Setup</p>
-          <h3 className="text-xl font-black text-[#1f1a23] mt-1">Configure Periods</h3>
-          <p className="text-xs font-semibold text-ink-subtle mt-1">Set start/end times and types for each period</p>
-        </div>
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+    <Modal
+      title="Configure Periods"
+      eyebrow="Timetable Setup"
+      subtitle="Set start/end times and types for each period."
+      icon={Clock}
+      size="sm"
+      onClose={onClose}
+      footer={
+        <ModalActions
+          actionLabel={isNew ? "Create Timetable" : "Save Periods"}
+          onCancel={onClose}
+          onAction={() => onSave(localPeriods)}
+        />
+      }
+    >
+        {/* The list used to carry its own `max-h-[60vh] overflow-y-auto`, which
+            nested a scroller inside the dialog's scroller — two scrollbars, and
+            a wheel gesture that stalled at the inner edge. The dialog body is
+            the only thing that scrolls now. */}
+        <div className="space-y-3 pr-1">
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-3">
               <span className="w-6 text-center text-[10px] font-black text-[#8127cf]">P{p.period}</span>
@@ -295,24 +318,7 @@ function PeriodConfigModal({
             <Plus className="w-4 h-4" />Add Period
           </button>
         </div>
-        <div className="mt-8 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-[#f3f4f9] px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onSave(localPeriods)}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
-          >
-            <Check className="w-3.5 h-3.5" />{isNew ? "Create Timetable" : "Save Periods"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -334,12 +340,6 @@ function SlotEditorModal({
   onSave: (updates: SlotChange) => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
   const current = {
     subjectId: pendingChange?.subjectId !== undefined ? pendingChange.subjectId : slot.subjectId,
     teacherId: pendingChange?.teacherId !== undefined ? pendingChange.teacherId : slot.teacherId,
@@ -402,20 +402,32 @@ function SlotEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop-enter" onClick={onClose}>
-      <div
-        role="dialog" aria-modal="true" aria-label="Edit Slot"
-        className="relative w-full max-w-md rounded-[34px] bg-white p-8 shadow-2xl animate-modal-enter"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button type="button" onClick={onClose} className="absolute right-6 top-6 rounded-xl p-2 text-ink-subtle hover:bg-[#f3f4f9] transition-colors cursor-pointer">
-          <X className="w-4 h-4" /><span className="sr-only">Close</span>
-        </button>
-        <div className="mb-6">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Edit Slot</p>
-          <h3 className="text-xl font-black text-[#1f1a23] mt-1">{dayName} — Period {slot.periodNumber}</h3>
-          <p className="text-xs font-semibold text-ink-subtle mt-1">{slot.startTime} – {slot.endTime}</p>
+    <Modal
+      title={`${dayName} — Period ${slot.periodNumber}`}
+      eyebrow="Edit Slot"
+      subtitle={`${slot.startTime} – ${slot.endTime}`}
+      icon={Pencil}
+      size="xs"
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+          >
+            <X className="w-3 h-3" />Clear
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+          >
+            <Check className="w-3.5 h-3.5" />Apply
+          </button>
         </div>
+      }
+    >
 
         <div className="space-y-4">
           <div>
@@ -495,24 +507,7 @@ function SlotEditorModal({
           )}
         </div>
 
-        <div className="mt-8 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
-          >
-            <X className="w-3 h-3" />Clear
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
-          >
-            <Check className="w-3.5 h-3.5" />Apply
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
