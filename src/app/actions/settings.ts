@@ -200,6 +200,21 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
   };
 }
 
+/**
+ * Prisma skips any `data` key whose value is `undefined`, which gives these
+ * actions proper patch semantics:
+ *
+ *   field absent from the payload → left exactly as it is
+ *   field present but empty       → cleared
+ *
+ * Without this an omitted key resolved to `null` and silently wiped a column,
+ * so a caller sending only the two fields it meant to change would blank the
+ * campus's board, address and phone as a side effect.
+ */
+function patchText(value: string | null | undefined) {
+  return value === undefined ? undefined : optionalText(value);
+}
+
 export interface SchoolDetailsInput {
   name: string;
   tagline?: string;
@@ -227,12 +242,13 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     data: {
       name,
       city,
-      tagline: optionalText(input.tagline),
-      address: optionalText(input.address),
-      phone: optionalText(input.phone),
-      website: optionalText(input.website),
-      logoUrl: parseLogo(input.logoUrl),
-      establishedYear: parseEstablishedYear(input.establishedYear),
+      tagline: patchText(input.tagline),
+      address: patchText(input.address),
+      phone: patchText(input.phone),
+      website: patchText(input.website),
+      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
+      establishedYear:
+        input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
       ...(timezone ? { timezone } : {}),
     },
   });
@@ -260,20 +276,24 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
 
   const name = requiredText(input.name, "Campus name");
   const city = requiredText(input.city, "City");
-  const email = assertEmail(optionalText(input.email), "campus email address");
+  const email = input.email === undefined
+    ? undefined
+    : assertEmail(optionalText(input.email), "campus email address");
 
   const campus = await prisma.campus.update({
     where: { id: campusId },
     data: {
       name,
       city,
-      address: optionalText(input.address),
-      phone: optionalText(input.phone),
+      address: patchText(input.address),
+      phone: patchText(input.phone),
       email,
-      website: optionalText(input.website),
-      principalName: optionalText(input.principalName),
-      board: optionalText(input.board) || DEFAULT_EXAM_BOARD,
-      logoUrl: parseLogo(input.logoUrl),
+      website: patchText(input.website),
+      principalName: patchText(input.principalName),
+      // A board is never left blank: clearing it falls back to the default
+      // rather than leaving report cards with no affiliation printed.
+      board: input.board === undefined ? undefined : optionalText(input.board) || DEFAULT_EXAM_BOARD,
+      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
     },
   });
 

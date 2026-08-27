@@ -95,6 +95,8 @@ import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { AcademicHub } from "@/components/academic/AcademicHub";
 import { AcademicSubnav, ACADEMIC_VIEWS } from "@/components/academic/AcademicSubnav";
+import { StaffSubnav, STAFF_VIEWS } from "@/components/staff/StaffSubnav";
+import { StudentSubnav, STUDENT_VIEWS } from "@/components/student/StudentSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -481,6 +483,18 @@ export default function PrincipalDashboard() {
             onNavigate={(v) => setActiveView(v as PrincipalView)}
           />
         ) : null}
+        {STAFF_VIEWS.has(activeView) ? (
+          <StaffSubnav
+            active={activeView}
+            onNavigate={(v) => setActiveView(v as PrincipalView)}
+          />
+        ) : null}
+        {STUDENT_VIEWS.has(activeView) ? (
+          <StudentSubnav
+            active={activeView}
+            onNavigate={(v) => setActiveView(v as PrincipalView)}
+          />
+        ) : null}
         {activeView === "overview" ? (
           <div className="sk-rise flex flex-wrap justify-end gap-2 mb-8">
             <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassWizard(true)}>Add Class</BrandButton>
@@ -582,9 +596,14 @@ export default function PrincipalDashboard() {
                 setActiveView("students");
               }}
             /> : null}
+        {/*
+          Year-end work leads, matching /admin. This view is reached from a nav
+          item called "Promote Students", so opening on the archived list put
+          the promised action below the fold behind a list that is empty for
+          most of the year.
+        */}
         {activeView === "promote-archive" ? (
           <div className="space-y-6">
-            <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
             <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -601,6 +620,7 @@ export default function PrincipalDashboard() {
                 </BrandButton>
               </div>
             </div>
+            <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
           </div>
         ) : null}
         {activeView === "attendance" ? <UnifiedAttendancePanel /> : null}

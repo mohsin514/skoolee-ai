@@ -419,14 +419,51 @@ async function storeToS3(key: string, pdfBuffer: Buffer): Promise<string> {
   return getDownloadUrl(key, 86400);
 }
 
-async function storeToLocalDisk(examId: string, filename: string, pdfBuffer: Buffer): Promise<string> {
-  const dir = path.join(process.cwd(), "public", "generated", "reports", examId);
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), pdfBuffer);
-  return `/generated/reports/${examId}/${filename}`;
+/**
+ * Write the PDF next to the app and return a public path.
+ *
+ * Only possible where the filesystem is writable. On a serverless host the
+ * bundle lives in a read-only directory, so this throws ENOENT on the very
+ * first `mkdir` — which is exactly how report card downloads died in
+ * production while working perfectly on a developer's laptop (§84).
+ *
+ * Returning null rather than throwing lets the caller carry on: the PDF is
+ * already rendered in memory, and it can be served from there.
+ */
+async function storeToLocalDisk(
+  examId: string,
+  filename: string,
+  pdfBuffer: Buffer,
+): Promise<string | null> {
+  try {
+    const dir = path.join(process.cwd(), "public", "generated", "reports", examId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, filename), pdfBuffer);
+    return `/generated/reports/${examId}/${filename}`;
+  } catch {
+    // Read-only filesystem (serverless). Not an error — just no cached copy.
+    return null;
+  }
 }
 
-export async function generateReportCardPdf(reportCardId: string) {
+/** The rendered bytes, with no attempt to store them anywhere. */
+export async function renderReportCardPdfBuffer(
+  reportCardId: string,
+): Promise<{ buffer: Buffer; filename: string }> {
+  const payload = await getReportCardPdfPayload(reportCardId);
+  const buffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
+  const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+  return {
+    buffer,
+    filename: `${safeRollNo || payload.reportCard.studentId}-${payload.reportCard.id}.pdf`,
+  };
+}
+
+/**
+ * Render and persist, returning a URL — or null when there is nowhere to put
+ * it. A null result means "serve it on demand", not "generation failed".
+ */
+export async function generateReportCardPdf(reportCardId: string): Promise<string | null> {
   const payload = await getReportCardPdfPayload(reportCardId);
   const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
   const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();

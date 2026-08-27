@@ -78,7 +78,7 @@ import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { RoomsManager } from "@/components/academic/RoomsManager";
-import { csvCell } from "@/lib/csv";
+import { csvCell, downloadCSV } from "@/lib/csv";
 import {
   DataTable,
   SearchField,
@@ -6098,14 +6098,20 @@ export function AdmissionQueriesPanel({
     return () => clearInterval(timer);
   }, []);
 
+  /*
+   * Status, source and overdue are applied client-side (see `filtered`), so
+   * sending them to the API as well made every count on this screen wrong the
+   * moment a chip was pressed: picking "Converted" narrowed the response to
+   * converted leads, and the chips then read "All (4) · Active (0) · Overdue
+   * (0)" for a desk with forty open enquiries. Only `search` still goes to the
+   * server, because the endpoint caps at 200 rows and searching is the one case
+   * that legitimately needs to reach past them.
+   */
   const loadQueries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-      if (sourceFilter !== "ALL") params.set("source", sourceFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      if (showOverdue) params.set("overdue", "true");
       const res = await fetch(`/api/admission-queries?${params.toString()}`);
       const json = await res.json();
       if (json.success) setQueries(json.data || []);
@@ -6113,26 +6119,38 @@ export function AdmissionQueriesPanel({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, sourceFilter, searchQuery, showOverdue]);
+  }, [searchQuery]);
 
   useEffect(() => {
     loadQueries();
   }, [loadQueries, version]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { ACTIVE: 0, FOLLOW_UP: 0, CONVERTED: 0, LOST: 0, OVERDUE: 0 };
+    const c: Record<string, number> = { ACTIVE: 0, FOLLOW_UP: 0, CONVERTED: 0, LOST: 0, OVERDUE: 0, UNASSIGNED: 0, NO_DATE: 0 };
     for (const q of queries) {
       if (c[q.status] !== undefined) c[q.status] += 1;
-      if (
-        ["ACTIVE", "FOLLOW_UP"].includes(q.status) &&
-        q.nextFollowUp &&
-        new Date(q.nextFollowUp).getTime() < now
-      ) {
+      const open = ["ACTIVE", "FOLLOW_UP"].includes(q.status);
+      if (open && q.nextFollowUp && new Date(q.nextFollowUp).getTime() < now) {
         c.OVERDUE += 1;
       }
+      // An open lead with nobody on it, or with no next date, is not overdue —
+      // it is worse, because nothing will ever make it surface.
+      if (open && !q.assignedTo) c.UNASSIGNED += 1;
+      if (open && !q.nextFollowUp) c.NO_DATE += 1;
     }
     return c;
   }, [queries, now]);
+
+  /**
+   * Of the enquiries that have been decided either way, how many enrolled.
+   * Leads still in play are excluded — counting them as failures makes a busy
+   * week look like a bad one.
+   */
+  const conversionRate = useMemo(() => {
+    const decided = counts.CONVERTED + counts.LOST;
+    if (!decided) return null;
+    return Math.round((counts.CONVERTED / decided) * 100);
+  }, [counts]);
 
   const filtered = useMemo(() => {
     const rows = queries.filter((q) => {
@@ -6170,14 +6188,47 @@ export function AdmissionQueriesPanel({
     });
   }, [queries, statusFilter, sourceFilter, searchQuery, showOverdue, now, querySort]);
 
-  const filterChip = (key: string, label: string, value: string, setValue: (v: string) => void) => (
+  const exportQueries = () => {
+    if (!filtered.length) {
+      toast.error("Nothing to export — no enquiries match the current filters");
+      return;
+    }
+    downloadCSV("admission_enquiries", [
+      ["Name", "Phone", "Email", "Source", "Status", "Class of interest", "Next follow-up",
+        "Follow-ups logged", "Owner", "Converted student", "Enquired on", "Note"],
+      ...filtered.map((q: any) => [
+        q.name,
+        q.phone,
+        q.email,
+        QUERY_SOURCES_LABELS[q.source] || q.source,
+        q.status,
+        q.classInterested ? classLabel(q.classInterested) : "",
+        q.nextFollowUp ? String(q.nextFollowUp).slice(0, 10) : "",
+        q._count?.followUps ?? 0,
+        q.assignedTo?.fullName,
+        q.convertedStudent?.fullName,
+        String(q.createdAt || "").slice(0, 10),
+        q.note,
+      ]),
+    ]);
+    toast.success(`${filtered.length} enquir${filtered.length === 1 ? "y" : "ies"} exported`);
+  };
+
+  /*
+   * `active` is passed in rather than derived from the two arguments: the chip
+   * compared its own prefixed key ("status-ACTIVE") against its value
+   * ("ACTIVE"), which is never equal, so no chip has ever rendered as selected
+   * and the row gave no indication of what was being filtered.
+   */
+  const filterChip = (key: string, label: string, active: boolean, onSelect: () => void) => (
     <button
       key={key}
       type="button"
-      onClick={() => setValue(value)}
+      onClick={onSelect}
+      aria-pressed={active}
       className={cn(
         "h-9 rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
-        value === key
+        active
           ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
           : "bg-white text-ink-muted border border-[#cfc2d6]/25 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
       )}
@@ -6204,10 +6255,72 @@ export function AdmissionQueriesPanel({
               </p>
             </div>
           </div>
-          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowNewModal(true)}>
-            New Enquiry
-          </BrandButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <BrandButton
+              variant="soft"
+              icon={<Download className="w-4 h-4" />}
+              onClick={exportQueries}
+              disabled={!filtered.length}
+            >
+              Export
+            </BrandButton>
+            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowNewModal(true)}>
+              New Enquiry
+            </BrandButton>
+          </div>
         </div>
+
+        {/* The pipeline in four numbers. Conversion rate is the one figure a
+            head asks for and the screen could never answer. */}
+        <StatTiles
+          tiles={[
+            {
+              key: "open",
+              icon: PhoneCall,
+              label: "Open enquiries",
+              value: counts.ACTIVE + counts.FOLLOW_UP,
+              hint: `${queries.length} in total`,
+              tone: "violet",
+            },
+            {
+              key: "overdue",
+              icon: CalendarClock,
+              label: "Overdue follow-ups",
+              value: counts.OVERDUE,
+              hint: counts.NO_DATE ? `${counts.NO_DATE} with no date set` : "All have a next date",
+              tone: counts.OVERDUE ? "rose" : "emerald",
+              active: showOverdue,
+              onClick: () => {
+                setStatusFilter("ALL");
+                setSourceFilter("ALL");
+                setShowOverdue(!showOverdue);
+              },
+            },
+            {
+              key: "converted",
+              icon: GraduationCap,
+              label: "Converted",
+              value: counts.CONVERTED,
+              hint: conversionRate !== null ? `${conversionRate}% of decided enquiries` : "None decided yet",
+              tone: "emerald",
+              active: statusFilter === "CONVERTED",
+              onClick: () => {
+                setShowOverdue(false);
+                setSourceFilter("ALL");
+                setStatusFilter(statusFilter === "CONVERTED" ? "ALL" : "CONVERTED");
+              },
+            },
+            {
+              key: "unassigned",
+              icon: UserCheck,
+              label: "Nobody assigned",
+              value: counts.UNASSIGNED,
+              hint: counts.UNASSIGNED ? "No one is chasing these" : "Every lead has an owner",
+              tone: counts.UNASSIGNED ? "amber" : "emerald",
+            },
+          ]}
+        />
+        <div className="h-4" />
 
         {/* Overdue follow-ups are the only thing here that goes wrong on its
             own, so they get called out above the list rather than buried. */}
@@ -6234,11 +6347,18 @@ export function AdmissionQueriesPanel({
             { key: "FOLLOW_UP", label: `Follow-up (${counts.FOLLOW_UP})` },
             { key: "CONVERTED", label: `Converted (${counts.CONVERTED})` },
             { key: "OVERDUE", label: `Overdue (${counts.OVERDUE})` },
-          ].map((c) => filterChip(`status-${c.key}`, c.label, c.key, (v) => {
-            setStatusFilter(v === "OVERDUE" ? "ALL" : v);
-            setShowOverdue(v === "OVERDUE");
-            setSourceFilter("ALL");
-          }))}
+          ].map((c) =>
+            filterChip(
+              `status-${c.key}`,
+              c.label,
+              c.key === "OVERDUE" ? showOverdue : !showOverdue && statusFilter === c.key,
+              () => {
+                setStatusFilter(c.key === "OVERDUE" ? "ALL" : c.key);
+                setShowOverdue(c.key === "OVERDUE");
+                setSourceFilter("ALL");
+              },
+            ),
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -6935,6 +7055,26 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     }
   };
 
+  const exportArchived = () => {
+    if (!filtered.length) {
+      toast.error("Nothing to export — no records match the current filters");
+      return;
+    }
+    downloadCSV("archived_students", [
+      ["Name", "Roll No", "Class", "Status", "Guardian", "Guardian Phone", "Left on"],
+      ...filtered.map((s: any) => [
+        s.fullName,
+        s.rollNo,
+        s.class ? classLabel(s.class) : "",
+        ARCHIVED_STATUS_LABELS[s.status] || s.status,
+        s.guardianName,
+        s.guardianPhone,
+        String(s.updatedAt || s.createdAt || "").slice(0, 10),
+      ]),
+    ]);
+    toast.success(`${filtered.length} record${filtered.length === 1 ? "" : "s"} exported`);
+  };
+
   const changeStatus = async (student: any, status: string, successMsg: string) => {
     setBusyId(student.id);
     try {
@@ -6959,8 +7099,17 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Archive} title="Archived & Inactive Students" />
-        <div className="pb-1.5">
+        <div className="flex items-center gap-2 pb-1.5">
           <StatusPill status={`${filtered.length} records`} />
+          <BrandButton
+            variant="soft"
+            icon={<Download className="w-4 h-4" />}
+            onClick={exportArchived}
+            disabled={!filtered.length}
+            className="h-9"
+          >
+            Export
+          </BrandButton>
         </div>
       </div>
       <p className="mb-5 max-w-2xl text-xs font-semibold leading-relaxed text-ink-muted">
@@ -7140,6 +7289,11 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
   const [tab, setTab] = useState<(typeof LEAVE_TABS)[number]["id"]>("requests");
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState("");
+  const [requestSearch, setRequestSearch] = useState("");
+  const [balanceSearch, setBalanceSearch] = useState("");
+  // Reviewing used one shared note box for the whole list, so typing a note
+  // against one request put the same text on every other Approve button.
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
 
   const [types, setTypes] = useState<any[]>([]);
   const [allocations, setAllocations] = useState<any[]>([]);
@@ -7158,8 +7312,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
 
   const [staffBalances, setStaffBalances] = useState<any[]>([]);
 
-  const [reviewNote, setReviewNote] = useState("");
-  const [overrideBalance, setOverrideBalance] = useState(false);
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -7290,13 +7443,27 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       const res = await fetch("/api/leave/review", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: request.id, status, reviewNote, override: overrideBalance }),
+        body: JSON.stringify({
+          id: request.id,
+          status,
+          reviewNote: reviewNotes[request.id] || "",
+          override: Boolean(overrides[request.id]),
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Review failed");
-      toast.success(`Request ${status.toLowerCase()}`);
-      setReviewNote("");
-      setOverrideBalance(false);
+      toast.success(`${request.user?.fullName || "Request"} — leave ${status.toLowerCase()}`);
+      // Clear only this request's draft; the others are still being worked on.
+      setReviewNotes((prev) => {
+        const next = { ...prev };
+        delete next[request.id];
+        return next;
+      });
+      setOverrides((prev) => {
+        const next = { ...prev };
+        delete next[request.id];
+        return next;
+      });
       setReloadTick((t) => t + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Review failed");
@@ -7305,7 +7472,111 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
     }
   };
 
-  const pendingCount = requests.filter((r) => r.status === "PENDING").length;
+  /*
+   * "Pending" was the only figure this screen carried, which made it a queue and
+   * nothing else. The questions an admin actually arrives with — who is off
+   * today, who goes off next week, whose allowance is already spent — were all
+   * answerable from data the panel had loaded, but only via a tab hop and a
+   * mental diff. They are derived here and shown up front instead.
+   */
+  const leaveStats = useMemo(() => {
+    const startOfDay = (value: string) => {
+      const d = new Date(value);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+    const weekAhead = todayMs + 7 * 24 * 60 * 60 * 1000;
+
+    const approved = requests.filter((r) => r.status === "APPROVED");
+    const outToday = approved.filter(
+      (r) => startOfDay(r.fromDate) <= todayMs && startOfDay(r.toDate) >= todayMs
+    );
+    const upcoming = approved.filter((r) => {
+      const from = startOfDay(r.fromDate);
+      return from > todayMs && from <= weekAhead;
+    });
+    // The API floors `remaining` at zero, so an overspend has to be recomputed
+    // from allocated vs approved or it reads as a staff member on exactly nil.
+    const overdrawn = staffBalances.filter((row: any) =>
+      ((row.balances as any[]) || []).some((b: any) => b.approved > b.allocated)
+    );
+    return {
+      pending: requests.filter((r) => r.status === "PENDING").length,
+      approvedDays: approved.reduce((sum, r) => sum + (r.days || 0), 0) / 10,
+      outToday,
+      upcoming,
+      overdrawn,
+    };
+  }, [requests, staffBalances]);
+
+  const pendingCount = leaveStats.pending;
+
+  /** Chasing "whose leave was that" starts from a name or a reason, not a status. */
+  const visibleRequests = useMemo(() => {
+    const q = requestSearch.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter((r) =>
+      [r.user?.fullName, r.user?.role, r.leaveType?.name, r.reason]
+        .filter(Boolean)
+        .some((field: any) => String(field).toLowerCase().includes(q))
+    );
+  }, [requests, requestSearch]);
+
+  const visibleBalances = useMemo(() => {
+    const q = balanceSearch.trim().toLowerCase();
+    if (!q) return staffBalances;
+    return staffBalances.filter((row: any) =>
+      [row.user?.fullName, row.user?.role]
+        .filter(Boolean)
+        .some((field: any) => String(field).toLowerCase().includes(q))
+    );
+  }, [staffBalances, balanceSearch]);
+
+  const exportRequests = () => {
+    if (!visibleRequests.length) {
+      toast.error("Nothing to export — no requests match the current filters");
+      return;
+    }
+    downloadCSV(`leave_requests_${academicYear}`, [
+      ["Staff", "Role", "Leave Type", "Days", "From", "To", "Status", "Reason", "Reviewed By", "Review Note"],
+      ...visibleRequests.map((r) => [
+        r.user?.fullName,
+        r.user?.role,
+        r.leaveType?.name,
+        (r.days || 0) / 10,
+        String(r.fromDate || "").slice(0, 10),
+        String(r.toDate || "").slice(0, 10),
+        r.status,
+        r.reason,
+        r.reviewedBy?.fullName,
+        r.reviewNote,
+      ]),
+    ]);
+    toast.success(`${visibleRequests.length} request${visibleRequests.length === 1 ? "" : "s"} exported`);
+  };
+
+  const exportBalances = () => {
+    if (!visibleBalances.length) {
+      toast.error("Nothing to export — no staff balances to show");
+      return;
+    }
+    downloadCSV(`leave_balances_${academicYear}`, [
+      ["Staff", "Role", ...types.flatMap((t: any) => [`${t.name} allocated`, `${t.name} used`, `${t.name} left`])],
+      ...visibleBalances.map((row: any) => [
+        row.user?.fullName,
+        row.user?.role,
+        ...types.flatMap((t: any) => {
+          const b = ((row.balances as any[]) || []).find((bl: any) => bl.leaveTypeId === t.id);
+          if (!b) return [0, 0, 0];
+          return [b.allocated / 10, b.approved / 10, (b.allocated - b.approved) / 10];
+        }),
+      ]),
+    ]);
+    toast.success(`${visibleBalances.length} staff balance${visibleBalances.length === 1 ? "" : "s"} exported`);
+  };
 
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
@@ -7359,6 +7630,80 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         ) : null}
       </div>
 
+      {/* The four numbers worth knowing before opening a tab. Each is also the
+          fastest route to the rows behind it. */}
+      <div className="mb-4">
+        <StatTiles
+          tiles={[
+            {
+              key: "pending",
+              icon: CheckCircle2,
+              label: "Awaiting review",
+              value: leaveStats.pending,
+              hint: leaveStats.pending ? "Blocking someone" : "Queue clear",
+              tone: leaveStats.pending ? "amber" : "emerald",
+              active: tab === "requests" && statusFilter === "PENDING",
+              onClick: () => { setTab("requests"); setStatusFilter("PENDING"); },
+            },
+            {
+              key: "out-today",
+              icon: Plane,
+              label: "Off today",
+              value: leaveStats.outToday.length,
+              hint: leaveStats.outToday.length
+                ? leaveStats.outToday.map((r) => r.user?.fullName).filter(Boolean).slice(0, 2).join(", ")
+                : "Everyone in",
+              tone: leaveStats.outToday.length ? "violet" : "slate",
+              active: tab === "requests" && statusFilter === "APPROVED",
+              onClick: () => { setTab("requests"); setStatusFilter("APPROVED"); },
+            },
+            {
+              key: "upcoming",
+              icon: CalendarDays,
+              label: "Off next 7 days",
+              value: leaveStats.upcoming.length,
+              hint: "Approved and scheduled",
+              tone: "teal",
+              active: tab === "requests" && statusFilter === "APPROVED",
+              onClick: () => { setTab("requests"); setStatusFilter("APPROVED"); },
+            },
+            {
+              key: "overdrawn",
+              icon: AlertTriangle,
+              label: "Over allowance",
+              value: leaveStats.overdrawn.length,
+              hint: `${leaveStats.approvedDays} day${leaveStats.approvedDays === 1 ? "" : "s"} approved this year`,
+              tone: leaveStats.overdrawn.length ? "rose" : "slate",
+              active: tab === "balances",
+              onClick: () => setTab("balances"),
+            },
+          ]}
+        />
+      </div>
+
+      {/* Who is actually out. Cover is a scheduling problem, and answering it
+          previously meant reading every approved row and comparing dates. */}
+      {leaveStats.outToday.length > 0 ? (
+        <div className="mb-4 rounded-[20px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/40 p-4">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Out of school today</p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {leaveStats.outToday.map((r) => (
+              <span
+                key={r.id}
+                title={`${r.leaveType?.name || "Leave"} · ${leaveDateLabel(r.fromDate)} → ${leaveDateLabel(r.toDate)}`}
+                className="flex items-center gap-2 rounded-full border border-[#cfc2d6]/30 bg-white px-3 py-1.5 text-[11px] font-bold text-[#1f1a23] shadow-sm"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
+                {r.user?.fullName || "Unknown"}
+                <span className="font-semibold text-ink-subtle">
+                  back {leaveDateLabel(new Date(new Date(r.toDate).getTime() + 86400000).toISOString())}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-5 flex flex-wrap gap-2">
         {LEAVE_TABS.map((t) => {
           const Icon = t.icon;
@@ -7394,12 +7739,24 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               <option value="REJECTED">Rejected</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
+            <SearchField
+              value={requestSearch}
+              onChange={setRequestSearch}
+              placeholder="Search staff, type or reason…"
+              label="Search leave requests"
+              className="min-w-[220px] flex-1"
+            />
+            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportRequests} className="h-10">
+              Export
+            </BrandButton>
           </div>
 
           {requests.length === 0 ? (
             <EmptyInline text="No leave requests for this year." />
+          ) : visibleRequests.length === 0 ? (
+            <EmptyInline text={`No requests match “${requestSearch}”.`} />
           ) : (
-            requests.map((r) => (
+            visibleRequests.map((r) => (
               <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-black text-[#1f1a23]">
@@ -7422,16 +7779,17 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
-                      value={reviewNote}
-                      onChange={(e) => setReviewNote(e.target.value)}
+                      value={reviewNotes[r.id] || ""}
+                      onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
                       placeholder="Review note"
+                      aria-label={`Review note for ${r.user?.fullName || "this request"}`}
                       className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40"
                     />
                     <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={overrideBalance}
-                        onChange={(e) => setOverrideBalance(e.target.checked)}
+                        checked={Boolean(overrides[r.id])}
+                        onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
                         className="h-3.5 w-3.5 accent-[#8127cf]"
                       />
                       Override balance
@@ -7586,8 +7944,22 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       {/* ── Staff Balances ──────────────────────────────── */}
       {tab === "balances" ? (
         <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchField
+              value={balanceSearch}
+              onChange={setBalanceSearch}
+              placeholder="Search staff…"
+              label="Search staff balances"
+              className="min-w-[220px] flex-1"
+            />
+            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportBalances} className="h-10">
+              Export
+            </BrandButton>
+          </div>
           {staffBalances.length === 0 ? (
             <EmptyInline text="No staff with leave allocations yet." />
+          ) : visibleBalances.length === 0 ? (
+            <EmptyInline text={`No staff match “${balanceSearch}”.`} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -7614,7 +7986,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                   ) : null}
                 </thead>
                 <tbody>
-                  {staffBalances.map((row: any) => (
+                  {visibleBalances.map((row: any) => (
                     <tr key={row.user.id} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
                       <td className="py-2 px-3 font-medium text-ink">{row.user.fullName}</td>
                       <td className="py-2 px-3 text-ink-muted capitalize">{row.user.role.toLowerCase().replace("_", " ")}</td>
@@ -8046,12 +8418,42 @@ const PERM_ACTIONS = [
   { key: "canDelete", label: "Delete" },
 ] as const;
 
+/**
+ * Modules, grouped the way the sidebar is.
+ *
+ * A flat alphabetical list of seventeen rows made "can the accountant see
+ * fees" a scanning exercise, and it hid the fact that whole areas of the
+ * product were switched off for a role. Grouping also gives the bulk controls
+ * something meaningful to act on.
+ */
+const PERM_MODULE_GROUPS: { label: string; modules: string[] }[] = [
+  { label: "Students", modules: ["students", "admissions", "attendance"] },
+  { label: "Academics", modules: ["timetable", "exams", "reports"] },
+  { label: "Staff", modules: ["staff", "leave", "payroll"] },
+  { label: "Money", modules: ["fees", "accounts"] },
+  { label: "Operations", modules: ["library", "front-desk", "transport", "inventory", "dormitory"] },
+  { label: "Assistant", modules: ["ai"] },
+];
+
+const PERM_MODULE_LABELS: Record<string, string> = {
+  "front-desk": "Front desk",
+  ai: "AI Assistant",
+};
+
+function permModuleLabel(module: string) {
+  return PERM_MODULE_LABELS[module] ?? module.replace("-", " ");
+}
+
 export function RolePermissionsPanel() {
   const [matrix, setMatrix] = useState<any>(null);
   const [modules, setModules] = useState<string[]>([]);
   const [activeRole, setActiveRole] = useState("PRINCIPAL");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [bulkBusy, setBulkBusy] = useState<string | null>(null);
+  const [copyFrom, setCopyFrom] = useState("");
+  const [confirmCopy, setConfirmCopy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -8072,6 +8474,29 @@ export function RolePermissionsPanel() {
     load();
   }, [load]);
 
+  /**
+   * One cell write, shared by the toggles and the bulk controls.
+   *
+   * Returns whether it stuck, so a bulk run can report how far it got instead
+   * of claiming success after a partial write.
+   */
+  const writeCell = async (module: string, changes: Record<string, boolean>) => {
+    const res = await fetch("/api/roles/permissions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: activeRole, module, ...changes }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Update failed");
+    setMatrix((prev: any) => ({
+      ...prev,
+      [activeRole]: {
+        ...prev[activeRole],
+        [module]: { ...prev[activeRole][module], ...changes },
+      },
+    }));
+  };
+
   const toggle = async (module: string, action: string) => {
     if (!matrix || matrix[activeRole]._fixed) return;
     const current = matrix[activeRole][module][action];
@@ -8089,21 +8514,8 @@ export function RolePermissionsPanel() {
 
     setSaving(`${module}:${action}`);
     try {
-      const res = await fetch("/api/roles/permissions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: activeRole, module, ...changes }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Update failed");
-      setMatrix((prev: any) => ({
-        ...prev,
-        [activeRole]: {
-          ...prev[activeRole],
-          [module]: { ...prev[activeRole][module], ...changes },
-        },
-      }));
-      toast.success(`${action.replace("can", "").toUpperCase()} ${module} updated for ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`);
+      await writeCell(module, changes);
+      toast.success(`${action.replace("can", "").toUpperCase()} ${permModuleLabel(module)} updated for ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Update failed");
     } finally {
@@ -8111,40 +8523,174 @@ export function RolePermissionsPanel() {
     }
   };
 
+  /** Whole row on or off — the two states an admin sets far more often than a
+   *  single flag, and which previously took four clicks each. */
+  const setRow = async (module: string, on: boolean) => {
+    if (!matrix || matrix[activeRole]._fixed) return;
+    setSaving(`${module}:row`);
+    try {
+      await writeCell(module, { canView: on, canAdd: on, canEdit: on, canDelete: on });
+      toast.success(`${permModuleLabel(module)} ${on ? "fully opened" : "closed"} for ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  /** Same, for a whole sidebar area at once. */
+  const setGroup = async (label: string, groupModules: string[], on: boolean) => {
+    if (!matrix || matrix[activeRole]._fixed) return;
+    setBulkBusy(label);
+    let done = 0;
+    try {
+      for (const name of groupModules) {
+        await writeCell(name, { canView: on, canAdd: on, canEdit: on, canDelete: on });
+        done += 1;
+      }
+      toast.success(`${label} ${on ? "opened" : "closed"} for ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`);
+    } catch (error) {
+      // Say how far it got. "Update failed" after eleven of seventeen writes
+      // landed is worse than no message — it invites a retry over a half-
+      // applied change without saying which half.
+      toast.error(
+        `${error instanceof Error ? error.message : "Update failed"}${done ? ` — ${done} of ${groupModules.length} modules were changed` : ""}`
+      );
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  /** Start a new role from one that already works, then adjust. */
+  const copyRole = async (sourceRole: string) => {
+    if (!matrix || matrix[activeRole]._fixed) return;
+    setBulkBusy("copy");
+    let done = 0;
+    try {
+      for (const name of modules) {
+        const source = matrix[sourceRole]?.[name];
+        if (!source) continue;
+        await writeCell(name, {
+          canView: Boolean(source.canView),
+          canAdd: Boolean(source.canAdd),
+          canEdit: Boolean(source.canEdit),
+          canDelete: Boolean(source.canDelete),
+        });
+        done += 1;
+      }
+      toast.success(
+        `Copied ${PERM_ROLES.find((r) => r.id === sourceRole)?.label} permissions onto ${PERM_ROLES.find((r) => r.id === activeRole)?.label}`
+      );
+      setCopyFrom("");
+    } catch (error) {
+      toast.error(
+        `${error instanceof Error ? error.message : "Copy failed"}${done ? ` — ${done} of ${modules.length} modules were copied` : ""}`
+      );
+      // A partial copy leaves the local matrix ahead of the server for the
+      // modules that failed, so re-read rather than trust it.
+      load();
+    } finally {
+      setBulkBusy(null);
+      setConfirmCopy(null);
+    }
+  };
+
   const roleRow = PERM_ROLES.find((r) => r.id === activeRole);
   const isFixed = matrix?.[activeRole]?._fixed;
+
+  /** What this role can reach, in one sentence — the question the screen is
+   *  actually opened to answer. */
+  const roleSummary = useMemo(() => {
+    if (!matrix?.[activeRole]) return null;
+    const flags = modules.map((m) => matrix[activeRole][m] || {});
+    return {
+      visible: flags.filter((f: any) => f.canView).length,
+      editable: flags.filter((f: any) => f.canEdit || f.canAdd).length,
+      deletable: flags.filter((f: any) => f.canDelete).length,
+      total: modules.length,
+    };
+  }, [matrix, activeRole, modules]);
+
+  /** Groups, filtered by the search box, with unknown modules kept visible so a
+   *  new module added server-side never silently disappears from this screen. */
+  const visibleGroups = useMemo(() => {
+    const known = new Set(PERM_MODULE_GROUPS.flatMap((g) => g.modules));
+    const ungrouped = modules.filter((m) => !known.has(m));
+    const all = [
+      ...PERM_MODULE_GROUPS.map((g) => ({ ...g, modules: g.modules.filter((m) => modules.includes(m)) })),
+      ...(ungrouped.length ? [{ label: "Other", modules: ungrouped }] : []),
+    ];
+    const q = search.trim().toLowerCase();
+    return all
+      .map((g) => ({
+        ...g,
+        modules: q ? g.modules.filter((m) => permModuleLabel(m).toLowerCase().includes(q)) : g.modules,
+      }))
+      .filter((g) => g.modules.length > 0);
+  }, [modules, search]);
 
   return (
     <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
       {/* Header matches the academics overview. */}
       <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
-            <Shield className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
-            <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Permissions</h2>
-            <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-              Pick a role, then choose which parts of the system it can see and change.
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+              <Shield className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
+              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Permissions</h2>
+              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
+                Pick a role, then choose which parts of the system it can see and change.
+              </p>
+            </div>
           </div>
+          {roleSummary ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+                Sees {roleSummary.visible}/{roleSummary.total}
+              </span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-600 shadow-sm">
+                Edits {roleSummary.editable}
+              </span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-rose-500 shadow-sm">
+                Deletes {roleSummary.deletable}
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {PERM_ROLES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setActiveRole(r.id)}
-              className={cn(
-                "cursor-pointer rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95",
-                activeRole === r.id
-                  ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                  : "border border-[#cfc2d6]/25 bg-white text-ink hover:border-[#8127cf]/30 hover:text-[#8127cf]"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+          {PERM_ROLES.map((r) => {
+            // The count on the chip is what turns the role picker from a set of
+            // labels into a comparison: "Receptionist sees 3" next to
+            // "Principal sees 17" is the whole answer for most questions.
+            const seen = matrix?.[r.id]
+              ? modules.filter((m) => matrix[r.id][m]?.canView).length
+              : null;
+            return (
+              <button
+                key={r.id}
+                onClick={() => setActiveRole(r.id)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95",
+                  activeRole === r.id
+                    ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+                    : "border border-[#cfc2d6]/25 bg-white text-ink hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+                )}
+              >
+                {r.label}
+                {seen !== null ? (
+                  <span className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[9px] font-black tabular-nums",
+                    activeRole === r.id ? "bg-white/20 text-white" : "bg-[#f3f4f9] text-ink-subtle"
+                  )}>
+                    {matrix?.[r.id]?._fixed ? "All" : seen}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -8155,69 +8701,166 @@ export function RolePermissionsPanel() {
         </div>
       ) : null}
 
+      {!isFixed && !loading && matrix ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder="Find a module…"
+            label="Search modules"
+            className="min-w-[200px] flex-1"
+          />
+          {/* Setting a role up from scratch is seventeen rows of clicking. Most
+              new roles are "like the accountant, minus payroll". */}
+          <select
+            value={copyFrom}
+            onChange={(e) => setCopyFrom(e.target.value)}
+            aria-label="Copy permissions from another role"
+            disabled={Boolean(bulkBusy)}
+            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 disabled:opacity-50"
+          >
+            <option value="">Copy from role…</option>
+            {PERM_ROLES.filter((r) => r.id !== activeRole).map((r) => (
+              <option key={r.id} value={r.id}>{r.label}</option>
+            ))}
+          </select>
+          <BrandButton
+            variant="soft"
+            icon={<Copy className="h-4 w-4" />}
+            disabled={!copyFrom || Boolean(bulkBusy)}
+            onClick={() => setConfirmCopy(copyFrom)}
+            className="h-10"
+          >
+            {bulkBusy === "copy" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+          </BrandButton>
+        </div>
+      ) : null}
+
       {loading ? (
         <EmptyInline text="Loading permissions…" />
       ) : !matrix ? (
         <EmptyInline text="Could not load permissions." />
+      ) : visibleGroups.length === 0 ? (
+        <EmptyInline text={`No module matches “${search}”.`} />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-sm" style={{ minWidth: 640 }}>
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
-                <th className="text-left py-2 px-3 font-medium">Module</th>
+              <tr className="border-b border-[#cfc2d6]/15 text-xs uppercase tracking-wider text-ink-muted">
+                <th className="px-3 py-2 text-left font-medium">Module</th>
                 {PERM_ACTIONS.map((a) => (
-                  <th key={a.key} className="text-center py-2 px-3 font-medium">
+                  <th key={a.key} className="px-3 py-2 text-center font-medium">
                     {a.label}
                   </th>
                 ))}
+                <th className="w-28 px-3 py-2 text-right font-medium">All</th>
               </tr>
             </thead>
-            <tbody>
-              {modules.map((module: string) => {
-                const flags = matrix[activeRole][module] || {};
-                return (
-                  <tr key={module} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
-                    <td className="py-2 px-3 font-semibold capitalize text-ink">{module.replace("-", " ")}</td>
-                    {PERM_ACTIONS.map((a) => {
-                      const on = Boolean(flags[a.key]);
-                      // Without view, the write actions are meaningless — so
-                      // they are not offered rather than silently ignored.
-                      const gatedByView = a.key !== "canView" && !flags.canView;
-                      const busy = saving === `${module}:${a.key}`;
-                      return (
-                        <td key={a.key} className="text-center py-2 px-3">
-                          {isFixed ? (
-                            <CheckCircle2 className={cn("mx-auto h-4.5 w-4.5", on ? "text-emerald-500" : "text-[#cfc2d6]/40")} />
-                          ) : (
-                            <button
-                              onClick={() => toggle(module, a.key)}
-                              disabled={busy || gatedByView}
-                              role="switch"
-                              aria-checked={on}
-                              title={gatedByView ? `Turn on View for ${module.replace("-", " ")} first` : undefined}
-                              className={cn(
-                                "relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors",
-                                on ? "bg-[#8127cf]" : "bg-[#ddd6e4]",
-                                busy && "opacity-60",
-                                gatedByView && "cursor-not-allowed opacity-35"
-                              )}
-                              aria-label={`${module} ${a.label}`}
-                            >
-                              <span
-                                className={cn(
-                                  "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-                                  on ? "translate-x-5" : "translate-x-0.5"
-                                )}
-                              />
-                            </button>
-                          )}
-                        </td>
-                      );
-                    })}
+            {visibleGroups.map((group) => {
+              const groupFlags = group.modules.map((m) => matrix[activeRole][m] || {});
+              const allOn = groupFlags.every((f: any) => f.canView && f.canAdd && f.canEdit && f.canDelete);
+              const allOff = groupFlags.every((f: any) => !f.canView);
+              return (
+                <tbody key={group.label}>
+                  <tr className="bg-[#fbf0fe]/40">
+                    <td colSpan={PERM_ACTIONS.length + 1} className="px-3 py-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                        {group.label}
+                      </span>
+                      <span className="ml-2 text-[10px] font-semibold text-ink-subtle">
+                        {groupFlags.filter((f: any) => f.canView).length} of {group.modules.length} visible
+                      </span>
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      {!isFixed ? (
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={Boolean(bulkBusy) || allOn}
+                            onClick={() => setGroup(group.label, group.modules, true)}
+                            title={`Give full access to everything in ${group.label}`}
+                            className="cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            {bulkBusy === group.label ? <Loader2 className="h-3 w-3 animate-spin" /> : "On"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={Boolean(bulkBusy) || allOff}
+                            onClick={() => setGroup(group.label, group.modules, false)}
+                            title={`Remove all access to ${group.label}`}
+                            className="cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider text-rose-500 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            Off
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
                   </tr>
-                );
-              })}
-            </tbody>
+                  {group.modules.map((module: string) => {
+                    const flags = matrix[activeRole][module] || {};
+                    const rowBusy = saving === `${module}:row`;
+                    const rowFull = flags.canView && flags.canAdd && flags.canEdit && flags.canDelete;
+                    return (
+                      <tr key={module} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
+                        <td className="px-3 py-2 font-semibold capitalize text-ink">{permModuleLabel(module)}</td>
+                        {PERM_ACTIONS.map((a) => {
+                          const on = Boolean(flags[a.key]);
+                          // Without view, the write actions are meaningless — so
+                          // they are not offered rather than silently ignored.
+                          const gatedByView = a.key !== "canView" && !flags.canView;
+                          const busy = saving === `${module}:${a.key}` || rowBusy;
+                          return (
+                            <td key={a.key} className="px-3 py-2 text-center">
+                              {isFixed ? (
+                                <CheckCircle2 className={cn("mx-auto h-4.5 w-4.5", on ? "text-emerald-500" : "text-[#cfc2d6]/40")} />
+                              ) : (
+                                <button
+                                  onClick={() => toggle(module, a.key)}
+                                  disabled={busy || gatedByView}
+                                  role="switch"
+                                  aria-checked={on}
+                                  title={gatedByView ? `Turn on View for ${permModuleLabel(module)} first` : undefined}
+                                  className={cn(
+                                    "relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors",
+                                    on ? "bg-[#8127cf]" : "bg-[#ddd6e4]",
+                                    busy && "opacity-60",
+                                    gatedByView && "cursor-not-allowed opacity-35"
+                                  )}
+                                  aria-label={`${module} ${a.label}`}
+                                >
+                                  <span
+                                    className={cn(
+                                      "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                                      on ? "translate-x-5" : "translate-x-0.5"
+                                    )}
+                                  />
+                                </button>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-right">
+                          {!isFixed ? (
+                            <button
+                              type="button"
+                              disabled={rowBusy || Boolean(bulkBusy)}
+                              onClick={() => setRow(module, !rowFull)}
+                              title={rowFull ? `Remove all access to ${permModuleLabel(module)}` : `Give full access to ${permModuleLabel(module)}`}
+                              className={cn(
+                                "cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                                rowFull ? "text-rose-500 hover:bg-rose-50" : "text-emerald-600 hover:bg-emerald-50"
+                              )}
+                            >
+                              {rowBusy ? <Loader2 className="mx-auto h-3 w-3 animate-spin" /> : rowFull ? "None" : "Full"}
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
           </table>
           <p className="mt-3 text-xs font-bold text-ink-subtle">
             Changes apply immediately to that role across all admins without re-login. Enforcement is server-side — the UI
@@ -8225,6 +8868,19 @@ export function RolePermissionsPanel() {
           </p>
         </div>
       )}
+
+      {confirmCopy ? (
+        <ConfirmAction
+          open
+          tone="danger"
+          title="Copy permissions"
+          description={`Every module for ${roleRow?.label} will be overwritten with ${PERM_ROLES.find((r) => r.id === confirmCopy)?.label}'s settings. Anything you have already customised for ${roleRow?.label} is lost.`}
+          confirmLabel="Copy permissions"
+          busy={bulkBusy === "copy"}
+          onConfirm={() => copyRole(confirmCopy)}
+          onCancel={() => setConfirmCopy(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -431,7 +431,7 @@ export function AcademicCalendar({
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={cn("text-xs font-bold", holidayBg ? "text-[#0d9488]" : weekendBg ? "text-ink-subtle" : "text-[#1d1b20]")}>
+                    <span className={cn("text-xs font-bold", holidayBg ? "text-[#0f766e]" : weekendBg ? "text-ink-subtle" : "text-[#1d1b20]")}>
                       {cell.dayNum}
                     </span>
                     {canEdit && (

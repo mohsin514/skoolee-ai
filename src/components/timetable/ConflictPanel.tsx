@@ -304,20 +304,20 @@ export function ConflictPanel({
       <div className="rounded-xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-3">
         <div className="flex items-center gap-1.5">
           {clashes.size === 0 ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-[#10b981]" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-[#047857]" />
           ) : (
-            <AlertTriangle className="h-3.5 w-3.5 text-[#f43f5e]" />
+            <AlertTriangle className="h-3.5 w-3.5 text-[#be123c]" />
           )}
           <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">
             Teacher double-bookings
           </span>
         </div>
         {clashes.size === 0 ? (
-          <p className="mt-1.5 text-[10px] font-semibold text-[#10b981]">None detected — assignments are conflict-free.</p>
+          <p className="mt-1.5 text-[10px] font-semibold text-[#047857]">None detected — assignments are conflict-free.</p>
         ) : (
           <ul className="mt-1.5 space-y-1">
             {[...clashes.values()].map((c, i) => (
-              <li key={i} className="text-[10px] font-bold text-[#f43f5e]">
+              <li key={i} className="text-[10px] font-bold text-[#be123c]">
                 {c.teacher}: {c.classes.join(" & ")}
               </li>
             ))}

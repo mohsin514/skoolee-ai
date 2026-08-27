@@ -34,3 +34,25 @@ export function csvCell(value: unknown): string {
 
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
+/**
+ * Turn a grid of values into a file the browser saves.
+ *
+ * The download dance (BOM, blob, synthetic anchor, revoke) was copied into
+ * every panel that grew an export, and the copies drifted — two forgot the BOM,
+ * so Urdu names arrived in Excel as mojibake. Rows are encoded with `csvCell`
+ * here, so no caller can accidentally skip the injection guard either.
+ */
+export function downloadCSV(filename: string, rows: unknown[][]) {
+  const body = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  // The BOM makes Excel read the file as UTF-8, so Urdu names survive.
+  const blob = new Blob(["﻿", body], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

@@ -920,7 +920,7 @@ function SectionDetailView({
                     desc: "Class teacher takes all subjects",
                     icon: UserCheck,
                     activeClasses: "border-[#0d9488] bg-gradient-to-br from-white to-[#f0fdfa] shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
-                    activeTitleColor: "text-[#0d9488]",
+                    activeTitleColor: "text-[#0f766e]",
                     activeIconBg: "bg-[#0d9488]",
                   },
                   {
@@ -929,7 +929,7 @@ function SectionDetailView({
                     desc: "Each subject has its own teacher",
                     icon: Users,
                     activeClasses: "border-[#d97706] bg-gradient-to-br from-white to-[#fffbeb] shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
-                    activeTitleColor: "text-[#d97706]",
+                    activeTitleColor: "text-[#b45309]",
                     activeIconBg: "bg-[#d97706]",
                   },
                 ] as const
@@ -996,7 +996,7 @@ function SectionDetailView({
                 Subjects ({subjectCount})
               </p>
               {teachingMode === "SINGLE" && subjectCount > 0 ? (
-                <span className="rounded-full bg-[#ccfbf1] px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#0d9488]">
+                <span className="rounded-full bg-[#ccfbf1] px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#0f766e]">
                   All follow class teacher
                 </span>
               ) : null}
@@ -1070,7 +1070,7 @@ function SectionDetailView({
                           </div>
                           <p className="mt-1 text-[9px] font-bold text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
-                              <span className="text-[#0d9488]">
+                              <span className="text-[#0f766e]">
                                 Follows class teacher
                               </span>
                             ) : subject.teacher?.fullName ? (
@@ -1349,13 +1349,13 @@ function SectionDetailView({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="flex h-5 w-5 items-center justify-center rounded-md bg-[#f43f5e]/10">
-                  <Users className="h-3 w-3 text-[#f43f5e]" />
+                  <Users className="h-3 w-3 text-[#be123c]" />
                 </div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#f43f5e]/60">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#be123c]">
                   Students
                 </p>
               </div>
-              <span className="rounded-full bg-[#fff1f2] px-2.5 py-0.5 text-[10px] font-black text-[#f43f5e]">
+              <span className="rounded-full bg-[#fff1f2] px-2.5 py-0.5 text-[10px] font-black text-[#be123c]">
                 {students.length}
               </span>
             </div>
@@ -1698,8 +1698,8 @@ export function ClassManager({
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider",
                         primaryTeachingMode === "SINGLE"
-                          ? "bg-[#ccfbf1] text-[#0d9488]"
-                          : "bg-[#fef3c7] text-[#d97706]",
+                          ? "bg-[#ccfbf1] text-[#0f766e]"
+                          : "bg-[#fef3c7] text-[#b45309]",
                       )}
                     >
                       {primaryTeachingMode === "SINGLE" ? (
@@ -1797,8 +1797,8 @@ export function ClassManager({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 rounded-xl border border-[#0d9488]/10 bg-white px-3 py-1.5 shadow-sm">
-                <BookOpen className="h-3 w-3 text-[#0d9488]" />
-                <span className="text-[10px] font-black text-[#0d9488]">
+                <BookOpen className="h-3 w-3 text-[#0f766e]" />
+                <span className="text-[10px] font-black text-[#0f766e]">
                   {totalSubjects}
                 </span>
                 <span className="text-[10px] font-bold text-ink-subtle">
@@ -1806,8 +1806,8 @@ export function ClassManager({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 rounded-xl border border-[#f43f5e]/10 bg-white px-3 py-1.5 shadow-sm">
-                <GraduationCap className="h-3 w-3 text-[#f43f5e]" />
-                <span className="text-[10px] font-black text-[#f43f5e]">
+                <GraduationCap className="h-3 w-3 text-[#be123c]" />
+                <span className="text-[10px] font-black text-[#be123c]">
                   {totalStudents}
                 </span>
                 <span className="text-[10px] font-bold text-ink-subtle">

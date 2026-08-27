@@ -330,7 +330,7 @@ export function DatesheetBuilder({
                                 {sched.rooms.map((r: any) => r.room.roomNumber).join(" + ")}
                               </span>
                             ) : sched.room ? (
-                              <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-[#0d9488]">
+                              <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-[#0f766e]">
                                 <DoorOpen className="h-3 w-3" />
                                 {sched.room.roomNumber}
                               </p>
@@ -664,12 +664,12 @@ function AssignmentPopover({
                 </span>
               </p>
             ) : multiRoom ? (
-              <p className="mt-1 text-[10px] font-semibold text-[#0d9488]">
+              <p className="mt-1 text-[10px] font-semibold text-[#0f766e]">
                 Split across {roomIds.length} rooms — {studentsCount} students seated in roll-number
                 order, {selectedRooms[0]?.roomNumber} first.
               </p>
             ) : (
-              <p className="mt-1 text-[10px] font-semibold text-[#0d9488]">
+              <p className="mt-1 text-[10px] font-semibold text-[#0f766e]">
                 Auto-picked the smallest free room fitting {studentsCount || "the class"} — tick more
                 rooms above to split the paper.
               </p>

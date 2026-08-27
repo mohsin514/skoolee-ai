@@ -58,6 +58,8 @@ import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetableStudio } from "@/components/timetable/TimetableStudio";
 import { AcademicHub } from "@/components/academic/AcademicHub";
 import { AcademicSubnav, ACADEMIC_VIEWS, ACADEMIC_VIEW_MODULE } from "@/components/academic/AcademicSubnav";
+import { StaffSubnav, STAFF_VIEWS, STAFF_VIEW_MODULE } from "@/components/staff/StaffSubnav";
+import { StudentSubnav, STUDENT_VIEWS, STUDENT_VIEW_MODULE } from "@/components/student/StudentSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
 import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
@@ -99,6 +101,7 @@ import {
   TeacherDetailModal,
   classLabel,
 } from "@/components/shared-admin";
+import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 
 type AdminView =
   | "leadership"
@@ -135,8 +138,6 @@ type AdminView =
 
 /** Land on the academic overview: it shows where the year stands and what to do
  *  next. Campus Control is account administration, not a daily starting point. */
-import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
-
 const DEFAULT_VIEW: AdminView = "academic-hub";
 
 const ADMIN_VIEWS: readonly AdminView[] = [
@@ -1050,6 +1051,25 @@ export default function CampusAdminDashboard() {
               active={activeView}
               onNavigate={(v) => setActiveView(v as AdminView)}
               allowed={(v) => canViewModule(ACADEMIC_VIEW_MODULE[v] ?? "timetable")}
+            />
+          ) : null}
+
+          {/* Staff and Students are multi-screen areas too, and were the two
+              places left where moving between screens meant going back to the
+              sidebar. Same strip, so all three areas behave the same. */}
+          {STAFF_VIEWS.has(activeView) ? (
+            <StaffSubnav
+              active={activeView}
+              onNavigate={(v) => setActiveView(v as AdminView)}
+              allowed={(v) => canViewModule(STAFF_VIEW_MODULE[v] ?? "staff")}
+            />
+          ) : null}
+
+          {STUDENT_VIEWS.has(activeView) ? (
+            <StudentSubnav
+              active={activeView}
+              onNavigate={(v) => setActiveView(v as AdminView)}
+              allowed={(v) => canViewModule(STUDENT_VIEW_MODULE[v] ?? "students")}
             />
           ) : null}
 

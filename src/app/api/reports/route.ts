@@ -134,11 +134,17 @@ export async function POST(req: NextRequest) {
       const generated = [];
 
       for (const reportCard of reportCards) {
+        // Null means the PDF rendered but there was nowhere to cache it — a
+        // read-only serverless filesystem with no S3 configured. The document
+        // is still downloadable, rendered per request, so this is not a
+        // failure and must not be recorded as one (§84).
         const pdfUrl = await generateReportCardPdf(reportCard.id);
-        const updated = await prisma.reportCard.update({
-          where: { id: reportCard.id },
-          data: { pdfUrl },
-        });
+        const updated = pdfUrl
+          ? await prisma.reportCard.update({
+              where: { id: reportCard.id },
+              data: { pdfUrl },
+            })
+          : reportCard;
         generated.push(updated);
       }
 
@@ -191,9 +197,17 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Principal review is required before publishing" }, { status: 409 });
       }
 
-      const withoutPdf = await prisma.reportCard.count({ where: { examId, pdfUrl: null } });
-      if (withoutPdf > 0) {
-        return Response.json({ error: "Generate PDFs before publishing" }, { status: 409 });
+      // Publishing used to require every card to carry a stored pdfUrl. Where
+      // the host cannot write files that column is permanently null, so the
+      // gate could never be satisfied and publishing was impossible. What
+      // actually matters is that the cards exist — the PDF is rendered on
+      // demand from the same data either way.
+      const cardCount = await prisma.reportCard.count({ where: { examId } });
+      if (cardCount === 0) {
+        return Response.json(
+          { error: "There are no report cards to publish yet" },
+          { status: 409 },
+        );
       }
 
       await prisma.$transaction([

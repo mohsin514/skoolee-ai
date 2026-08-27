@@ -72,7 +72,7 @@ async function runPooled<T>(
  * a glance. Red now means exactly one thing here.
  */
 const SECTION_CHIP_COLORS = [
-  { bg: "bg-[#ccfbf1]", text: "text-[#0d9488]", border: "border-[#0d9488]/20" },
+  { bg: "bg-[#ccfbf1]", text: "text-[#0f766e]", border: "border-[#0d9488]/20" },
   { bg: "bg-[#fef3c7]", text: "text-[#b45309]", border: "border-[#f59e0b]/20" },
   { bg: "bg-[#f3eeff]", text: "text-[#7c3aed]", border: "border-[#8127cf]/20" },
   { bg: "bg-[#dbeafe]", text: "text-[#2563eb]", border: "border-[#3b82f6]/20" },
@@ -520,7 +520,7 @@ export function QuickCreateClass({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all",
                           teachingMode === "SINGLE"
-                            ? "bg-[#ccfbf1] text-[#0d9488]"
+                            ? "bg-[#ccfbf1] text-[#0f766e]"
                             : "bg-[#f3f4f6] text-ink-subtle",
                         )}
                       >
@@ -532,7 +532,7 @@ export function QuickCreateClass({
                             className={cn(
                               "text-sm font-black",
                               teachingMode === "SINGLE"
-                                ? "text-[#0d9488]"
+                                ? "text-[#0f766e]"
                                 : "text-[#1f1a23]",
                             )}
                           >
@@ -612,8 +612,8 @@ export function QuickCreateClass({
             {/* ── RIGHT COLUMN: Structure ─────────────────────────── */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pl-1">
-                <Layers className="h-4 w-4 text-[#0d9488]" />
-                <span className="text-[9px] font-black uppercase tracking-wider text-[#0d9488]">
+                <Layers className="h-4 w-4 text-[#0f766e]" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-[#0f766e]">
                   Structure
                 </span>
               </div>
@@ -655,7 +655,7 @@ export function QuickCreateClass({
                       <span className="mb-2 flex items-baseline justify-between gap-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                         <span>Section Names</span>
                         <span className="font-bold normal-case tracking-normal text-ink-subtle">
-                          Type <code className="rounded bg-white px-1 font-mono text-[10px] text-[#0d9488]">A-D</code> for a run
+                          Type <code className="rounded bg-white px-1 font-mono text-[10px] text-[#0f766e]">A-D</code> for a run
                         </span>
                       </span>
                       <input
@@ -843,7 +843,7 @@ export function QuickCreateClass({
                         <button
                           type="button"
                           onClick={() => removeSubject(subject.key)}
-                          className="ml-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-60 transition-all hover:bg-[#fff1f2] hover:text-[#f43f5e] focus-visible:opacity-100 group-hover:opacity-100 sm:opacity-0"
+                          className="ml-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-60 transition-all hover:bg-[#fff1f2] hover:text-[#be123c] focus-visible:opacity-100 group-hover:opacity-100 sm:opacity-0"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -916,7 +916,7 @@ export function QuickCreateClass({
                   {subjects.length > 0 ? (
                     <>
                       <span className="text-ink-subtle">&times;</span>
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#ccfbf1] px-2 py-0.5 font-black text-[#0d9488]">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#ccfbf1] px-2 py-0.5 font-black text-[#0f766e]">
                         <BookOpen className="h-3 w-3" />
                         {subjects.length} subject{subjects.length === 1 ? "" : "s"}
                       </span>

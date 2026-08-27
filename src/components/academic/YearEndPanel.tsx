@@ -228,7 +228,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   </p>
                   <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 border border-[#cfc2d6]/10">
                     <span className="h-2 w-2 rounded-full bg-[#d97706]" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#d97706]">Coming soon</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#b45309]">Coming soon</span>
                   </div>
                 </div>
               </div>

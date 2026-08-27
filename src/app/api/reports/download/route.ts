@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { generateReportCardPdf } from "@/lib/academic/pdf";
+import { generateReportCardPdf, renderReportCardPdfBuffer } from "@/lib/academic/pdf";
 
 export const runtime = "nodejs";
 
@@ -18,17 +18,20 @@ async function freshDownloadUrl(reportCard: {
   campusId: string;
   examId: string;
   studentId: string;
-}) {
+}): Promise<string | null> {
   if (reportCard.pdfUrl && isLocalPdfValid(reportCard.pdfUrl)) {
     return reportCard.pdfUrl;
   }
 
+  // Null where the host has nowhere to write — the caller falls back to the
+  // streaming endpoint rather than treating it as a failure.
   const pdfUrl = await generateReportCardPdf(reportCard.id);
-
-  await prisma.reportCard.update({
-    where: { id: reportCard.id },
-    data: { pdfUrl },
-  });
+  if (pdfUrl) {
+    await prisma.reportCard.update({
+      where: { id: reportCard.id },
+      data: { pdfUrl },
+    });
+  }
 
   return pdfUrl;
 }
@@ -92,31 +95,57 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "No report card found" }, { status: 404 });
     }
 
-    // `?redirect=1` sends the browser straight to the file instead of handing
-    // back JSON (§83).
+    // `?redirect=1` means "give me the file", not "give me a link to it"
+    // (§83, §84).
     //
-    // The JSON form forces the caller to `await` the response and only then
-    // call `window.open`, by which point the click's user-gesture status is
-    // gone and every popup blocker silently swallows the window. The report
-    // card button did exactly that, so the PDF was built on the server and
-    // then never shown — indistinguishable, from the user's side, from the
-    // PDF failing to generate. A redirect lets the button be a plain link.
-    const wantsRedirect = req.nextUrl.searchParams.get("redirect") === "1";
+    // Two separate failures led here. First, the JSON form forced the caller
+    // to `await` the response and only then call `window.open`, by which point
+    // the click's user-gesture status was gone and popup blockers silently
+    // swallowed the window. Second — and this is why it failed in production
+    // but never on a laptop — the JSON form hands back a path under
+    // /generated/, which only exists if the PDF could be written to disk. On a
+    // serverless host the bundle directory is read-only, so that write dies
+    // with `ENOENT: mkdir '/var/task/public/generated'` and the download never
+    // had a file to point at.
+    //
+    // Streaming the bytes sidesteps both. The PDF is already rendered in
+    // memory; persisting it was only ever a cache.
+    const wantsFile = req.nextUrl.searchParams.get("redirect") === "1";
+
+    if (wantsFile) {
+      // A stored copy is used when there is one and it is still valid;
+      // otherwise the document is rendered fresh for this request.
+      if (reportCard.pdfUrl && !reportCard.pdfUrl.startsWith("/")) {
+        const { reportCardKey, getDownloadUrl } = await import("@/lib/storage/s3");
+        const key = reportCardKey(reportCard.campusId, reportCard.examId, reportCard.studentId);
+        return Response.redirect(await getDownloadUrl(key, 86400), 302);
+      }
+
+      const { buffer, filename } = await renderReportCardPdfBuffer(reportCard.id);
+      return new Response(new Uint8Array(buffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${filename}"`,
+          "Content-Length": String(buffer.length),
+          "Cache-Control": "private, no-store",
+        },
+      });
+    }
 
     if (reportCard.pdfUrl && !reportCard.pdfUrl.startsWith("/")) {
       const { reportCardKey, getDownloadUrl } = await import("@/lib/storage/s3");
       const key = reportCardKey(reportCard.campusId, reportCard.examId, reportCard.studentId);
       const freshUrl = await getDownloadUrl(key, 86400);
-      return wantsRedirect
-        ? Response.redirect(freshUrl, 302)
-        : Response.json({ success: true, pdfUrl: freshUrl });
+      return Response.json({ success: true, pdfUrl: freshUrl });
     }
 
+    // Callers still on the JSON contract get a URL when one can exist, and the
+    // streaming endpoint itself when the host cannot store files.
     const pdfUrl = await freshDownloadUrl(reportCard);
-    if (wantsRedirect) {
-      return Response.redirect(new URL(pdfUrl, req.nextUrl.origin), 302);
-    }
-    return Response.json({ success: true, pdfUrl });
+    return Response.json({
+      success: true,
+      pdfUrl: pdfUrl ?? `/api/reports/download?reportCardId=${reportCard.id}&redirect=1`,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate PDF";
     return Response.json({ error: message }, { status: 500 });
