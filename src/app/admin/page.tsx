@@ -26,6 +26,7 @@ import {
   PhoneCall,
   Plane,
   Receipt,
+  Landmark,
   Scale,
   School,
   Shield,
@@ -129,10 +130,13 @@ type AdminView =
   | "library"
   | "academic-hub"
   | "year-setup"
+  | "institution"
   ;
 
 /** Land on the academic overview: it shows where the year stands and what to do
  *  next. Campus Control is account administration, not a daily starting point. */
+import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
+
 const DEFAULT_VIEW: AdminView = "academic-hub";
 
 const ADMIN_VIEWS: readonly AdminView[] = [
@@ -141,6 +145,7 @@ const ADMIN_VIEWS: readonly AdminView[] = [
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
   "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup",
+  "institution",
 ];
 
 function isAdminView(value: string | null): value is AdminView {
@@ -923,6 +928,7 @@ export default function CampusAdminDashboard() {
     },
     { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
     { icon: LayoutGrid, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
+    { icon: Landmark, label: "School & Campus", active: activeView === "institution", onClick: () => setActiveView("institution") },
   ];
 
   // A standalone campus (single-campus school) has no separate school owner —
@@ -1045,6 +1051,21 @@ export default function CampusAdminDashboard() {
               onNavigate={(v) => setActiveView(v as AdminView)}
               allowed={(v) => canViewModule(ACADEMIC_VIEW_MODULE[v] ?? "timetable")}
             />
+          ) : null}
+
+          {activeView === "institution" ? (
+            <div className="space-y-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Institution record</p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-[#1f1a23]">School &amp; Campus</h2>
+                <p className="mt-1.5 text-sm font-semibold text-ink-muted">
+                  Name, branding and contact details. School-wide details are owned by the institution owner.
+                </p>
+              </div>
+              {/* scope="editable" keeps a branch admin's view to their own campus
+                  rather than listing every sibling campus in the group. */}
+              <InstitutionSettingsPanel scope="editable" onSaved={loadData} />
+            </div>
           ) : null}
 
           {activeView === "leadership" ? (

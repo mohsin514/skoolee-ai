@@ -17,12 +17,14 @@ import {
   MessagesSquare,
   Settings,
   Users,
+  Network,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/students", label: "Students", icon: Users },
   { href: "/dashboard/classes", label: "Classes", icon: GraduationCap },
+  { href: "/dashboard/staff-hierarchy", label: "Staff Hierarchy", icon: Network },
   { href: "/dashboard/marks", label: "Marks Entry", icon: ClipboardList },
   { href: "/dashboard/reports", label: "Reports", icon: FileText },
   { href: "/dashboard/communications", label: "Communications", icon: MessageCircle },

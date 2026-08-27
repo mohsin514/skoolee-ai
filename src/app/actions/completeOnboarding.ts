@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
+import { parseDateOnly, parseEstablishedYear, safeTimezone } from "@/lib/school/details";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
@@ -69,24 +70,6 @@ export interface OnboardingCampusInput {
   board?: string;
 }
 
-/** Valid IANA zone, or null when the browser sent something unusable. */
-function safeTimezone(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value });
-    return value;
-  } catch {
-    return null;
-  }
-}
-
-/** A date-only string as a UTC midnight Date, or null. */
-function parseDate(value?: string): Date | null {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 export async function finishOnboarding(
   schoolData: OnboardingSchoolInput,
   campuses: OnboardingCampusInput[],
@@ -104,10 +87,7 @@ export async function finishOnboarding(
 
   // ── Basic validation ─────────────────────────────
   // contactEmail is locked at registration and is read-only in the UI.
-  const establishedYear = schoolData.establishedYear ? Number(schoolData.establishedYear) : null;
-  if (establishedYear && (establishedYear < 1800 || establishedYear > new Date().getFullYear() + 1)) {
-    throw new Error("Please enter a valid established year.");
-  }
+  const establishedYear = parseEstablishedYear(schoolData.establishedYear);
 
   // The first academic session. A cycle labelled 2027 routinely starts in
   // August 2026, so the year is asked for explicitly rather than derived from
@@ -117,8 +97,8 @@ export async function finishOnboarding(
     throw new Error("Please enter a valid academic year.");
   }
   const sessionLabel = schoolData.sessionLabel?.trim() || `${academicYear}-${String((academicYear + 1) % 100).padStart(2, "0")}`;
-  const sessionStart = parseDate(schoolData.sessionStart);
-  const sessionEnd = parseDate(schoolData.sessionEnd);
+  const sessionStart = parseDateOnly(schoolData.sessionStart);
+  const sessionEnd = parseDateOnly(schoolData.sessionEnd);
   if (sessionStart && sessionEnd && sessionEnd <= sessionStart) {
     throw new Error("The session end date must fall after the start date.");
   }

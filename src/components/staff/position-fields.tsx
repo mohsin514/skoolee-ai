@@ -168,7 +168,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div className="space-y-1.5">
       <label className="block text-[11px] font-black text-ink">{label}</label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-muted">{hint}</p> : null}
+      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

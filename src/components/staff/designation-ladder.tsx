@@ -72,7 +72,7 @@ const emptyDraft = {
   description: "",
 };
 
-export function DesignationLadder({ campusId, onChanged }: { campusId: string; onChanged?: () => void }) {
+export function DesignationLadder({ campusId, onChanged }: { campusId?: string; onChanged?: () => void }) {
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [institutionType, setInstitutionType] = useState("SCHOOL");
@@ -195,7 +195,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-muted">
+      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-ink-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading the rank ladder…
       </div>
@@ -207,7 +207,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-ink">Rank ladder</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-muted">
+          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
             Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like,
             reorder by changing the seniority number, and retire what you no longer use.
           </p>
@@ -224,9 +224,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
 
       {designations.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#cfc2d6]/60 bg-[#fafaff] px-6 py-12 text-center">
-          <Layers className="mx-auto h-8 w-8 text-muted" />
+          <Layers className="mx-auto h-8 w-8 text-ink-muted" />
           <p className="mt-3 text-sm font-black text-ink">No ranks defined yet</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-muted">
+          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Ranks are what make the chart mean something — who is senior to whom, who can head a department, and
             what a promotion moves someone into. Start from a preset for your kind of institution, or build the
             ladder yourself.
@@ -247,7 +247,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
             if (ranks.length === 0) return null;
             return (
               <section key={track} className="space-y-2">
-                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-muted">
+                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
                   {tone.label}
                   <span className="font-bold normal-case tracking-normal">({ranks.length})</span>
@@ -264,14 +264,14 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
                         )}
                         style={{ borderLeftWidth: 4, borderLeftColor: tone.hex }}
                       >
-                        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-[10px] font-black tabular-nums text-muted" title="Seniority — lower is more senior">
+                        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-[10px] font-black tabular-nums text-ink-muted" title="Seniority — lower is more senior">
                           {d.level}
                         </span>
 
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
                             <span className="text-xs font-black text-ink">{d.name}</span>
-                            {d.shortName ? <span className="text-[10px] font-bold text-muted">({d.shortName})</span> : null}
+                            {d.shortName ? <span className="text-[10px] font-bold text-ink-muted">({d.shortName})</span> : null}
                             {d.isInstitutionHead ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black text-[#8127cf]">
                                 <Crown className="h-2.5 w-2.5" /> HEAD OF INSTITUTION
@@ -284,7 +284,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-500">RETIRED</span>
                             ) : null}
                           </span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] font-semibold text-muted">
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] font-semibold text-ink-muted">
                             {promotesTo ? (
                               <span className="inline-flex items-center gap-1">
                                 <ArrowUp className="h-3 w-3" /> promotes to {promotesTo.name}
@@ -314,7 +314,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
                                 description: d.description ?? "",
                               })
                             }
-                            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                             aria-label={`Edit ${d.name}`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -322,7 +322,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
                           <button
                             type="button"
                             onClick={() => setPendingRemoval(d)}
-                            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+                            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
                             aria-label={`Remove ${d.name}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -387,8 +387,8 @@ export function DesignationLadder({ campusId, onChanged }: { campusId: string; o
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-1 block text-xs font-semibold text-muted">{preset.blurb}</span>
-                    <span className="mt-1.5 block text-[10px] font-black uppercase tracking-wide text-muted">
+                    <span className="mt-1 block text-xs font-semibold text-ink-muted">{preset.blurb}</span>
+                    <span className="mt-1.5 block text-[10px] font-black uppercase tracking-wide text-ink-subtle">
                       {preset.rankCount} ranks · {preset.departmentCount} units
                     </span>
                   </span>
@@ -494,7 +494,7 @@ function LabelledField({
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-muted">{hint}</p> : null}
+      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -515,7 +515,7 @@ function Toggle({
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[#8127cf]" />
       <span className="min-w-0">
         <span className="block text-xs font-black text-ink">{label}</span>
-        <span className="block text-[10px] font-semibold text-muted">{hint}</span>
+        <span className="block text-[10px] font-semibold text-ink-muted">{hint}</span>
       </span>
     </label>
   );

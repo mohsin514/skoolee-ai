@@ -36,7 +36,13 @@ interface HierarchyResponse extends OrgChartData {
   designations: DesignationOption[];
 }
 
-export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
+/**
+ * `campusId` is optional. The consoles that span campuses (/super) name the one
+ * they are showing; the single-campus consoles (/admin, /principal, /dashboard)
+ * omit it and let the API resolve it from the session, which is also the only
+ * campus those roles are allowed to read.
+ */
+export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
   const [tab, setTab] = useState<Tab>("chart");
   const [data, setData] = useState<HierarchyResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +53,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
     async (quiet = false) => {
       if (quiet) setRefreshing(true);
       try {
-        const res = await fetch(`/api/staff/hierarchy?campusId=${campusId}`);
+        const res = await fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : ""}`);
         const payload = await res.json();
         if (!res.ok) throw new Error(payload.error || "Could not load the staff hierarchy");
         setData(payload);
@@ -90,7 +96,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-24 text-xs font-bold text-muted">
+      <div className="flex items-center justify-center gap-2 py-24 text-xs font-bold text-ink-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
         Building the staff hierarchy…
       </div>
@@ -131,7 +137,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
               onClick={() => setTab(t.key)}
               className={cn(
                 "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all",
-                tab === t.key ? "bg-white text-[#8127cf] shadow-sm" : "text-muted hover:text-ink"
+                tab === t.key ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-ink"
               )}
             >
               <t.icon className="h-3.5 w-3.5" />
@@ -146,7 +152,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
           type="button"
           onClick={() => load(true)}
           disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-black text-muted transition-colors hover:text-[#8127cf] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-black text-ink-muted transition-colors hover:text-[#8127cf] disabled:opacity-50"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           Refresh
@@ -159,7 +165,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId: string }) {
           <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 px-6 py-12 text-center">
             <Layers className="mx-auto h-8 w-8 text-amber-600" />
             <p className="mt-3 text-sm font-black text-ink">Define your ranks first</p>
-            <p className="mx-auto mt-1 max-w-lg text-xs font-semibold text-muted">
+            <p className="mx-auto mt-1 max-w-lg text-xs font-semibold text-ink-muted">
               The chart draws who is senior to whom, and it reads that from your rank ladder. Pick the preset for
               your kind of institution — school, college, university or training institute — and adjust it from
               there. Nothing is fixed.
@@ -233,8 +239,8 @@ function Stat({
       </span>
       <span className="min-w-0">
         <span className="block text-lg font-black leading-none tabular-nums text-ink">{value}</span>
-        <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide text-muted">{label}</span>
-        {hint ? <span className="block truncate text-[10px] font-semibold text-muted">{hint}</span> : null}
+        <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide text-ink-subtle">{label}</span>
+        {hint ? <span className="block truncate text-[10px] font-semibold text-ink-muted">{hint}</span> : null}
       </span>
     </div>
   );

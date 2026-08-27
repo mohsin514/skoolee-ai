@@ -78,7 +78,7 @@ export function DepartmentManager({
   staff,
   onChanged,
 }: {
-  campusId: string;
+  campusId?: string;
   staff: OrgNode[];
   onChanged?: () => void;
 }) {
@@ -93,7 +93,7 @@ export function DepartmentManager({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/staff/departments?campusId=${campusId}`);
+      const res = await fetch(`/api/staff/departments${campusId ? `?campusId=${campusId}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load departments");
       setUnits(data.departments ?? []);
@@ -132,7 +132,7 @@ export function DepartmentManager({
     setSaving(true);
     try {
       const payload = {
-        ...(draft.id ? { id: draft.id } : { campusId }),
+        ...(draft.id ? { id: draft.id } : campusId ? { campusId } : {}),
         name: draft.name.trim(),
         code: draft.code.trim() || null,
         kind: draft.kind,
@@ -193,7 +193,7 @@ export function DepartmentManager({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-muted">
+      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-ink-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading departments…
       </div>
@@ -217,7 +217,7 @@ export function DepartmentManager({
             <button
               type="button"
               onClick={() => toggle(unit.id)}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-muted transition-colors hover:text-[#8127cf]"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-ink-muted transition-colors hover:text-[#8127cf]"
               aria-label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
             >
               {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -226,15 +226,15 @@ export function DepartmentManager({
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-black text-ink">{unit.name}</span>
-                {unit.code ? <span className="text-[10px] font-bold text-muted">{unit.code}</span> : null}
-                <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-black uppercase text-muted">
+                {unit.code ? <span className="text-[10px] font-bold text-ink-muted">{unit.code}</span> : null}
+                <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-black uppercase text-ink-subtle">
                   {DEPARTMENT_KIND_LABELS[unit.kind]}
                 </span>
                 {!unit.isActive ? (
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-500">ARCHIVED</span>
                 ) : null}
               </span>
-              <span className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted">
+              <span className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-ink-muted">
                 {head ? (
                   <span className="inline-flex items-center gap-1 text-[#8127cf]">
                     <Crown className="h-3 w-3" />
@@ -254,7 +254,7 @@ export function DepartmentManager({
               <button
                 type="button"
                 onClick={() => setMemberFor(unit)}
-                className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                 aria-label={`Manage people in ${unit.name}`}
               >
                 <UserPlus className="h-3.5 w-3.5" />
@@ -271,7 +271,7 @@ export function DepartmentManager({
                     description: unit.description ?? "",
                   })
                 }
-                className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                 aria-label={`Edit ${unit.name}`}
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -279,7 +279,7 @@ export function DepartmentManager({
               <button
                 type="button"
                 onClick={() => setPendingRemoval(unit)}
-                className="rounded-lg p-1.5 text-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
                 aria-label={`Remove ${unit.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -289,16 +289,16 @@ export function DepartmentManager({
 
           {isOpen ? (
             <div className="mt-3 space-y-2 border-t border-[#cfc2d6]/30 pt-3">
-              {unit.description ? <p className="text-[11px] font-semibold text-muted">{unit.description}</p> : null}
+              {unit.description ? <p className="text-[11px] font-semibold text-ink-muted">{unit.description}</p> : null}
               {unit.members.length === 0 ? (
-                <p className="text-[11px] font-semibold text-muted">
+                <p className="text-[11px] font-semibold text-ink-muted">
                   Nobody in this unit yet. Add people, then give one of them charge of it.
                 </p>
               ) : (
                 <ul className="space-y-1">
                   {unit.members.map((member) => (
                     <li key={member.id} className="flex items-center gap-2 rounded-xl bg-[#f3f4f9]/60 px-2.5 py-1.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-[9px] font-black text-muted">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-[9px] font-black text-ink-muted">
                         {member.user.profileImageUrl ? (
                           <AvatarImage src={member.user.profileImageUrl} name={member.user.fullName} />
                         ) : (
@@ -308,11 +308,11 @@ export function DepartmentManager({
                       <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-ink">
                         {member.user.fullName}
                         {member.user.staffProfile?.designation ? (
-                          <span className="font-semibold text-muted"> · {member.user.staffProfile.designation}</span>
+                          <span className="font-semibold text-ink-muted"> · {member.user.staffProfile.designation}</span>
                         ) : null}
                       </span>
                       {member.isPrimary ? (
-                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-muted" title="This is their home department">
+                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-ink-muted" title="This is their home department">
                           HOME
                         </span>
                       ) : null}
@@ -333,7 +333,7 @@ export function DepartmentManager({
                       <button
                         type="button"
                         onClick={() => act({ action: "remove-member", memberId: member.id }, `${member.user.fullName} removed from ${unit.name}`)}
-                        className="shrink-0 rounded-lg p-1 text-muted hover:bg-rose-50 hover:text-rose-600"
+                        className="shrink-0 rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
                         aria-label={`Remove ${member.user.fullName} from ${unit.name}`}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -358,7 +358,7 @@ export function DepartmentManager({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-ink">Departments & units</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-muted">
+          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
             Faculties, departments, year sections and admin units. Nest them however your institution is
             organised — a school usually keeps one flat level, a university nests departments inside faculties.
           </p>
@@ -370,9 +370,9 @@ export function DepartmentManager({
 
       {roots.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#cfc2d6]/60 bg-[#fafaff] px-6 py-12 text-center">
-          <Building2 className="mx-auto h-8 w-8 text-muted" />
+          <Building2 className="mx-auto h-8 w-8 text-ink-muted" />
           <p className="mt-3 text-sm font-black text-ink">No departments yet</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-muted">
+          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add
             your own here.
           </p>
@@ -530,7 +530,7 @@ function MemberPicker({
             <button
               type="button"
               onClick={() => onAct({ action: "set-head", departmentId: unit.id, userId: null }, `${unit.name} has no head now`)}
-              className="shrink-0 text-[10px] font-black uppercase text-muted hover:text-rose-600"
+              className="shrink-0 text-[10px] font-black uppercase text-ink-subtle hover:text-rose-600"
             >
               Clear
             </button>
@@ -562,7 +562,7 @@ function MemberPicker({
             <input type="checkbox" checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
             <span>
               <span className="block text-xs font-black text-ink">Acting charge</span>
-              <span className="block text-[10px] font-semibold text-muted">
+              <span className="block text-[10px] font-semibold text-ink-muted">
                 Covering the post without holding it permanently. Whoever heads it now steps back to member.
               </span>
             </span>
@@ -572,7 +572,7 @@ function MemberPicker({
             <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
             <span>
               <span className="block text-xs font-black text-ink">Make this their home department</span>
-              <span className="block text-[10px] font-semibold text-muted">
+              <span className="block text-[10px] font-semibold text-ink-muted">
                 The one the org chart files them under. Someone can belong to several; only one is home.
               </span>
             </span>
@@ -601,7 +601,7 @@ function Labelled({
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-muted">{hint}</p> : null}
+      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

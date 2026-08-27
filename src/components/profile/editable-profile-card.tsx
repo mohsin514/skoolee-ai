@@ -12,6 +12,7 @@ export type EditableProfile = {
   email?: string;
   fullName?: string;
   phone?: string;
+  role?: string;
   roleLabel?: string;
   dashboardPath?: string;
   profileImageUrl?: string;

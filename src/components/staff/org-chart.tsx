@@ -346,7 +346,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -355,13 +355,13 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               if (e.key === "Escape") setQuery("");
             }}
             placeholder="Find a name, rank, department or staff code…"
-            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-muted focus:border-[#8127cf]"
+            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted focus:border-[#8127cf]"
           />
           {query ? (
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted hover:bg-[#f3f4f9] hover:text-ink"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -397,20 +397,20 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         </select>
 
         <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
-          <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
+          <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <span className="w-10 text-center text-[10px] font-black tabular-nums text-muted">{Math.round(scale * 100)}%</span>
-          <button type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))} className="rounded-lg p-1.5 text-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom in">
+          <span className="w-10 text-center text-[10px] font-black tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
+          <button type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom in">
             <Plus className="h-3.5 w-3.5" />
           </button>
-          <button type="button" onClick={fit} className="rounded-lg p-1.5 text-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Fit to screen">
+          <button type="button" onClick={fit} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Fit to screen">
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-black uppercase tracking-wide text-muted">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-black uppercase tracking-wide text-ink-subtle">
         {Object.entries(TRACK_TONES).map(([key, tone]) => (
           <span key={key} className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
@@ -445,9 +445,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       >
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Users className="h-8 w-8 text-muted" />
+            <Users className="h-8 w-8 text-ink-muted" />
             <p className="text-sm font-black text-ink">No staff on this campus yet</p>
-            <p className="max-w-xs text-xs font-semibold text-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
+            <p className="max-w-xs text-xs font-semibold text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
           </div>
         ) : (
           <div
@@ -479,7 +479,18 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
                     })
               )}
               {dottedPaths.map((path) => (
-                <path key={path.key} d={path.d} fill="none" stroke="#0891b2" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.75} />
+                <path
+                  key={path.key}
+                  d={path.d}
+                  fill="none"
+                  // Matches TRACK_TONES.ADMINISTRATIVE. At 75% opacity the old
+                  // cyan-600 landed at 2.64:1 on the canvas — under the 3:1 that
+                  // WCAG asks of a graphic you need to read the chart by.
+                  stroke="#0e7490"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
+                  opacity={0.75}
+                />
               ))}
             </svg>
 
@@ -518,7 +529,11 @@ function OrgCard({
 }) {
   const { node } = entry;
   const tone = node.designation ? TRACK_TONES[node.designation.track as keyof typeof TRACK_TONES] : null;
-  const accent = tone?.hex ?? "#cfc2d6";
+  // Two different jobs, so two different colours. The rail down the left of the
+  // card is decoration and may be a pale tint; the rank label is text and has to
+  // stay readable — #cfc2d6 is a border tint at ~1.9:1 on white, which made
+  // "No rank set" invisible on every card of a campus that has no ladder yet.
+  const rail = tone?.hex ?? "#cfc2d6";
   const rank = node.designation?.shortName || node.designation?.name || node.designationLabel;
   const headship = node.headOf[0];
   const isLeaving = ["RESIGNED", "RETIRED", "TERMINATED", "NOTICE_PERIOD"].includes(node.employmentStatus);
@@ -537,9 +552,9 @@ function OrgCard({
           selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/50",
           dimmed && "opacity-30"
         )}
-        style={{ borderLeftWidth: 4, borderLeftColor: accent }}
+        style={{ borderLeftWidth: 4, borderLeftColor: rail }}
       >
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f3f4f9] text-[11px] font-black text-muted">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f3f4f9] text-[11px] font-black text-ink-muted">
           {node.avatarUrl ? (
             <AvatarImage src={node.avatarUrl} name={node.fullName} />
           ) : (
@@ -561,10 +576,16 @@ function OrgCard({
               </span>
             ) : null}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide" style={{ color: accent }}>
+          <span
+            className={cn(
+              "mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide",
+              !tone && "text-ink-subtle"
+            )}
+            style={tone ? { color: tone.hex } : undefined}
+          >
             {rank || "No rank set"}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold text-muted">
+          <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold text-ink-muted">
             {headship ? (
               <span className="truncate text-[#8127cf]">
                 {headship.isActing ? "Acting head" : "Head"} · {headship.name}
@@ -586,7 +607,7 @@ function OrgCard({
         <button
           type="button"
           onClick={onToggle}
-          className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-[#cfc2d6]/60 bg-white px-2 text-[10px] font-black text-muted shadow-sm transition-colors hover:border-[#8127cf] hover:text-[#8127cf]"
+          className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-[#cfc2d6]/60 bg-white px-2 text-[10px] font-black text-ink-muted shadow-sm transition-colors hover:border-[#8127cf] hover:text-[#8127cf]"
           aria-label={collapsed ? `Show ${entry.hiddenCount} below ${node.fullName}` : `Hide the team below ${node.fullName}`}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}

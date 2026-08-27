@@ -21,6 +21,7 @@ import {
 import { logout } from '@/app/actions/auth/logout';
 import { toast } from 'sonner';
 import { getPlanLimits } from '@/config/plans';
+import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from '@/config/boards';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -63,17 +64,6 @@ interface CampusDraft extends OnboardingCampusInput {
   autoId: boolean;
 }
 
-const BOARDS = [
-  "Federal Board",
-  "Punjab Board",
-  "Sindh Board",
-  "KPK Board",
-  "Balochistan Board",
-  "Aga Khan Board",
-  "Cambridge (IGCSE)",
-  "IB / International",
-  "Other",
-];
 
 /** ISO weekday numbering — 1 = Monday … 7 = Sunday, matching the Weekend model. */
 const WEEK_DAYS: { num: number; short: string; long: string }[] = [
@@ -115,7 +105,7 @@ const emptyCampus = (): Omit<CampusDraft, 'id'> => ({
   principalName: '',
   regId: generateId('BR'),
   autoId: true,
-  board: BOARDS[0],
+  board: DEFAULT_EXAM_BOARD,
 });
 
 export default function OnboardingWizard() {
@@ -320,7 +310,7 @@ export default function OnboardingWizard() {
         principalName: '',
         regId: newCampus.regId,
         autoId: newCampus.autoId,
-        board: BOARDS[0],
+        board: DEFAULT_EXAM_BOARD,
       }]);
     }
     setStep('academic');
@@ -604,11 +594,11 @@ export default function OnboardingWizard() {
                             <div className="relative group flex items-center">
                               <GraduationCap className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <select
-                                value={newCampus.board || BOARDS[0]}
+                                value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                               >
-                                {BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
+                                {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
                               </select>
                             </div>
                           </div>

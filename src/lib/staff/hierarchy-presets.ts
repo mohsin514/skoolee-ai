@@ -257,7 +257,9 @@ export function isInstitutionType(value: unknown): value is InstitutionType {
 export const TRACK_TONES: Record<StaffTrack, { hex: string; chip: string; label: string }> = {
   LEADERSHIP: { hex: "#8127cf", chip: "bg-[#fbf0fe] text-[#8127cf]", label: "Leadership" },
   ACADEMIC: { hex: "#4f46e5", chip: "bg-indigo-50 text-indigo-600", label: "Academic" },
-  ADMINISTRATIVE: { hex: "#0891b2", chip: "bg-cyan-50 text-cyan-700", label: "Administrative" },
+  // cyan-700, not cyan-600: this hex is painted onto 10px bold rank labels, and
+  // cyan-600 sits at 3.68:1 on white — under AA for text that small.
+  ADMINISTRATIVE: { hex: "#0e7490", chip: "bg-cyan-50 text-cyan-700", label: "Administrative" },
   SUPPORT: { hex: "#64748b", chip: "bg-slate-100 text-slate-600", label: "Support" },
 };
 

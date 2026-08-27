@@ -11,6 +11,7 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  Globe,
   GraduationCap,
   HelpCircle,
   LayoutGrid,
@@ -18,23 +19,28 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Phone,
   MessageCircle,
   MessageSquare,
   Plus,
   Receipt,
   School,
+  Settings,
   Shield,
   Sparkles,
   TrendingUp,
   Users,
   X,
   type LucideIcon,
+  Network,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 import { addCampus } from "@/app/actions/addCampus";
+import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
   AiActionPanel,
@@ -49,6 +55,7 @@ import {
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { getPlanLimits } from "@/config/plans";
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -86,7 +93,7 @@ function hasActiveSlot(slot: any) {
 
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-type SuperView = "schools" | "billing" | "fees";
+type SuperView = "schools" | "billing" | "fees" | "settings";
 export default function SuperAdminDashboard() {
   const router = useRouter();
   const { data, loading, refetch } = useSuperAdminData();
@@ -94,7 +101,23 @@ export default function SuperAdminDashboard() {
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [newCampusData, setNewCampusData] = useState({ name: "", location: "", regId: "", autoId: true });
+  const [newCampusData, setNewCampusData] = useState({
+    name: "",
+    city: "",
+    address: "",
+    phone: "",
+    email: "",
+    website: "",
+    principalName: "",
+    board: DEFAULT_EXAM_BOARD as string,
+    regId: "",
+    autoId: true,
+    adminEmail: "",
+  });
+  const emptyCampusForm = {
+    name: "", city: "", address: "", phone: "", email: "", website: "",
+    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: "", autoId: true, adminEmail: "",
+  };
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -128,6 +151,10 @@ export default function SuperAdminDashboard() {
       setActiveView("fees");
       setSelectedCampus(null);
     }
+    if (params.get("view") === "settings") {
+      setActiveView("settings");
+      setSelectedCampus(null);
+    }
   }, []);
 
   const handleLogout = async () => {
@@ -136,7 +163,11 @@ export default function SuperAdminDashboard() {
   };
 
   const syncSuperUrl = (view: SuperView) => {
-    const query = view === "billing" ? "?view=billing" : view === "fees" ? "?view=fees" : "";
+    const query =
+      view === "billing" ? "?view=billing"
+      : view === "fees" ? "?view=fees"
+      : view === "settings" ? "?view=settings"
+      : "";
     window.history.replaceState(null, "", `/super${query}`);
   };
   const openSchools = () => {
@@ -186,21 +217,30 @@ export default function SuperAdminDashboard() {
   };
 
   const handleAddCampus = async () => {
-    if (!newCampusData.name || !newCampusData.location) {
-      return toast.error("Please fill all required fields");
+    if (!newCampusData.name.trim() || !newCampusData.city.trim()) {
+      return toast.error("Campus name and city are required.");
     }
     setAddingCampus(true);
     try {
-      await addCampus(
-        newCampusData.name,
-        newCampusData.location,
-        "Default",
-        undefined,
-        newCampusData.autoId ? newCampusData.regId || undefined : newCampusData.regId
+      await addCampus({
+        name: newCampusData.name,
+        city: newCampusData.city,
+        address: newCampusData.address,
+        phone: newCampusData.phone,
+        email: newCampusData.email,
+        website: newCampusData.website,
+        principalName: newCampusData.principalName,
+        board: newCampusData.board,
+        regId: newCampusData.autoId ? newCampusData.regId || undefined : newCampusData.regId,
+        adminEmail: newCampusData.adminEmail,
+      });
+      toast.success(
+        newCampusData.adminEmail.trim()
+          ? `${newCampusData.name.trim()} created — invitation sent to ${newCampusData.adminEmail.trim()}.`
+          : `${newCampusData.name.trim()} created.`
       );
-      toast.success("New campus created");
       setShowAddCampusModal(false);
-      setNewCampusData({ name: "", location: "", regId: "", autoId: true });
+      setNewCampusData({ ...emptyCampusForm });
       await refetch();
     } catch (error: any) {
       toast.error(error.message);
@@ -258,10 +298,17 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const openSettings = useCallback(() => {
+    setSelectedCampus(null);
+    setActiveView("settings");
+    window.history.replaceState(null, "", "/super?view=settings");
+  }, []);
+
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
+    { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
@@ -324,6 +371,21 @@ const bottomItems: RoleNavItem[] = [];
             </div>
             <div className="p-6">
               <PlansPanel />
+            </div>
+          </div>
+        ) : activeView === "settings" ? (
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Institution record</p>
+                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">School Settings</h2>
+                <p className="mt-2 text-sm font-semibold text-ink-muted">
+                  Name, branding and contact details for the institution and each of its campuses.
+                </p>
+              </div>
+            </div>
+            <div className="p-6">
+              <InstitutionSettingsPanel onSaved={refetch} />
             </div>
           </div>
         ) : activeView === "fees" ? (
@@ -581,6 +643,16 @@ const bottomItems: RoleNavItem[] = [];
                   ) : null}
                 </div>
               </div>
+
+              {/* Who reports to whom on this campus. Scoped to the selected
+                  campus because a reporting line never crosses one. */}
+              <div className="mt-8 rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <PanelTitle icon={Network} title="Staff Hierarchy" />
+                  <SuperStatusPill status={`${selectedCampus.staffCount} Staff`} />
+                </div>
+                <StaffHierarchyPanel campusId={selectedCampus.id} />
+              </div>
             </div>
           </div>
         )}
@@ -639,20 +711,80 @@ const bottomItems: RoleNavItem[] = [];
 
       {showAddCampusModal && (
         <ModalFrame onClose={() => setShowAddCampusModal(false)} title="Instantiate Facility" wide>
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
             <CampusInput
               label="Campus Name"
               icon={Building2}
+              required
               value={newCampusData.name}
               placeholder="e.g. South Campus"
               onChange={(value) => setNewCampusData({ ...newCampusData, name: value })}
             />
             <CampusInput
-              label="City / Location"
+              label="City"
               icon={MapPin}
-              value={newCampusData.location}
+              required
+              value={newCampusData.city}
               placeholder="e.g. Islamabad"
-              onChange={(value) => setNewCampusData({ ...newCampusData, location: value })}
+              onChange={(value) => setNewCampusData({ ...newCampusData, city: value })}
+            />
+            <div className="md:col-span-2">
+              <CampusInput
+                label="Address"
+                icon={MapPin}
+                value={newCampusData.address}
+                placeholder="Full street address"
+                onChange={(value) => setNewCampusData({ ...newCampusData, address: value })}
+              />
+            </div>
+            <CampusInput
+              label="Phone"
+              icon={Phone}
+              value={newCampusData.phone}
+              placeholder="+92 300 0000000"
+              onChange={(value) => setNewCampusData({ ...newCampusData, phone: value })}
+            />
+            <CampusInput
+              label="Campus Email"
+              icon={Mail}
+              value={newCampusData.email}
+              placeholder="campus@school.edu.pk"
+              onChange={(value) => setNewCampusData({ ...newCampusData, email: value })}
+            />
+            <CampusInput
+              label="Website"
+              icon={Globe}
+              value={newCampusData.website}
+              placeholder="Website (optional)"
+              onChange={(value) => setNewCampusData({ ...newCampusData, website: value })}
+            />
+            <CampusInput
+              label="Head of Campus"
+              icon={Users}
+              value={newCampusData.principalName}
+              placeholder="Principal / director name"
+              onChange={(value) => setNewCampusData({ ...newCampusData, principalName: value })}
+            />
+            <div>
+              <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">Board</label>
+              <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
+                <GraduationCap className="w-5 h-5 text-ink-subtle shrink-0" />
+                <select
+                  value={newCampusData.board}
+                  onChange={(event) => setNewCampusData({ ...newCampusData, board: event.target.value })}
+                  className="w-full cursor-pointer border-none bg-transparent text-sm font-bold outline-none"
+                >
+                  {EXAM_BOARDS.map((board) => <option key={board} value={board}>{board}</option>)}
+                </select>
+              </div>
+            </div>
+            <CampusInput
+              label="Campus Admin Email"
+              icon={Mail}
+              value={newCampusData.adminEmail}
+              placeholder="Invite a campus admin (optional)"
+              hint="An invitation is sent; they set their own password."
+              onChange={(value) => setNewCampusData({ ...newCampusData, adminEmail: value })}
             />
             <div className="md:col-span-2 p-6 bg-[#fbf0fe] rounded-[28px] border border-[#cfc2d6]/20">
               <div className="flex items-center justify-between mb-4">
@@ -678,6 +810,10 @@ const bottomItems: RoleNavItem[] = [];
                 value={newCampusData.regId}
                 onChange={(event) => setNewCampusData({ ...newCampusData, regId: event.target.value.toUpperCase() })}
               />
+              <p className="mt-4 pl-1 text-[10px] font-bold leading-snug text-ink-subtle">
+                The new campus inherits the group&apos;s current academic session and working week.
+                Adjust either from Academic &rarr; Calendar.
+              </p>
             </div>
           </div>
           <div className="flex gap-4">
@@ -1165,18 +1301,24 @@ function CampusInput({
   value,
   placeholder,
   onChange,
+  required,
+  hint,
 }: {
   label: string;
   icon: LucideIcon;
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
+  required?: boolean;
+  hint?: string;
 }) {
   return (
     <div>
-      <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">{label}</label>
+      <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">
+        {label} {required ? <span className="text-rose-500">*</span> : null}
+      </label>
       <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
-        <Icon className="w-5 h-5 text-ink-subtle" />
+        <Icon className="w-5 h-5 text-ink-subtle shrink-0" />
         <input
           type="text"
           placeholder={placeholder}
@@ -1185,6 +1327,7 @@ function CampusInput({
           onChange={(event) => onChange(event.target.value)}
         />
       </div>
+      {hint ? <p className="mt-1.5 pl-2 text-[9px] font-bold text-ink-subtle">{hint}</p> : null}
     </div>
   );
 }
