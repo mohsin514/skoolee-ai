@@ -63,13 +63,21 @@ async function runPooled<T>(
   return results;
 }
 
+/**
+ * Colours the section chips cycle through.
+ *
+ * Deliberately no rose or pink: a chip is struck through in red when that
+ * section already exists, and the palette used to include two reds of its own —
+ * so a perfectly fine "Grade 1 - C" sitting on a rose swatch read as a clash at
+ * a glance. Red now means exactly one thing here.
+ */
 const SECTION_CHIP_COLORS = [
   { bg: "bg-[#ccfbf1]", text: "text-[#0d9488]", border: "border-[#0d9488]/20" },
   { bg: "bg-[#fef3c7]", text: "text-[#b45309]", border: "border-[#f59e0b]/20" },
-  { bg: "bg-[#fff1f2]", text: "text-[#e11d48]", border: "border-[#f43f5e]/20" },
   { bg: "bg-[#f3eeff]", text: "text-[#7c3aed]", border: "border-[#8127cf]/20" },
   { bg: "bg-[#dbeafe]", text: "text-[#2563eb]", border: "border-[#3b82f6]/20" },
-  { bg: "bg-[#fce7f3]", text: "text-[#be185d]", border: "border-[#ec4899]/20" },
+  { bg: "bg-[#e0e7ff]", text: "text-[#4338ca]", border: "border-[#6366f1]/20" },
+  { bg: "bg-[#d1fae5]", text: "text-[#047857]", border: "border-[#10b981]/20" },
 ];
 
 /* ── Component ────────────────────────────────────────────────────────── */

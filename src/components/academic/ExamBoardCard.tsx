@@ -11,7 +11,6 @@ import {
   MoreVertical,
   PenLine,
   RotateCcw,
-  SlidersHorizontal,
   TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,7 +31,14 @@ import {
   type ScheduleSummary,
 } from "@/lib/academic/exam-pipeline";
 
-export type DetailTab = "schedule" | "marks" | "grade" | "reports";
+/**
+ * Where opening an exam should land.
+ *
+ * "grade" used to be here, when grading rules were edited per exam. They are a
+ * property of the class and the year, not of one paper, so they moved to their
+ * own screen and this list lost a tab (§80).
+ */
+export type DetailTab = "schedule" | "marks" | "reports";
 
 const ACCENT_BY_STATUS: Record<string, string> = {
   PUBLISHED: "#10b981",
@@ -307,7 +313,6 @@ function CardMenu({
       : [
           { label: "Dates & rooms", tab: "schedule", icon: CalendarDays },
           { label: "Enter marks", tab: "marks", icon: PenLine },
-          { label: "Grading rules", tab: "grade", icon: SlidersHorizontal },
           { label: "Report cards", tab: "reports", icon: FileText },
         ];
 

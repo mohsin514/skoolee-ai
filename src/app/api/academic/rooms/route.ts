@@ -1,11 +1,75 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
 
-// GET /api/academic/rooms?campusId= — list class rooms
-// POST /api/academic/rooms {campusId, roomNumber, capacity?, note?}
-// PATCH /api/academic/rooms {id, roomNumber?, capacity?, note?}
+// GET /api/academic/rooms?campusId= — list class rooms with exam-day capacity
+// POST /api/academic/rooms {campusId, roomNumber, ...layout}
+// PATCH /api/academic/rooms {id, ...}
 // DELETE /api/academic/rooms?id=
+//
+// Rooms carry two capacities (§79): the teaching figure everyone already knew
+// about, and the exam figure derived from the bench layout. Both are returned
+// so a screen never has to guess which one it is looking at.
+
+const ROOM_TYPES = new Set(["CLASSROOM", "HALL", "LAB", "LIBRARY", "AUDITORIUM"]);
+
+function toInt(value: unknown, fallback: number, { min = 0, max = 500 } = {}) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = Math.trunc(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function text(value: unknown, limit = 120): string | null {
+  if (value === undefined || value === null) return null;
+  const s = String(value).trim();
+  return s ? s.slice(0, limit) : null;
+}
+
+/**
+ * Turn the request body into the stored shape.
+ *
+ * `capacity` is deliberately derived from the layout when one is given: a room
+ * that says "5 rows × 2 benches × 3 seats" and also "capacity 40" is a room
+ * with two contradictory answers, and the layout is the one an invigilator can
+ * verify by walking in.
+ */
+function layoutFrom(body: Record<string, unknown>, current?: {
+  capacity: number;
+  rows: number;
+  benchesPerRow: number;
+  seatsPerBench: number;
+  examSeatsPerBench: number;
+}) {
+  const rows = toInt(body.rows, current?.rows ?? 0, { max: 60 });
+  const benchesPerRow = toInt(body.benchesPerRow, current?.benchesPerRow ?? 0, { max: 60 });
+  const seatsPerBench = toInt(body.seatsPerBench, current?.seatsPerBench ?? 1, { min: 1, max: 10 });
+  // Exam spacing can never exceed how many actually fit on the bench.
+  const examSeatsPerBench = Math.min(
+    toInt(body.examSeatsPerBench, current?.examSeatsPerBench ?? 1, { min: 1, max: 10 }),
+    seatsPerBench,
+  );
+
+  const derived = rows > 0 && benchesPerRow > 0 ? rows * benchesPerRow * seatsPerBench : null;
+  const capacity = derived ?? toInt(body.capacity, current?.capacity ?? 0, { max: 2000 });
+
+  return { rows, benchesPerRow, seatsPerBench, examSeatsPerBench, capacity };
+}
+
+function decorate<T extends Parameters<typeof roomCapacity>[0] & { building?: string | null; floor?: number | null; wing?: string | null }>(room: T) {
+  const cap = roomCapacity(room);
+  return {
+    ...room,
+    location: roomLocation(room),
+    examCapacity: cap.exam,
+    teachingCapacity: cap.teaching,
+    benches: cap.benches,
+    spacingLoss: cap.spacingLoss,
+    hasLayout: cap.hasLayout,
+    unmeasured: cap.unmeasured,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,13 +79,13 @@ export async function GET(req: NextRequest) {
 
     const rooms = await prisma.classRoom.findMany({
       where: { campusId },
-      orderBy: [{ roomNumber: "asc" }],
+      orderBy: [{ building: "asc" }, { floor: "asc" }, { roomNumber: "asc" }],
       // Exam usage matters as much as timetable usage when deciding whether a
       // room can be renamed or removed.
       include: { _count: { select: { slots: true, examSchedules: true, examRooms: true } } },
     });
 
-    return Response.json({ success: true, data: rooms });
+    return Response.json({ success: true, data: rooms.map(decorate) });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] GET failed");
   }
@@ -43,16 +107,24 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
 
+    const roomType = String(body.roomType ?? "CLASSROOM");
+    if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
+
     const room = await prisma.classRoom.create({
       data: {
         campusId,
         roomNumber,
-        capacity: Math.max(0, parseInt(String(body.capacity ?? "0"), 10) || 0),
-        note: body.note ? String(body.note).trim().slice(0, 2000) || null : null,
+        note: text(body.note, 2000),
+        building: text(body.building),
+        floor: toInt(body.floor, 0, { min: -5, max: 60 }),
+        wing: text(body.wing, 60),
+        roomType,
+        isExamHall: Boolean(body.isExamHall) || roomType === "HALL",
+        ...layoutFrom(body),
       },
     });
 
-    return Response.json({ success: true, data: room });
+    return Response.json({ success: true, data: decorate(room) });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] POST failed");
   }
@@ -82,16 +154,25 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
     }
 
+    const roomType = body.roomType !== undefined ? String(body.roomType) : room.roomType;
+    if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
+
     const updated = await prisma.classRoom.update({
       where: { id },
       data: {
         roomNumber,
-        capacity: body.capacity !== undefined ? Math.max(0, parseInt(String(body.capacity), 10) || 0) : room.capacity,
-        note: body.note !== undefined ? (String(body.note).trim().slice(0, 2000) || null) : room.note,
+        note: body.note !== undefined ? text(body.note, 2000) : room.note,
+        building: body.building !== undefined ? text(body.building) : room.building,
+        floor: body.floor !== undefined ? toInt(body.floor, room.floor, { min: -5, max: 60 }) : room.floor,
+        wing: body.wing !== undefined ? text(body.wing, 60) : room.wing,
+        roomType,
+        isExamHall:
+          body.isExamHall !== undefined ? Boolean(body.isExamHall) : room.isExamHall,
+        ...layoutFrom(body, room),
       },
     });
 
-    return Response.json({ success: true, data: updated });
+    return Response.json({ success: true, data: decorate(updated) });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] PATCH failed");
   }

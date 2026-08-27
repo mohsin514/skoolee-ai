@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { findTimetableRoomClashes, syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
+import { roomCapacity } from "@/lib/academic/room-capacity";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -27,10 +28,27 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Enough of the room to work out its exam-day capacity on the client without
+// a second round trip — `capacity` alone is the teaching figure and reading it
+// as an exam figure is the bug §79 fixed.
+const roomSelect = {
+  id: true,
+  roomNumber: true,
+  capacity: true,
+  building: true,
+  floor: true,
+  wing: true,
+  rows: true,
+  benchesPerRow: true,
+  seatsPerBench: true,
+  examSeatsPerBench: true,
+  isExamHall: true,
+} as const;
+
 const scheduleInclude = {
   subject: { select: { id: true, name: true, totalMarks: true } },
   periodDefinition: { select: { id: true, periodNumber: true, startTime: true, endTime: true } },
-  room: { select: { id: true, roomNumber: true, capacity: true } },
+  room: { select: roomSelect },
   // §58: the full room set, so the date sheet can show "QA-A + QA-B" rather
   // than only the primary room of a split paper.
   rooms: {
@@ -40,7 +58,7 @@ const scheduleInclude = {
     select: {
       id: true,
       isPrimary: true,
-      room: { select: { id: true, roomNumber: true, capacity: true } },
+      room: { select: roomSelect },
       _count: { select: { seats: true } },
     },
   },
@@ -50,7 +68,11 @@ const scheduleInclude = {
       title: true,
       term: true,
       classId: true,
+      sessionId: true,
+      examType: true,
+      academicYear: true,
       class: { select: { name: true, section: true } },
+      _count: { select: { marks: true } },
     },
   },
 } as const;
@@ -61,6 +83,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const examId = searchParams.get("examId");
+    // The master date sheet is every class's papers at once, which is one
+    // query by session rather than one query per class.
+    const sessionId = searchParams.get("sessionId");
 
     // Families see the date sheet for their own class only, and never for an
     // exam the office is still drafting. Without this, any signed-in student
@@ -76,11 +101,20 @@ export async function GET(req: NextRequest) {
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));
       if (classIds.length === 0) return Response.json({ success: true, data: [] });
-      audienceScope = { exam: { classId: { in: classIds }, status: { not: "DRAFT" } } };
+      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" } };
     }
 
     const schedules = await prisma.examSchedule.findMany({
-      where: { campusId, ...(examId ? { examId } : {}), ...audienceScope },
+      where: {
+        campusId,
+        ...(examId ? { examId } : {}),
+        // Both the session filter and the family scope narrow `exam`, so they
+        // are merged into one object — spreading them separately meant
+        // whichever came last silently dropped the other.
+        ...(sessionId || Object.keys(audienceScope).length
+          ? { exam: { ...(sessionId ? { sessionId } : {}), ...audienceScope } }
+          : {}),
+      },
       include: scheduleInclude,
       orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
     });
@@ -208,15 +242,31 @@ async function createOrUpdate(
     if (!room) return Response.json({ error: "Room not found" }, { status: 400 });
 
     // Seating an exam in a room that cannot hold the class is an operational
-    // failure on the day, so it is blocked rather than warned about. capacity 0
-    // means "not recorded" and is left alone.
-    if (room.capacity > 0) {
+    // failure on the day, so it is blocked rather than warned about.
+    //
+    // The number compared is the room's EXAM capacity, not its teaching one
+    // (§79): a 30-seat room three-to-a-bench invigilates ten. An unmeasured
+    // room has nothing to compare against and is left alone here — allocation
+    // rejects it later with a message that says what to record.
+    const cap = roomCapacity(room);
+    if (!cap.unmeasured) {
       const seated = await prisma.student.count({ where: { classId: exam.classId, campusId } });
-      if (seated > room.capacity) {
+      if (seated > cap.exam) {
+        const spacing =
+          cap.teaching > cap.exam
+            ? ` It seats ${cap.teaching} in a lesson, but only ${cap.exam} at one candidate per bench.`
+            : "";
         return Response.json(
           {
-            error: `Capacity conflict: ${seated} students are sitting this paper but Room ${room.roomNumber} holds only ${room.capacity}. Pick a larger room, or split the paper across several rooms.`,
-            conflict: { type: "ROOM_CAPACITY", seated, capacity: room.capacity, roomNumber: room.roomNumber, shortBy: seated - room.capacity },
+            error: `Capacity conflict: ${seated} students are sitting this paper but Room ${room.roomNumber} holds only ${cap.exam} on an exam day.${spacing} Pick a larger room, or split the paper across several rooms.`,
+            conflict: {
+              type: "ROOM_CAPACITY",
+              seated,
+              capacity: cap.exam,
+              teachingCapacity: cap.teaching,
+              roomNumber: room.roomNumber,
+              shortBy: seated - cap.exam,
+            },
           },
           { status: 409 }
         );

@@ -377,6 +377,30 @@ function AddSectionPanel({
   });
   const [teacherId, setTeacherId] = useState("");
 
+  /**
+   * The panel opens at the foot of the section list, which on a rail with a
+   * few sections in it is already below the fold — measured at 272px tall with
+   * 177px of that, including the Add button, clipped by the rail's scroll box.
+   * Autofocusing the name field only brings the panel's *top* into view, which
+   * leaves the button just as unreachable.
+   *
+   * Scrolling the rail to its end is exact rather than approximate: this panel
+   * is always the last thing in it. `scrollIntoView` was the first attempt and
+   * is the wrong tool here — its smooth behaviour is throttled whenever the
+   * tab is not foregrounded, so the scroll simply never arrived.
+   */
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      let scroller = panelRef.current?.parentElement ?? null;
+      while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
+        scroller = scroller.parentElement;
+      }
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const names = useMemo(() => parseSections(input), [input]);
 
   const taken = useMemo(
@@ -408,7 +432,10 @@ function AddSectionPanel({
   };
 
   return (
-    <div className="mt-3 rounded-2xl border border-[#8127cf]/20 bg-white p-3.5 shadow-sm">
+    <div
+      ref={panelRef}
+      className="mt-3 rounded-2xl border border-[#8127cf]/20 bg-white p-3.5 shadow-sm"
+    >
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
           New section

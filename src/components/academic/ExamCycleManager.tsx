@@ -35,7 +35,7 @@ import { toneOf } from "@/lib/ui/module-tones";
 
 /** Constant lookup — hoisted so it is not recomputed on every render. */
 const examTone = toneOf("exams");
-import { ExamDetailPanel } from "@/components/academic/ExamDetailPanel";
+import { ExamDetailDialog } from "@/components/academic/exams/ExamDetailDialog";
 import { ExamBoardCard, type DetailTab } from "@/components/academic/ExamBoardCard";
 import { ExamTableView, type SortKey } from "@/components/academic/ExamTableView";
 import { ExamTimelineView, type ScheduleRow } from "@/components/academic/ExamTimelineView";
@@ -1342,11 +1342,11 @@ export function ExamCycleManager({
       ) : null}
 
       {selectedExam ? (
-        <ExamDetailPanel
+        <ExamDetailDialog
           exam={selectedExam}
           campusId={campusId}
           role={role}
-          initialTab={detailTab}
+          initialTab={detailTab === "schedule" ? "papers" : detailTab}
           sequence={panelSequence.map((e) => ({ id: e.id, title: e.title }))}
           onNavigate={(id) => setSelectedId(id)}
           onClose={() => {
@@ -1959,9 +1959,12 @@ function CreateExamModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  // Teachers may only create their own classroom assessments.
+  // Quizzes and class tests are the teacher's own; mid-terms and finals are
+  // scheduled by the office through the exam-session wizard, for every class at
+  // once, because they need a date sheet and a seating plan this board has no
+  // notion of.
   const typeOptions: readonly ExamType[] =
-    role === "TEACHER" ? TEACHER_EXAM_TYPES : [...TEACHER_EXAM_TYPES, ...OFFICE_EXAM_TYPES];
+    role === "TEACHER" ? TEACHER_EXAM_TYPES : OFFICE_EXAM_TYPES;
   // Stamp new exams with the active cycle's year, not the calendar year — a
   // cycle labelled 2027 starts in August 2026, and filing under 2026 hides the
   // exam from the office's board.

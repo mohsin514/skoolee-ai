@@ -26,6 +26,7 @@ import {
   PhoneCall,
   Plane,
   Receipt,
+  Scale,
   School,
   Shield,
   Sparkles,
@@ -55,7 +56,9 @@ import { TimetableStudio } from "@/components/timetable/TimetableStudio";
 import { AcademicHub } from "@/components/academic/AcademicHub";
 import { AcademicSubnav, ACADEMIC_VIEWS, ACADEMIC_VIEW_MODULE } from "@/components/academic/AcademicSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
-import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
+import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
+import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
+import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { YearEndPanel } from "@/components/academic/YearEndPanel";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
@@ -86,7 +89,6 @@ import {
   PeriodsPanel,
   RolePermissionsPanel,
   ReportCardsPanel,
-  RoomsPanel,
   StudentDetailModal,
   StudentsPanel,
   StudentSetupPanel,
@@ -115,6 +117,7 @@ type AdminView =
   | "year-cycle"
   | "teacher-performance"
   | "exam-cycles"
+  | "grading-rules"
   | "billing"
   | "report-cards"
   | "transport"
@@ -133,7 +136,7 @@ const ADMIN_VIEWS: readonly AdminView[] = [
   "leadership", "classes", "teachers", "students", "admission-queries",
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
-  "year-cycle", "teacher-performance", "exam-cycles", "billing", "report-cards",
+  "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
   "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup",
 ];
 
@@ -892,6 +895,7 @@ export default function CampusAdminDashboard() {
         { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
         { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
         { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
+        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", onClick: () => setActiveView("grading-rules") },
         { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
       ],
     },
@@ -1181,7 +1185,7 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "class-rooms" ? (
-            <RoomsPanel />
+            <RoomsManager campusId={data.campusId} />
           ) : null}
 
           {activeView === "period-setup" ? (
@@ -1210,7 +1214,11 @@ export default function CampusAdminDashboard() {
           ) : null}
 
           {activeView === "exam-cycles" ? (
-            <ExamCycleManager campusId={data.campusId} />
+            <ExamsWorkspace campusId={data.campusId} />
+          ) : null}
+
+          {activeView === "grading-rules" ? (
+            <GradingRulesPanel campusId={data.campusId} />
           ) : null}
 
           {activeView === "report-cards" ? (

@@ -37,6 +37,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  Scale,
   School,
   Send,
   ShieldCheck,
@@ -86,7 +87,9 @@ import {
   InventoryPanel,
 } from "@/components/operations";
 import { TimetableStudio } from "@/components/timetable/TimetableStudio";
-import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
+import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
+import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
+import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { AcademicHub } from "@/components/academic/AcademicHub";
 import { AcademicSubnav, ACADEMIC_VIEWS } from "@/components/academic/AcademicSubnav";
@@ -113,7 +116,6 @@ import {
   PeriodsPanel,
   RolePermissionsPanel,
   ReportCardsPanel,
-  RoomsPanel,
   StudentsPanel,
   StudentSetupPanel,
   TeacherConflictsBanner,
@@ -150,6 +152,7 @@ type PrincipalView =
   | "academic-hub"
   | "year-setup"
   | "exam-cycles"
+  | "grading-rules"
   | "fees"
   | "timetable"
   | "class-rooms"
@@ -428,6 +431,7 @@ export default function PrincipalDashboard() {
         { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
         { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
         { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
+        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", onClick: () => setActiveView("grading-rules") },
         { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
       ],
     },
@@ -626,11 +630,13 @@ export default function PrincipalDashboard() {
           />
         ) : null}
 
-        {activeView === "exam-cycles" ? <ExamCycleManager campusId={data.campusId} /> : null}
+        {activeView === "exam-cycles" ? <ExamsWorkspace campusId={data.campusId} /> : null}
+
+        {activeView === "grading-rules" ? <GradingRulesPanel campusId={data.campusId} /> : null}
         {activeView === "fees" ? <FeeOverviewTab /> : null}
         {activeView === "timetable" ? <TimetableStudio campusId={data.campusId} /> : null}
 
-        {activeView === "class-rooms" ? <RoomsPanel /> : null}
+        {activeView === "class-rooms" ? <RoomsManager campusId={data.campusId} /> : null}
 
         {activeView === "period-setup" ? <PeriodsPanel /> : null}
 

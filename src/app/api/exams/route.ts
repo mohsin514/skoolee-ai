@@ -8,7 +8,9 @@ import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
 import { assertPermission } from "@/lib/permissions";
 import {
+  canCreateExamType,
   canManageExamType,
+  CLASSROOM_EXAM_DENIED_MESSAGE,
   isOfficeRole,
   TERM_EXAM_DENIED_MESSAGE,
 } from "@/lib/academic/exam-permissions";
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
     const campusId = searchParams.get("campusId") || user.campusId;
     const classId = searchParams.get("classId");
     const status = searchParams.get("status");
+    const sessionId = searchParams.get("sessionId");
     // Without this the year selector is decorative: every caller asking for
     // one year got every year's exams back, mixing a closed year's papers
     // into the active one.
@@ -106,6 +109,7 @@ export async function GET(req: NextRequest) {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
         ...(classId ? { classId } : {}),
         ...(status ? { status } : {}),
+        ...(sessionId ? { sessionId } : {}),
         ...(academicYear !== null ? { academicYear } : {}),
         ...audienceScope,
       },
@@ -113,7 +117,8 @@ export async function GET(req: NextRequest) {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
         locker: { select: { fullName: true } },
         subject: { select: { id: true, name: true, totalMarks: true } },
-        _count: { select: { marks: true, reportCards: true } },
+        session: { select: { id: true, title: true, status: true } },
+        _count: { select: { marks: true, reportCards: true, schedules: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     });
@@ -169,9 +174,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Teachers own quizzes and class tests; term exams belong to the office.
-    const examType = body.examType || "CLASS_TEST";
-    if (!canManageExamType(user.role, examType)) {
-      return Response.json({ error: TERM_EXAM_DENIED_MESSAGE }, { status: 403 });
+    // Since §80 the split is enforced in both directions — the office creating
+    // a quiz was how classroom assessments ended up on the exam board needing
+    // date sheets and seating plans they would never have.
+    const examType = body.examType || (user.role === "TEACHER" ? "CLASS_TEST" : "MID_TERM");
+    if (!canCreateExamType(user.role, examType)) {
+      return Response.json(
+        {
+          error: isOfficeRole(user.role)
+            ? CLASSROOM_EXAM_DENIED_MESSAGE
+            : TERM_EXAM_DENIED_MESSAGE,
+        },
+        { status: 403 },
+      );
     }
 
     const subjectFilter = parsed.data.subjectId

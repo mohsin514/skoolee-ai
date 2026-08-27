@@ -1,20 +1,27 @@
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
+import { roomCapacity, roomLocation, seatGrid } from "@/lib/academic/room-capacity";
 
 /**
- * Multi-room exam allocation (§58).
+ * Multi-room exam allocation (§58, corrected in §79).
  *
  * A paper for a class of 90 cannot sit in one 40-seat room. Before this, the
  * date sheet held a single `roomId` and simply refused any room smaller than
  * the class, which left the only real answer — use two rooms — unavailable.
  *
+ * §79 fixed the number being compared. Allocation used to read the room's
+ * TEACHING capacity, so a 30-seat room laid out three-to-a-bench was handed
+ * thirty candidates who would have had to sit shoulder to shoulder. Capacity
+ * now comes from `roomCapacity()`, which applies the room's exam spacing.
+ *
  * The rules, in the order they are enforced:
  *
  *  1. Every room must belong to the campus, and no room may be listed twice.
- *  2. Combined capacity must cover the whole class. A room with capacity 0
- *     ("not recorded") contributes nothing and is rejected outright here,
- *     because an unknown-size room cannot be part of a seating plan.
- *  3. No room may be double-booked against another paper in the same slot.
+ *  2. Combined EXAM capacity must cover the whole class. A room with no
+ *     recorded size contributes nothing and is rejected outright, because an
+ *     unmeasured room cannot be part of a seating plan.
+ *  3. No room may be double-booked against another paper in the same slot,
+ *     nor against a published lesson in that hour.
  *  4. Each student gets exactly one seat. That last rule is a unique index on
  *     (examScheduleId, studentId) as well as allocation logic — code can be
  *     rewritten, a constraint cannot be forgotten.
@@ -27,17 +34,52 @@ import { ApiError } from "@/lib/api/scope";
 export interface SeatingPlan {
   scheduleId: string;
   totalStudents: number;
+  /** Exam-day capacity of the chosen rooms — never the teaching figure. */
   totalCapacity: number;
+  /** Teaching capacity, shown alongside so the spacing loss is visible. */
+  totalTeachingCapacity: number;
+  unseated: number;
   rooms: {
     examRoomId: string;
     roomId: string;
     roomNumber: string;
+    location: string;
+    /** Exam-day seats in this room. */
     capacity: number;
+    teachingCapacity: number;
+    rows: number;
+    benchesPerRow: number;
+    seatsPerBench: number;
+    examSeatsPerBench: number;
     isPrimary: boolean;
     seated: number;
-    students: { studentId: string; fullName: string; rollNumber: string; seatNumber: number }[];
+    students: {
+      studentId: string;
+      fullName: string;
+      rollNumber: string;
+      seatNumber: number;
+      rowNo: number;
+      benchNo: number;
+      seatOnBench: number;
+      seatLabel: string;
+    }[];
   }[];
 }
+
+const ROOM_SELECT = {
+  id: true,
+  roomNumber: true,
+  capacity: true,
+  building: true,
+  floor: true,
+  wing: true,
+  roomType: true,
+  rows: true,
+  benchesPerRow: true,
+  seatsPerBench: true,
+  examSeatsPerBench: true,
+  isExamHall: true,
+} as const;
 
 /**
  * Rooms occupied by a *lesson* at the exam's time (§72).
@@ -123,6 +165,119 @@ async function findRoomClashes(opts: {
   );
 }
 
+/** Which rooms are free for a given date + period, with their exam capacity. */
+export async function findAvailableRooms(opts: {
+  campusId: string;
+  date: string;
+  periodDefinitionId: string | null;
+  excludeScheduleId?: string;
+}) {
+  const { campusId, date, periodDefinitionId, excludeScheduleId } = opts;
+
+  const rooms = await prisma.classRoom.findMany({
+    where: { campusId },
+    select: ROOM_SELECT,
+    orderBy: [{ roomNumber: "asc" }],
+  });
+
+  const taken = new Set<string>();
+  if (periodDefinitionId) {
+    const booked = await prisma.examRoom.findMany({
+      where: {
+        campusId,
+        examScheduleId: excludeScheduleId ? { not: excludeScheduleId } : undefined,
+        examSchedule: { date: new Date(`${date}T00:00:00.000Z`), periodDefinitionId },
+      },
+      select: { roomId: true },
+    });
+    booked.forEach((b) => taken.add(b.roomId));
+  }
+
+  const period = periodDefinitionId
+    ? await prisma.periodDefinition.findFirst({
+        where: { id: periodDefinitionId, campusId },
+        select: { startTime: true, endTime: true },
+      })
+    : null;
+
+  const lessonBusy = new Set<string>();
+  if (period) {
+    const [y, m, d] = date.split("-").map(Number);
+    const jsDay = new Date(y, m - 1, d).getDay();
+    const slots = await prisma.timetableSlot.findMany({
+      where: {
+        roomId: { in: rooms.map((r) => r.id) },
+        dayOfWeek: jsDay === 0 ? 7 : jsDay,
+        slotType: "CLASS",
+        timetable: { campusId, status: "PUBLISHED" },
+      },
+      select: { roomId: true, startTime: true, endTime: true },
+    });
+    slots
+      .filter((s) => s.startTime < period.endTime && period.startTime < s.endTime)
+      .forEach((s) => s.roomId && lessonBusy.add(s.roomId));
+  }
+
+  return rooms.map((r) => {
+    const cap = roomCapacity(r);
+    return {
+      ...r,
+      location: roomLocation(r),
+      examCapacity: cap.exam,
+      teachingCapacity: cap.teaching,
+      benches: cap.benches,
+      hasLayout: cap.hasLayout,
+      unmeasured: cap.unmeasured,
+      busy: taken.has(r.id) || lessonBusy.has(r.id),
+      busyReason: taken.has(r.id)
+        ? "Hosting another paper in this slot"
+        : lessonBusy.has(r.id)
+        ? "A published lesson uses it at this hour"
+        : null,
+    };
+  });
+}
+
+/**
+ * Pick rooms for a paper without the admin choosing them.
+ *
+ * Preference order is the one a head of exams uses: purpose-built halls first
+ * (fewer rooms means fewer invigilators), then largest first, so a class fits
+ * into as few rooms as it can. Rooms already busy in that slot, and rooms with
+ * no recorded size, are never offered.
+ */
+export async function suggestRooms(opts: {
+  campusId: string;
+  date: string;
+  periodDefinitionId: string | null;
+  headcount: number;
+  excludeScheduleId?: string;
+}): Promise<{ roomIds: string[]; capacity: number; short: number }> {
+  const available = (await findAvailableRooms(opts)).filter(
+    (r) => !r.busy && !r.unmeasured && r.examCapacity > 0,
+  );
+
+  available.sort((a, b) => {
+    if (a.isExamHall !== b.isExamHall) return a.isExamHall ? -1 : 1;
+    if (b.examCapacity !== a.examCapacity) return b.examCapacity - a.examCapacity;
+    return a.roomNumber.localeCompare(b.roomNumber);
+  });
+
+  const chosen: typeof available = [];
+  let capacity = 0;
+  for (const room of available) {
+    if (capacity >= opts.headcount) break;
+    chosen.push(room);
+    capacity += room.examCapacity;
+  }
+
+  return {
+    roomIds: chosen.map((r) => r.id),
+    capacity,
+    short: Math.max(0, opts.headcount - capacity),
+  };
+}
+
 /**
  * Replace the room set for one paper and re-seat every student.
  *
@@ -160,16 +315,16 @@ export async function allocateExamRooms(opts: {
 
   const rooms = await prisma.classRoom.findMany({
     where: { id: { in: roomIds }, campusId },
-    select: { id: true, roomNumber: true, capacity: true },
+    select: ROOM_SELECT,
   });
   if (rooms.length !== roomIds.length) {
     throw new ApiError("One or more rooms do not belong to this campus", 400);
   }
 
-  const unsized = rooms.filter((r) => r.capacity <= 0);
+  const unsized = rooms.filter((r) => roomCapacity(r).unmeasured);
   if (unsized.length) {
     throw new ApiError(
-      `Room ${unsized.map((r) => r.roomNumber).join(", ")} has no recorded capacity — set it before using it in a seating plan`,
+      `Room ${unsized.map((r) => r.roomNumber).join(", ")} has no recorded capacity — set its size or bench layout before using it in a seating plan`,
       400,
     );
   }
@@ -182,11 +337,15 @@ export async function allocateExamRooms(opts: {
 
   // Preserve the caller's room order — it is the invigilation order.
   const ordered = roomIds.map((id) => rooms.find((r) => r.id === id)!);
-  const totalCapacity = ordered.reduce((sum, r) => sum + r.capacity, 0);
+  const capacities = ordered.map((r) => roomCapacity(r));
+  const totalCapacity = capacities.reduce((sum, c) => sum + c.exam, 0);
 
   if (students.length > totalCapacity) {
+    const detail = ordered
+      .map((r, i) => `${r.roomNumber} holds ${capacities[i].exam} at exam spacing`)
+      .join(", ");
     throw new ApiError(
-      `Capacity conflict: ${students.length} students are sitting ${schedule.subject.name} but the chosen rooms hold ${totalCapacity} (${students.length - totalCapacity} short). Add another room.`,
+      `Capacity conflict: ${students.length} students are sitting ${schedule.subject.name} but the chosen rooms hold ${totalCapacity} (${students.length - totalCapacity} short). ${detail}. Add another room.`,
       409,
     );
   }
@@ -221,7 +380,8 @@ export async function allocateExamRooms(opts: {
         select: { id: true },
       });
 
-      const take = students.slice(cursor, cursor + room.capacity);
+      const grid = seatGrid(room);
+      const take = students.slice(cursor, cursor + capacities[index].exam);
       if (take.length) {
         await tx.examSeat.createMany({
           data: take.map((s, i) => ({
@@ -229,7 +389,10 @@ export async function allocateExamRooms(opts: {
             examScheduleId: scheduleId,
             examRoomId: examRoom.id,
             studentId: s.id,
-            seatNumber: i + 1,
+            seatNumber: grid[i]?.seatNumber ?? i + 1,
+            rowNo: grid[i]?.rowNo ?? 0,
+            benchNo: grid[i]?.benchNo ?? 0,
+            seatOnBench: grid[i]?.seatOnBench ?? 0,
           })),
         });
       }
@@ -255,26 +418,33 @@ export async function getSeatingPlan(campusId: string, scheduleId: string): Prom
     select: {
       id: true,
       isPrimary: true,
-      room: { select: { id: true, roomNumber: true, capacity: true } },
+      room: { select: ROOM_SELECT },
       seats: {
         orderBy: { seatNumber: "asc" },
         select: {
           seatNumber: true,
+          rowNo: true,
+          benchNo: true,
+          seatOnBench: true,
           student: { select: { id: true, fullName: true, rollNo: true } },
         },
       },
     },
   });
 
-  return {
-    scheduleId,
-    totalStudents: rooms.reduce((n, r) => n + r.seats.length, 0),
-    totalCapacity: rooms.reduce((n, r) => n + r.room.capacity, 0),
-    rooms: rooms.map((r) => ({
+  const mapped = rooms.map((r) => {
+    const cap = roomCapacity(r.room);
+    return {
       examRoomId: r.id,
       roomId: r.room.id,
       roomNumber: r.room.roomNumber,
-      capacity: r.room.capacity,
+      location: roomLocation(r.room),
+      capacity: cap.exam,
+      teachingCapacity: cap.teaching,
+      rows: r.room.rows,
+      benchesPerRow: r.room.benchesPerRow,
+      seatsPerBench: r.room.seatsPerBench,
+      examSeatsPerBench: r.room.examSeatsPerBench,
       isPrimary: r.isPrimary,
       seated: r.seats.length,
       students: r.seats.map((s) => ({
@@ -282,8 +452,24 @@ export async function getSeatingPlan(campusId: string, scheduleId: string): Prom
         fullName: s.student.fullName,
         rollNumber: s.student.rollNo,
         seatNumber: s.seatNumber,
+        rowNo: s.rowNo,
+        benchNo: s.benchNo,
+        seatOnBench: s.seatOnBench,
+        seatLabel:
+          s.rowNo > 0
+            ? `R${s.rowNo}-B${s.benchNo}${s.seatOnBench > 1 ? `-S${s.seatOnBench}` : ""}`
+            : `S${s.seatNumber}`,
       })),
-    })),
+    };
+  });
+
+  return {
+    scheduleId,
+    totalStudents: mapped.reduce((n, r) => n + r.seated, 0),
+    totalCapacity: mapped.reduce((n, r) => n + r.capacity, 0),
+    totalTeachingCapacity: mapped.reduce((n, r) => n + r.teachingCapacity, 0),
+    unseated: 0,
+    rooms: mapped,
   };
 }
 

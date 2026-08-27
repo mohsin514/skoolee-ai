@@ -13,6 +13,7 @@ import {
   FileText,
   History,
   LayoutDashboard,
+  Scale,
   School,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ export const ACADEMIC_NAV: AcademicNavItem[] = [
   { view: "class-rooms", label: "Rooms", icon: DoorOpen, group: "Run the year", tone: "staff" },
   { view: "school-calendar", label: "Holidays & Calendar", icon: CalendarDays, group: "Run the year", tone: "leave" },
   { view: "exam-cycles", label: "Exams & Results", icon: FileText, group: "Assess", tone: "exams" },
+  { view: "grading-rules", label: "Grading Rules", icon: Scale, group: "Assess", tone: "exams" },
   { view: "report-cards", label: "Report Cards", icon: ClipboardList, group: "Assess", tone: "reports" },
 ];
 
@@ -63,6 +65,7 @@ export const ACADEMIC_VIEW_MODULE: Record<string, string> = {
   "class-rooms": "timetable",
   "school-calendar": "timetable",
   "exam-cycles": "exams",
+  "grading-rules": "exams",
   "report-cards": "reports",
 };
 

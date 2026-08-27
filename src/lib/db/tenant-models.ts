@@ -38,6 +38,7 @@ export const TENANT_MODELS = new Set<string>([
   "examRoom",
   "examSchedule",
   "examSeat",
+  "examSession",
   "feeCarryForward",
   "feeDiscount",
   "feeDiscountAssignment",

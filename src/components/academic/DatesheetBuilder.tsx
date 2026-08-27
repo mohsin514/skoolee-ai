@@ -406,12 +406,16 @@ function AssignmentPopover({
   const selectedRooms = roomIds
     .map((id) => rooms.find((r: any) => r.id === id))
     .filter(Boolean) as any[];
-  const seatsAvailable = selectedRooms.reduce((n, r) => n + (r.capacity || 0), 0);
 
-  // capacity 0 means the school has not recorded it, which is not a violation
-  // on the single-room path — but a room of unknown size cannot be part of a
-  // split, so a multi-room selection requires every room to be sized.
-  const unsized = selectedRooms.filter((r) => !r.capacity);
+  // §79: the number that has to cover the class is the EXAM capacity, not the
+  // teaching one. A 30-seat room three-to-a-bench invigilates ten, and reading
+  // "30" here is how a paper for thirty was allocated a room that holds ten.
+  const seatsAvailable = selectedRooms.reduce((n, r) => n + (r.examCapacity || 0), 0);
+
+  // An unmeasured room is not a violation on the single-room path — but a room
+  // of unknown size cannot be part of a split, so a multi-room selection
+  // requires every room to be sized.
+  const unsized = selectedRooms.filter((r) => r.unmeasured ?? !r.capacity);
   const shortBy =
     selectedRooms.length > 0 && unsized.length === 0 && studentsCount > seatsAvailable
       ? studentsCount - seatsAvailable
@@ -448,21 +452,21 @@ function AssignmentPopover({
         const best =
           studentsCount > 0
             ? free
-                .filter((r: any) => !r.capacity || r.capacity >= studentsCount)
-                .sort((a: any, b: any) => (a.capacity || 0) - (b.capacity || 0))[0]
+                .filter((r: any) => r.unmeasured || r.examCapacity >= studentsCount)
+                .sort((a: any, b: any) => (a.examCapacity || 0) - (b.examCapacity || 0))[0]
             : null;
         if (best) {
           setRoomIds([best.id]);
         } else if (studentsCount > 0) {
           const sized = free
-            .filter((r: any) => r.capacity > 0)
-            .sort((a: any, b: any) => b.capacity - a.capacity);
+            .filter((r: any) => r.examCapacity > 0)
+            .sort((a: any, b: any) => b.examCapacity - a.examCapacity);
           const picked: string[] = [];
           let seats = 0;
           for (const r of sized) {
             if (seats >= studentsCount) break;
             picked.push(r.id);
-            seats += r.capacity;
+            seats += r.examCapacity;
           }
           setRoomIds(seats >= studentsCount ? picked : []);
         } else {
@@ -592,7 +596,9 @@ function AssignmentPopover({
                     <DoorOpen className="h-4 w-4 shrink-0 text-[#8127cf]" />
                     <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
                     <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                      {r.capacity ? `cap ${r.capacity}` : "no capacity set"}
+                      {r.unmeasured
+                        ? "no size recorded"
+                        : `${r.examCapacity} exam seats${r.teachingCapacity > r.examCapacity ? ` · ${r.teachingCapacity} teaching` : ""}`}
                     </span>
                     {checked && roomIds.length > 1 ? (
                       <span className="shrink-0 rounded-md bg-[#8127cf] px-1.5 py-0.5 text-[9px] font-black text-white">
@@ -653,8 +659,8 @@ function AssignmentPopover({
               >
                 <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
                 <span>
-                  Room {unsized.map((r) => r.roomNumber).join(", ")} has no recorded capacity, so it
-                  cannot be part of a split. Set its capacity or pick another room.
+                  Room {unsized.map((r) => r.roomNumber).join(", ")} has no recorded size, so it
+                  cannot be part of a split. Set its bench layout under Rooms, or pick another room.
                 </span>
               </p>
             ) : multiRoom ? (
