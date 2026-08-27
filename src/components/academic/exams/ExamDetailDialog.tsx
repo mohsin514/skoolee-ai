@@ -190,6 +190,14 @@ interface Subject {
   totalMarks: number;
 }
 
+/**
+ * The in-grid sentinel for "did not sit this paper".
+ *
+ * It never reaches the database: the save maps it to `isAbsent: true` with a
+ * mark of 0, and the load maps that row back to this value. Keeping absence
+ * out of the number is the point — a 0 that means "absent" and a 0 that means
+ * "scored nothing" cannot be told apart once written.
+ */
 const ABSENT = -1;
 
 function MarksEntry({
@@ -220,8 +228,9 @@ function MarksEntry({
       setSubjects(res.subjects ?? []);
       setLocked(Boolean(res.exam?.isLocked));
       const map: Record<string, number> = {};
-      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number }) => {
-        map[`${m.studentId}:${m.subjectId}`] = m.marksObtained;
+      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean }) => {
+        // Absence comes back as its own fact, not as the 0 stored beside it.
+        map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.marksObtained;
       });
       setSaved(map);
       setDraft({});
@@ -294,6 +303,7 @@ function MarksEntry({
           studentId: key.split(":")[0],
           subjectId,
           marksObtained: marksObtained === ABSENT ? 0 : marksObtained,
+          isAbsent: marksObtained === ABSENT,
         }));
       if (entries.length === 0) return;
 
@@ -307,7 +317,9 @@ function MarksEntry({
 
       setSaved((prev) => {
         const next = { ...prev };
-        entries.forEach((e) => (next[`${e.studentId}:${e.subjectId}`] = e.marksObtained));
+        entries.forEach(
+          (e) => (next[`${e.studentId}:${e.subjectId}`] = e.isAbsent ? ABSENT : e.marksObtained),
+        );
         return next;
       });
       setDraft((prev) => {

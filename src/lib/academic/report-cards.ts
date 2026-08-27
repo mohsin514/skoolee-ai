@@ -344,7 +344,12 @@ export async function getReportCardPdfPayload(reportCardId: string) {
       subject: mark.subject.name,
       obtained: mark.marksObtained,
       total: mark.subject.totalMarks,
-      grade: mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
+      isAbsent: mark.isAbsent,
+      // An absent paper has no grade. Falling back to grading the stored 0
+      // would print "F" against a paper the pupil never sat.
+      grade: mark.isAbsent
+        ? "ABS"
+        : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
     })),
   };
 }

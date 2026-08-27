@@ -252,6 +252,9 @@ export const bulkMarksSchema = z.object({
     studentId: z.string(),
     subjectId: z.string(),
     marksObtained: z.coerce.number().min(0),
+    // An absent pupil still gets a row — the paper was set, they did not sit
+    // it — so absence travels alongside the mark rather than instead of it.
+    isAbsent: z.coerce.boolean().optional().default(false),
   })).min(1),
 });
 

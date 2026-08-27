@@ -12,9 +12,15 @@ function canEnterMarks(role: string) {
   return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
 }
 
-function markSnapshot(mark: { marksObtained: number; grade: string | null; enteredBy: string | null }) {
+function markSnapshot(mark: {
+  marksObtained: number;
+  isAbsent?: boolean;
+  grade: string | null;
+  enteredBy: string | null;
+}) {
   return {
     marksObtained: mark.marksObtained,
+    isAbsent: mark.isAbsent ?? false,
     grade: mark.grade,
     enteredBy: mark.enteredBy,
   };
@@ -105,7 +111,7 @@ export async function POST(req: NextRequest) {
       if (!subject) {
         return Response.json({ error: "One or more subjects are outside this exam class" }, { status: 400 });
       }
-      if (entry.marksObtained > subject.totalMarks) {
+      if (!entry.isAbsent && entry.marksObtained > subject.totalMarks) {
         return Response.json(
           { error: `Marks cannot exceed ${subject.totalMarks}` },
           { status: 400 }
@@ -126,14 +132,18 @@ export async function POST(req: NextRequest) {
 
     for (const entry of entries) {
       const subject = subjectsById.get(entry.subjectId)!;
-      const grade = gradeForMark(entry.marksObtained, subject.totalMarks);
+      // An absent pupil has no score to grade. Storing 0 with a grade of "F"
+      // is what made absence indistinguishable from a genuine zero.
+      const absent = entry.isAbsent === true;
+      const obtained = absent ? 0 : entry.marksObtained;
+      const grade = absent ? null : gradeForMark(obtained, subject.totalMarks);
       const key = `${entry.studentId}:${entry.subjectId}`;
       const oldMark = existingByKey.get(key);
 
       const mark = oldMark
         ? await prisma.mark.update({
             where: { id: oldMark.id },
-            data: { marksObtained: entry.marksObtained, grade, enteredBy: user.userId },
+            data: { marksObtained: obtained, isAbsent: absent, grade, enteredBy: user.userId },
           })
         : await prisma.mark.create({
             data: {
@@ -141,7 +151,8 @@ export async function POST(req: NextRequest) {
               examId,
               studentId: entry.studentId,
               subjectId: entry.subjectId,
-              marksObtained: entry.marksObtained,
+              marksObtained: obtained,
+              isAbsent: absent,
               grade,
               enteredBy: user.userId,
             },
@@ -149,7 +160,8 @@ export async function POST(req: NextRequest) {
 
       const didChange =
         !oldMark ||
-        oldMark.marksObtained !== entry.marksObtained ||
+        oldMark.marksObtained !== obtained ||
+        oldMark.isAbsent !== absent ||
         oldMark.grade !== grade ||
         oldMark.enteredBy !== user.userId;
 
@@ -269,6 +281,11 @@ export async function GET(req: NextRequest) {
   const studentTotals = new Map<string, { obtained: number; total: number }>();
 
   for (const mark of marks) {
+    // A paper nobody sat is not a score of zero. Counting it as one would
+    // report a class average that no pupil actually achieved, so absent rows
+    // are left out of both the numerator and the denominator.
+    if (mark.isAbsent) continue;
+
     const subjectTotal = subjectTotals.get(mark.subjectId) || { obtained: 0, total: 0, count: 0 };
     subjectTotal.obtained += mark.marksObtained;
     subjectTotal.total += mark.subject.totalMarks;

@@ -1018,6 +1018,12 @@ model Mark {
   subjectId     String  @map("subject_id")
   subject       Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   marksObtained Int     @map("marks_obtained")
+  // A pupil who missed the paper and a pupil who scored zero are different
+  // facts, and collapsing them into a 0 is not recoverable: the absentee is
+  // marked failed, and every average is dragged down by a paper nobody sat.
+  // Absent rows keep marksObtained at 0 for the readers that only understand
+  // a number, and this flag is what the grade calculations actually consult.
+  isAbsent      Boolean @default(false) @map("is_absent")
   grade         String?
   enteredBy     String? @map("entered_by")
   enterer       User?   @relation("EnteredBy", fields: [enteredBy], references: [id])
