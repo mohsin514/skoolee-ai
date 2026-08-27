@@ -73,9 +73,14 @@ export function ReportCardsPanel({
   /** Unsaved remark text, keyed by report card id. */
   const [remarks, setRemarks] = useState<Record<string, string>>({});
 
-  const isLocked = exam.isLocked || exam.status === "LOCKED";
-  const reviewed = exam.status === "PRINCIPAL_REVIEWED";
+  // Locked is a floor, not a single state: an exam that has been reviewed or
+  // published is still locked. Testing only for the literal "LOCKED" left a
+  // published exam offering "Lock marks" again, and its PDF step claiming the
+  // marks were not locked yet.
   const published = exam.status === "PUBLISHED";
+  const reviewed = exam.status === "PRINCIPAL_REVIEWED" || published;
+  const isLocked =
+    exam.isLocked || exam.status === "LOCKED" || reviewed;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,20 +163,6 @@ export function ReportCardsPanel({
       onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not lock the exam");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const downloadPdf = async (card: ReportCard) => {
-    setBusy(`pdf-${card.id}`);
-    try {
-      const res = await fetch(`/api/reports/download?reportCardId=${card.id}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "PDF not available yet");
-      window.open(data.pdfUrl, "_blank", "noopener");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "PDF not available yet");
     } finally {
       setBusy(null);
     }
@@ -599,20 +590,19 @@ export function ReportCardsPanel({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        type="button"
-                        disabled={busy === `pdf-${c.id}`}
-                        onClick={() => downloadPdf(c)}
+                      {/* A link, not a button running window.open after an
+                          await — that loses the click's gesture and the popup
+                          blocker eats the window silently (§83). */}
+                      <a
+                        href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         title="Open this report card as a PDF"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf] disabled:opacity-50 enabled:cursor-pointer"
+                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
                       >
-                        {busy === `pdf-${c.id}` ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Download className="h-3 w-3" />
-                        )}
+                        <Download className="h-3 w-3" />
                         PDF
-                      </button>
+                      </a>
                     </td>
                   </tr>
                 ))}

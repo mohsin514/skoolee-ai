@@ -31,7 +31,66 @@ export async function getOnboardingSession() {
   }
 }
 
-export async function finishOnboarding(schoolData: any, campuses: any[]) {
+/** Weekly off days, ISO-style: 1 = Monday … 7 = Sunday. */
+export type WeekdayNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export interface OnboardingSchoolInput {
+  name: string;
+  city: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  logoUrl?: string;
+  establishedYear?: string;
+  tagline?: string;
+  regId: string;
+  /** IANA zone deciding which calendar day an attendance mark falls on. */
+  timezone?: string;
+  /** Human label for the first session, e.g. "2026-27". */
+  sessionLabel?: string;
+  /** Academic year the first cycle is filed under — NOT always the calendar year. */
+  academicYear?: string | number;
+  sessionStart?: string;
+  sessionEnd?: string;
+  /** Days the campus is closed each week. Empty means "no weekend set". */
+  weekends?: number[];
+}
+
+export interface OnboardingCampusInput {
+  name: string;
+  city: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  principalName?: string;
+  regId: string;
+  board?: string;
+}
+
+/** Valid IANA zone, or null when the browser sent something unusable. */
+function safeTimezone(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/** A date-only string as a UTC midnight Date, or null. */
+function parseDate(value?: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export async function finishOnboarding(
+  schoolData: OnboardingSchoolInput,
+  campuses: OnboardingCampusInput[],
+) {
   const cookieStore = await cookies();
   const token = cookieStore.get("skoolee_token")?.value;
   if (!token) throw new Error("No session found");
@@ -50,6 +109,29 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
     throw new Error("Please enter a valid established year.");
   }
 
+  // The first academic session. A cycle labelled 2027 routinely starts in
+  // August 2026, so the year is asked for explicitly rather than derived from
+  // today's date — see getActiveAcademicYear() for why that matters.
+  const academicYear = Number(schoolData.academicYear) || new Date().getFullYear();
+  if (academicYear < 2000 || academicYear > new Date().getFullYear() + 5) {
+    throw new Error("Please enter a valid academic year.");
+  }
+  const sessionLabel = schoolData.sessionLabel?.trim() || `${academicYear}-${String((academicYear + 1) % 100).padStart(2, "0")}`;
+  const sessionStart = parseDate(schoolData.sessionStart);
+  const sessionEnd = parseDate(schoolData.sessionEnd);
+  if (sessionStart && sessionEnd && sessionEnd <= sessionStart) {
+    throw new Error("The session end date must fall after the start date.");
+  }
+
+  // Weekly off days. Deduped and range-checked here so a malformed payload
+  // cannot slip a 0 or an 8 into a column the calendar grid indexes by.
+  const weekendDays = [...new Set(schoolData.weekends ?? [])]
+    .map(Number)
+    .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7);
+  if (weekendDays.length >= 7) {
+    throw new Error("A campus needs at least one working day.");
+  }
+
   // 1. Update School Info (Branding, Identity & Contact)
   await prisma.school.update({
     where: { id: schoolId },
@@ -62,6 +144,9 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
       logoUrl: schoolData.logoUrl || null,
       establishedYear,
       tagline: schoolData.tagline || null,
+      // Governs which calendar day an attendance mark or fee cutoff lands on.
+      // Keep the schema default when the value is missing or not a real zone.
+      ...(safeTimezone(schoolData.timezone) ? { timezone: safeTimezone(schoolData.timezone)! } : {}),
     }
   });
 
@@ -83,6 +168,30 @@ export async function finishOnboarding(schoolData: any, campuses: any[]) {
       }
     });
     if (!primaryCampusId) primaryCampusId = campus.id;
+
+    // Every campus starts with a live academic session and a weekend, because
+    // the rest of the product assumes both exist. Without an ACTIVE cycle,
+    // getActiveAcademicYear() silently falls back to the calendar year and
+    // marks get filed under a year the office is not looking at; without
+    // weekend rows, exam scheduling happily books papers on a Sunday and the
+    // Academic Hub reports the year as unfinished.
+    await prisma.academicCycle.create({
+      data: {
+        campusId: campus.id,
+        label: sessionLabel,
+        academicYear,
+        status: "ACTIVE",
+        startDate: sessionStart ?? new Date(),
+        endDate: sessionEnd,
+      },
+    });
+
+    if (weekendDays.length > 0) {
+      await prisma.weekend.createMany({
+        data: weekendDays.map((dayOfWeek) => ({ campusId: campus.id, dayOfWeek })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   // 3. Finalize User

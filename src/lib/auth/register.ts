@@ -17,6 +17,10 @@ export const SignupStep2Schema = z.object({
   password: z.string().min(8, "Minimum 8 characters"),
   schoolName: z.string().min(3, "Institution name is required"),
   regId: z.string().min(3, "Unique identity code is required"),
+  // Captured at signup so the owner's account is reachable from day one:
+  // it lands on the user record (staff directory, profile) and doubles as the
+  // school's first contact number until onboarding overrides it.
+  phone: z.string().trim().min(7, "Enter a valid phone number").optional().or(z.literal("")),
 });
 
 export type SignupStep1Input = z.infer<typeof SignupStep1Schema>;
@@ -109,12 +113,15 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
   const role = pending.registrationType === "school_group" ? "SUPER_ADMIN" : "ADMIN";
 
   const user = await prisma.$transaction(async (tx) => {
+    const phone = valid.phone?.trim() || null;
+
     const school = await tx.school.create({
       data: {
         name: valid.schoolName,
         regId: valid.regId,
         slug: schoolSlug(valid.schoolName),
         contactEmail: valid.email,
+        phone,
         city: "",
         status: "TRIAL",
       },
@@ -125,6 +132,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         email: valid.email,
         password: hashedPassword,
         fullName: valid.fullName,
+        phone,
         role,
         schoolId: school.id,
         onboardingComplete: false,

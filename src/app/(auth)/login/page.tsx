@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
   AlertCircle, CheckCircle2, Users, GraduationCap, Building2, Sparkles,
+  ChevronLeft, Timer, Check,
 } from "lucide-react";
 import Link from "next/link";
-import { dashboardPathForRole } from "@/lib/roles";
+import { dashboardPathForRole, roleLabel } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
@@ -44,6 +45,29 @@ const PROOF = [
   },
 ];
 
+/**
+ * One address can hold accounts at several schools (a parent with children at
+ * two institutions, a teacher working across two groups), so /api/auth/login
+ * may answer with a choice instead of a session. The password is already
+ * verified by the time this list comes back — it is a disambiguation prompt,
+ * not an enumeration oracle.
+ */
+type SchoolChoice = {
+  schoolId: string;
+  schoolName: string;
+  schoolCity?: string;
+  logoUrl?: string | null;
+  campusName?: string | null;
+  role: string;
+};
+
+type LoginUser = {
+  fullName: string;
+  role: string;
+  mustChangePassword?: boolean;
+  onboardingComplete?: boolean;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +76,12 @@ export default function LoginPage() {
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [capsOn, setCapsOn] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [choices, setChoices] = useState<SchoolChoice[] | null>(null);
+  const [choosing, setChoosing] = useState<string | null>(null);
+  // Seconds left on a 429. The button stays disabled and says so, rather than
+  // letting people hammer a request that cannot succeed yet.
+  const [cooldown, setCooldown] = useState(0);
   const [slide, setSlide] = useState(0);
   const [paused, setPaused] = useState(false);
   const liveRef = useRef<HTMLParagraphElement>(null);
@@ -98,8 +128,15 @@ export default function LoginPage() {
     return () => clearInterval(id);
   }, [paused]);
 
+  // Tick the rate-limit cooldown down to zero.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
+
   const {
-    register, handleSubmit, formState: { errors },
+    register, handleSubmit, getValues, formState: { errors },
   } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
 
   const trackCaps = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -110,37 +147,92 @@ export default function LoginPage() {
   // own onBlur, and we need to run ours alongside it instead of replacing it.
   const passwordField = register("password");
 
+  // Where a signed-in user actually belongs. Shared by the plain sign-in and
+  // by the school picker so the two can never drift apart.
+  const landAfterLogin = useCallback(async (user: LoginUser) => {
+    toast.success(`Welcome back, ${user.fullName}!`);
+    setSuccess(true);
+
+    // Let the button's checkmark morph play before navigating away —
+    // a beat of confirmation feels more deliberate than an instant jump.
+    await new Promise((resolve) => setTimeout(resolve, 550));
+
+    if (user.mustChangePassword) {
+      router.push("/first-login");
+    } else if (user.role === "TEACHER" && !user.onboardingComplete) {
+      router.push("/teacher-onboarding");
+    } else {
+      router.push(dashboardPathForRole(user.role));
+    }
+  }, [router]);
+
+  /**
+   * One request shape for both passes. The second pass adds `schoolId`, which
+   * narrows the candidate lookup to the school the user picked.
+   */
+  const attemptLogin = useCallback(async (
+    data: LoginFormData,
+    schoolId?: string,
+  ): Promise<{ choices: SchoolChoice[] } | { user: LoginUser }> => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, rememberMe: remember, ...(schoolId ? { schoolId } : {}) }),
+    });
+    const json = await res.json();
+
+    if (res.status === 429) {
+      // Honour the server's own Retry-After rather than guessing.
+      const retry = Number(res.headers.get("Retry-After")) || 60;
+      setCooldown(retry);
+      throw new Error(json.error || "Too many attempts. Please wait a moment.");
+    }
+    if (!res.ok) {
+      // Zod field errors come back as an object; flatten to the first message.
+      const raw = json.error;
+      const message = typeof raw === "string"
+        ? raw
+        : Object.values(raw ?? {}).flat()[0] as string | undefined;
+      throw new Error(message || "Login failed");
+    }
+    if (json.needsSchoolSelection) return { choices: json.schools as SchoolChoice[] };
+    return { user: json.user as LoginUser };
+  }, [remember]);
+
   const onSubmit = async (data: LoginFormData) => {
+    if (cooldown > 0) return;
     setIsLoading(true);
     setFormError(null);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Login failed");
-
-      toast.success(`Welcome back, ${json.user.fullName}!`);
-      setSuccess(true);
-
-      // Let the button's checkmark morph play before navigating away —
-      // a beat of confirmation feels more deliberate than an instant jump.
-      await new Promise((resolve) => setTimeout(resolve, 550));
-
-      if (json.user.mustChangePassword) {
-        router.push("/first-login");
-      } else if (json.user.role === "TEACHER" && !json.user.onboardingComplete) {
-        router.push("/teacher-onboarding");
-      } else {
-        router.push(dashboardPathForRole(json.user.role));
+      const result = await attemptLogin(data);
+      if ("choices" in result) {
+        setChoices(result.choices);
+        setIsLoading(false);
+        return;
       }
+      await landAfterLogin(result.user);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Login failed";
       setFormError(message);
       toast.error(message);
       setIsLoading(false);
+    }
+  };
+
+  // Second pass: the password is already verified, so this re-submits the same
+  // credentials pinned to one school rather than asking for them again.
+  const pickSchool = async (choice: SchoolChoice) => {
+    setChoosing(choice.schoolId);
+    setFormError(null);
+    try {
+      const result = await attemptLogin(getValues(), choice.schoolId);
+      if ("choices" in result) throw new Error("Could not sign in to that school.");
+      await landAfterLogin(result.user);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Login failed";
+      setFormError(message);
+      toast.error(message);
+      setChoosing(null);
     }
   };
 
@@ -326,10 +418,12 @@ export default function LoginPage() {
 
           <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
             <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
-              Welcome back
+              {choices ? "Choose your school" : "Welcome back"}
             </h2>
             <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
-              Sign in to your campus dashboard.
+              {choices
+                ? "This email is registered at more than one institution."
+                : "Sign in to your campus dashboard."}
             </p>
           </div>
 
@@ -347,6 +441,66 @@ export default function LoginPage() {
               </div>
             )}
 
+            {choices ? (
+              <div className="space-y-2.5">
+                {choices.map((c, i) => {
+                  const busy = choosing === c.schoolId;
+                  return (
+                    <button
+                      key={c.schoolId}
+                      type="button"
+                      onClick={() => pickSchool(c)}
+                      disabled={!!choosing}
+                      className="sk-rise group flex w-full cursor-pointer items-center gap-4 rounded-2xl border-2 border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-4 text-left transition-all hover:border-[#8127cf]/45 hover:bg-white hover:shadow-lg hover:shadow-[#8127cf]/10 disabled:cursor-wait disabled:opacity-60"
+                      style={{ animationDelay: `${i * 70}ms` }}
+                    >
+                      {c.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.logoUrl}
+                          alt=""
+                          className="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-sm"
+                        />
+                      ) : (
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[15px] font-black text-white shadow-sm shadow-[#8127cf]/25">
+                          {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-black text-[#1f1a23]">
+                          {c.schoolName}
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-full bg-[#8127cf]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                            {roleLabel(c.role)}
+                          </span>
+                          {(c.campusName || c.schoolCity) && (
+                            <span className="truncate text-[11px] font-bold text-ink-subtle">
+                              {c.campusName || c.schoolCity}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#8127cf]" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
+                      )}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => { setChoices(null); setFormError(null); }}
+                  disabled={!!choosing}
+                  className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#cfc2d6]/30 py-3 text-[12px] font-black text-ink-muted transition-colors hover:border-[#8127cf]/25 hover:text-[#8127cf] disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Use a different account
+                </button>
+              </div>
+            ) : (
+              <>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
@@ -415,16 +569,49 @@ export default function LoginPage() {
                 )}
               </div>
 
+              {/* A 30-day session instead of 7 — an explicit choice, never the
+                  default, since school accounts are often on shared machines. */}
+              <label className="group flex cursor-pointer items-center gap-2.5 px-1 pt-0.5 select-none">
+                <span className="relative flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span
+                    aria-hidden
+                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                      remember
+                        ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
+                        : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
+                    }`}
+                  >
+                    <Check
+                      className={`h-3 w-3 text-white transition-all duration-200 ${
+                        remember ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                      }`}
+                      strokeWidth={3.5}
+                    />
+                  </span>
+                </span>
+                <span className="text-[12px] font-bold text-ink-muted transition-colors group-hover:text-[#1f1a23]">
+                  Keep me signed in for 30 days
+                </span>
+              </label>
+
               <button
                 type="submit"
-                disabled={isLoading || success}
+                disabled={isLoading || success || cooldown > 0}
                 className={`group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl font-black text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.985] disabled:cursor-wait disabled:active:scale-100 ${
                   success
                     ? "bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-emerald-500/30"
+                    : cooldown > 0
+                    ? "bg-gradient-to-r from-[#a08bb0] to-[#8f7aa0] shadow-none"
                     : "bg-gradient-to-r from-[#8127cf] to-[#9c48ea] shadow-[#8127cf]/25 hover:shadow-[#8127cf]/35 disabled:opacity-60"
                 }`}
               >
-                {!isLoading && !success && (
+                {!isLoading && !success && cooldown === 0 && (
                   <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
                 )}
                 <span className="relative z-10 flex items-center gap-2">
@@ -432,6 +619,11 @@ export default function LoginPage() {
                     <>
                       <CheckCircle2 className="sk-check-pop h-4 w-4" />
                       <span>Welcome back!</span>
+                    </>
+                  ) : cooldown > 0 ? (
+                    <>
+                      <Timer className="h-4 w-4" />
+                      <span>Try again in {cooldown}s</span>
                     </>
                   ) : isLoading ? (
                     <>
@@ -456,6 +648,8 @@ export default function LoginPage() {
                 </Link>
               </p>
             </div>
+              </>
+            )}
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">

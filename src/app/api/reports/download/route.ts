@@ -92,14 +92,30 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "No report card found" }, { status: 404 });
     }
 
+    // `?redirect=1` sends the browser straight to the file instead of handing
+    // back JSON (§83).
+    //
+    // The JSON form forces the caller to `await` the response and only then
+    // call `window.open`, by which point the click's user-gesture status is
+    // gone and every popup blocker silently swallows the window. The report
+    // card button did exactly that, so the PDF was built on the server and
+    // then never shown — indistinguishable, from the user's side, from the
+    // PDF failing to generate. A redirect lets the button be a plain link.
+    const wantsRedirect = req.nextUrl.searchParams.get("redirect") === "1";
+
     if (reportCard.pdfUrl && !reportCard.pdfUrl.startsWith("/")) {
       const { reportCardKey, getDownloadUrl } = await import("@/lib/storage/s3");
       const key = reportCardKey(reportCard.campusId, reportCard.examId, reportCard.studentId);
       const freshUrl = await getDownloadUrl(key, 86400);
-      return Response.json({ success: true, pdfUrl: freshUrl });
+      return wantsRedirect
+        ? Response.redirect(freshUrl, 302)
+        : Response.json({ success: true, pdfUrl: freshUrl });
     }
 
     const pdfUrl = await freshDownloadUrl(reportCard);
+    if (wantsRedirect) {
+      return Response.redirect(new URL(pdfUrl, req.nextUrl.origin), 302);
+    }
     return Response.json({ success: true, pdfUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate PDF";

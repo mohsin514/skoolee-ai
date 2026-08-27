@@ -21,14 +21,47 @@ function cleanProfileImage(value: unknown) {
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);
 }
 
-function toProfile(user: {
+/**
+ * Everything the profile card reads. Kept as one constant so GET and PATCH
+ * can never select different shapes and hand `toProfile` a half-filled user.
+ *
+ * The professional block is what teacher onboarding collects. Without it the
+ * card showed a name and a phone number and nothing a teacher had just spent
+ * three screens entering.
+ */
+const PROFILE_SELECT = {
+  id: true,
+  email: true,
+  fullName: true,
+  phone: true,
+  role: true,
+  profileImageUrl: true,
+  qualification: true,
+  specialization: true,
+  subjectSpecialties: true,
+  teachesAllSubjects: true,
+  experience: true,
+  joiningDate: true,
+  city: true,
+} as const;
+
+type ProfileUser = {
   id: string;
   email: string;
   fullName: string;
   phone: string | null;
-  role: any;
+  role: string;
   profileImageUrl: string | null;
-}) {
+  qualification: string | null;
+  specialization: string | null;
+  subjectSpecialties: string[];
+  teachesAllSubjects: boolean;
+  experience: string | null;
+  joiningDate: Date | null;
+  city: string | null;
+};
+
+function toProfile(user: ProfileUser) {
   return {
     id: user.id,
     email: user.email,
@@ -38,6 +71,15 @@ function toProfile(user: {
     roleLabel: roleLabel(user.role),
     dashboardPath: dashboardPathForRole(user.role),
     profileImageUrl: user.profileImageUrl || "",
+    qualification: user.qualification || "",
+    // A generalist has no specialty list by design, so say so in words rather
+    // than rendering an empty row.
+    specialization: user.teachesAllSubjects ? "All subjects" : user.specialization || "",
+    subjectSpecialties: user.subjectSpecialties ?? [],
+    teachesAllSubjects: user.teachesAllSubjects,
+    experience: user.experience || "",
+    joiningDate: user.joiningDate ? user.joiningDate.toISOString().slice(0, 10) : "",
+    city: user.city || "",
   };
 }
 
@@ -46,14 +88,7 @@ export async function GET() {
     const session = await requireAuthUser();
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phone: true,
-        role: true,
-        profileImageUrl: true,
-      },
+      select: PROFILE_SELECT,
     });
 
     if (!user) throw new ApiError("Profile not found", 404);
@@ -94,14 +129,7 @@ export async function PATCH(req: NextRequest) {
     const user = await prisma.user.update({
       where: { id: session.userId },
       data,
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phone: true,
-        role: true,
-        profileImageUrl: true,
-      },
+      select: PROFILE_SELECT,
     });
 
     if (session.role === "STUDENT" && currentUser?.fullName && Object.keys(data).length > 0) {

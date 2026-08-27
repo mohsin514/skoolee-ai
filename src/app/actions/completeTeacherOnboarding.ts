@@ -46,6 +46,17 @@ export async function completeTeacherOnboarding(data: {
   postalCode?: string;
   emergencyContact?: string;
   emergencyPhone?: string;
+  /**
+   * Structured teaching subjects. Free-text `specialization` reads well on a
+   * profile but nothing can match on it, so the timetable and subject-assignment
+   * screens use this array to warn when a teacher is booked outside their
+   * subject (see /api/teachers/availability).
+   */
+  subjectSpecialties?: string[];
+  /** Generalists — primary class teachers — for whom no mismatch warning applies. */
+  teachesAllSubjects?: boolean;
+  joiningDate?: string;
+  profileImageUrl?: string;
 }) {
   const fullName = data.fullName.trim();
   const phone = data.phone.trim();
@@ -83,6 +94,12 @@ export async function completeTeacherOnboarding(data: {
       postalCode: data.postalCode?.trim() || null,
       emergencyContact: data.emergencyContact?.trim() || null,
       emergencyPhone: data.emergencyPhone?.trim() || null,
+      subjectSpecialties: Array.isArray(data.subjectSpecialties)
+        ? [...new Set(data.subjectSpecialties.map((s) => s.trim()).filter(Boolean))]
+        : [],
+      teachesAllSubjects: Boolean(data.teachesAllSubjects),
+      joiningDate: data.joiningDate ? new Date(data.joiningDate) : null,
+      profileImageUrl: data.profileImageUrl?.trim() || null,
     },
     include: { school: true },
   });

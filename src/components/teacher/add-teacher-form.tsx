@@ -10,12 +10,19 @@ import {
   Loader2,
   Send,
   MapPin,
+  Network,
   Phone,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { inviteStaff } from "@/app/actions/invite";
 import { SpecialtyEditor } from "@/components/shared-admin";
+import {
+  PositionFields,
+  emptyPosition,
+  usePositionOptions,
+  type PositionValue,
+} from "@/components/staff/position-fields";
 import {
   Field,
   FormSection,
@@ -89,6 +96,8 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [teachesAll, setTeachesAll] = useState(false);
   const [specialtyDraft, setSpecialtyDraft] = useState("");
+  const [position, setPosition] = useState<PositionValue>({ ...emptyPosition });
+  const positionOptions = usePositionOptions();
 
   const update = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -154,6 +163,15 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
           designation: form.designation.trim() || undefined,
           contractType: (form.contractType || undefined) as "PERMANENT" | "CONTRACT" | "PART_TIME" | undefined,
           basicSalary: Math.round(Number(form.basicSalary || 0) * 100) || undefined,
+          // Where they will sit once they accept — applied to their profile,
+          // their department and the first row of their service record.
+          designationId: position.designationId || undefined,
+          primaryDepartmentId: position.primaryDepartmentId || undefined,
+          reportsToId: position.reportsToId || undefined,
+          employmentType: (position.employmentType || undefined) as
+            | "FULL_TIME" | "PART_TIME" | "VISITING" | "ADJUNCT" | "CONTRACT" | "INTERN" | "VOLUNTEER"
+            | undefined,
+          employeeCode: position.employeeCode.trim() || undefined,
         },
       });
       toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
@@ -304,6 +322,25 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
               </FormSection>
 
               <FormSection
+                icon={Network}
+                title="Position & Reporting"
+                hint="Where this teacher sits in the institution. Setting it now means the org chart is right the moment they accept — all of it can be changed later."
+              >
+                <div className="space-y-4">
+                  <PositionFields value={position} onChange={setPosition} options={positionOptions} />
+                  {positionOptions.ready && positionOptions.designations.length === 0 ? (
+                    <Field label="Job title" hint="You have no rank ladder yet, so this is recorded as plain text.">
+                      <Input
+                        value={form.designation}
+                        onChange={(e) => update("designation", e.target.value)}
+                        placeholder="e.g. Senior Maths Teacher"
+                      />
+                    </Field>
+                  ) : null}
+                </div>
+              </FormSection>
+
+              <FormSection
                 icon={Briefcase}
                 title="Contract & Pay"
                 hint="Optional now — you can set this up later from the teacher's Staff Record. Only administrators can see it."
@@ -314,13 +351,6 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                       type="date"
                       value={form.joiningDate}
                       onChange={(e) => update("joiningDate", e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Designation">
-                    <Input
-                      value={form.designation}
-                      onChange={(e) => update("designation", e.target.value)}
-                      placeholder="e.g. Senior Maths Teacher"
                     />
                   </Field>
                   <Field label="Contract Type">

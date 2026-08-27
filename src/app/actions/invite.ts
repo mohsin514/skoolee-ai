@@ -34,6 +34,16 @@ const InviteProfileSchema = z.object({
   designation: z.string().optional(),
   contractType: z.enum(["PERMANENT", "CONTRACT", "PART_TIME"]).optional(),
   basicSalary: z.number().int().min(0).optional(),
+  // Where this person will sit once they accept. Captured now because the
+  // hiring decision already knows it — asking again after they sign in would
+  // leave every new teacher unplaced in the chart until someone remembers.
+  designationId: z.string().uuid().optional(),
+  primaryDepartmentId: z.string().uuid().optional(),
+  reportsToId: z.string().uuid().optional(),
+  employmentType: z
+    .enum(["FULL_TIME", "PART_TIME", "VISITING", "ADJUNCT", "CONTRACT", "INTERN", "VOLUNTEER"])
+    .optional(),
+  employeeCode: z.string().optional(),
 });
 
 const InviteSchema = z.object({
@@ -198,6 +208,33 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
   if (valid.role === "TEACHER") {
     await assertPlanCapacity({ schoolId: session.schoolId, metric: "teachers" });
+  }
+
+  // Check the position now rather than on acceptance. A bad id caught here is
+  // a form error the inviter can fix; the same id caught days later, while
+  // someone is setting their password, would either fail their sign-up or be
+  // silently dropped.
+  const position = valid.profile;
+  if (position?.designationId) {
+    const designation = await prisma.staffDesignation.findFirst({
+      where: { id: position.designationId, schoolId: session.schoolId },
+      select: { id: true },
+    });
+    if (!designation) throw new ApiError("That rank is not one of your institution's designations", 400);
+  }
+  if (position?.primaryDepartmentId) {
+    const department = await prisma.department.findFirst({
+      where: { id: position.primaryDepartmentId, campusId: targetCampusId },
+      select: { id: true },
+    });
+    if (!department) throw new ApiError("That department is not on this campus", 400);
+  }
+  if (position?.reportsToId) {
+    const manager = await prisma.user.findFirst({
+      where: { id: position.reportsToId, schoolId: session.schoolId, isActive: true },
+      select: { id: true },
+    });
+    if (!manager) throw new ApiError("That manager is not an active member of this school", 400);
   }
 
   // Enforce one assigned owner slot in school-group campuses and one principal per campus.
@@ -403,8 +440,13 @@ export async function acceptInvite(token: string, password: string) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const storedProfile = (invite.profile as Record<string, string> | null) || {};
-  const placeholderName = storedProfile.fullName || invite.email.split("@")[0].replace(/[._-]/g, " ");
+  // The invite's captured profile. Values are whatever InviteProfileSchema
+  // accepted at invite time, so this is deliberately loose rather than lying
+  // about being all-strings.
+  const storedProfile = (invite.profile as Record<string, unknown> | null) || {};
+  const text = (key: string) => (typeof storedProfile[key] === "string" ? (storedProfile[key] as string) : null);
+  const id = (key: string) => text(key) || null;
+  const placeholderName = text("fullName") || invite.email.split("@")[0].replace(/[._-]/g, " ");
 
   const user = await prisma.$transaction(async (tx) => {
     const acceptedUser = existingUser
@@ -413,22 +455,22 @@ export async function acceptInvite(token: string, password: string) {
           data: {
             password: passwordHash,
             fullName: placeholderName,
-            phone: storedProfile.phone || null,
-            cnic: storedProfile.cnic || null,
-            dateOfBirth: storedProfile.dateOfBirth ? new Date(storedProfile.dateOfBirth) : null,
-            gender: storedProfile.gender || null,
-            qualification: storedProfile.qualification || null,
-            specialization: storedProfile.specialization || null,
+            phone: text("phone"),
+            cnic: text("cnic"),
+            dateOfBirth: text("dateOfBirth") ? new Date(text("dateOfBirth")!) : null,
+            gender: text("gender"),
+            qualification: text("qualification"),
+            specialization: text("specialization"),
             subjectSpecialties: Array.isArray(storedProfile.subjectSpecialties) ? storedProfile.subjectSpecialties : [],
             teachesAllSubjects: Boolean(storedProfile.teachesAllSubjects),
-            experience: storedProfile.experience || null,
-            address: storedProfile.address || null,
-            city: storedProfile.city || null,
-            province: storedProfile.province || null,
-            postalCode: storedProfile.postalCode || null,
-            joiningDate: storedProfile.joiningDate ? new Date(storedProfile.joiningDate) : null,
-            emergencyContact: storedProfile.emergencyContact || null,
-            emergencyPhone: storedProfile.emergencyPhone || null,
+            experience: text("experience"),
+            address: text("address"),
+            city: text("city"),
+            province: text("province"),
+            postalCode: text("postalCode"),
+            joiningDate: text("joiningDate") ? new Date(text("joiningDate")!) : null,
+            emergencyContact: text("emergencyContact"),
+            emergencyPhone: text("emergencyPhone"),
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
@@ -441,22 +483,22 @@ export async function acceptInvite(token: string, password: string) {
             email: invite.email,
             password: passwordHash,
             fullName: placeholderName,
-            phone: storedProfile.phone || null,
-            cnic: storedProfile.cnic || null,
-            dateOfBirth: storedProfile.dateOfBirth ? new Date(storedProfile.dateOfBirth) : null,
-            gender: storedProfile.gender || null,
-            qualification: storedProfile.qualification || null,
-            specialization: storedProfile.specialization || null,
+            phone: text("phone"),
+            cnic: text("cnic"),
+            dateOfBirth: text("dateOfBirth") ? new Date(text("dateOfBirth")!) : null,
+            gender: text("gender"),
+            qualification: text("qualification"),
+            specialization: text("specialization"),
             subjectSpecialties: Array.isArray(storedProfile.subjectSpecialties) ? storedProfile.subjectSpecialties : [],
             teachesAllSubjects: Boolean(storedProfile.teachesAllSubjects),
-            experience: storedProfile.experience || null,
-            address: storedProfile.address || null,
-            city: storedProfile.city || null,
-            province: storedProfile.province || null,
-            postalCode: storedProfile.postalCode || null,
-            joiningDate: storedProfile.joiningDate ? new Date(storedProfile.joiningDate) : null,
-            emergencyContact: storedProfile.emergencyContact || null,
-            emergencyPhone: storedProfile.emergencyPhone || null,
+            experience: text("experience"),
+            address: text("address"),
+            city: text("city"),
+            province: text("province"),
+            postalCode: text("postalCode"),
+            joiningDate: text("joiningDate") ? new Date(text("joiningDate")!) : null,
+            emergencyContact: text("emergencyContact"),
+            emergencyPhone: text("emergencyPhone"),
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
@@ -470,16 +512,93 @@ export async function acceptInvite(token: string, password: string) {
       data: { status: 'accepted' }
     });
 
-    if (storedProfile.designation || storedProfile.contractType || Number(storedProfile.basicSalary || 0) > 0) {
-      await tx.staffProfile.upsert({
-        where: { userId: acceptedUser.id },
-        create: {
+    // Every staff member gets a profile row, not only the ones hired with a
+    // salary on file. The hierarchy hangs off this row — rank, unit, reporting
+    // line — so a teacher without one is invisible to the org chart and to
+    // anything that walks the chain of command.
+    const designationId = id("designationId");
+    const departmentId = id("primaryDepartmentId");
+    const reportsToId = id("reportsToId");
+    const basicSalary = Math.round(Number(storedProfile.basicSalary || 0));
+    const employmentType =
+      (text("employmentType") as
+        | "FULL_TIME" | "PART_TIME" | "VISITING" | "ADJUNCT" | "CONTRACT" | "INTERN" | "VOLUNTEER"
+        | null) ?? "FULL_TIME";
+
+    // Re-read the rank inside the transaction: it was validated at invite time,
+    // but that could have been days ago and the ladder is editable.
+    const designation = designationId
+      ? await tx.staffDesignation.findFirst({
+          where: { id: designationId, schoolId: campus.schoolId, isActive: true },
+          select: { id: true, name: true, level: true },
+        })
+      : null;
+    const department = departmentId
+      ? await tx.department.findFirst({
+          where: { id: departmentId, campusId: invite.campusId, isActive: true },
+          select: { id: true, name: true },
+        })
+      : null;
+    const manager = reportsToId
+      ? await tx.user.findFirst({
+          where: { id: reportsToId, schoolId: campus.schoolId, isActive: true },
+          select: { id: true, fullName: true },
+        })
+      : null;
+
+    const joinedAt = text("joiningDate") ? new Date(text("joiningDate")!) : new Date();
+
+    await tx.staffProfile.upsert({
+      where: { userId: acceptedUser.id },
+      create: {
+        userId: acceptedUser.id,
+        designation: designation?.name ?? text("designation"),
+        designationId: designation?.id ?? null,
+        seniorityLevel: designation?.level ?? null,
+        primaryDepartmentId: department?.id ?? null,
+        reportsToId: manager?.id ?? null,
+        employmentType,
+        employeeCode: text("employeeCode"),
+        contractType: text("contractType"),
+        basicSalary,
+        rankSince: joinedAt,
+      },
+      // An existing profile means a re-invited account. Its position is
+      // whatever an admin last set, and the invite must not overwrite that.
+      update: {},
+    });
+
+    if (department) {
+      await tx.departmentMember.create({
+        data: {
+          departmentId: department.id,
           userId: acceptedUser.id,
-          designation: storedProfile.designation || null,
-          contractType: storedProfile.contractType || null,
-          basicSalary: Math.round(Number(storedProfile.basicSalary || 0)),
+          role: "MEMBER",
+          isPrimary: true,
+          startedAt: joinedAt,
         },
-        update: {},
+      });
+    }
+
+    // The first row of the service record.
+    const alreadyOnRecord = await tx.staffAppointment.count({ where: { userId: acceptedUser.id } });
+    if (alreadyOnRecord === 0) {
+      await tx.staffAppointment.create({
+        data: {
+          userId: acceptedUser.id,
+          changeKind: "JOINED",
+          designationId: designation?.id ?? null,
+          designationName: designation?.name ?? text("designation"),
+          departmentId: department?.id ?? null,
+          departmentName: department?.name ?? null,
+          reportsToId: manager?.id ?? null,
+          reportsToName: manager?.fullName ?? null,
+          level: designation?.level ?? null,
+          employmentType,
+          employmentStatus: "ACTIVE",
+          basicSalary,
+          effectiveFrom: joinedAt,
+        },
       });
     }
 

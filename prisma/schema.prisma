@@ -58,6 +58,10 @@ model School {
   logoUrl              String?   @map("logo_url") // Institution icon / logo
   establishedYear      Int?      @map("established_year") // Year the institution was founded
   tagline              String? // Motto / short descriptor
+  // Which ladder of ranks this tenant starts from: SCHOOL | COLLEGE |
+  // UNIVERSITY | ACADEMY | CUSTOM. It only chooses the preset seeded into
+  // StaffDesignation — every rank stays editable afterwards.
+  institutionType      String    @default("SCHOOL") @map("institution_type")
   createdAt            DateTime  @default(now()) @map("created_at")
 
   // Relations
@@ -158,6 +162,11 @@ model School {
   chatMessages            ChatMessage[]
   chatAttachments         ChatAttachment[]
   chatSetting             ChatSetting?
+  staffDesignations       StaffDesignation[]
+  departments             Department[]
+  departmentMembers       DepartmentMember[]
+  staffAppointments       StaffAppointment[]
+  staffReportingLines     StaffReportingLine[]
 
   @@map("schools")
 }
@@ -203,6 +212,7 @@ model Campus {
 
   // Global Multi-Tenant Relations
   users                 User[]
+  departments           Department[]
   classes               Class[]
   students              Student[]
   subjects              Subject[]
@@ -334,6 +344,14 @@ model User {
   assignedQueries               AdmissionQuery[]         @relation("QueryAssignee")
   queryFollowUps                AdmissionQueryFollowUp[] @relation("QueryFollowUpActor")
   staffProfile                  StaffProfile?
+  managedStaff                  StaffProfile[]           @relation("StaffManager")
+  headedDepartments             Department[]             @relation("DepartmentHead")
+  departmentMemberships         DepartmentMember[]
+  staffAppointments             StaffAppointment[]       @relation("StaffAppointments")
+  appointmentsAsManager         StaffAppointment[]       @relation("AppointmentManager")
+  approvedAppointments          StaffAppointment[]       @relation("AppointmentApprover")
+  secondaryReportingLines       StaffReportingLine[]     @relation("SecondaryReports")
+  secondaryDirectReports        StaffReportingLine[]     @relation("SecondaryManagers")
   staffDocuments                StaffDocument[]
   staffTimelineEvents           StaffTimelineEvent[]
   leaveAllocations              LeaveAllocation[]
@@ -361,25 +379,55 @@ model User {
 // Staff records depth: payroll, bank, documents and timeline for faculty.
 // Bank details are sensitive — only served by admin-gated routes.
 model StaffProfile {
-  id                String   @id @default(uuid())
-  schoolId          String   @default("") @map("school_id")
-  school            School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  userId            String   @unique @map("user_id")
+  id                String  @id @default(uuid())
+  schoolId          String  @default("") @map("school_id")
+  school            School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId            String  @unique @map("user_id")
   designation       String?
-  contractType      String?  @map("contract_type") // PERMANENT | CONTRACT | PART_TIME
-  basicSalary       Int      @default(0) @map("basic_salary") // paisa
-  allowancesJson    Json?    @map("allowances_json")
-  deductionsJson    Json?    @map("deductions_json")
-  bankAccountName   String?  @map("bank_account_name")
-  bankAccountNumber String?  @map("bank_account_number")
-  bankName          String?  @map("bank_name")
-  socialLinksJson   Json?    @map("social_links_json")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  contractType      String? @map("contract_type") // PERMANENT | CONTRACT | PART_TIME
+  basicSalary       Int     @default(0) @map("basic_salary") // paisa
+  allowancesJson    Json?   @map("allowances_json")
+  deductionsJson    Json?   @map("deductions_json")
+  bankAccountName   String? @map("bank_account_name")
+  bankAccountNumber String? @map("bank_account_number")
+  bankName          String? @map("bank_name")
+  socialLinksJson   Json?   @map("social_links_json")
+
+  // ─── Where this person sits in the institution ─────────────
+  // `designation` above is the legacy free-text label and is mirrored from
+  // designationRef on every write, so older screens keep rendering.
+  designationId  String?           @map("designation_id")
+  designationRef StaffDesignation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  // Cached from the designation so the org chart can sort by seniority, and
+  // rank-filter, without loading the ladder. Rewritten whenever the rank moves.
+  seniorityLevel Int?              @map("seniority_level")
+
+  primaryDepartmentId String?     @map("primary_department_id")
+  primaryDepartment   Department? @relation(fields: [primaryDepartmentId], references: [id], onDelete: SetNull)
+
+  // The solid reporting line, and the only one the chart lays out as structure.
+  // Secondary and functional lines live in StaffReportingLine.
+  reportsToId String? @map("reports_to_id")
+  reportsTo   User?   @relation("StaffManager", fields: [reportsToId], references: [id], onDelete: SetNull)
+
+  employeeCode     String?               @map("employee_code")
+  employmentType   StaffEmploymentType   @default(FULL_TIME) @map("employment_type")
+  employmentStatus StaffEmploymentStatus @default(ACTIVE) @map("employment_status")
+  probationEndsAt  DateTime?             @map("probation_ends_at")
+  contractEndsAt   DateTime?             @map("contract_ends_at")
+  // When this person entered their CURRENT rank — the clock that a designation's
+  // minYearsInRank is measured against when flagging who is due for promotion.
+  rankSince        DateTime?             @map("rank_since")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
+  @@index([schoolId, seniorityLevel])
+  @@index([reportsToId])
+  @@index([primaryDepartmentId])
   @@map("staff_profiles")
 }
 
@@ -416,6 +464,286 @@ model StaffTimelineEvent {
   @@index([userId, createdAt])
   @@index([schoolId])
   @@map("staff_timeline_events")
+}
+
+// ─── Staff hierarchy (Module 8b) ─────────────────────────────
+// No two institutions rank their staff the same way. A school has "Senior
+// Teacher" over "Teacher"; a college has "Associate Professor"; a university
+// nests a "Chairperson" under a "Dean" under a "Vice Chancellor". None of that
+// can be an enum without picking a winner, so the ladder itself is DATA: every
+// school defines its own designations, and everything downstream — seniority
+// order, who may head a department, what a promotion moves someone into — is
+// read off those rows rather than hard-coded here.
+
+/**
+ * Which side of the institution a rank belongs to.
+ */
+enum StaffTrack {
+  LEADERSHIP // Principal, Dean, Vice Chancellor — runs the institution
+  ACADEMIC // teaching faculty
+  ADMINISTRATIVE // registrar, accounts, admissions, front desk
+  SUPPORT // lab assistants, drivers, security, maintenance
+}
+
+enum DepartmentKind {
+  FACULTY // university faculty ("Faculty of Science")
+  SCHOOL // a school inside a faculty ("School of Computing")
+  DEPARTMENT // the common case
+  SECTION // Primary / Middle / Senior section of a K-12 school
+  ADMIN_UNIT // Accounts, Admissions, IT, Transport — non-teaching
+}
+
+enum DepartmentRole {
+  HEAD
+  DEPUTY_HEAD
+  COORDINATOR
+  MEMBER
+}
+
+enum StaffEmploymentType {
+  FULL_TIME
+  PART_TIME
+  VISITING
+  ADJUNCT
+  CONTRACT
+  INTERN
+  VOLUNTEER
+}
+
+enum StaffEmploymentStatus {
+  PROBATION
+  ACTIVE
+  ON_LEAVE
+  SECONDED
+  SUSPENDED
+  NOTICE_PERIOD
+  RESIGNED
+  RETIRED
+  TERMINATED
+}
+
+/**
+ * Why an appointment record was written. Drives the wording of the history.
+ */
+enum StaffChangeKind {
+  JOINED
+  CONFIRMED // probation passed
+  PROMOTION
+  DEMOTION
+  LATERAL_MOVE // same level, different post
+  DEPARTMENT_TRANSFER
+  CAMPUS_TRANSFER
+  REPORTING_CHANGE
+  ACTING_ASSIGNMENT // holding a post without the rank
+  ACTING_ENDED
+  CONTRACT_RENEWAL
+  SUSPENDED
+  REINSTATED
+  RESIGNED
+  RETIRED
+  TERMINATED
+}
+
+/**
+ * A second reporting line, alongside the solid one on StaffProfile.
+ */
+enum ReportingLineKind {
+  DOTTED // ongoing secondary manager
+  FUNCTIONAL // for one function — exams, discipline, admissions
+  PROJECT // time-boxed
+}
+
+// The rank ladder. School-scoped, not campus-scoped: a group's campuses share
+// one vocabulary of ranks even when they staff them differently.
+model StaffDesignation {
+  id        String  @id @default(uuid())
+  schoolId  String  @default("") @map("school_id")
+  school    School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  shortName String? @map("short_name")
+
+  // Seniority, where LOWER is MORE senior — the head of the institution sits
+  // at the smallest number. Presets step by 10 so a school can slot a new rank
+  // between two existing ones without renumbering the whole ladder.
+  level Int
+  track StaffTrack @default(ACADEMIC)
+
+  // What the rank is ALLOWED to be, which is not the same as what it is called.
+  // "Senior Teacher" may head a department at one school and not at another.
+  canHeadDepartment Boolean @default(false) @map("can_head_department")
+  // The root of the org chart. At most one active designation per school.
+  isInstitutionHead Boolean @default(false) @map("is_institution_head")
+
+  // The rank this one normally promotes into — a default the promote dialog
+  // pre-selects, never a restriction on where someone may be promoted.
+  promotesToId String?            @map("promotes_to_id")
+  promotesTo   StaffDesignation?  @relation("DesignationLadder", fields: [promotesToId], references: [id], onDelete: SetNull)
+  promotesFrom StaffDesignation[] @relation("DesignationLadder")
+
+  // Years normally served before promotion out of this rank. Advisory: it
+  // flags who is due, it does not block anything.
+  minYearsInRank Int?     @map("min_years_in_rank")
+  colorToken     String?  @map("color_token")
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  staffProfiles StaffProfile[]
+  appointments  StaffAppointment[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, level])
+  @@map("staff_designations")
+}
+
+// The unit tree: Faculty → School → Department → Section. A K-12 school uses
+// one flat level of it; a university uses all four.
+model Department {
+  id       String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String @map("campus_id")
+  campus   Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  parentId String?      @map("parent_id")
+  parent   Department?  @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Department[] @relation("DepartmentTree")
+
+  name String
+  code String?
+  kind DepartmentKind @default(DEPARTMENT)
+
+  // Denormalised pointer to the current head, kept in step with the HEAD row
+  // in DepartmentMember. Reading it saves a join on every org-chart render.
+  headId String? @map("head_id")
+  head   User?   @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+
+  description String?
+  colorToken  String?  @map("color_token")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members       DepartmentMember[]
+  staffProfiles StaffProfile[]
+  appointments  StaffAppointment[]
+
+  @@unique([campusId, name])
+  @@index([schoolId])
+  @@index([campusId, parentId])
+  @@map("departments")
+}
+
+// Who belongs to a department, and in what capacity. Separate from the
+// reporting line because a teacher can sit in three departments and still
+// report to one person.
+model DepartmentMember {
+  id           String     @id @default(uuid())
+  schoolId     String     @default("") @map("school_id")
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  departmentId String     @map("department_id")
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  userId       String     @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role      DepartmentRole @default(MEMBER)
+  // A teacher who takes several departments still has one home department, and
+  // that is the one the org chart groups them under.
+  isPrimary Boolean        @default(false) @map("is_primary")
+  // An acting head stands in without holding the rank.
+  isActing  Boolean        @default(false) @map("is_acting")
+
+  startedAt DateTime  @default(now()) @map("started_at")
+  // Set when the person leaves. Rows are closed, never deleted, so "who headed
+  // Science in 2024" stays answerable.
+  endedAt   DateTime? @map("ended_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([departmentId, endedAt])
+  @@index([userId, endedAt])
+  @@index([schoolId])
+  @@map("department_members")
+}
+
+// One row per position a person has held. A promotion closes the open row and
+// opens a new one, so the ladder someone climbed is reconstructable years
+// later — which is exactly what a service record has to show.
+model StaffAppointment {
+  id       String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId   String @map("user_id")
+  user     User   @relation("StaffAppointments", fields: [userId], references: [id], onDelete: Cascade)
+
+  changeKind StaffChangeKind @map("change_kind")
+
+  designationId String?           @map("designation_id")
+  designation   StaffDesignation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  departmentId  String?           @map("department_id")
+  department    Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  reportsToId   String?           @map("reports_to_id")
+  reportsTo     User?             @relation("AppointmentManager", fields: [reportsToId], references: [id], onDelete: SetNull)
+
+  // Snapshots. A service record has to stay readable after the designation has
+  // been renamed and the manager has left, so the names are frozen here rather
+  // than resolved through the FKs above (which go null on delete).
+  designationName String? @map("designation_name")
+  departmentName  String? @map("department_name")
+  reportsToName   String? @map("reports_to_name")
+  level           Int?
+
+  employmentType   StaffEmploymentType?   @map("employment_type")
+  employmentStatus StaffEmploymentStatus? @map("employment_status")
+  basicSalary      Int?                   @map("basic_salary") // paisa, as at this appointment
+
+  // "Acting HOD", "Officiating Principal" — holding the post without the rank.
+  isActing Boolean @default(false) @map("is_acting")
+
+  effectiveFrom DateTime  @map("effective_from")
+  // NULL = the appointment the person currently holds. Exactly one open row.
+  effectiveTo   DateTime? @map("effective_to")
+
+  // The office order / notification the change was issued under.
+  orderRef String?
+  notes    String?
+
+  approvedById String?  @map("approved_by_id")
+  approvedBy   User?    @relation("AppointmentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, effectiveFrom])
+  @@index([userId, effectiveTo])
+  @@index([schoolId])
+  @@map("staff_appointments")
+}
+
+// Matrix reporting. A lecturer reports to their HOD for everything, and to the
+// Controller of Examinations for exam duty — a single manager field cannot say
+// that, so the second line lives here and is drawn dashed on the chart.
+model StaffReportingLine {
+  id        String @id @default(uuid())
+  schoolId  String @default("") @map("school_id")
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId    String @map("user_id")
+  user      User   @relation("SecondaryReports", fields: [userId], references: [id], onDelete: Cascade)
+  managerId String @map("manager_id")
+  manager   User   @relation("SecondaryManagers", fields: [managerId], references: [id], onDelete: Cascade)
+
+  kind  ReportingLineKind @default(DOTTED)
+  // What the second line is for — "Exam duty", "Sports", "IT committee".
+  label String?
+
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, endedAt])
+  @@index([managerId, endedAt])
+  @@index([schoolId])
+  @@map("staff_reporting_lines")
 }
 
 // ─── Leave Management (Module 9) ─────────────────────────────

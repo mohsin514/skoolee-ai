@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Loader2, Mail, Save, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import { BookOpen, CalendarDays, Camera, GraduationCap, Loader2, Mail, MapPin, Save, ShieldCheck, Sparkles, UserRound, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard/BrandButton";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,16 @@ export type EditableProfile = {
   roleLabel?: string;
   dashboardPath?: string;
   profileImageUrl?: string;
+  // Collected during onboarding (teachers) or by an admin on invite. Read-only
+  // here: these drive subject matching and payroll, so they are not something a
+  // user re-types into their own profile card.
+  qualification?: string;
+  specialization?: string;
+  subjectSpecialties?: string[];
+  teachesAllSubjects?: boolean;
+  experience?: string;
+  joiningDate?: string;
+  city?: string;
 };
 
 type EditableProfileCardProps = {
@@ -182,7 +192,49 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ReadonlyDetail icon={ShieldCheck} label="Role" value={profile.roleLabel || "Active"} />
             <ReadonlyDetail icon={Mail} label="Email" value={profile.email || "Locked"} />
+            {profile.qualification ? (
+              <ReadonlyDetail icon={GraduationCap} label="Qualification" value={profile.qualification} />
+            ) : null}
+            {profile.experience ? (
+              <ReadonlyDetail icon={Sparkles} label="Experience" value={profile.experience} />
+            ) : null}
+            {profile.joiningDate ? (
+              <ReadonlyDetail icon={CalendarDays} label="Joined" value={profile.joiningDate} />
+            ) : null}
+            {profile.city ? (
+              <ReadonlyDetail icon={MapPin} label="City" value={profile.city} />
+            ) : null}
           </div>
+
+          {/* What the timetable builder matches on. Shown as chips so it reads
+              as a list of subjects rather than a comma-jammed sentence. */}
+          {(profile.teachesAllSubjects || (profile.subjectSpecialties?.length ?? 0) > 0) ? (
+            <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/55 px-4 py-3.5">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
+                Teaching specialities
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {profile.teachesAllSubjects ? (
+                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                    All subjects
+                  </span>
+                ) : (
+                  profile.subjectSpecialties?.map((subject) => (
+                    <span
+                      key={subject}
+                      className="rounded-full bg-[#8127cf]/10 px-3 py-1 text-[11px] font-bold text-[#8127cf]"
+                    >
+                      {subject}
+                    </span>
+                  ))
+                )}
+              </div>
+              <p className="mt-2.5 text-[10px] font-semibold text-ink-subtle">
+                Used when subjects and timetable slots are assigned to you.
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap justify-end gap-3 pt-2">
             <BrandButton
