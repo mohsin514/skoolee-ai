@@ -247,7 +247,9 @@ export default function StudentDashboard() {
             <StatCard
               icon={CreditCard}
               label="Balance Due"
-              value={<CountUp value={user.balanceDue} prefix="Rs " />}
+              /* Invoice amounts are stored in paisa — the guardian portal
+                 already divides, and this card was reading 100x high. */
+              value={<CountUp value={user.balanceDue / 100} prefix="Rs " />}
               sub={user.balanceDue > 0 ? `${feePaidPct}% of fees cleared` : "All fees cleared"}
               tone={user.balanceDue > 0 ? "amber" : "green"}
               ring={invoiced ? feePaidPct : null}

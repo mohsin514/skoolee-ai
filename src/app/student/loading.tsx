@@ -1,12 +1,6 @@
-import { Loader2 } from 'lucide-react';
+import { StudentRouteSkeleton } from "@/components/student/student-components";
 
-export default function DashboardLoading() {
-  return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 text-[#8127cf] animate-spin" />
-        <p className="text-sm font-bold text-ink-muted">Loading...</p>
-      </div>
-    </div>
-  );
+// Rendered inside StudentShell, so only the page card is standing in.
+export default function StudentLoading() {
+  return <StudentRouteSkeleton />;
 }

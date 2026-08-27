@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Award, ChevronDown, ChevronUp, Download, FileText, Loader2 } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText, Loader2 } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { toast } from "sonner";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
@@ -32,6 +32,7 @@ export default function ParentResultsPage() {
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const { reportCards, marksByExam } = data;
+  const publishedCount = reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT").length;
 
   return (
     <ParentPage
@@ -39,26 +40,26 @@ export default function ParentResultsPage() {
       icon={FileText}
       eyebrow={<>{reportCards.length ? `${reportCards.length} report card${reportCards.length > 1 ? "s" : ""} · ${marksByExam.length} exams` : "Academic results"}</>}
       title="Results"
-      summary={<>"Report cards and subject-wise marks for your child."</>}
+      summary="Report cards and subject-wise marks for your child."
     >
       <div className="space-y-3">
         {reportCards.length === 0 && marksByExam.length === 0 ? (
           <ParentEmptyState icon={FileText} title="No results yet" description="Results will appear here after exams are published." />
         ) : (
           <>
-            <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-              <ParentStat icon={FileText} label="Report Cards" value={reportCards.length} />
-              <ParentStat icon={Award} label="Best Score" value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "N/A"} tone="green" />
-              <ParentStat icon={FileText} label="Exams" value={marksByExam.length} />
-              <ParentStat icon={FileText} label="Published" value={reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT").length} tone="violet" />
+            <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
+              <ParentStat icon={FileText} label="Report Cards" value={reportCards.length} sub="Issued to date" />
+              <ParentStat icon={Award} label="Best Score" value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "N/A"} sub="Highest result" tone="green" />
+              <ParentStat icon={ClipboardList} label="Exams" value={marksByExam.length} sub="Marked so far" tone="amber" />
+              <ParentStat icon={CheckCircle2} label="Published" value={publishedCount} sub={reportCards.length - publishedCount ? `${reportCards.length - publishedCount} pending release` : "All released"} tone="violet" />
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {reportCards.map((rc: any, index: number) => {
                 const pct = Math.round(rc.percentage);
                 const scoreColor = pct >= 80 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
                 return (
-                  <div key={rc.id} className="sk-rise group relative rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: `${index * 80}ms` }}>
+                  <div key={rc.id} className="sk-rise group relative rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${index * 80}ms` }}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-[10px] font-bold text-ink-subtle uppercase">{rc.term} {rc.academicYear}</p>
@@ -98,26 +99,33 @@ export default function ParentResultsPage() {
 
             {marksByExam.length > 0 && (
               <div>
-                <h3 className="text-sm font-black tracking-tight text-[#1d1b20] mb-4">Subject-wise Marks</h3>
+                <div className="mb-3 flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                    <BookOpen className="h-4 w-4" />
+                  </span>
+                  <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Subject-wise Marks</h3>
+                </div>
                 <div className="space-y-3">
                   {marksByExam.map((exam: any, index: number) => {
                     const isExpanded = expandedExam === exam.examId;
                     return (
-                      <div key={exam.examId} className="sk-rise rounded-[24px] bg-white border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] overflow-hidden transition-all duration-200 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(index + 1) * 80}ms` }}>
+                      <div key={exam.examId} className="sk-rise overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${(index + 1) * 80}ms` }}>
                         <button
                           type="button"
                           onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
-                          className="w-full flex items-center justify-between p-5 hover:bg-[#fbf0fe]/20 transition-colors cursor-pointer"
+                          aria-expanded={isExpanded}
+                          aria-controls={`exam-marks-${exam.examId}`}
+                          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-[#fbf0fe]/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
                         >
                           <div className="text-left">
                             <p className="text-[10px] font-bold text-ink-subtle uppercase">{exam.term}</p>
                             <h3 className="text-sm font-bold text-[#1d1b20]">{exam.examTitle}</h3>
                             <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{exam.marks.length} subjects</p>
                           </div>
-                          {isExpanded ? <ChevronUp className="w-4 h-4 text-ink-subtle" /> : <ChevronDown className="w-4 h-4 text-ink-subtle" />}
+                          {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-[#8127cf]" /> : <ChevronDown className="h-4 w-4 shrink-0 text-ink-subtle" />}
                         </button>
                         {isExpanded && (
-                          <div className="border-t border-[#f3f4f9] px-5 pb-4">
+                          <div id={`exam-marks-${exam.examId}`} className="border-t border-[#f3f4f9] px-4 pb-4">
                             <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-[9px] font-black uppercase text-ink-subtle">
                               <span>Subject</span>
                               <span className="text-right">Marks</span>

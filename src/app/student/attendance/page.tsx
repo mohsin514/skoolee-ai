@@ -5,6 +5,7 @@ import { ATTENDANCE_RISK_THRESHOLD, summarizeAttendance } from "@/lib/attendance
 import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, X, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
+import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
 import { useStudentData } from "../student-data-context";
 
 export default function StudentAttendancePage() {
@@ -114,11 +115,11 @@ export default function StudentAttendancePage() {
           </div>
         )}
 
-        <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
-          <StatCard icon={CalendarDays} label="Total Days" value={stats.total} sub="School days recorded" />
-          <StatCard icon={CheckCircle2} label="Present" value={stats.present} sub={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% of total`} tone="green" />
-          <StatCard icon={X} label="Absent" value={stats.absent} sub={consecutiveAbsences > 0 ? `${consecutiveAbsences} consecutive` : "No consecutive"} tone="rose" />
-          <StatCard icon={Clock} label="Leave" value={stats.leave} sub="Approved leaves" tone="amber" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard icon={CalendarDays} label="Total Days" value={stats.total} sub="School days recorded" delay={40} />
+          <StatCard icon={CheckCircle2} label="Present" value={stats.present} sub={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% of total`} tone="green" ring={stats.total ? Math.round((stats.present / stats.total) * 100) : null} delay={80} />
+          <StatCard icon={X} label="Absent" value={stats.absent} sub={consecutiveAbsences > 0 ? `${consecutiveAbsences} consecutive` : "No consecutive"} tone="rose" delay={120} />
+          <StatCard icon={Clock} label="Leave" value={stats.leave} sub="Approved leaves" tone="amber" delay={160} />
         </div>
 
         <div className="sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "120ms" }}>
@@ -183,6 +184,15 @@ export default function StudentAttendancePage() {
             {calendarDays.map((cell, i) => {
               if (!cell) return <div key={`empty-${i}`} />;
               const status = cell.record?.status;
+              const label = `${monthLabel} ${cell.day} — ${
+                status === "PRESENT"
+                  ? "Present"
+                  : status === "ABSENT"
+                    ? "Absent"
+                    : status === "LEAVE"
+                      ? "Approved leave"
+                      : "No record"
+              }`;
               const bg = status === "PRESENT"
                 ? "bg-emerald-50 border-emerald-200/50 text-emerald-700"
                 : status === "ABSENT"
@@ -193,15 +203,9 @@ export default function StudentAttendancePage() {
               return (
                 <div
                   key={cell.day}
-                  title={`${monthLabel} ${cell.day} — ${
-                    status === "PRESENT"
-                      ? "Present"
-                      : status === "ABSENT"
-                        ? "Absent"
-                        : status === "LEAVE"
-                          ? "Approved leave"
-                          : "No record"
-                  }`}
+                  title={label}
+                  aria-label={label}
+                  role="img"
                   className={`relative flex flex-col items-center justify-center rounded-xl border py-2 transition-all ${bg} ${status ? "hover:-translate-y-0.5 hover:shadow-md" : ""}`}
                 >
                   <span className="text-xs font-bold">{cell.day}</span>
@@ -219,11 +223,9 @@ export default function StudentAttendancePage() {
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Attendance History</h3>
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />Present</span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500" />Absent</span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600"><span className="h-2 w-2 rounded-full bg-amber-500" />Leave</span>
-            </div>
+            <span className="text-[10px] font-semibold text-ink-subtle">
+              {stats.total} day{stats.total === 1 ? "" : "s"} recorded
+            </span>
           </div>
           {data.user.attendance.length > 0 ? (
             <div className="space-y-3">
@@ -239,45 +241,15 @@ export default function StudentAttendancePage() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center rounded-[32px] bg-[#fbf0fe]/20 border border-dashed border-[#cfc2d6]/20">
-              <CalendarCheck className="w-10 h-10 text-ink-subtle mb-3" />
-              <p className="text-sm font-bold text-[#1d1b20]">No attendance recorded yet</p>
-              <p className="mt-1 text-xs font-semibold text-ink-muted">Attendance will appear here after your teacher marks it.</p>
-            </div>
+            <StudentEmptyState
+              icon={CalendarCheck}
+              title="No attendance recorded yet"
+              description="Attendance will appear here after your teacher marks it."
+            />
           )}
         </div>
       </div>
     </StudentPage>
-  );
-}
-
-function StatCard({ icon: Icon, label, value, sub, tone = "purple" }: { icon: any; label: string; value: string | number; sub: string; tone?: string }) {
-  const iconColors: Record<string, string> = {
-    purple: "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white",
-    green: "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white",
-    rose: "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white",
-    amber: "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white",
-  };
-  const iconGlows: Record<string, string> = {
-    purple: "bg-[#8127cf]/18",
-    green: "bg-emerald-500/18",
-    rose: "bg-rose-500/18",
-    amber: "bg-amber-500/18",
-  };
-  return (
-    <div className="group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25">
-      <div className="relative flex items-center justify-between mb-3">
-        <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider transition-colors group-hover:text-ink-muted">{label}</p>
-        <div className="relative">
-          <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${iconGlows[tone] || iconGlows.purple}`} />
-          <div className={`relative h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg ${iconColors[tone] || iconColors.purple}`}>
-            <Icon className="w-[18px] h-[18px]" />
-          </div>
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{value}</p>
-      <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{sub}</p>
-    </div>
   );
 }
 

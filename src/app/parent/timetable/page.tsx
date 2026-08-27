@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Clock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
-import { ParentEmptyState } from "@/components/parent/parent-components";
+import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { useParentData } from "../parent-data-context";
 
@@ -95,13 +95,11 @@ export default function ParentTimetablePage() {
       icon={Clock}
       eyebrow={<>{timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}</>}
       title="Timetable"
-      summary={<>"Your child\u2019s weekly class schedule."</>}
+      summary="Your child’s weekly class schedule."
     >
       <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-14">
-            <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] animate-pulse" />
-          </div>
+          <ParentTimetableSkeleton weekendDays={weekendDays} />
         ) : hasTable ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-1.5">

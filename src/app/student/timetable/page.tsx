@@ -7,6 +7,7 @@ import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
+import { StudentEmptyState } from "@/components/student/student-ui";
 
 interface ClassTimetableData {
   classId: string;
@@ -74,15 +75,11 @@ export default function StudentTimetablePage() {
         {data ? (
           <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
         ) : (
-          <div className="sk-rise flex flex-col items-center justify-center py-14 text-center rounded-[24px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10" style={{ animationDelay: "80ms" }}>
-            <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
-              <Calendar className="w-8 h-8 text-[#8127cf]/40" />
-            </div>
-            <h3 className="text-xl font-bold text-[#1d1b20] tracking-tight">No Timetable Published</h3>
-            <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">
-              Your class timetable will appear here once it has been published by the administration.
-            </p>
-          </div>
+          <StudentEmptyState
+            icon={Calendar}
+            title="No timetable published"
+            description="Your class timetable appears here once the administration publishes it."
+          />
         )}
         <ExamDateSheet classId={data?.classId} />
       </div>

@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
-import { StatCard } from "@/components/student/student-ui";
+import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
 import { StudentPage } from "@/components/student/student-page";
 import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatPKR } from "@/components/fees/fee-utils";
 
 
 export default function FeesPage() {
@@ -60,22 +61,22 @@ export default function FeesPage() {
     <StudentPage
       tone="fees"
       icon={CreditCard}
-      eyebrow={<>{summary.outstanding ? `Rs ${summary.outstanding.toLocaleString()} outstanding · ${summary.overdue} overdue` : "All fees cleared"}</>}
-      title="Fee Tokens"
-      summary={<>"Invoices, payment progress, and outstanding balances."</>}
+      eyebrow={<>{summary.outstanding ? `${formatPKR(summary.outstanding)} outstanding · ${summary.overdue} overdue` : "All fees cleared"}</>}
+      title="Fees"
+      summary="Invoices, payment progress, and outstanding balances."
     >
       <div className="space-y-3">
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-          <StatCard icon={Receipt} label="Total invoiced" value={`Rs ${summary.total.toLocaleString()}`} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
+          <StatCard icon={Receipt} label="Total invoiced" value={formatPKR(summary.total)} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
           <StatCard
             icon={CheckCircle2}
             label="Paid"
-            value={`Rs ${summary.paid.toLocaleString()}`}
+            value={formatPKR(summary.paid)}
             sub={`${summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}% of total`}
             tone="green"
             ring={summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}
           />
-          <StatCard icon={Banknote} label="Outstanding" value={`Rs ${summary.outstanding.toLocaleString()}`} sub={`${summary.pending} invoice${summary.pending > 1 ? "s" : ""} pending`} tone="rose" />
+          <StatCard icon={Banknote} label="Outstanding" value={formatPKR(summary.outstanding)} sub={`${summary.pending} invoice${summary.pending > 1 ? "s" : ""} pending`} tone="rose" />
           <StatCard icon={Calendar} label="Overdue" value={summary.overdue} sub={summary.overdue === 1 ? "1 overdue invoice" : `${summary.overdue} overdue invoices`} tone={summary.overdue ? "amber" : "purple"} />
         </div>
 
@@ -84,9 +85,9 @@ export default function FeesPage() {
           <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="text-[9px] font-bold text-white/60 uppercase tracking-wider">Total Outstanding</p>
-              <p className="text-4xl font-bold text-white mt-1">Rs {summary.outstanding.toLocaleString()}</p>
+              <p className="mt-1 text-4xl font-bold tabular-nums text-white">{formatPKR(summary.outstanding)}</p>
               <p className="mt-1 text-xs font-semibold text-white/70">
-                {summary.paid > 0 ? `${Math.round(summary.paid / summary.total * 100)}% paid · Rs ${summary.paid.toLocaleString()} cleared` : "No payments made yet"}
+                {summary.paid > 0 ? `${Math.round((summary.paid / summary.total) * 100)}% paid · ${formatPKR(summary.paid)} cleared` : "No payments made yet"}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -118,11 +119,11 @@ export default function FeesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/30 bg-white py-14 text-center">
-            <CreditCard className="w-12 h-12 text-ink-subtle mb-4" />
-            <p className="text-base font-black tracking-tight text-[#1d1b20]">No invoices yet</p>
-            <p className="mt-1 text-sm font-semibold text-ink-muted">Fee invoices will appear here once assigned to your profile.</p>
-          </div>
+          <StudentEmptyState
+            icon={CreditCard}
+            title="No invoices yet"
+            description="Fee invoices will appear here once assigned to your profile."
+          />
         )}
       </div>
     </StudentPage>
@@ -175,8 +176,8 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
         </div>
 
         <div className="flex items-baseline gap-1.5 mb-3">
-          <span className="text-2xl font-bold text-[#1d1b20]">Rs {balance.toLocaleString()}</span>
-          <span className="text-[10px] font-semibold text-ink-subtle">of Rs {invoice.totalAmount?.toLocaleString() || "—"}</span>
+          <span className="text-2xl font-bold tabular-nums text-[#1d1b20]">{formatPKR(balance)}</span>
+          <span className="text-[10px] font-semibold text-ink-subtle">of {invoice.totalAmount ? formatPKR(invoice.totalAmount) : "—"}</span>
         </div>
 
         <div className="h-2 w-full bg-[#f3f4f9] rounded-full overflow-hidden mb-3">
@@ -213,7 +214,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
             </button>
           )}
           {paid > 0 && balance <= 0 && (
-            <span className="text-[9px] font-semibold text-emerald-600">Rs {paid.toLocaleString()} paid</span>
+            <span className="text-[9px] font-semibold text-emerald-600">{formatPKR(paid)} paid</span>
           )}
         </div>
       </div>

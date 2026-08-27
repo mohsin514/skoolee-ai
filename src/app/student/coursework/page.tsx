@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Award, BookOpen, ChevronRight, MapPin, TrendingUp, UserRound } from "lucide-react";
-import { StatCard } from "@/components/student/student-ui";
+import { Award, BookOpen, MapPin, TrendingUp, UserRound } from "lucide-react";
+import { Panel, PanelHeading, StatCard, StudentEmptyState } from "@/components/student/student-ui";
 import { cn } from "@/lib/utils";
 import { StudentPage } from "@/components/student/student-page";
 import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
@@ -32,7 +32,7 @@ export default function CourseworkPage() {
       icon={BookOpen}
       eyebrow={<>{`${user.subjects.length} subjects enrolled`}</>}
       title="Coursework & Performance"
-      summary={<>"Your subjects, teachers, and academic progress."</>}
+      summary="Your subjects, teachers, and academic progress."
     >
       <div className="space-y-3">
         {/* Moved here when the duplicate "Schedule" page was retired — this is
@@ -105,8 +105,12 @@ export default function CourseworkPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
           <div className="sk-rise xl:col-span-2 space-y-3" style={{ animationDelay: "80ms" }}>
-            <div>
-              <h3 className="text-sm font-black tracking-tight text-[#1d1b20] mb-4">Subjects & Teachers</h3>
+            <Panel>
+              <PanelHeading
+                icon={BookOpen}
+                title="Subjects & Teachers"
+                sub={`${user.subjects.length} enrolled`}
+              />
               {user.subjects.length ? (
                 <div className="space-y-3">
                   {user.subjects.map((subject: any) => {
@@ -124,46 +128,59 @@ export default function CourseworkPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-ink-subtle italic">Subjects will appear after admin adds them to this section.</p>
+                <StudentEmptyState
+                  icon={BookOpen}
+                  title="No subjects yet"
+                  description="Subjects appear here once the office adds them to your section."
+                />
               )}
-            </div>
+            </Panel>
 
-            <div>
-              <h3 className="text-sm font-black tracking-tight text-[#1d1b20] mb-4">Academic Performance</h3>
+            <Panel>
+              <PanelHeading
+                icon={TrendingUp}
+                title="Academic Performance"
+                sub="Your five most recent scores"
+                tone="green"
+              />
               {user.marks.length > 0 ? (
                 <div className="space-y-4">
-                  {user.marks.slice(0, 5).map((mark: any, index: number) => (
+                  {user.marks.slice(0, 5).map((mark: any) => (
                     <PerfBar
                       key={mark.id}
                       label={mark.subject?.name || "Subject"}
+                      exam={mark.exam?.title}
                       score={Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100)}
-                      color={index % 3 === 0 ? "indigo" : index % 3 === 1 ? "rose" : "amber"}
                     />
                   ))}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-ink-subtle italic">No marks recorded in current cycle.</p>
+                <StudentEmptyState
+                  icon={TrendingUp}
+                  title="No marks yet"
+                  description="Your scores appear here once teachers publish marks for this cycle."
+                />
               )}
-            </div>
+            </Panel>
           </div>
 
           <div className="xl:col-span-3">
-            <div className="sk-rise bg-white border border-[#cfc2d6]/25 rounded-[32px] overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "200ms" }}>
-              <div className="sticky top-0 bg-white z-10 border-b border-[#cfc2d6]/10">
-                <div className="px-6 py-4 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">All Marks</h3>
-                  {user.marks.length > 0 && (
-                    <span className="text-[10px] font-semibold text-ink-subtle">{user.marks.length} entries</span>
-                  )}
-                </div>
+            <div className="sk-rise overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "200ms" }}>
+              <div className="flex items-center justify-between gap-3 border-b border-[#cfc2d6]/10 px-4 py-3">
+                <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">All Marks</h3>
+                {user.marks.length > 0 && (
+                  <span className="text-[10px] font-semibold text-ink-subtle">
+                    {user.marks.length} entr{user.marks.length === 1 ? "y" : "ies"}
+                  </span>
+                )}
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left min-w-[480px]">
                 <thead>
                   <tr className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-ink-subtle uppercase tracking-wider border-b border-[#cfc2d6]/10">
-                    <th className="px-6 py-3.5">Subject</th>
-                    <th className="px-3 py-3.5 text-center">Score</th>
-                    <th className="px-3 py-3.5 text-center">%</th>
-                    <th className="px-6 py-3.5 text-right">Status</th>
+                    <th className="px-4 py-3">Subject</th>
+                    <th className="px-3 py-3 text-center">Score</th>
+                    <th className="px-3 py-3 text-center">%</th>
+                    <th className="px-4 py-3 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#cfc2d6]/10">
@@ -172,17 +189,17 @@ export default function CourseworkPage() {
                       const pct = Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100);
                       return (
                         <tr key={mark.id} className="group transition-all duration-200 hover:bg-[#fbf0fe]/40 hover:shadow-sm cursor-default">
-                          <td className="px-6 py-3.5">
+                          <td className="px-4 py-3">
                             <p className="text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{mark.subject?.name}</p>
                             <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
                               {mark.exam?.title || "Exam"}
                             </p>
                           </td>
-                          <td className="px-3 py-3.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <span className="text-sm font-bold text-[#1d1b20]">{mark.marksObtained}</span>
                             <span className="text-[10px] text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
                           </td>
-                          <td className="px-3 py-3.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <span className={cn(
                               "inline-flex text-xs font-bold px-2.5 py-1 rounded-lg",
                               pct >= 80 ? "bg-emerald-50 text-emerald-600" :
@@ -192,8 +209,15 @@ export default function CourseworkPage() {
                               {pct}%
                             </span>
                           </td>
-                          <td className="px-6 py-3.5 text-right">
-                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[9px] font-semibold uppercase tracking-wider transition-all group-hover:bg-emerald-100 group-hover:shadow-sm">
+                          <td className="px-4 py-3 text-right">
+                            <span className={cn(
+                              "rounded-lg px-3 py-1 text-[9px] font-semibold uppercase tracking-wider",
+                              mark.exam?.status === "PUBLISHED" || mark.exam?.status === "COMPLETED"
+                                ? "bg-emerald-50 text-emerald-600"
+                                : mark.exam?.status === "DRAFT"
+                                  ? "bg-amber-50 text-amber-600"
+                                  : "bg-[#fbf0fe] text-[#8127cf]",
+                            )}>
                               {mark.exam?.status || "Entered"}
                             </span>
                           </td>
@@ -202,9 +226,12 @@ export default function CourseworkPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center">
-                        <BookOpen className="w-8 h-8 text-ink-subtle mx-auto mb-3" />
-                        <p className="text-sm font-semibold text-ink-subtle">No marks recorded yet.</p>
+                      <td colSpan={4} className="px-4 py-12 text-center">
+                        <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#8127cf]/40" />
+                        <p className="text-sm font-black tracking-tight text-[#1d1b20]">No marks recorded yet</p>
+                        <p className="mt-1 text-xs font-semibold text-ink-muted">
+                          Marks appear here as teachers publish each exam.
+                        </p>
                       </td>
                     </tr>
                   )}
@@ -224,10 +251,7 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
     <div className="group relative rounded-2xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/20 hover:shadow-xl hover:bg-white">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{name}</p>
-            <ChevronRight className="h-3.5 w-3.5 text-ink-subtle transition-all group-hover:text-[#8127cf] group-hover:translate-x-0.5" />
-          </div>
+          <p className="truncate text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{name}</p>
           <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{teacher}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -248,18 +272,24 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
   );
 }
 
-function PerfBar({ label, score, color }: { label: string; score: number; color: "indigo" | "rose" | "amber" }) {
-  const colorMap = { indigo: "bg-indigo-500", rose: "bg-rose-500", amber: "bg-amber-500" };
+function PerfBar({ label, exam, score }: { label: string; exam?: string; score: number }) {
+  // Colour by the score, not by the row's position in the list: the old
+  // index % 3 cycle could paint a 95% rose and a 40% indigo.
+  const bar = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-rose-500";
+  const text = score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600";
 
   return (
     <div className="group transition-all duration-200 hover:-translate-y-0.5">
-      <div className="flex justify-between items-center mb-1.5">
-        <span className="text-xs font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{label}</span>
-        <span className="text-[10px] font-bold text-ink-subtle transition-colors group-hover:text-ink-muted">{score}%</span>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-xs font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+          {label}
+          {exam ? <span className="ml-1.5 font-medium text-ink-subtle">{exam}</span> : null}
+        </span>
+        <span className={`shrink-0 text-[10px] font-black tabular-nums ${text}`}>{score}%</span>
       </div>
       <div className="h-3 w-full bg-[#f3f4f9] rounded-full overflow-hidden p-0.5 border border-[#cfc2d6]/10 transition-all group-hover:shadow-md">
         <div
-          className={`h-full ${colorMap[color]} rounded-full transition-all duration-700`}
+          className={`h-full ${bar} rounded-full transition-all duration-700`}
           style={{ width: `${Math.max(0, Math.min(score, 100))}%` }}
         />
       </div>

@@ -17,6 +17,12 @@ import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import {
+  ConsolePage,
+  ConsoleQuickLink,
+  ConsoleSkeleton,
+  type ConsoleNavItem,
+} from "@/components/operations/console-page";
+import {
   VisitorsPanel,
   ComplaintsPanel,
   PostalPanel,
@@ -26,6 +32,17 @@ import {
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
 
 type ReceptionistView = "dashboard" | "visitors" | "complaints" | "postal" | "phone-calls" | "certificates" | "leave";
+
+/** One list drives the section strip, the sidebar and the page header. */
+const NAV: ConsoleNavItem<ReceptionistView>[] = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutGrid, tone: "brand", group: "Overview", eyebrow: "Front Desk Console", summary: "Everything the front desk handles, in one place." },
+  { id: "visitors", label: "Visitors", icon: Eye, tone: "students", group: "Front Desk", eyebrow: "Front Desk", summary: "Log arrivals, passes and sign-outs." },
+  { id: "complaints", label: "Complaints", icon: MessageSquare, tone: "exams", group: "Front Desk", eyebrow: "Front Desk", summary: "Record complaints and track them to resolution." },
+  { id: "postal", label: "Postal", icon: Mail, tone: "timetable", group: "Front Desk", eyebrow: "Front Desk", summary: "Inbound and outbound post and courier records." },
+  { id: "phone-calls", label: "Phone Calls", icon: Phone, tone: "classes", group: "Front Desk", eyebrow: "Front Desk", summary: "Call log with callers, purpose and follow-ups." },
+  { id: "certificates", label: "Certificates", icon: FileText, tone: "reports", group: "Records", eyebrow: "Records", summary: "Issue and reprint student certificates." },
+  { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", group: "Records", eyebrow: "Staff", summary: "Apply for leave and track your requests." },
+];
 
 export default function ReceptionistPage() {
   const router = useRouter();
@@ -51,47 +68,61 @@ export default function ReceptionistPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (loading || !data) {
-    return (
-      <div className="min-h-screen bg-[#fbf0fe] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-[#8127cf] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
   const navItems: SidebarEntry[] = [
-    { label: "Dashboard", icon: LayoutGrid, active: activeView === "dashboard", onClick: () => setActiveView("dashboard") },
-    { label: "Visitors", icon: Eye, active: activeView === "visitors", onClick: () => setActiveView("visitors") },
-    { label: "Complaints", icon: MessageSquare, active: activeView === "complaints", onClick: () => setActiveView("complaints") },
-    { label: "Postal", icon: Mail, active: activeView === "postal", onClick: () => setActiveView("postal") },
-    { label: "Phone Calls", icon: Phone, active: activeView === "phone-calls", onClick: () => setActiveView("phone-calls") },
-    { label: "Certificates", icon: FileText, active: activeView === "certificates", onClick: () => setActiveView("certificates") },
-    { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
+    ...NAV.map((item) => ({
+      label: item.label,
+      icon: item.icon,
+      active: activeView === item.id,
+      onClick: () => setActiveView(item.id),
+    })),
     { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
+
+  const current = NAV.find((item) => item.id === activeView) ?? NAV[0];
 
   return (
     <RoleShell
       tagline="Front Desk Console"
       eyebrow="Front Desk Console"
       navItems={navItems}
-      userName={data.userName}
+      userName={data?.userName || "Receptionist"}
       userRole="Receptionist"
-      avatarSeed={data.userEmail}
-      logoUrl={data.logoUrl}
+      avatarSeed={data?.userEmail}
+      logoUrl={data?.logoUrl}
       dashboardHref="/receptionist"
     >
-      <section className="flex-1 min-h-0 overflow-y-auto pr-1 pb-8 pt-2">
-        <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+      {loading || !data ? (
+        <ConsoleSkeleton cards={3} />
+      ) : (
+        <ConsolePage
+          items={NAV}
+          activeId={activeView}
+          onSelect={setActiveView}
+          navLabel="Front desk sections"
+          icon={current.icon}
+          tone={current.tone}
+          eyebrow={current.eyebrow ?? "Front Desk Console"}
+          title={activeView === "dashboard" ? data.userName : current.label}
+          summary={
+            activeView === "dashboard"
+              ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""} · ${data.schoolName}`
+              : current.summary
+          }
+        >
+          {/* This view used to be a welcome banner and nothing else — the one
+              console whose dashboard offered no way into its own six tools. */}
           {activeView === "dashboard" ? (
-            <div className="space-y-6">
-              <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{data.campusName}</p>
-                  <h2 className="text-2xl font-black text-[#1f1a23]">Welcome, {data.userName}</h2>
-                  <p className="text-sm text-ink-muted">Manage visitors, complaints, postal, and front desk operations for {data.schoolName}.</p>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {NAV.filter((item) => item.id !== "dashboard").map((item) => (
+                <ConsoleQuickLink
+                  key={item.id}
+                  icon={item.icon}
+                  label={item.label}
+                  description={item.summary ?? ""}
+                  tone={item.tone}
+                  onClick={() => setActiveView(item.id)}
+                />
+              ))}
             </div>
           ) : null}
           {activeView === "visitors" ? <VisitorsPanel /> : null}
@@ -100,8 +131,8 @@ export default function ReceptionistPage() {
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
           {activeView === "certificates" ? <CertificatesPanel /> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
-        </div>
-      </section>
+        </ConsolePage>
+      )}
     </RoleShell>
   );
 }

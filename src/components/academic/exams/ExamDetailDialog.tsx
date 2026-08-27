@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { StatusPill } from "@/components/shared-admin";
-import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
+import { ReportCardsPanel } from "@/components/academic/exams/ReportCardsPanel";
 import { DatesheetBuilder } from "@/components/academic/DatesheetBuilder";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Meter } from "@/components/academic/exams/shared";
@@ -168,7 +168,7 @@ export function ExamDetailDialog({
         ) : null}
         {tab === "papers" ? <DatesheetBuilder exam={exam} campusId={campusId} onChanged={onChanged} /> : null}
         {tab === "reports" ? (
-          <ReportCardPipeline exam={exam} campusId={campusId} onChanged={onChanged} />
+          <ReportCardsPanel exam={exam} campusId={campusId} onChanged={onChanged} />
         ) : null}
       </div>
     </Modal>
@@ -217,13 +217,25 @@ function MarksEntry({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
+  /** The class's pass mark as a percentage, from Grading Rules (§82). It was
+   *  hard-coded to 50 here, so a school with a 40% pass mark saw its own
+   *  pupils marked FAIL on this screen and PASS on the report card. */
+  const [passPct, setPassPct] = useState(50);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json());
+      const [res, cfg] = await Promise.all([
+        fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
+        fetch(
+          `/api/grade-config?classId=${encodeURIComponent(exam.classId)}&academicYear=${exam.academicYear}`,
+        )
+          .then((r) => r.json())
+          .catch(() => null),
+      ]);
       if (!res.success) throw new Error(res.error || "Could not load marks");
+      if (cfg?.config?.passingPercentage != null) setPassPct(cfg.config.passingPercentage);
       setStudents(res.students ?? []);
       setSubjects(res.subjects ?? []);
       setLocked(Boolean(res.exam?.isLocked));
@@ -240,7 +252,7 @@ function MarksEntry({
     } finally {
       setLoading(false);
     }
-  }, [exam.id]);
+  }, [exam.id, exam.classId, exam.academicYear]);
 
   useEffect(() => {
     load();
@@ -343,7 +355,7 @@ function MarksEntry({
     const values = students
       .map((s) => valueFor(s.id))
       .filter((v): v is number => v !== undefined && v >= 0);
-    const pass = subject.totalMarks * 0.5;
+    const pass = (subject.totalMarks * passPct) / 100;
     return {
       entered: students.filter((s) => valueFor(s.id) !== undefined).length,
       total: students.length,
@@ -353,7 +365,7 @@ function MarksEntry({
       passing: values.filter((v) => v >= pass).length,
       top: values.length ? Math.max(...values) : 0,
     };
-  }, [students, subject, valueFor]);
+  }, [students, subject, valueFor, passPct]);
 
   const subjectProgress = useMemo(() => {
     return subjects.map((s) => {
@@ -517,7 +529,7 @@ function MarksEntry({
                 value !== undefined && value >= 0 && subject.totalMarks > 0
                   ? Math.round((value / subject.totalMarks) * 100)
                   : null;
-              const pass = pct !== null && pct >= 50;
+              const pass = pct !== null && pct >= passPct;
               return (
                 <li
                   key={student.id}

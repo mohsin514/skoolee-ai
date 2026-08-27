@@ -4,22 +4,33 @@ import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen,
   CalendarClock,
-  FolderOpen,
   LayoutGrid,
   MessageCircle,
   Package,
-  RotateCcw,
-  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
+import {
+  ConsolePage,
+  ConsoleQuickLink,
+  ConsoleSkeleton,
+  type ConsoleNavItem,
+} from "@/components/operations/console-page";
 import { LibraryPanel, InventoryPanel } from "@/components/operations";
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
 
 type LibrarianView = "dashboard" | "library" | "inventory" | "leave";
+
+/** One list drives the section strip, the sidebar and the page header. */
+const NAV: ConsoleNavItem<LibrarianView>[] = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutGrid, tone: "brand", eyebrow: "Library Console", summary: "Books, members and stock at a glance." },
+  { id: "library", label: "Library", icon: BookOpen, tone: "classes", eyebrow: "Library", summary: "Catalogue, members, and issue or return books." },
+  { id: "inventory", label: "Inventory", icon: Package, tone: "staff", eyebrow: "Library", summary: "Items, stores and suppliers." },
+  { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", eyebrow: "Staff", summary: "Apply for leave and track your requests." },
+];
 
 export default function LibrarianPage() {
   const router = useRouter();
@@ -45,70 +56,66 @@ export default function LibrarianPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (loading || !data) {
-    return (
-      <div className="min-h-screen bg-[#fbf0fe] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-[#8127cf] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
   const navItems: SidebarEntry[] = [
-    { label: "Dashboard", icon: LayoutGrid, active: activeView === "dashboard", onClick: () => setActiveView("dashboard") },
-    { label: "Library", icon: BookOpen, active: activeView === "library", onClick: () => setActiveView("library") },
-    { label: "Inventory", icon: Package, active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-    { label: "Leave", icon: CalendarClock, active: activeView === "leave", onClick: () => setActiveView("leave") },
+    ...NAV.map((item) => ({
+      label: item.label,
+      icon: item.icon,
+      active: activeView === item.id,
+      onClick: () => setActiveView(item.id),
+    })),
     { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
+
+  const current = NAV.find((item) => item.id === activeView) ?? NAV[0];
 
   return (
     <RoleShell
       tagline="Library Console"
       eyebrow="Library Console"
       navItems={navItems}
-      userName={data.userName}
+      userName={data?.userName || "Librarian"}
       userRole="Librarian"
-      avatarSeed={data.userEmail}
-      logoUrl={data.logoUrl}
+      avatarSeed={data?.userEmail}
+      logoUrl={data?.logoUrl}
       dashboardHref="/librarian"
     >
-      <section className="flex-1 min-h-0 overflow-y-auto pr-1 pb-8 pt-2">
-        <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+      {loading || !data ? (
+        <ConsoleSkeleton cards={3} />
+      ) : (
+        <ConsolePage
+          items={NAV}
+          activeId={activeView}
+          onSelect={setActiveView}
+          navLabel="Library sections"
+          icon={current.icon}
+          tone={current.tone}
+          eyebrow={current.eyebrow ?? "Library Console"}
+          title={activeView === "dashboard" ? data.userName : current.label}
+          summary={
+            activeView === "dashboard"
+              ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""} · ${data.schoolName}`
+              : current.summary
+          }
+        >
           {activeView === "dashboard" ? (
-            <div className="space-y-6">
-              <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{data.campusName}</p>
-                  <h2 className="text-2xl font-black text-[#1f1a23]">Welcome, {data.userName}</h2>
-                  <p className="text-sm text-ink-muted">Manage books, members, issue/return, and inventory for {data.schoolName}.</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { label: "Library", icon: BookOpen, view: "library" as LibrarianView, desc: "Books, members & issues", color: "from-purple-500 to-violet-600" },
-                  { label: "Inventory", icon: Package, view: "inventory" as LibrarianView, desc: "Items, stores & suppliers", color: "from-blue-500 to-cyan-600" },
-                  { label: "Leave", icon: CalendarClock, view: "leave" as LibrarianView, desc: "Apply & track leave", color: "from-amber-500 to-orange-600" },
-                ].map((card) => (
-                  <button
-                    key={card.label}
-                    onClick={() => setActiveView(card.view)}
-                    className="group relative overflow-hidden rounded-2xl border border-[#cfc2d6]/20 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className={`mb-3 inline-flex rounded-xl bg-gradient-to-br ${card.color} p-2.5 text-white shadow-lg`}>
-                      <card.icon className="h-5 w-5" />
-                    </div>
-                    <p className="text-sm font-bold text-[#1f1a23]">{card.label}</p>
-                    <p className="mt-1 text-xs text-ink-muted">{card.desc}</p>
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {NAV.filter((item) => item.id !== "dashboard").map((item) => (
+                <ConsoleQuickLink
+                  key={item.id}
+                  icon={item.icon}
+                  label={item.label}
+                  description={item.summary ?? ""}
+                  tone={item.tone}
+                  onClick={() => setActiveView(item.id)}
+                />
+              ))}
             </div>
           ) : null}
           {activeView === "library" ? <LibraryPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
-        </div>
-      </section>
+        </ConsolePage>
+      )}
     </RoleShell>
   );
 }

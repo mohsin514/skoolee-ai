@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
-import { buildSubjectDistribution, calculateWeightedGrade, getOrCreateGradeWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
+import {
+  buildSubjectDistribution,
+  calculateWeightedGrade,
+  getOrCreateGradeWeightConfig,
+  gradeForPercentage,
+  type GradeThresholds,
+  type WeightConfig,
+} from "@/lib/academic/grade-calculator";
 
 export const EXAM_STATUSES = [
   "DRAFT",
@@ -12,17 +19,59 @@ export const EXAM_STATUSES = [
 
 export type ExamStatus = (typeof EXAM_STATUSES)[number];
 
-export function gradeForPercentage(percentage: number) {
-  if (percentage >= 90) return "A+";
-  if (percentage >= 80) return "A";
-  if (percentage >= 70) return "B";
-  if (percentage >= 60) return "C";
-  if (percentage >= 50) return "D";
-  return "F";
+/**
+ * Grade thresholds for one class, as the office configured them (§82).
+ *
+ * There used to be a second, hard-coded copy of this ladder here — 90/80/70/
+ * 60/50, with no way to pass anything else in — and it was the copy that
+ * report cards and the marks API actually used. A school that set A+ at 85 in
+ * Grading Rules still got report cards graded at 90, so the entire grading
+ * configuration was decorative for the two screens people read.
+ *
+ * `grade-calculator.ts` owns the real ladder. This re-exports it so there is
+ * one implementation rather than two that drift.
+ */
+export { gradeForPercentage };
+export type { GradeThresholds };
+
+/**
+ * The class's configured thresholds, or the defaults when it has none.
+ *
+ * Falling back silently is deliberate: a class with no config should still
+ * produce report cards, on the same ladder the config form shows as its
+ * starting point.
+ */
+export async function thresholdsForClass(
+  classId: string,
+  academicYear: number,
+): Promise<GradeThresholds> {
+  const config = await prisma.gradeWeightConfig.findUnique({
+    where: { classId_academicYear: { classId, academicYear } },
+    select: { gradeAplus: true, gradeA: true, gradeB: true, gradeC: true, gradeD: true },
+  });
+  return {
+    aplus: config?.gradeAplus ?? 90,
+    a: config?.gradeA ?? 80,
+    b: config?.gradeB ?? 70,
+    c: config?.gradeC ?? 60,
+    d: config?.gradeD ?? 50,
+  };
 }
 
-export function gradeForMark(obtained: number, total: number) {
-  return gradeForPercentage(total > 0 ? (obtained / total) * 100 : 0);
+/** The pass mark for a class, as a fraction of the paper's total. */
+export async function passingFractionForClass(
+  classId: string,
+  academicYear: number,
+): Promise<number> {
+  const config = await prisma.gradeWeightConfig.findUnique({
+    where: { classId_academicYear: { classId, academicYear } },
+    select: { passingPercentage: true },
+  });
+  return (config?.passingPercentage ?? 50) / 100;
+}
+
+export function gradeForMark(obtained: number, total: number, thresholds?: GradeThresholds) {
+  return gradeForPercentage(total > 0 ? (obtained / total) * 100 : 0, thresholds);
 }
 
 export function isLockedStatus(status: string | null | undefined) {
@@ -58,6 +107,9 @@ export async function generateReportCardsForLockedExam(examId: string) {
   const students = exam.class.students;
   const subjects = exam.class.subjects;
   const studentIds = students.map((student) => student.id);
+
+  // The class's own grading ladder — not the built-in one (§82).
+  const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
 
   const [marks, attendance, existingReports] = await Promise.all([
     prisma.mark.findMany({
@@ -105,7 +157,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
       totalMarks,
       obtainedMarks,
       percentage,
-      grade: gradeForPercentage(percentage),
+      grade: gradeForPercentage(percentage, thresholds),
       attendancePresent: attendanceSummary.present,
       attendanceTotal: attendanceSummary.total,
       rank: 0,

@@ -69,6 +69,12 @@ export const teacherInviteSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email("Valid email required"),
   password: z.string().min(1, "Password required"),
+  // Opt-in longer session. Absent/false keeps the default 7-day cookie; true
+  // extends it to 30 days on a device the user says is theirs.
+  rememberMe: z.boolean().optional(),
+  // Sent on the second attempt when one address holds accounts at more than
+  // one school and the user has picked which to sign in to.
+  schoolId: z.string().optional(),
 });
 
 // Legacy combined onboarding (kept for existing routes)

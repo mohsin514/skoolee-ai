@@ -14,7 +14,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
-import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState } from "@/components/parent/parent-components";
+import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
 import { formatPKR } from "@/components/fees/fee-utils";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
@@ -27,7 +27,7 @@ export default function ParentOverviewPage() {
   if (loading && !data) return <ParentOverviewSkeleton />;
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
-//test
+
   const { student, campus } = data;
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const profileImage = student.profileImageUrl;
@@ -35,9 +35,9 @@ export default function ParentOverviewPage() {
   const feeOutstanding = data.fees?.reduce((sum, f) => sum + (f.balance || 0), 0) || 0;
 
   const stats = [
-    { icon: FileText, label: "Report Cards", value: data.reportCards.length },
-    { icon: Award, label: "Latest Score", value: latestPct !== undefined ? `${Math.round(latestPct)}%` : "N/A" },
-    { icon: CalendarCheck, label: "Attendance", value: data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A" },
+    { icon: FileText, label: "Report Cards", value: data.reportCards.length, sub: "Published to date", tone: "violet" as const },
+    { icon: Award, label: "Latest Score", value: latestPct !== undefined ? `${Math.round(latestPct)}%` : "N/A", sub: data.reportCards[0]?.examTitle || "No result yet", tone: "green" as const },
+    { icon: CalendarCheck, label: "Attendance", value: data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A", sub: `${data.attendance.total} days recorded`, tone: "amber" as const },
   ];
 
   return (
@@ -54,40 +54,22 @@ export default function ParentOverviewPage() {
       }
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {stats.map((s, i) => {
-            const Icon = s.icon;
-            const tones = [
-              "bg-[#fbf0fe] text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white",
-              "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white",
-              "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white",
-            ];
-            return (
-              <div key={s.label} className="sk-rise group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-2 transition-colors group-hover:text-ink-muted">{s.label}</p>
-                    <p className="text-3xl font-bold text-[#1d1b20] leading-none transition-colors group-hover:text-[#8127cf]">{s.value}</p>
-                  </div>
-                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${tones[i]} shadow-md group-hover:shadow-xl group-hover:scale-110`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="sk-rise grid grid-cols-1 gap-3 md:grid-cols-3" style={{ animationDelay: "40ms" }}>
+          {stats.map((s) => (
+            <ParentStat key={s.label} icon={s.icon} label={s.label} value={s.value} sub={s.sub} tone={s.tone} />
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
-                <FileText className="w-5 h-5" />
-              </div>
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <FileText className="h-4 w-4" />
+              </span>
               <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Latest Report Card</h3>
             </div>
             {data.reportCards[0] ? (
-              <div className="rounded-2xl bg-[#fbf0fe]/30 p-5 border border-[#cfc2d6]/8 space-y-3">
+              <div className="space-y-3 rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
@@ -103,14 +85,20 @@ export default function ParentOverviewPage() {
                 )}
               </div>
             ) : (
-              <p className="text-xs font-semibold text-ink-subtle italic">No report cards published yet.</p>
+              <ParentEmptyState
+                icon={FileText}
+                title="No report cards yet"
+                description="Results appear here once the school publishes them."
+              />
             )}
-            <Link
-              href={`/parent/results${q}`}
-              className="mt-5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#6a1fb0]"
-            >
-              View all results <ChevronRight className="w-3 h-3" />
-            </Link>
+            {data.reportCards[0] ? (
+              <Link
+                href={`/parent/results${q}`}
+                className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#6a1fb0]"
+              >
+                View all results <ChevronRight className="w-3 h-3" />
+              </Link>
+            ) : null}
           </div>
 
           <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
@@ -120,7 +108,7 @@ export default function ParentOverviewPage() {
               </span>
               <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Quick Access</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <QuickLink
                 href={`/parent/results${q}`}
                 icon={FileText}

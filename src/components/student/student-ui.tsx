@@ -253,3 +253,34 @@ export function Panel({
     </div>
   );
 }
+
+/**
+ * The console's one empty state.
+ *
+ * Coursework, Reports, Fees, Timetable and Attendance each hand-rolled this —
+ * five copies that had drifted to three different paddings, two radii and
+ * headings ranging from `text-sm` to `text-xl`. The guardian portal already
+ * had a single `ParentEmptyState`; this is its counterpart.
+ */
+export function StudentEmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-6 py-12 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#fbf0fe]">
+        <Icon className="h-6 w-6 text-[#8127cf]/40" />
+      </div>
+      <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
+      <p className="mt-1 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">{description}</p>
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  );
+}

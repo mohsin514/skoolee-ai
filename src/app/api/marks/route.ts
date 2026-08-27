@@ -5,7 +5,7 @@ import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { bulkMarksSchema } from "@/lib/validators/schemas";
-import { gradeForMark, isLockedStatus } from "@/lib/academic/report-cards";
+import { gradeForMark, isLockedStatus, thresholdsForClass } from "@/lib/academic/report-cards";
 import { notify } from "@/lib/notifications/in-app";
 
 function canEnterMarks(role: string) {
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         id: true,
         campusId: true,
         classId: true,
+        academicYear: true,
         status: true,
         isLocked: true,
         subjectId: true,
@@ -122,6 +123,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Per-subject grades follow the class's configured ladder, the same one
+    // the report card uses — otherwise a mark shows "B" on the marks screen
+    // and "A" on the report card for the identical score.
+    const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
+
     const existingMarks = await prisma.mark.findMany({ where: { examId } });
     const existingByKey = new Map(
       existingMarks.map((mark) => [`${mark.studentId}:${mark.subjectId}`, mark])
@@ -136,7 +142,7 @@ export async function POST(req: NextRequest) {
       // is what made absence indistinguishable from a genuine zero.
       const absent = entry.isAbsent === true;
       const obtained = absent ? 0 : entry.marksObtained;
-      const grade = absent ? null : gradeForMark(obtained, subject.totalMarks);
+      const grade = absent ? null : gradeForMark(obtained, subject.totalMarks, thresholds);
       const key = `${entry.studentId}:${entry.subjectId}`;
       const oldMark = existingByKey.get(key);
 

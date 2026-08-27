@@ -6,6 +6,7 @@ import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { toast } from "sonner";
+import { formatPKR } from "@/components/fees/fee-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -43,15 +44,14 @@ export default function ParentFeesPage() {
   const total = fees.reduce((sum, f) => sum + (f.totalAmount || 0), 0);
   const paid = fees.reduce((sum, f) => sum + (f.paid || 0), 0);
   const outstanding = fees.reduce((sum, f) => sum + (f.balance || 0), 0);
-  const rupees = (v: number) => Math.round(v / 100).toLocaleString();
-
+  const overdueCount = fees.filter((f) => f.status === "OVERDUE" || f.status === "PARTIAL").length;
   const page = (body: React.ReactNode) => (
     <ParentPage
       tone="fees"
       icon={CreditCard}
-      eyebrow={<>{outstanding ? `Rs ${rupees(outstanding)} outstanding` : "All fees cleared"}</>}
+      eyebrow={<>{outstanding ? `${formatPKR(outstanding)} outstanding` : "All fees cleared"}</>}
       title="Fee Status"
-      summary={<>{`Invoices and payment progress for ${student.fullName}.`}</>}
+      summary={`Invoices and payment progress for ${student.fullName}.`}
     >
       {body}
     </ParentPage>
@@ -65,11 +65,11 @@ export default function ParentFeesPage() {
 
   return page(
     <div className="space-y-3">
-        <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-3" style={{ animationDelay: "40ms" }}>
-          <ParentStat icon={Receipt} label="Total Invoiced" value={`Rs ${rupees(total)}`} />
-          <ParentStat icon={CheckCircle2} label="Paid" value={`Rs ${rupees(paid)}`} tone="green" />
-          <ParentStat icon={Banknote} label="Outstanding" value={`Rs ${rupees(outstanding)}`} tone="rose" />
-          <ParentStat icon={Calendar} label="Overdue" value={fees.filter((f) => f.status === "OVERDUE" || f.status === "PARTIAL").length} tone="violet" />
+        <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
+          <ParentStat icon={Receipt} label="Total Invoiced" value={formatPKR(total)} sub={`${fees.length} invoice${fees.length === 1 ? "" : "s"}`} />
+          <ParentStat icon={CheckCircle2} label="Paid" value={formatPKR(paid)} sub={`${total ? Math.round((paid / total) * 100) : 0}% of total`} tone="green" />
+          <ParentStat icon={Banknote} label="Outstanding" value={formatPKR(outstanding)} sub={outstanding ? "Payment due" : "Nothing due"} tone="rose" />
+          <ParentStat icon={Calendar} label="Needs Attention" value={overdueCount} sub="Overdue or partial" tone={overdueCount ? "amber" : "violet"} />
         </div>
 
         <div className="sk-rise space-y-3" style={{ animationDelay: "120ms" }}>
@@ -92,19 +92,31 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
   const progress = fee.totalAmount ? Math.round((fee.paid / fee.totalAmount) * 100) : 0;
 
   return (
-    <div className="group relative rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 overflow-hidden">
+    <div className="group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{fee.invoiceNumber || "Invoice"}</p>
-            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Due: {fee.dueDate}</p>
+            <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">
+              Due{" "}
+              {fee.dueDate
+                ? new Date(fee.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : "—"}
+            </p>
           </div>
           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusColors[fee.status] || "bg-gray-50 text-gray-500"}`}>
             {fee.status}
           </span>
         </div>
-        <div className="h-2 w-full bg-[#f3f4f9] rounded-full overflow-hidden mt-4">
+        <div
+          role="progressbar"
+          aria-valuenow={Math.min(progress, 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${Math.min(progress, 100)}% of this invoice paid`}
+          className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#f3f4f9]"
+        >
           <div
             className={`h-full rounded-full transition-all duration-700 ${progress >= 100 ? "bg-emerald-500" : progress > 0 ? "bg-amber-500" : "bg-rose-300"}`}
             style={{ width: `${Math.min(progress, 100)}%` }}
@@ -113,15 +125,15 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
         <div className="grid grid-cols-3 gap-3 mt-4">
           <div>
             <p className="text-[9px] font-bold text-ink-subtle uppercase">Total</p>
-            <p className="text-sm font-black text-[#1d1b20]">Rs {Math.round(fee.totalAmount / 100).toLocaleString()}</p>
+            <p className="text-sm font-black tabular-nums text-[#1d1b20]">{formatPKR(fee.totalAmount)}</p>
           </div>
           <div>
             <p className="text-[9px] font-bold text-ink-subtle uppercase">Paid</p>
-            <p className="text-sm font-black text-emerald-600">Rs {Math.round(fee.paid / 100).toLocaleString()}</p>
+            <p className="text-sm font-black tabular-nums text-emerald-600">{formatPKR(fee.paid)}</p>
           </div>
           <div>
             <p className="text-[9px] font-bold text-ink-subtle uppercase">Balance</p>
-            <p className="text-sm font-black text-rose-600">Rs {Math.round(fee.balance / 100).toLocaleString()}</p>
+            <p className={`text-sm font-black tabular-nums ${fee.balance > 0 ? "text-rose-600" : "text-ink-muted"}`}>{formatPKR(fee.balance)}</p>
           </div>
         </div>
         {fee.balance > 0 && (

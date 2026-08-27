@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Award, ChevronRight, FileText, GraduationCap } from "lucide-react";
-import { StatCard } from "@/components/student/student-ui";
+import { Award, CheckCircle2, FileText, GraduationCap } from "lucide-react";
+import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
 import { cn } from "@/lib/utils";
 import { StudentPage } from "@/components/student/student-page";
 import { ReportsSkeleton, StudentErrorState } from "@/components/student/student-components";
@@ -47,29 +47,25 @@ export default function ReportsPage() {
       <div className="space-y-3">
         {user.reportCards.length > 0 ? (
           <>
-            <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-              <StatCard icon={FileText} label="Total Cards" value={summary.total} sub="Issued" />
-              <StatCard icon={GraduationCap} label="Best Score" value={`${summary.best}%`} sub={summary.best >= 80 ? "Excellent" : summary.best >= 60 ? "Good" : "Needs focus"} tone="green" />
-              <StatCard icon={Award} label="Average" value={`${summary.average}%`} sub={`Across ${summary.total} card${summary.total > 1 ? "s" : ""}`} tone="purple" />
-              <StatCard icon={FileText} label="Published" value={summary.published} sub={`${summary.draft} still in draft`} tone="rose" />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard icon={FileText} label="Total Cards" value={summary.total} sub="Issued" delay={40} />
+              <StatCard icon={GraduationCap} label="Best Score" value={`${summary.best}%`} sub={summary.best >= 80 ? "Excellent" : summary.best >= 60 ? "Good" : "Needs focus"} tone="green" ring={summary.best} delay={80} />
+              <StatCard icon={Award} label="Average" value={`${summary.average}%`} sub={`Across ${summary.total} card${summary.total > 1 ? "s" : ""}`} tone="purple" ring={summary.average} delay={120} />
+              <StatCard icon={CheckCircle2} label="Published" value={summary.published} sub={summary.draft ? `${summary.draft} still in draft` : "All released"} tone={summary.draft ? "amber" : "green"} delay={160} />
             </div>
 
-            <div className="sk-rise grid grid-cols-1 md:grid-cols-2 gap-4" style={{ animationDelay: "80ms" }}>
-              {user.reportCards.map((report: any) => (
-                <ReportCard key={report.id} report={report} />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {user.reportCards.map((report: any, index: number) => (
+                <ReportCard key={report.id} report={report} index={index} />
               ))}
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-14 text-center rounded-[24px] border border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/10">
-            <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
-              <FileText className="w-8 h-8 text-[#8127cf]/40" />
-            </div>
-            <h3 className="text-xl font-bold text-[#1d1b20] tracking-tight">No report cards yet</h3>
-            <p className="mt-1 text-sm font-semibold text-ink-muted max-w-sm">
-              Report cards will appear here after teachers publish them for your exams.
-            </p>
-          </div>
+          <StudentEmptyState
+            icon={FileText}
+            title="No report cards yet"
+            description="Report cards appear here after teachers publish them for your exams."
+          />
         )}
       </div>
     </StudentPage>
@@ -77,7 +73,7 @@ export default function ReportsPage() {
 }
 
 
-function ReportCard({ report }: { report: any }) {
+function ReportCard({ report, index }: { report: any; index: number }) {
   const pct = Math.round(report.percentage || 0);
   const status = (report.status || "Draft") as string;
 
@@ -86,8 +82,8 @@ function ReportCard({ report }: { report: any }) {
   const scoreLabel = pct >= 80 ? "Excellent" : pct >= 60 ? "Good" : "Needs improvement";
 
   return (
-    <div className="sk-rise group relative rounded-[28px] bg-white border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 overflow-hidden" style={{ animationDelay: "120ms" }}>
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe]/60 via-white to-white p-6 pb-4 border-b border-[#cfc2d6]/8">
+    <div className="sk-rise group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe]/60 via-white to-white p-4 pb-3 border-b border-[#cfc2d6]/8">
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -121,25 +117,22 @@ function ReportCard({ report }: { report: any }) {
           </div>
         </div>
       </div>
-      <div className="p-6 pt-4">
+      <div className="p-4 pt-3">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-[10px] font-semibold text-ink-subtle">Academic Year {report.exam?.academicYear || "—"}</span>
           <span className="h-3 w-[1px] bg-[#cfc2d6]/20" />
           <span className="text-[10px] font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
         </div>
         {report.remarksEn ? (
-          <div className="relative">
-            <p className="text-sm font-medium text-ink leading-relaxed line-clamp-3 transition-colors group-hover:text-ink">
-              {report.remarksEn}
+          <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-3">
+            <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              Teacher Remarks
             </p>
+            <p className="text-xs font-medium leading-relaxed text-ink">{report.remarksEn}</p>
           </div>
         ) : (
-          <p className="text-sm font-semibold text-ink-subtle italic">No remarks provided.</p>
+          <p className="text-xs font-semibold text-ink-subtle">No remarks provided.</p>
         )}
-        <div className="mt-4 flex items-center gap-1 text-[10px] font-semibold text-[#8127cf] opacity-0 transition-all duration-300 group-hover:opacity-100">
-          <span>View details</span>
-          <ChevronRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-        </div>
       </div>
     </div>
   );

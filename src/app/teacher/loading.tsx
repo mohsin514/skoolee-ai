@@ -1,12 +1,8 @@
-import { Loader2 } from 'lucide-react';
+import { TeacherRouteSkeleton } from "@/components/teacher/teacher-components";
 
-export default function DashboardLoading() {
-  return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 text-[#8127cf] animate-spin" />
-        <p className="text-sm font-bold text-ink-muted">Loading...</p>
-      </div>
-    </div>
-  );
+// Rendered inside TeacherShell, so the sidebar and top bar stay put and only
+// the page card is standing in. A skeleton of that card beats the spinner
+// this used to show, which read as the console losing its page mid-click.
+export default function TeacherLoading() {
+  return <TeacherRouteSkeleton />;
 }

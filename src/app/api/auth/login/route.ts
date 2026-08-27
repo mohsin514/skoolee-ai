@@ -39,8 +39,14 @@ async function handleLogin(req: NextRequest) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { email, password } = parsed.data;
+    const { email, password, rememberMe } = parsed.data;
     const ua = req.headers.get("user-agent") || undefined;
+
+    // "Keep me signed in" is a deliberate choice on a device the user owns, so
+    // it lengthens the session rather than silently defaulting to it. Cookie
+    // maxAge, JWT expiry and the recorded session row all have to agree —
+    // a cookie that outlives its token just logs people out mid-task.
+    const sessionDays = rememberMe ? 30 : 7;
 
     // 1. Find every account on this address.
     //
@@ -103,6 +109,9 @@ async function handleLogin(req: NextRequest) {
         schools: usable.map((c) => ({
           schoolId: c.schoolId,
           schoolName: c.school?.name ?? "",
+          schoolCity: c.school?.city ?? "",
+          logoUrl: c.school?.logoUrl ?? null,
+          campusName: c.campus?.name ?? null,
           role: c.role,
         })),
       });
@@ -115,7 +124,7 @@ async function handleLogin(req: NextRequest) {
     }
 
     // 3. Create JWT token
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
     const token = await new SignJWT({
       userId: user.id,
       email: user.email,
@@ -129,7 +138,7 @@ async function handleLogin(req: NextRequest) {
       mustChangePassword: user.mustChangePassword,
     })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("7d")
+      .setExpirationTime(`${sessionDays}d`)
       .sign(JWT_SECRET);
 
     // 4. Track login session & audit log (fire-and-forget)
@@ -183,7 +192,7 @@ async function handleLogin(req: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * sessionDays,
       path: "/",
     });
 
