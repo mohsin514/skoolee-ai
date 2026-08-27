@@ -707,7 +707,7 @@ model StaffAppointment {
   effectiveTo   DateTime? @map("effective_to")
 
   // The office order / notification the change was issued under.
-  orderRef String?
+  orderRef String? @map("order_ref")
   notes    String?
 
   approvedById String?  @map("approved_by_id")

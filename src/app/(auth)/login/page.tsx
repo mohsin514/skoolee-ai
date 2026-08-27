@@ -455,7 +455,6 @@ export default function LoginPage() {
                       style={{ animationDelay: `${i * 70}ms` }}
                     >
                       {c.logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={c.logoUrl}
                           alt=""

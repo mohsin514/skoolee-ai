@@ -9,11 +9,19 @@ import {
   Loader2,
   Send,
   MapPin,
+  Network,
   Phone,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { inviteStaff } from "@/app/actions/invite";
+import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
+import {
+  PositionFields,
+  emptyPosition,
+  usePositionOptions,
+  type PositionValue,
+} from "@/components/staff/position-fields";
 import {
   Field,
   FormSection,
@@ -76,6 +84,8 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [position, setPosition] = useState<PositionValue>({ ...emptyPosition });
+  const positionOptions = usePositionOptions();
 
   const update = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -132,6 +142,15 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
           postalCode: form.postalCode.trim() || undefined,
           emergencyContact: form.emergencyContact.trim() || undefined,
           emergencyPhone: form.emergencyPhone.trim() || undefined,
+          // Non-teaching staff belong on the org chart too — an accountant
+          // reports to the admin officer, a librarian heads the Library unit.
+          designationId: position.designationId || undefined,
+          primaryDepartmentId: position.primaryDepartmentId || undefined,
+          reportsToId: position.reportsToId || undefined,
+          employmentType: (position.employmentType || undefined) as
+            | "FULL_TIME" | "PART_TIME" | "VISITING" | "ADJUNCT" | "CONTRACT" | "INTERN" | "VOLUNTEER"
+            | undefined,
+          employeeCode: position.employeeCode.trim() || undefined,
         },
       });
       toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
@@ -234,6 +253,14 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                   </Field>
                 </div>
               </FormSection>
+
+              <FormSection
+                icon={Network}
+                title="Position & Reporting"
+                hint="Where they sit in the institution. All of it can be changed later from Staff → Hierarchy."
+              >
+                <PositionFields value={position} onChange={setPosition} options={positionOptions} />
+              </FormSection>
             </div>
           )}
 
@@ -317,6 +344,26 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                 <ReviewRow label="CNIC" value={form.cnic} />
                 <ReviewRow label="Date of Birth" value={form.dateOfBirth} />
                 <ReviewRow label="Gender" value={form.gender === "MALE" ? "Male" : form.gender === "FEMALE" ? "Female" : "Other"} />
+              </ReviewSection>
+
+              <ReviewSection title="Position & Reporting" icon={Network} onEdit={() => setStep(0)}>
+                <ReviewRow
+                  label="Rank"
+                  value={positionOptions.designations.find((d) => d.id === position.designationId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Home Department"
+                  value={positionOptions.departments.find((d) => d.id === position.primaryDepartmentId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Reports To"
+                  value={positionOptions.managers.find((m) => m.id === position.reportsToId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Employment Type"
+                  value={EMPLOYMENT_TYPE_LABELS[position.employmentType as keyof typeof EMPLOYMENT_TYPE_LABELS] ?? ""}
+                />
+                <ReviewRow label="Staff Code" value={position.employeeCode} />
               </ReviewSection>
 
               <ReviewSection title="Address & Emergency" icon={MapPin} onEdit={() => setStep(1)}>

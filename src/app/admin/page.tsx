@@ -34,6 +34,7 @@ import {
   UserCog,
   Users,
   Wrench,
+  Network,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -50,6 +51,7 @@ import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
+import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { TimetableStudio } from "@/components/timetable/TimetableStudio";
@@ -101,6 +103,7 @@ type AdminView =
   | "leadership"
   | "classes"
   | "teachers"
+  | "staff-hierarchy"
   | "students"
   | "admission-queries"
   | "student-setup"
@@ -133,7 +136,7 @@ type AdminView =
 const DEFAULT_VIEW: AdminView = "academic-hub";
 
 const ADMIN_VIEWS: readonly AdminView[] = [
-  "leadership", "classes", "teachers", "students", "admission-queries",
+  "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries",
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
@@ -902,6 +905,7 @@ export default function CampusAdminDashboard() {
     {
       icon: UserCog, label: "Staff", children: [
         { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
+        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", onClick: () => setActiveView("staff-hierarchy") },
         { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
         { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
         { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
@@ -947,6 +951,7 @@ export default function CampusAdminDashboard() {
     "Student Categories": "students",
     "Promote Students": "students",
     Teachers: "staff",
+    "Staff Hierarchy": "staff",
     Attendance: "attendance",
     "Teacher Performance": "staff",
     "Staff Leave": "leave",
@@ -1095,6 +1100,10 @@ export default function CampusAdminDashboard() {
               onResend={handleResendInvite}
               onCancel={handleCancelInvite}
             />
+          ) : null}
+
+          {activeView === "staff-hierarchy" ? (
+            <StaffHierarchyPanel campusId={data.campusId} />
           ) : null}
 
           {activeView === "students" ? (

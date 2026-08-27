@@ -426,7 +426,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
 
       {unplaced > 0 ? (
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
-          {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so {unplaced === 1 ? "they sit" : "they sit"} at the top of the chart. Open a card and set who they report to.
+          {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.
         </p>
       ) : null}
 

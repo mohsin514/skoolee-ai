@@ -54,6 +54,7 @@ import {
   Users,
   X,
   type LucideIcon,
+  Network,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { useRouter } from "next/navigation";
@@ -78,6 +79,7 @@ import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
+import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
 import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
 import {
@@ -140,6 +142,7 @@ type PrincipalView =
   | "leadership"
   | "classes"
   | "teachers"
+  | "staff-hierarchy"
   | "students"
   | "admission-queries"
   | "student-setup"
@@ -438,6 +441,7 @@ export default function PrincipalDashboard() {
     {
       icon: UserCog, label: "Staff", children: [
         { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
+        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", onClick: () => setActiveView("staff-hierarchy") },
         { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
         { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
         { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
@@ -600,6 +604,8 @@ export default function PrincipalDashboard() {
           </div>
         ) : null}
         {activeView === "attendance" ? <UnifiedAttendancePanel /> : null}
+        {activeView === "staff-hierarchy" ? <StaffHierarchyPanel campusId={data.campusId} /> : null}
+
         {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
 
         {activeView === "permissions" ? <RolePermissionsPanel /> : null}

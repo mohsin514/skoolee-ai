@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { inviteStaff } from "@/app/actions/invite";
 import { SpecialtyEditor } from "@/components/shared-admin";
+import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 import {
   PositionFields,
   emptyPosition,
@@ -464,12 +465,31 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
                 <ReviewRow label="Specialization" value={form.specialization} />
                 <ReviewRow label="Experience" value={form.experience} />
                 <ReviewRow label="Joining Date" value={form.joiningDate} />
-                <ReviewRow label="Designation" value={form.designation} />
                 <ReviewRow label="Contract Type" value={form.contractType} />
                 <ReviewRow
                   label="Basic Salary"
                   value={form.basicSalary ? `Rs. ${Number(form.basicSalary).toLocaleString("en-PK")} / month` : ""}
                 />
+              </ReviewSection>
+
+              <ReviewSection title="Position & Reporting" icon={Network} onEdit={() => setStep(1)}>
+                <ReviewRow
+                  label="Rank"
+                  value={positionOptions.designations.find((d) => d.id === position.designationId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Home Department"
+                  value={positionOptions.departments.find((d) => d.id === position.primaryDepartmentId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Reports To"
+                  value={positionOptions.managers.find((m) => m.id === position.reportsToId)?.name ?? ""}
+                />
+                <ReviewRow
+                  label="Employment Type"
+                  value={EMPLOYMENT_TYPE_LABELS[position.employmentType as keyof typeof EMPLOYMENT_TYPE_LABELS] ?? ""}
+                />
+                <ReviewRow label="Staff Code" value={position.employeeCode} />
               </ReviewSection>
 
               <ReviewSection title="Address & Emergency" icon={MapPin} onEdit={() => setStep(2)}>
