@@ -74,7 +74,7 @@ export function StudentMini({ student }: { student: any }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-        <AvatarImage src={student.profileImageUrl} alt={student.fullName} />
+        <AvatarImage src={student.profileImageUrl} name={student.fullName} alt={student.fullName} initialsClassName="text-[10px]" />
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
@@ -741,7 +741,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
     >
       <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-          <AvatarImage src={avatar} />
+          <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-3xl" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Record</p>
@@ -1007,7 +1007,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
         ) : null}
         <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-xl">
-            <AvatarImage src={avatar} />
+            <AvatarImage src={avatar} name={viewReport.student?.fullName} initialsClassName="text-2xl" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>

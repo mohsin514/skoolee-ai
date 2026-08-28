@@ -45,7 +45,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, SingleFigure, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
 import {
   attendanceRate,
   attendanceSplit,
@@ -262,7 +262,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                   <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={88} />
                   <ReferenceLine x={derived.averageClassSize} stroke={INK.axis} strokeWidth={1} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
                     <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                   </Bar>
                 </BarChart>
@@ -297,6 +297,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
               <ResponsiveContainer width="100%" height={216}>
                 <PieChart>
                   <Pie
+                    {...NO_ENTRY_ANIMATION}
                     data={derived.split}
                     dataKey="value"
                     nameKey="name"
@@ -349,8 +350,9 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={16} />
                 <YAxis domain={[0, 100]} tick={AXIS_TICK} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit="%" />} />
-                <Area type="monotone" dataKey="rate" name="Attendance" stroke="none" fill="url(#campusAttendanceWash)" />
+                <Area {...NO_ENTRY_ANIMATION} type="monotone" dataKey="rate" name="Attendance" stroke="none" fill="url(#campusAttendanceWash)" />
                 <Line
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="rate"
                   name="Attendance"
@@ -397,7 +399,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                     cursor={{ fill: "rgba(129,39,207,0.06)" }}
                     content={<VizTooltip format={(v) => money(v)} />}
                   />
-                  <Bar dataKey="amount" name="Amount" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="amount" name="Amount" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.buckets.map((b) => (
                       <Cell key={b.status} fill={b.color} />
                     ))}
@@ -452,6 +454,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                 />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" students" />} />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="total"
                   name="On register"
@@ -482,7 +485,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="stage" tick={AXIS_TICK} axisLine={false} tickLine={false} width={78} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" cards" />} />
-                <Bar dataKey="count" name="Cards" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Cards" radius={[0, 4, 4, 0]} maxBarSize={22}>
                   {derived.pipeline.map((s) => (
                     <Cell key={s.stage} fill={s.color} />
                   ))}
@@ -509,7 +512,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="role" tick={AXIS_TICK} axisLine={false} tickLine={false} width={86} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" people" />} />
-                <Bar dataKey="count" name="People" fill={RAMP_BRAND[2]} radius={[0, 4, 4, 0]} maxBarSize={20}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="People" fill={RAMP_BRAND[2]} radius={[0, 4, 4, 0]} maxBarSize={20}>
                   <LabelList dataKey="count" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -543,7 +546,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
               <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-              <Bar dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={28}>
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={28}>
                 {derived.grades.map((g) => (
                   <Cell key={g.grade} fill={g.color} />
                 ))}

@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  assertPermission,
+  assertStaffRole,
+  errorResponse,
+  requireAuthUser,
+} from "@/lib/api/scope";
 
 // Student life-cycle timeline.
 // GET  /api/students/timeline?studentId=   — events (campus-scoped)
@@ -9,6 +16,11 @@ import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // The timeline is the school's running commentary on a child — free-text
+    // staff notes alongside admission and promotion events. Ungated, any
+    // signed-in account could read it for any pupil in the school, and any
+    // could append to it.
+    await assertModuleRead(user, "students");
     const studentId = req.nextUrl.searchParams.get("studentId");
     if (!studentId) throw new ApiError("studentId required", 400);
 
@@ -26,6 +38,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user);
+    await assertPermission(user, "students", "edit");
     const body = await req.json();
     const { studentId, kind, title, detail } = body as {
       studentId?: string;

@@ -54,7 +54,7 @@ import {
   StatTile,
   VizTooltip,
 } from "./chart-kit";
-import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, SERIES, STATUS, compact } from "./palette";
+import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 import {
   attendanceRate,
   attendanceTrend,
@@ -266,7 +266,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                     cursor={{ fill: "rgba(129,39,207,0.06)" }}
                     content={<VizTooltip unit="%" />}
                   />
-                  <Bar dataKey="average" name="Average" radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="average" name="Average" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.graded.map((c) => (
                       <Cell
                         key={c.id}
@@ -314,7 +314,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={24}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={24}>
                     {derived.grades.map((g) => (
                       <Cell key={g.grade} fill={g.color} />
                     ))}
@@ -369,8 +369,9 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   cursor={{ stroke: INK.axis, strokeWidth: 1 }}
                   content={<VizTooltip format={(v, name) => (name === "Attendance" ? `${v}%` : v.toLocaleString())} />}
                 />
-                <Area type="monotone" dataKey="rate" name="Attendance" stroke="none" fill="url(#principalAttendanceWash)" />
+                <Area {...NO_ENTRY_ANIMATION} type="monotone" dataKey="rate" name="Attendance" stroke="none" fill="url(#principalAttendanceWash)" />
                 <Line
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="rate"
                   name="Attendance"
@@ -409,7 +410,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="stage" tick={AXIS_TICK} axisLine={false} tickLine={false} width={78} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" cards" />} />
-                <Bar dataKey="count" name="Cards" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Cards" radius={[0, 4, 4, 0]} maxBarSize={22}>
                   {derived.pipeline.map((s) => (
                     <Cell key={s.stage} fill={s.color} />
                   ))}
@@ -478,7 +479,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   />
                   <ReferenceLine y={40} stroke={INK.axis} />
                   <ReferenceLine x={85} stroke={INK.axis} />
-                  <Scatter name="Classes" data={derived.correlation} fill={SERIES[0]} fillOpacity={0.85} stroke={INK.surface} strokeWidth={2} />
+                  <Scatter {...NO_ENTRY_ANIMATION} name="Classes" data={derived.correlation} fill={SERIES[0]} fillOpacity={0.85} stroke={INK.surface} strokeWidth={2} />
                 </ScatterChart>
               </ResponsiveContainer>
               <p className="mt-3 text-[10px] font-bold leading-relaxed text-ink-subtle">
@@ -525,7 +526,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" messages" />} />
-                  <Bar dataKey="value" name="Messages" radius={[4, 4, 0, 0]} maxBarSize={24}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="value" name="Messages" radius={[4, 4, 0, 0]} maxBarSize={24}>
                     {derived.comms.map((c) => (
                       <Cell key={c.label} fill={c.color} />
                     ))}

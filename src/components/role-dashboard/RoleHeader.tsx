@@ -314,7 +314,7 @@ export function RoleHeader({
             aria-expanded={menuOpen}
           >
             <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-              <AvatarImage src={displayAvatar} />
+              <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
             </div>
             <div className="hidden sm:block text-left">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
@@ -330,7 +330,7 @@ export function RoleHeader({
               <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
                 <div className="flex items-center gap-3">
                   <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-                    <AvatarImage src={displayAvatar} />
+                    <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
@@ -390,7 +390,7 @@ export function RoleHeader({
           title="Account Settings"
           eyebrow="Your account"
           subtitle="Manage your profile details"
-          avatar={<AvatarImage src={displayAvatar} />}
+          avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
           size="md"
           onClose={() => setSettingsOpen(false)}
         >

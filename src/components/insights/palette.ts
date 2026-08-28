@@ -87,6 +87,33 @@ export const INK = {
 /** Recharts axis/tick text. Text never wears the data colour. */
 export const AXIS_TICK = { fontSize: 10, fill: INK.muted, fontWeight: 700 } as const;
 
+/**
+ * Entry animation, off — spread onto every Recharts series in the app.
+ *
+ * Recharts' own entry animation does not survive the re-render that
+ * ResponsiveContainer triggers when it measures the card. `useAnimationId`
+ * keys the animation off the series' props object by reference, so a new props
+ * object remounts `JavascriptAnimate` and resets its progress to t=0; the
+ * restarted animation then never runs, and the series renders with zero
+ * geometry — a `<Rectangle width={0}>`, which draws nothing at all.
+ *
+ * The result was that every chart in the product — parent, student, teacher,
+ * campus, principal, finance, library, front-desk, owner — drew its axes,
+ * grid, legend and caption, and then went blank about a second and a half
+ * after it appeared. The data was always correct and always present; only the
+ * marks were missing, which is the one failure a chart cannot survive.
+ *
+ * Reproduced against a production build, on recharts 3.8.1 and on 3.10.1, with
+ * `prefers-reduced-motion: no-preference` and React StrictMode off. Setting
+ * `isAnimationActive={false}` renders every series correctly and immediately.
+ *
+ * Recharts identifies series by element type, so this cannot be hidden behind
+ * a wrapper component — a `<Bar>` has to stay a `<Bar>`. Spreading a shared
+ * constant is the next best thing: one place to grep, one place to delete when
+ * the upstream animation is fixed.
+ */
+export const NO_ENTRY_ANIMATION = { isAnimationActive: false } as const;
+
 /** 1,284 → "1,284"; 12,900 → "12.9K"; 4,200,000 → "4.2M". */
 export function compact(value: number): string {
   const abs = Math.abs(value);

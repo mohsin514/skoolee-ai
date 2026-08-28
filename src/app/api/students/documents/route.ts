@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertModuleRead,
+  assertPermission,
+  assertStaffRole,
+  errorResponse,
+  requireAuthUser,
+} from "@/lib/api/scope";
 import { deleteFile, getDownloadUrl } from "@/lib/storage/s3";
 
 // Student admission documents.
@@ -13,6 +20,12 @@ const DOC_KINDS = new Set(["BIRTH_CERTIFICATE", "TRANSFER_CERTIFICATE", "PHOTO",
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // These are birth certificates, transfer certificates and ID photos, and
+    // the response carries a presigned download URL for each one. The handler
+    // was school-scoped but ungated, so any signed-in account — every student
+    // and guardian included — could read another child's file simply by
+    // guessing its id. Staff-only, on the same students.view bit as the roster.
+    await assertModuleRead(user, "students");
     const studentId = req.nextUrl.searchParams.get("studentId");
     if (!studentId) throw new ApiError("studentId required", 400);
 
@@ -47,6 +60,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user);
+    await assertPermission(user, "students", "edit");
     const body = await req.json();
     const { studentId, kind, fileKey, fileName } = body as {
       studentId?: string;
@@ -94,6 +109,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user);
+    await assertPermission(user, "students", "delete");
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
 

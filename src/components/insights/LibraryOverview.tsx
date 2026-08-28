@@ -32,7 +32,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, SERIES, STATUS, compact } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 
 export interface LibrarySummary {
   kind: "LIBRARIAN";
@@ -165,8 +165,8 @@ export function LibraryOverview({
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" books" />} />
                   <Legend content={() => null} />
-                  <Bar dataKey="Issued" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={20} />
-                  <Bar dataKey="Returned" fill={SERIES[2]} radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Issued" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Returned" fill={SERIES[2]} radius={[4, 4, 0, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
               <SeriesLegend
@@ -216,7 +216,7 @@ export function LibraryOverview({
                   tickFormatter={(v: string) => (v.length > 14 ? `${v.slice(0, 13)}…` : v)}
                 />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" titles" />} />
-                <Bar dataKey="titles" name="Titles" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="titles" name="Titles" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="titles" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -251,8 +251,8 @@ export function LibraryOverview({
               <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={70} />
               <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" books" />} />
               {/* 2px of surface between the segments does the separating. */}
-              <Bar dataKey="Within due date" stackId="loans" fill={STATUS.good} stroke={INK.surface} strokeWidth={2} maxBarSize={40} />
-              <Bar dataKey="Overdue" stackId="loans" fill={STATUS.critical} stroke={INK.surface} strokeWidth={2} maxBarSize={40} radius={[0, 4, 4, 0]}>
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="Within due date" stackId="loans" fill={STATUS.good} stroke={INK.surface} strokeWidth={2} maxBarSize={40} />
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="Overdue" stackId="loans" fill={STATUS.critical} stroke={INK.surface} strokeWidth={2} maxBarSize={40} radius={[0, 4, 4, 0]}>
                 <Cell fill={STATUS.critical} />
               </Bar>
             </BarChart>

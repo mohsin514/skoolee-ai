@@ -30,7 +30,7 @@ import {
   YAxis,
 } from "recharts";
 import { EmptyChart, InsightCard, Meter, SeriesLegend, SingleFigure, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, SERIES, STATUS, fromMinor, money } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, fromMinor, money } from "./palette";
 
 /** What both portals reduce their payload down to. */
 export interface LearnerSeries {
@@ -114,7 +114,7 @@ export function LearnerInsights({
                   />
                   <ReferenceLine x={PASS_MARK} stroke={INK.axis} strokeWidth={1} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit="%" />} />
-                  <Bar dataKey="percentage" name="Score" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="percentage" name="Score" radius={[0, 4, 4, 0]} maxBarSize={20}>
                     {derived.subjects.map((s) => (
                       <Cell key={s.subject} fill={s.percentage >= PASS_MARK ? SERIES[0] : STATUS.critical} />
                     ))}
@@ -168,6 +168,7 @@ export function LearnerInsights({
               <ResponsiveContainer width="100%" height={196}>
                 <PieChart>
                   <Pie
+                    {...NO_ENTRY_ANIMATION}
                     data={derived.split}
                     dataKey="value"
                     nameKey="name"
@@ -192,7 +193,9 @@ export function LearnerInsights({
               />
               {series.attendance.rate !== null ? (
                 <p className="mt-2 text-center text-[10px] font-bold text-ink-subtle">
-                  {series.attendance.rate}% present overall
+                  {/* The school's rate counts approved leave as attending, so
+                      this is not the same as the present slice above. */}
+                  {series.attendance.rate}% attendance
                   {series.attendance.rate < 75 ? " — below the 75% the school expects." : "."}
                 </p>
               ) : null}
@@ -230,6 +233,7 @@ export function LearnerInsights({
                 <ReferenceLine y={PASS_MARK} stroke={INK.axis} strokeWidth={1} />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit="%" />} />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="percentage"
                   name="Score"
@@ -294,7 +298,7 @@ export function LearnerInsights({
               <YAxis domain={[0, 100]} unit="%" tick={AXIS_TICK} axisLine={false} tickLine={false} />
               <ReferenceLine y={75} stroke={INK.axis} strokeWidth={1} />
               <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit="%" />} />
-              <Bar dataKey="rate" name="Attendance" radius={[4, 4, 0, 0]} maxBarSize={26}>
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="rate" name="Attendance" radius={[4, 4, 0, 0]} maxBarSize={26}>
                 {series.attendanceByMonth.map((m) => (
                   <Cell key={m.label} fill={m.rate >= 75 ? STATUS.good : STATUS.warning} />
                 ))}
@@ -463,10 +467,8 @@ export function learnerSeriesFromParent(data: any): LearnerSeries {
     subjects,
     attendance: {
       present: attendance.present ?? 0,
-      // The portal ships a present count and a total; the remainder is every
-      // other state, which it does not break down further.
-      absent: Math.max(0, (attendance.total ?? 0) - (attendance.present ?? 0)),
-      leave: 0,
+      absent: attendance.absent ?? 0,
+      leave: attendance.leave ?? 0,
       rate: attendance.rate ?? null,
     },
     attendanceByMonth: attendanceMonths(recent),

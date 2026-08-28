@@ -9,6 +9,7 @@ import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import {
   DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
@@ -107,7 +108,7 @@ export default function TeacherInsightsPage() {
                 <div className="shrink-0">
                   <ResponsiveContainer width={140} height={140}>
                     <PieChart>
-                      <Pie data={attendanceChartData} cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={3} dataKey="value" stroke="none">
+                      <Pie {...NO_ENTRY_ANIMATION} data={attendanceChartData} cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={3} dataKey="value" stroke="none">
                         {attendanceChartData.map((entry, idx) => (
                           <Cell key={idx} fill={entry.color} />
                         ))}
@@ -161,8 +162,8 @@ export default function TeacherInsightsPage() {
                   <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.12)", fontSize: 12, fontWeight: 700 }} cursor={{ fill: "#fbf0fe" }} />
-                  <Bar dataKey="Entered" stackId="a" fill="#8127cf" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Missing" stackId="a" fill="#e8e0ec" radius={[4, 4, 0, 0]} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="a" fill="#8127cf" radius={[4, 4, 0, 0]} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Missing" stackId="a" fill="#e8e0ec" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

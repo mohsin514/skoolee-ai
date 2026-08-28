@@ -225,7 +225,7 @@ export function TeacherPicker({
                   )}
                 >
                   <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} alt="Teacher photo" />
+                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} name={t.fullName} alt="Teacher photo" initialsClassName="text-[10px]" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -284,7 +284,7 @@ export function TeacherPicker({
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} alt="Teacher photo" /> : null}
+                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} name={selected.fullName} alt="Teacher photo" initialsClassName="text-[10px]" /> : null}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-[#1f1a23]">{selected?.fullName || "Assigned teacher"}</span>

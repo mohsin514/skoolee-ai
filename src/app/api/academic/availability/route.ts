@@ -7,6 +7,7 @@ import {
 } from "@/lib/academic/availability";
 import {
   ApiError,
+  assertModuleRead,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -23,6 +24,9 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Who is free when, across every teacher and room on campus. A scheduling
+    // tool, not something a family has any business reading.
+    await assertModuleRead(user, "timetable");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const context = searchParams.get("context") || "timetable";

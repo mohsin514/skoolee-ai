@@ -38,7 +38,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact, fromMinor } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, fromMinor } from "./palette";
 
 export interface PlatformStats {
   schoolCount: number;
@@ -268,7 +268,7 @@ export function PlatformOverview({
                   cursor={{ fill: "rgba(129,39,207,0.06)" }}
                   content={<VizTooltip format={(v, name) => (name === "Revenue" ? `PKR ${compact(v)}` : v.toLocaleString())} />}
                 />
-                <Bar dataKey="amount" name="Revenue" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={24} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="amount" name="Revenue" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={24} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -291,7 +291,7 @@ export function PlatformOverview({
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="status" tick={AXIS_TICK} axisLine={false} tickLine={false} width={80} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" schools" />} />
-                  <Bar dataKey="count" name="Schools" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Schools" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.statuses.map((s) => (
                       <Cell key={s.status} fill={s.color} />
                     ))}
@@ -322,7 +322,7 @@ export function PlatformOverview({
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={8} />
                 <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" schools" />} />
-                <Bar dataKey="count" name="Schools" fill={RAMP_BRAND[2]} radius={[4, 4, 0, 0]} maxBarSize={22}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Schools" fill={RAMP_BRAND[2]} radius={[4, 4, 0, 0]} maxBarSize={22}>
                   <LabelList dataKey="count" position="top" offset={6} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -359,6 +359,7 @@ export function PlatformOverview({
                 />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" sessions" />} />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="count"
                   name="Sessions"
@@ -400,7 +401,7 @@ export function PlatformOverview({
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="role" tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" accounts" />} />
-                <Bar dataKey="count" name="Accounts" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Accounts" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="count" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -448,7 +449,7 @@ export function PlatformOverview({
                   />
                   <ReferenceLine x={derived.averageRoll} stroke={INK.axis} strokeWidth={1} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
                     <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                   </Bar>
                 </BarChart>
@@ -481,7 +482,7 @@ export function PlatformOverview({
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={74} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" invoices" />} />
-                  <Bar dataKey="count" name="Invoices" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Invoices" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.invoices.map((r) => (
                       <Cell key={r.status} fill={r.color} />
                     ))}

@@ -38,6 +38,8 @@ interface AttendanceData {
   rate: number | null;
   total: number;
   present: number;
+  absent: number;
+  leave: number;
   recent: { date: string; status: string }[];
 }
 

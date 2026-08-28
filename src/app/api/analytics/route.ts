@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { gradeForPercentage } from "@/lib/academic/report-cards";
 
 export async function GET(req: Request) {
   try {
     const user = await requireAuthUser();
+    // Campus-wide academic analytics — and, at the bottom of the payload, the
+    // named top-ten and at-risk lists with roll numbers and attendance rates.
+    // The handler stopped at requireAuthUser(), so any signed-in STUDENT or
+    // PARENT could pull the whole cohort's results and the list of children the
+    // school considers at risk. Staff-only, gated on reports.view like the
+    // screen it feeds.
+    await assertModuleRead(user, "reports");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const yearParam = searchParams.get("year");

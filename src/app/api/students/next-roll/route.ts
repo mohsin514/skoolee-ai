@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
+  assertModuleRead,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -9,6 +10,7 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertModuleRead(user, "students");
     const campusId = await resolveCampusId(user);
     const classId = req.nextUrl.searchParams.get("classId");
 

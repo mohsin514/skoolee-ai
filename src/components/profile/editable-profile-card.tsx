@@ -136,7 +136,7 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
       <div className={cn("grid gap-6", compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[260px_1fr]")}>
         <div className="rounded-[30px] bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/70 to-white p-5">
           <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
-            <AvatarImage src={imageSrc} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <AvatarImage src={imageSrc} name={form.fullName || profile.fullName} initialsClassName="text-3xl" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">

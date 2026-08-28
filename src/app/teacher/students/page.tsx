@@ -216,7 +216,7 @@ export default function TeacherStudentsPage() {
                 render: (st: any) => (
                   <div className="flex items-center gap-2.5">
                     <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
-                      <AvatarImage src={st.profileImageUrl} />
+                      <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-[10px]" />
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-black text-[#1d1b20]">{st.fullName}</span>
@@ -310,7 +310,7 @@ export default function TeacherStudentsPage() {
                   >
                     <div className="mb-4 flex items-start gap-4">
                       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
-                        <AvatarImage src={avatar} />
+                        <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-base" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h4 className="truncate text-base font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">

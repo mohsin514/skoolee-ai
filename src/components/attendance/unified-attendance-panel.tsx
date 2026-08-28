@@ -263,7 +263,7 @@ export function UnifiedAttendancePanel() {
                       )}>
                         <div className="col-span-5 flex items-center gap-3 min-w-0">
                           <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                            <AvatarImage src={teacher.profileImageUrl} alt={teacher.fullName} />
+                            <AvatarImage src={teacher.profileImageUrl} name={teacher.fullName} alt={teacher.fullName} initialsClassName="text-[10px]" />
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-[#1f1a23] truncate">{teacher.fullName}</p>
@@ -336,7 +336,7 @@ export function UnifiedAttendancePanel() {
                       <div key={record.userId || record.id} className="p-3 rounded-2xl bg-[#f3f4f9]/50 border border-transparent hover:border-[#8127cf]/10 transition-all">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 shrink-0 rounded-lg bg-[#fbf0fe] overflow-hidden">
-                            <AvatarImage src={record.profileImageUrl} alt={record.fullName || "Staff"} />
+                            <AvatarImage src={record.profileImageUrl} name={record.fullName || "Staff"} alt={record.fullName || "Staff"} initialsClassName="text-[10px]" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-black text-[#1f1a23] truncate">{record.fullName || "Teacher"}</p>

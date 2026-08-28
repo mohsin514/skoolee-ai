@@ -34,7 +34,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact, fromMinor, money } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, fromMinor, money } from "./palette";
 
 export interface FinanceSummary {
   kind: "ACCOUNTANT";
@@ -219,6 +219,7 @@ export function FinanceOverview({
                   content={<VizTooltip format={(v) => money(v)} />}
                 />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="amount"
                   name="Collected"
@@ -262,7 +263,7 @@ export function FinanceOverview({
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={76} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" invoices" />} />
-                  <Bar dataKey="count" name="Invoices" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Invoices" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.buckets.map((b) => (
                       <Cell key={b.status} fill={b.color} />
                     ))}
@@ -305,7 +306,7 @@ export function FinanceOverview({
               <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={(v: number) => compact(v)} />
               <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={96} />
               <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip format={(v) => money(v)} />} />
-              <Bar dataKey="amount" name="Amount" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={20}>
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="amount" name="Amount" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={20}>
                 <LabelList
                   dataKey="amount"
                   position="right"

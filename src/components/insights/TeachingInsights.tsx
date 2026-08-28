@@ -25,7 +25,7 @@ import {
   YAxis,
 } from "recharts";
 import { EmptyChart, InsightCard, SeriesLegend, SingleFigure, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, GRADE_COLOR, GRADE_ORDER, INK, SERIES, STATUS } from "./palette";
+import { AXIS_TICK, GRADE_COLOR, GRADE_ORDER, INK, NO_ENTRY_ANIMATION, SERIES, STATUS } from "./palette";
 
 interface TeachingInsightsProps {
   /** The exam summaries the dashboard already holds. */
@@ -148,8 +148,9 @@ export function TeachingInsights({
                   />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" marks" />} />
                   {/* 2px of surface separates the two segments — no stroke. */}
-                  <Bar dataKey="Entered" stackId="marks" fill={SERIES[0]} stroke={INK.surface} strokeWidth={2} maxBarSize={22} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="marks" fill={SERIES[0]} stroke={INK.surface} strokeWidth={2} maxBarSize={22} />
                   <Bar
+                    {...NO_ENTRY_ANIMATION}
                     dataKey="Missing"
                     stackId="marks"
                     fill={STATUS.warning}
@@ -208,6 +209,7 @@ export function TeachingInsights({
               <ResponsiveContainer width="100%" height={196}>
                 <PieChart>
                   <Pie
+                    {...NO_ENTRY_ANIMATION}
                     data={derived.register}
                     dataKey="value"
                     nameKey="name"
@@ -261,7 +263,7 @@ export function TeachingInsights({
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={86} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                <Bar dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -285,7 +287,7 @@ export function TeachingInsights({
                 <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
                 <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                <Bar dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
                   {derived.gradeRows.map((g) => (
                     <Cell key={g.grade} fill={g.color} />
                   ))}

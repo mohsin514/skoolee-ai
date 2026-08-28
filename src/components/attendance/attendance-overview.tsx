@@ -17,6 +17,7 @@ import {
   Search,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 
@@ -215,6 +216,7 @@ function AttendanceDonut({
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
+            {...NO_ENTRY_ANIMATION}
             data={data}
             cx="50%"
             cy="50%"

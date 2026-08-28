@@ -40,7 +40,7 @@ import {
 import { getPlanLimits } from "@/config/plans";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
+import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
 import {
   campusFeeStack,
   campusRows,
@@ -199,7 +199,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={104} />
                   <ReferenceLine x={derived.averageRoll} stroke={INK.axis} strokeWidth={1} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
                     <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                   </Bar>
                 </BarChart>
@@ -293,6 +293,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip format={(v) => money(v)} />} />
                   {FEE_STACK_KEYS.map((key, i) => (
                     <Bar
+                      {...NO_ENTRY_ANIMATION}
                       key={key}
                       dataKey={key}
                       name={key}
@@ -331,7 +332,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={84} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" runs" />} />
-                <Bar dataKey="aiRuns" name="Runs" fill={RAMP_BRAND[2]} radius={[0, 4, 4, 0]} maxBarSize={20}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="aiRuns" name="Runs" fill={RAMP_BRAND[2]} radius={[0, 4, 4, 0]} maxBarSize={20}>
                   <LabelList dataKey="aiRuns" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -376,6 +377,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                 />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" students" />} />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="total"
                   name="On register"
@@ -407,7 +409,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
                     {derived.grades.map((g) => (
                       <Cell key={g.grade} fill={g.color} />
                     ))}

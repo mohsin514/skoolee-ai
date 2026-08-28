@@ -64,6 +64,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { toast } from "sonner";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
@@ -360,7 +361,7 @@ export function LeadershipPanel({
                 <div className="shrink-0">
                   <ResponsiveContainer width={130} height={130}>
                     <PieChart>
-                      <Pie data={donutData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={3} dataKey="value" stroke="none">
+                      <Pie {...NO_ENTRY_ANIMATION} data={donutData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={3} dataKey="value" stroke="none">
                         {donutData.map((entry, idx) => (
                           <Cell key={idx} fill={entry.color} />
                         ))}

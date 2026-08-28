@@ -43,7 +43,7 @@ export default function ParentOverviewPage() {
 
   return (
     <ParentPage
-      avatar={<AvatarImage src={profileImage} className="h-full w-full object-cover" />}
+      avatar={<AvatarImage src={profileImage} name={student.fullName} initialsClassName="text-lg" className="h-full w-full object-cover" />}
       icon={LayoutGrid}
       eyebrow={<>{student.rollNo}</>}
       title={student.fullName}

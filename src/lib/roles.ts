@@ -79,12 +79,25 @@ export function canAccessRoleDashboard(role: unknown, pathname: string): boolean
   if (pathname.startsWith("/accountant")) return normalized === "ACCOUNTANT";
   if (pathname.startsWith("/librarian")) return normalized === "LIBRARIAN";
   if (pathname.startsWith("/receptionist")) return normalized === "RECEPTIONIST";
-  if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized) || isStaffRole(normalized);
+  // The campus console is a campus-admin tool: everything on it is fed by
+  // getCampusDashboardData(), which refuses any other role. Admitting every
+  // staff role here did not grant them anything — the server action and the
+  // APIs behind it all say no — it just landed teachers, accountants,
+  // librarians and receptionists on a console that failed to load, with a
+  // toast instead of a door. They each have their own console; send them
+  // to /403 and let the redirect there take them home.
+  if (pathname.startsWith("/admin")) return isCampusAdminRole(normalized);
   if (pathname.startsWith("/principal")) return normalized === "PRINCIPAL";
   if (pathname.startsWith("/teacher")) return normalized === "TEACHER";
   if (pathname.startsWith("/parent")) return normalized === "PARENT";
   if (pathname.startsWith("/student")) return normalized === "STUDENT" || normalized === "PARENT";
-  if (pathname.startsWith("/dashboard")) return normalized !== "PRINCIPAL" && normalized !== "SUPER_ADMIN" && normalized !== "APP_OWNER";
+  // The legacy school-group console. It predates RoleShell and carries no
+  // role gate of its own, so this list was the only thing standing between a
+  // guardian and the staff roster, marks entry, communications and billing.
+  // Excluding families here is what the "not PRINCIPAL / SUPER_ADMIN /
+  // APP_OWNER" test was reaching for: those three are already redirected to
+  // their own consoles before this runs, and everyone left who belongs is staff.
+  if (pathname.startsWith("/dashboard")) return isStaffRole(normalized);
 
   return true;
 }

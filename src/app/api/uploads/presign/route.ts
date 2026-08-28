@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import {
+  ApiError,
+  assertPermission,
+  assertStaffRole,
+  errorResponse,
+  requireAuthUser,
+  resolveCampusId,
+} from "@/lib/api/scope";
 import { documentKey, staffDocumentKey, getUploadUrl } from "@/lib/storage/s3";
 import { randomUUID } from "crypto";
 
@@ -24,6 +31,11 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // A presigned PUT is a writable handle into the school's document bucket,
+    // under a key this route chooses for a student or staff member. Gated on
+    // the same bit as the documents route it feeds, so an account that may not
+    // attach a document cannot mint the URL that would upload one either.
+    assertStaffRole(user);
     const body = await req.json();
 
     const studentId = String(body.studentId ?? "");
@@ -42,6 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (staffUserId) {
+      await assertPermission(user, "staff", "edit");
       const staff = await prisma.user.findFirst({
         where: { id: staffUserId, schoolId: user.schoolId },
         select: { id: true, campusId: true },
@@ -52,6 +65,8 @@ export async function POST(req: NextRequest) {
       const uploadUrl = await getUploadUrl(key, contentType);
       return Response.json({ success: true, data: { key, uploadUrl } });
     }
+
+    await assertPermission(user, "students", "edit");
 
     const student = await prisma.student.findFirst({
       where: { id: studentId, campus: { schoolId: user.schoolId } },

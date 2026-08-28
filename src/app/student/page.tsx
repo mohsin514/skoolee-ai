@@ -161,7 +161,7 @@ export default function StudentDashboard() {
 
   return (
     <StudentPage
-      avatar={<AvatarImage src={user.profileImageUrl} className="h-full w-full object-cover" />}
+      avatar={<AvatarImage src={user.profileImageUrl} name={user.fullName} initialsClassName="text-lg" className="h-full w-full object-cover" />}
       icon={GraduationCap}
       eyebrow={<>{greeting()}</>}
       title={user.fullName}

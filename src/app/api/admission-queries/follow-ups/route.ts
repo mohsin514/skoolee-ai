@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // GET /api/admission-queries/follow-ups?queryId=
 // Lists the follow-up timeline for one admission query (campus-scoped).
@@ -8,6 +8,10 @@ import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Same lead-pipeline PII as the parent route — prospective families and the
+    // staff notes written about them. That route was gated; this sibling was
+    // missed, and served the notes to any signed-in account.
+    await assertModuleRead(user, "admissions");
     const queryId = req.nextUrl.searchParams.get("queryId");
     if (!queryId) throw new ApiError("queryId required", 400);
 

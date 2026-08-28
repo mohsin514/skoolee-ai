@@ -36,7 +36,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, SERIES, STATUS, compact } from "./palette";
+import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 
 export interface FrontDeskSummary {
   kind: "RECEPTIONIST";
@@ -224,6 +224,7 @@ export function FrontDeskOverview({
                 />
                 <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" visitors" />} />
                 <Area
+                  {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="count"
                   name="Visitors"
@@ -267,7 +268,7 @@ export function FrontDeskOverview({
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={84} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" complaints" />} />
-                  <Bar dataKey="count" name="Complaints" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Complaints" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.complaints.map((c) => (
                       <Cell key={c.status} fill={c.color} />
                     ))}
@@ -301,8 +302,8 @@ export function FrontDeskOverview({
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={14} />
                 <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip />} />
-                <Bar dataKey="Calls" fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={14} />
-                <Bar dataKey="Post" fill={SERIES[2]} radius={[3, 3, 0, 0]} maxBarSize={14} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="Calls" fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={14} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="Post" fill={SERIES[2]} radius={[3, 3, 0, 0]} maxBarSize={14} />
               </BarChart>
             </ResponsiveContainer>
             <SeriesLegend

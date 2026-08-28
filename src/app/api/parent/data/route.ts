@@ -118,6 +118,11 @@ export async function GET(req: NextRequest) {
           rate: attendanceRate,
           total: totalAttendance,
           present: presentCount,
+          // `summarizeAttendance` already separates these. Sending only the
+          // present count left the portal to infer "absent = total - present",
+          // which silently reported approved leave as absence.
+          absent: attendanceSummary.absent,
+          leave: attendanceSummary.leave,
           recent: currentYearAttendance.slice(0, 30).map((a) => ({
             date: a.date.toISOString().split("T")[0],
             status: a.status,

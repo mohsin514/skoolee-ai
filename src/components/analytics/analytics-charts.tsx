@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend,
 } from "recharts";
+import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import {
   Award, BarChart3, Loader2, TrendingDown, TrendingUp, Users,
   GraduationCap, AlertTriangle, BookOpen, Calendar,
@@ -86,7 +87,7 @@ export function AnalyticsCharts() {
                   contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
                   formatter={(value) => [`${value}%`, "Average"]}
                 />
-                <Bar dataKey="average" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="average" radius={[6, 6, 0, 0]} maxBarSize={48}>
                   {data.classPerformance.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
@@ -101,6 +102,7 @@ export function AnalyticsCharts() {
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie
+                  {...NO_ENTRY_ANIMATION}
                   data={data.gradeDistribution}
                   cx="50%"
                   cy="50%"
@@ -134,7 +136,7 @@ export function AnalyticsCharts() {
                   contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
                   formatter={(value) => [`${value}%`, "Average"]}
                 />
-                <Bar dataKey="average" radius={[0, 6, 6, 0]} maxBarSize={24} fill="#8127cf" />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="average" radius={[0, 6, 6, 0]} maxBarSize={24} fill="#8127cf" />
               </BarChart>
             </ResponsiveContainer>
           ) : <EmptyChart />}
@@ -153,7 +155,7 @@ export function AnalyticsCharts() {
                   labelFormatter={(label) => `Exam: ${label}`}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="average" stroke="#8127cf" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Class Average" />
+                <Line {...NO_ENTRY_ANIMATION} type="monotone" dataKey="average" stroke="#8127cf" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Class Average" />
               </LineChart>
             </ResponsiveContainer>
           ) : <EmptyChart />}

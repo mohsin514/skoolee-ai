@@ -28,3 +28,4 @@ export {
   type LegendItem,
   type TableTwin,
 } from "./chart-kit";
+export { NO_ENTRY_ANIMATION } from "./palette";

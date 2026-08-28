@@ -672,7 +672,9 @@ function MatrixView({
                             <div className="h-7 w-7 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
+                                name={teacher.fullName}
                                 alt="Teacher"
+                                initialsClassName="text-[9px]"
                               />
                             </div>
                             <span className="max-w-[100px] truncate text-[9px] font-bold text-ink-muted">
@@ -695,7 +697,9 @@ function MatrixView({
                             <div className="h-8 w-8 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
+                                name={teacher.fullName}
                                 alt="Teacher"
+                                initialsClassName="text-[9px]"
                               />
                             </div>
                             <span className="max-w-[110px] truncate text-[9px] font-bold text-[#1f1a23]">
@@ -1080,7 +1084,9 @@ function SectionDetailView({
                                     src={teacherAvatar(
                                       subject.teacher,
                                     )}
+                                    name={subject.teacher?.fullName}
                                     alt=""
+                                    initialsClassName="text-[9px]"
                                   />
                                 </span>
                                 {subject.teacher.fullName}
@@ -1294,7 +1300,9 @@ function SectionDetailView({
                 {section.classTeacher?.id ? (
                   <AvatarImage
                     src={teacherAvatar(section.classTeacher)}
+                    name={section.classTeacher?.fullName}
                     alt="Teacher"
+                    initialsClassName="text-base"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-[#f3f4f9]">
