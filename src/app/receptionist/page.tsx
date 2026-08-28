@@ -92,7 +92,7 @@ export default function ReceptionistPage() {
       dashboardHref="/receptionist"
     >
       {loading || !data ? (
-        <ConsoleSkeleton cards={3} />
+        <ConsoleSkeleton label="Loading the front desk console" cards={3} />
       ) : (
         <ConsolePage
           items={NAV}

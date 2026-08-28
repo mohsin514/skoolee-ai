@@ -80,7 +80,7 @@ export default function LibrarianPage() {
       dashboardHref="/librarian"
     >
       {loading || !data ? (
-        <ConsoleSkeleton cards={3} />
+        <ConsoleSkeleton label="Loading the library console" cards={3} />
       ) : (
         <ConsolePage
           items={NAV}

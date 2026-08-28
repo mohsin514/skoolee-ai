@@ -31,6 +31,35 @@ export function Skeleton({
   );
 }
 
+/**
+ * The same placeholder at the radius the card-shaped consoles use, plus a
+ * `dark` fill for bars that sit on a near-black hero.
+ *
+ * Five modules had each grown their own byte-identical copy of this, which is
+ * how the shimmer timing drifted between them. One definition, one timing.
+ */
+export function SkeletonBar({
+  className,
+  tone = "light",
+  delay = 0,
+}: {
+  className?: string;
+  tone?: "light" | "dark";
+  delay?: number;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "skeleton-shimmer rounded-2xl",
+        tone === "dark" ? "bg-white/12" : "bg-[#e8e0ec]/55",
+        className,
+      )}
+      style={delay ? { animationDelay: `${delay}ms` } : undefined}
+    />
+  );
+}
+
 /** Wrapper that announces loading to screen readers exactly once. */
 export function SkeletonRegion({
   children,

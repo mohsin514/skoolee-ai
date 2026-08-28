@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 
 /**
  * The shell the operations consoles sit in.
@@ -238,13 +239,6 @@ export function ConsolePage<T extends string>({
   );
 }
 
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return (
-    <div className={`relative isolate overflow-hidden rounded-2xl bg-[#e8e0ec]/50 ${className}`}>
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-    </div>
-  );
-}
 
 /**
  * What these consoles show while their session loads.
@@ -254,9 +248,16 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
  * rebuilt itself. This mirrors `ConsolePage` so the only thing that changes
  * when the data lands is the content.
  */
-export function ConsoleSkeleton({ cards = 4 }: { cards?: number }) {
+export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { cards?: number; label?: string }) {
   return (
-    <section className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]">
+    <section
+      /* Announced once, at the frame, so a screen reader says "loading"
+         rather than reading a page of empty placeholders. */
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
+    >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden

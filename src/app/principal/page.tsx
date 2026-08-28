@@ -70,6 +70,7 @@ import {
 } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { AcademicOverview } from "@/components/insights";
+import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -184,7 +185,9 @@ const principalAIFeatures = [
 
 export default function PrincipalDashboard() {
   const router = useRouter();
-  const { data, loading, refetch } = usePrincipalData();
+  // `loading` is not read: the provider hands back null until the first
+  // payload lands, and null is what the skeleton keys off.
+  const { data, refetch } = usePrincipalData();
   const [activeView, setActiveView] = useState<PrincipalView>("overview");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -467,8 +470,13 @@ export default function PrincipalDashboard() {
   const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
 
-  if (loading && !data) return <PrincipalSkeleton />;
-  if (!data) return <PrincipalSkeleton />;
+  if (!data) {
+    return (
+      <RoleShellSkeleton navRows={8} label="Loading the academic command centre">
+        <CommandCentreSkeleton />
+      </RoleShellSkeleton>
+    );
+  }
 
   const totalCollected = data.invoiceSummary?.byStatus?.reduce((sum: number, g: any) => { const paid = g.status === "PAID" || g.status === "PARTIAL"; return paid ? sum + (g._sum?.totalAmount || 0) : sum; }, 0) || 0;
 
@@ -875,68 +883,4 @@ function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCanc
 function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
   const toneStyles: Record<string, string> = { green: "bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700", rose: "bg-gradient-to-br from-rose-50 to-rose-100/50 text-rose-700", purple: "bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]", amber: "bg-gradient-to-br from-amber-50 to-amber-100/50 text-amber-700" };
   return (<div className="sk-rise rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"><div className="flex items-center gap-3 mb-3"><div className={`rounded-xl p-2 ${toneStyles[tone] || "bg-gradient-to-br from-[#f3f4f9] to-[#f3f4f9]/50 text-ink-muted"} shadow-sm`}><Icon className="w-4 h-4" /></div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</p></div><p className="text-3xl font-black tracking-wider text-[#1f1a23]">{value}</p></div>);
-}
-
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse bg-[#e8e0ec] rounded-2xl ${className}`} />;
-}
-
-function PrincipalSkeleton() {
-  return (
-    <div className="min-h-screen bg-[#f3f4f9] flex font-sans">
-      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-[#cfc2d6]/10 p-5 gap-6">
-        <SkeletonBlock className="h-8 w-32 rounded-lg" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <SkeletonBlock key={i} className="h-11 w-full rounded-2xl" />
-          ))}
-        </div>
-        <div className="mt-auto space-y-3">
-          <SkeletonBlock className="h-11 w-full rounded-2xl" />
-          <SkeletonBlock className="h-11 w-full rounded-2xl" />
-        </div>
-      </div>
-      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen">
-        <div className="flex items-center justify-between mb-8">
-          <div className="space-y-2">
-            <SkeletonBlock className="h-5 w-48" />
-            <SkeletonBlock className="h-4 w-36" />
-          </div>
-          <div className="flex gap-3">
-            <SkeletonBlock className="h-10 w-10 rounded-full" />
-            <SkeletonBlock className="h-10 w-10 rounded-full" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-8">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <SkeletonBlock key={i} className="h-24 rounded-[20px]" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-2">
-            <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <SkeletonBlock className="h-10 w-10 rounded-2xl" />
-                <div className="space-y-2">
-                  <SkeletonBlock className="h-4 w-36" />
-                  <SkeletonBlock className="h-3 w-24" />
-                </div>
-              </div>
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <SkeletonBlock key={i} className="h-16 w-full rounded-2xl" />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <SkeletonBlock className="h-40 w-full rounded-[28px]" />
-            <SkeletonBlock className="h-32 w-full rounded-[28px]" />
-            <SkeletonBlock className="h-32 w-full rounded-[28px]" />
-            <SkeletonBlock className="h-28 w-full rounded-[32px]" />
-          </div>
-        </div>
-      </main>
-    </div>
-  );
 }

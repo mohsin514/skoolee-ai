@@ -3,14 +3,8 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
 import { ParentSubnav } from "@/components/parent/parent-page";
+import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return (
-    <div className={`relative isolate overflow-hidden rounded-2xl bg-[#e8e0ec]/50 ${className}`}>
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-    </div>
-  );
-}
 
 export function ParentErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
@@ -46,7 +40,14 @@ export function ParentErrorState({ error, onRetry }: { error?: string | null; on
  */
 function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; children: React.ReactNode }) {
   return (
-    <section className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]">
+    <section
+      /* Announced once, at the frame, so a screen reader says "loading"
+         rather than reading a page of empty placeholders. */
+      role="status"
+      aria-busy="true"
+      aria-label="Loading the guardian portal"
+      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
+    >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden

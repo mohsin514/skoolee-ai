@@ -54,6 +54,7 @@ import { FeesPanel } from "@/components/fees/FeesPanel";
 import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { getPlanLimits } from "@/config/plans";
 import { NetworkOverview } from "@/components/insights";
+import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
@@ -319,7 +320,11 @@ const bottomItems: RoleNavItem[] = [];
   ];
 
   if (loading && !data) {
-    return <SuperAdminSkeleton />;
+    return (
+      <RoleShellSkeleton navRows={7} label="Loading the network command centre">
+        <CommandCentreSkeleton />
+      </RoleShellSkeleton>
+    );
   }
 
   return (
@@ -1070,52 +1075,6 @@ function CampusInput({
         />
       </div>
       {hint ? <p className="mt-1.5 pl-2 text-[9px] font-bold text-ink-subtle">{hint}</p> : null}
-    </div>
-  );
-}
-
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse bg-[#e8e0ec] rounded-2xl ${className}`} />;
-}
-
-function SuperAdminSkeleton() {
-  return (
-    <div className="min-h-screen bg-[#f3f4f9] flex font-sans">
-      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-[#cfc2d6]/10 p-5 gap-6">
-        <SkeletonBlock className="h-8 w-32 rounded-lg" />
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <SkeletonBlock key={i} className="h-11 w-full rounded-2xl" />
-          ))}
-        </div>
-        <div className="mt-auto space-y-3">
-          <SkeletonBlock className="h-11 w-full rounded-2xl" />
-          <SkeletonBlock className="h-11 w-full rounded-2xl" />
-        </div>
-      </div>
-      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen">
-        <div className="flex items-center justify-between mb-8">
-          <div className="space-y-2">
-            <SkeletonBlock className="h-5 w-48" />
-            <SkeletonBlock className="h-4 w-36" />
-          </div>
-          <div className="flex gap-3">
-            <SkeletonBlock className="h-10 w-10 rounded-full" />
-            <SkeletonBlock className="h-10 w-10 rounded-full" />
-          </div>
-        </div>
-        <SkeletonBlock className="h-28 w-full rounded-[32px] mb-8" />
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-8">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <SkeletonBlock key={i} className="h-24 rounded-[20px]" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8 mb-8">
-          <SkeletonBlock className="h-64 rounded-[32px]" />
-          <SkeletonBlock className="h-64 rounded-[32px]" />
-        </div>
-        <SkeletonBlock className="h-48 rounded-[32px]" />
-      </main>
     </div>
   );
 }

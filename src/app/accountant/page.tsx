@@ -114,7 +114,7 @@ export default function AccountantPage() {
       dashboardHref="/accountant"
     >
       {loading || !data ? (
-        <ConsoleSkeleton />
+        <ConsoleSkeleton label="Loading the finance console" />
       ) : (
         <ConsolePage
           items={NAV}

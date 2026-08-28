@@ -1,12 +1,15 @@
-import { Loader2 } from 'lucide-react';
+import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 
+/**
+ * Route-level standby. This segment's layout renders nothing of its own, so
+ * this stands in for the *whole* console — sidebar, header and deck. It used
+ * to be a bare spinner, which made the sidebar and header vanish on every
+ * navigation and rebuild a moment later.
+ */
 export default function DashboardLoading() {
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 text-[#8127cf] animate-spin" />
-        <p className="text-sm font-bold text-ink-muted">Loading...</p>
-      </div>
-    </div>
+    <RoleShellSkeleton navRows={8} label="Loading the academic command centre">
+      <CommandCentreSkeleton />
+    </RoleShellSkeleton>
   );
 }

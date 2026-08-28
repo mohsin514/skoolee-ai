@@ -1,12 +1,15 @@
-import { Loader2 } from 'lucide-react';
+import { ConsoleSkeleton } from "@/components/operations/console-page";
+import { RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 
+/**
+ * Route-level standby. This segment's layout is a passthrough, so this stands
+ * in for the whole console — sidebar and header included. `contentCard` is off
+ * because `ConsoleSkeleton` already draws the white page card.
+ */
 export default function DashboardLoading() {
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 text-[#8127cf] animate-spin" />
-        <p className="text-sm font-bold text-ink-muted">Loading...</p>
-      </div>
-    </div>
+    <RoleShellSkeleton navRows={8} contentCard={false} label="Loading the front desk console">
+      <ConsoleSkeleton label="Loading the front desk console" cards={3} />
+    </RoleShellSkeleton>
   );
 }

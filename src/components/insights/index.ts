@@ -1,6 +1,7 @@
 export { AcademicOverview } from "./AcademicOverview";
 export { CampusOverview } from "./CampusOverview";
 export { NetworkOverview } from "./NetworkOverview";
+export { PlatformOverview, type PlatformStats } from "./PlatformOverview";
 export { CommandHero } from "./CommandHero";
 export {
   DataTable,

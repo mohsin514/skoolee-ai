@@ -44,6 +44,7 @@ import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import { RoleShell, type RoleNavItem, BrandButton } from "@/components/role-dashboard";
 import { CampusOverview } from "@/components/insights";
+import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
@@ -1013,7 +1014,11 @@ export default function CampusAdminDashboard() {
   ];
 
   if (loading && !data) {
-    return <AdminSkeleton standalone={true} />;
+    return (
+      <RoleShellSkeleton navRows={9} label="Loading the campus command centre">
+        <CommandCentreSkeleton />
+      </RoleShellSkeleton>
+    );
   }
 
   // `return null` here rendered a blank page whenever the dashboard load
@@ -1506,195 +1511,5 @@ export default function CampusAdminDashboard() {
         />
       ) : null}
     </RoleShell>
-  );
-}
-function SkeletonBlock({ className = "", delay = 0 }: { className?: string; delay?: number }) {
-  return (
-    <div
-      className={`skeleton-shimmer rounded-2xl bg-[#e8e0ec]/40 animate-skeleton-in ${className}`}
-      style={delay ? { animationDelay: `${delay}ms` } : undefined}
-    />
-  );
-}
-
-function SkeletonCircle({ className = "", delay = 0 }: { className?: string; delay?: number }) {
-  return (
-    <div
-      className={`skeleton-shimmer rounded-full bg-[#e8e0ec]/40 animate-skeleton-in ${className}`}
-      style={delay ? { animationDelay: `${delay}ms` } : undefined}
-    />
-  );
-}
-
-function AdminSkeleton({ standalone }: { standalone?: boolean }) {
-  return (
-    <div className="min-h-screen bg-[#fbf0fe] flex font-sans">
-      {/* Sidebar Skeleton */}
-      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white/70 border-r border-[#cfc2d6]/15 p-6 gap-4">
-        <div className="flex items-center gap-3 mb-6">
-          <SkeletonBlock className="h-10 w-10 rounded-xl" />
-          <SkeletonBlock className="h-6 w-28 rounded-lg" delay={50} />
-        </div>
-        <SkeletonBlock className="h-3 w-20 rounded-md" delay={80} />
-        <div className="space-y-2 mt-2">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 px-3 py-2" style={{ animationDelay: `${100 + i * 30}ms` }}>
-              <SkeletonBlock className="h-5 w-5 rounded-lg shrink-0" delay={100 + i * 30} />
-              <SkeletonBlock className={`h-4 rounded-lg ${i % 3 === 0 ? "w-28" : i % 3 === 1 ? "w-24" : "w-20"}`} delay={120 + i * 30} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content Skeleton */}
-      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen md:ml-0">
-        {/* Header Skeleton */}
-        <div className="flex items-center justify-between mb-8 rounded-[28px] bg-white/40 border border-[#cfc2d6]/10 px-5 py-3">
-          <div className="flex items-center gap-4">
-            <SkeletonBlock className="h-9 w-9 rounded-xl" />
-            <div className="hidden sm:block space-y-1.5">
-              <SkeletonBlock className="h-4 w-44 rounded-lg" delay={40} />
-              <SkeletonBlock className="h-3 w-56 rounded-md" delay={60} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <SkeletonBlock className="h-7 w-20 rounded-full" delay={80} />
-            <SkeletonBlock className="h-9 w-9 rounded-xl" delay={100} />
-            <SkeletonBlock className="h-9 w-9 rounded-xl" delay={120} />
-            <div className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/10 p-1 pr-3">
-              <SkeletonCircle className="h-8 w-8" delay={140} />
-              <SkeletonBlock className="h-3 w-16 rounded-md hidden sm:block" delay={160} />
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden p-5">
-          {/* Page Header Banner Skeleton */}
-          <div className="rounded-[32px] bg-gradient-to-br from-[#fbf0fe]/80 via-white to-[#f3eeff]/50 border border-[#cfc2d6]/10 p-7 mb-7">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="flex items-center gap-3">
-                <SkeletonBlock className="h-10 w-10 rounded-2xl" />
-                <div className="space-y-2">
-                  <SkeletonBlock className="h-3 w-24 rounded-md" delay={40} />
-                  <SkeletonBlock className="h-4 w-32 rounded-md" delay={60} />
-                  <SkeletonBlock className="h-2.5 w-64 rounded-md" delay={80} />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <SkeletonBlock className="h-10 w-28 rounded-2xl" delay={100} />
-                <SkeletonBlock className="h-10 w-36 rounded-2xl" delay={120} />
-                <SkeletonBlock className="h-10 w-28 rounded-2xl" delay={140} />
-              </div>
-            </div>
-          </div>
-
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_2.2fr] gap-6">
-            {/* Left Column */}
-            <div className="space-y-6">
-              {/* Donut Chart Card Skeleton */}
-              <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="space-y-1.5">
-                    <SkeletonBlock className="h-3 w-16 rounded-md" delay={160} />
-                    <SkeletonBlock className="h-5 w-28 rounded-md" delay={180} />
-                  </div>
-                  <SkeletonBlock className="h-10 w-10 rounded-2xl" delay={200} />
-                </div>
-                <div className="flex items-center gap-6">
-                  <SkeletonCircle className="h-[130px] w-[130px] shrink-0" delay={220} />
-                  <div className="flex-1 space-y-3">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <SkeletonCircle className="h-2.5 w-2.5" delay={240 + i * 30} />
-                          <SkeletonBlock className="h-3 w-14 rounded-md" delay={260 + i * 30} />
-                        </div>
-                        <SkeletonBlock className="h-3 w-6 rounded-md" delay={280 + i * 30} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Campus Identity Card Skeleton */}
-              <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="space-y-1.5">
-                    <SkeletonBlock className="h-3 w-14 rounded-md" delay={300} />
-                    <SkeletonBlock className="h-5 w-32 rounded-md" delay={320} />
-                  </div>
-                  <SkeletonBlock className="h-10 w-10 rounded-2xl" delay={340} />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/20 px-3 py-2.5">
-                      <SkeletonBlock className="h-6 w-6 rounded-lg shrink-0" delay={360 + i * 25} />
-                      <div className="space-y-1 flex-1">
-                        <SkeletonBlock className="h-2 w-10 rounded-sm" delay={380 + i * 25} />
-                        <SkeletonBlock className="h-3 w-16 rounded-sm" delay={400 + i * 25} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6">
-              {/* Admin Team Card Skeleton */}
-              <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="space-y-1.5">
-                    <SkeletonBlock className="h-3 w-10 rounded-md" delay={180} />
-                    <SkeletonBlock className="h-5 w-24 rounded-md" delay={200} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <SkeletonBlock className="h-6 w-16 rounded-full" delay={220} />
-                    <SkeletonBlock className="h-6 w-24 rounded-full" delay={240} />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {[0, 1].map((i) => (
-                    <div key={i} className="bg-[#fbf0fe]/20 p-5 rounded-[28px]">
-                      <div className="flex items-center gap-5">
-                        <SkeletonBlock className="h-14 w-14 rounded-2xl shrink-0" delay={260 + i * 60} />
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <SkeletonBlock className="h-4 w-36 rounded-md" delay={280 + i * 60} />
-                          <SkeletonBlock className="h-3 w-48 rounded-md" delay={300 + i * 60} />
-                          <SkeletonBlock className="h-3 w-24 rounded-md" delay={320 + i * 60} />
-                        </div>
-                        <SkeletonBlock className="h-10 w-20 rounded-xl shrink-0" delay={340 + i * 60} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Principal Card Skeleton */}
-              <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-lg">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="space-y-1.5">
-                    <SkeletonBlock className="h-3 w-16 rounded-md" delay={400} />
-                    <SkeletonBlock className="h-5 w-20 rounded-md" delay={420} />
-                  </div>
-                  <SkeletonBlock className="h-10 w-10 rounded-2xl" delay={440} />
-                </div>
-                <div className="flex items-center gap-5">
-                  <SkeletonBlock className="h-16 w-16 rounded-2xl shrink-0" delay={460} />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <SkeletonBlock className="h-4 w-40 rounded-md" delay={480} />
-                    <SkeletonBlock className="h-3 w-48 rounded-md" delay={500} />
-                    <SkeletonBlock className="h-5 w-16 rounded-full" delay={520} />
-                  </div>
-                  <SkeletonBlock className="h-10 w-20 rounded-xl shrink-0" delay={540} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
   );
 }

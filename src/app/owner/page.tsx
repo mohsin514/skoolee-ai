@@ -19,7 +19,6 @@ import {
   EyeOff,
   FileText,
   Globe,
-  GraduationCap,
   HelpCircle,
   KeyRound,
   LayoutGrid,
@@ -49,6 +48,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { PlatformOverview } from "@/components/insights";
+import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { AddUserModal } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { getPlanLimits } from "@/config/plans";
@@ -56,7 +57,6 @@ import {
   BrandButton,
   EmptyState,
   RoleShell,
-  StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
@@ -153,6 +153,22 @@ interface Stats {
   schoolsByStatus: Record<string, number>;
   schoolsByPlan: Record<string, number>;
   schools: { id: string; name: string }[];
+  // Series added for the platform deck. Optional: an older cached response
+  // must still render, it just draws empty states for the charts.
+  usersByRole?: Record<string, number>;
+  invoicesByStatus?: { status: string; count: number; amount: number }[];
+  signupsByMonth?: { month: string; count: number }[];
+  revenueByMonth?: { month: string; amount: number; count: number }[];
+  loginsByDay?: { day: string; count: number }[];
+  schoolBreakdown?: {
+    id: string;
+    name: string;
+    plan: string;
+    status: string;
+    createdAt: string;
+    students: number;
+    campuses: number;
+  }[];
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -268,7 +284,13 @@ export default function OwnerDashboard() {
   ];
   const bottomItems: RoleNavItem[] = [];
 
-  if (statsLoading && !stats) return <OwnerSkeleton />;
+  if (statsLoading && !stats) {
+    return (
+      <RoleShellSkeleton navRows={7} label="Loading the platform command centre">
+        <CommandCentreSkeleton />
+      </RoleShellSkeleton>
+    );
+  }
 
   return (
     <RoleShell
@@ -281,7 +303,14 @@ export default function OwnerDashboard() {
       dashboardHref="/owner"
     >
       <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
-        {activeView === "schools" && <SchoolsView stats={stats} onRefreshStats={loadStats} />}
+        {activeView === "schools" && (
+          <SchoolsView
+            stats={stats}
+            onRefreshStats={loadStats}
+            onOpenBilling={() => setActiveView("billing")}
+            onOpenUsers={() => setActiveView("users")}
+          />
+        )}
         {activeView === "users" && <UsersView />}
         {activeView === "billing" && <BillingView stats={stats} />}
         {activeView === "pricing" && <PricingView stats={stats} />}
@@ -293,7 +322,12 @@ export default function OwnerDashboard() {
   );
 }
 
-function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefreshStats: () => void }) {
+function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
+  stats: Stats | null;
+  onRefreshStats: () => void;
+  onOpenBilling: () => void;
+  onOpenUsers: () => void;
+}) {
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
@@ -347,74 +381,15 @@ function SchoolsView({ stats, onRefreshStats }: { stats: Stats | null; onRefresh
 
   return (
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform owner</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">SkooleeAI Platform</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            All registered schools and campuses across the platform
-          </p>
+      {stats ? (
+        <div className="mb-6">
+          <PlatformOverview
+            stats={stats}
+            onOpenBilling={onOpenBilling}
+            onOpenUsers={onOpenUsers}
+          />
         </div>
-      </div>
-
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/10 p-7 mb-8 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
-        <div className="relative flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/20">
-            <LayoutGrid className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-              {stats ? `${stats.schoolCount} school${stats.schoolCount !== 1 ? "s" : ""} registered` : "Network overview"}
-            </p>
-            <p className="text-lg font-black text-[#1f1a23] tracking-normal">Platform Health</p>
-            <p className="text-[10px] font-semibold text-ink-muted">Live metrics across schools, campuses, and users</p>
-          </div>
-        </div>
-      </div>
-
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-          <StatCard icon={School} label="Schools" value={stats.schoolCount} entranceDelay={80} />
-          <StatCard icon={Building2} label="Campuses" value={stats.campusCount} tone="purple" entranceDelay={160} />
-          <StatCard icon={GraduationCap} label="Students" value={stats.studentCount} tone="green" entranceDelay={240} />
-          <StatCard icon={Users} label="Teachers" value={stats.teacherCount} entranceDelay={320} />
-          <StatCard icon={User} label="Total Users" value={stats.totalUsers} tone="rose" entranceDelay={400} />
-          <StatCard icon={Activity} label="Logins (7d)" value={stats.recentLogins} tone="dark" entranceDelay={480} />
-        </div>
-      )}
-
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-5 text-white shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset]" style={{ animationDelay: "560ms" }}>
-            <p className="text-[9px] font-black uppercase tracking-normal text-white/40">Revenue</p>
-            <p className="text-2xl font-black mt-2">PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}</p>
-            <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} payments</p>
-          </div>
-          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-[#fbf0fe] to-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "640ms" }}>
-            <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60">Schools by Status</p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {Object.entries(stats.schoolsByStatus).map(([s, count]) => (
-                <span key={s} className="text-xs font-black text-[#1f1a23]">{s}: {count}</span>
-              ))}
-              {Object.keys(stats.schoolsByStatus).length === 0 && (
-                <span className="text-xs font-semibold text-ink-subtle">No data</span>
-              )}
-            </div>
-          </div>
-          <div className="sk-rise rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-5" style={{ animationDelay: "720ms" }}>
-            <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60">Schools by Plan</p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {Object.entries(stats.schoolsByPlan).map(([p, count]) => (
-                <span key={p} className="text-xs font-black text-amber-800">{planLabel(p)}: {count}</span>
-              ))}
-              {Object.keys(stats.schoolsByPlan).length === 0 && (
-                <span className="text-xs font-semibold text-ink-subtle">No data</span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -2169,38 +2144,4 @@ function getPasswordStrength(password: string): { level: number; label: string }
   if (score <= 2) return { level: 2, label: "Fair" };
   if (score <= 3) return { level: 3, label: "Good" };
   return { level: 4, label: "Strong" };
-}
-
-function OwnerSkeleton() {
-  return (
-    <div className="min-h-screen bg-[#f3f4f9] flex font-sans">
-      <div className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-[#cfc2d6]/10 p-5 gap-6">
-        <div className="animate-pulse bg-[#e8e0ec] rounded-lg h-8 w-32" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse bg-[#e8e0ec] rounded-2xl h-11" />
-          ))}
-        </div>
-        <div className="mt-auto space-y-3">
-          <div className="animate-pulse bg-[#e8e0ec] rounded-2xl h-11" />
-          <div className="animate-pulse bg-[#e8e0ec] rounded-2xl h-11" />
-        </div>
-      </div>
-      <main className="flex-1 p-4 md:p-8 flex flex-col h-screen">
-        <div className="flex items-center justify-between mb-8">
-          <div className="space-y-2">
-            <div className="animate-pulse bg-[#e8e0ec] rounded-lg h-5 w-48" />
-            <div className="animate-pulse bg-[#e8e0ec] rounded-lg h-4 w-36" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="animate-pulse bg-[#e8e0ec] rounded-[20px] h-24" />
-          ))}
-        </div>
-        <div className="animate-pulse bg-[#e8e0ec] rounded-[32px] h-48 mb-8" />
-        <div className="animate-pulse bg-[#e8e0ec] rounded-[32px] flex-1" />
-      </main>
-    </div>
-  );
 }
