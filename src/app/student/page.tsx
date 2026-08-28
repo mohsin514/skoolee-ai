@@ -15,6 +15,7 @@ import { DashboardSkeleton, StudentErrorState } from "@/components/student/stude
 import { CountUp, Panel, PanelHeading, StatCard } from "@/components/student/student-ui";
 import { useStudentData } from "./student-data-context";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { LearnerInsights, learnerSeriesFromStudent } from "@/components/insights";
 import { downloadPdfFile } from "@/lib/download";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
@@ -256,6 +257,9 @@ export default function StudentDashboard() {
               delay={320}
             />
           </div>
+
+          {/* How the year is actually going, before the day-to-day below. */}
+          <LearnerInsights series={learnerSeriesFromStudent(user)} />
 
           {/* Today + next paper */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">

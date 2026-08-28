@@ -44,7 +44,7 @@ import {
   YAxis,
 } from "recharts";
 import { CommandHero } from "./CommandHero";
-import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
+import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, SingleFigure, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
 import {
   attendanceRate,
@@ -286,7 +286,13 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
             rows: derived.split.map((s) => [s.name, s.value]),
           }}
         >
-          {derived.split.length > 0 ? (
+          {derived.split.length === 1 ? (
+            <SingleFigure
+              value={derived.split[0].value}
+              label={`${derived.split[0].name} — everyone marked`}
+              color={derived.split[0].color}
+            />
+          ) : derived.split.length > 1 ? (
             <>
               <ResponsiveContainer width="100%" height={216}>
                 <PieChart>

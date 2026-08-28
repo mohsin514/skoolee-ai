@@ -50,6 +50,7 @@ import {
   InsightCard,
   RadialGauge,
   SeriesLegend,
+  SingleFigure,
   StatTile,
   VizTooltip,
 } from "./chart-kit";
@@ -510,22 +511,12 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
           }}
         >
           {derived.comms.length === 1 ? (
-            /* One outcome is not a bar chart — a single bar encodes nothing the
-               number does not already say. */
-            <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-              <span className="text-5xl font-black leading-none tracking-tight text-[#1f1a23]">
-                {derived.comms[0].value.toLocaleString()}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: derived.comms[0].color }} />
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                  {derived.comms[0].label}
-                </span>
-              </span>
-              <p className="max-w-[220px] text-[10px] font-bold leading-relaxed text-ink-faint">
-                Every message sent so far has the same outcome.
-              </p>
-            </div>
+            <SingleFigure
+              value={derived.comms[0].value}
+              label={derived.comms[0].label}
+              color={derived.comms[0].color}
+              note="Every message sent so far has the same outcome."
+            />
           ) : derived.comms.length > 1 ? (
             <>
               <ResponsiveContainer width="100%" height={216}>

@@ -7,7 +7,7 @@
  * the card renders its empty state rather than a fabricated trend.
  */
 
-import { GRADE_COLOR, GRADE_ORDER, RAMP_BRAND, STATUS } from "./palette";
+import { fromMinor, GRADE_COLOR, GRADE_ORDER, RAMP_BRAND, STATUS } from "./palette";
 
 /** Matches the server's ON_ROLL filter, so counts agree with the headline. */
 const OFF_ROLL = new Set(["inactive", "archived", "transferred", "graduated"]);
@@ -295,7 +295,7 @@ export function feeBuckets(byStatus: any[]): FeeBucket[] {
         status,
         label: FEE_LABEL[status] ?? status,
         count,
-        amount: row._sum?.totalAmount ?? 0,
+        amount: fromMinor(row._sum?.totalAmount ?? 0),
         color: FEE_COLOR[status] ?? STATUS.neutral,
       };
     })
@@ -382,10 +382,14 @@ export interface CampusRow {
 export function campusRows(campuses: any[]): CampusRow[] {
   return (campuses ?? []).map((campus: any) => {
     const invoice = campus.invoiceSummary ?? {};
-    const billed = Object.entries(invoice)
-      .filter(([status]) => status !== "CANCELLED")
-      .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0);
-    const collected = ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0);
+    const billed = fromMinor(
+      Object.entries(invoice)
+        .filter(([status]) => status !== "CANCELLED")
+        .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0),
+    );
+    const collected = fromMinor(
+      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0),
+    );
 
     const percentages = (campus.students ?? [])
       .map((s: any) => s?.reportCards?.[0]?.percentage)
@@ -472,7 +476,7 @@ export function campusFeeStack(campuses: any[]): CampusFeeStack[] {
   return (campuses ?? [])
     .map((campus: any) => {
       const summary = campus.invoiceSummary ?? {};
-      const amount = (key: string) => summary[key]?.amount ?? 0;
+      const amount = (key: string) => fromMinor(summary[key]?.amount ?? 0);
       const row = {
         name: campus.name,
         Paid: amount("PAID"),

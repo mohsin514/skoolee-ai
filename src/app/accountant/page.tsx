@@ -33,6 +33,7 @@ import { FeeReportsTab } from "@/components/fees/FeeReportsTab";
 import { FeeLayersTab } from "@/components/fees/FeeLayersTab";
 import { AccountsTab } from "@/components/fees/AccountsTab";
 import { PayrollPanel, LeaveManagementPanel } from "@/components/shared-admin/index";
+import { FinanceOverview } from "@/components/insights";
 
 type AccountantView =
   | "dashboard"
@@ -132,17 +133,26 @@ export default function AccountantPage() {
           }
         >
           {activeView === "dashboard" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {NAV.filter((item) => item.id !== "dashboard").map((item) => (
-                <ConsoleQuickLink
-                  key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  description={item.summary ?? ""}
-                  tone={item.tone}
-                  onClick={() => setActiveView(item.id)}
+            <div className="space-y-5">
+              {data.summary?.kind === "ACCOUNTANT" ? (
+                <FinanceOverview
+                  summary={data.summary}
+                  campusLabel={`${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}`}
+                  onNavigate={(view) => setActiveView(view as AccountantView)}
                 />
-              ))}
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {NAV.filter((item) => item.id !== "dashboard").map((item) => (
+                  <ConsoleQuickLink
+                    key={item.id}
+                    icon={item.icon}
+                    label={item.label}
+                    description={item.summary ?? ""}
+                    tone={item.tone}
+                    onClick={() => setActiveView(item.id)}
+                  />
+                ))}
+              </div>
             </div>
           ) : null}
           {activeView === "fee-overview" ? <FeeOverviewTab campusId={data.campusId} onNavigate={() => {}} /> : null}

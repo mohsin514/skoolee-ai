@@ -30,6 +30,7 @@ import {
   CertificatesPanel,
 } from "@/components/operations";
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
+import { FrontDeskOverview } from "@/components/insights";
 
 type ReceptionistView = "dashboard" | "visitors" | "complaints" | "postal" | "phone-calls" | "certificates" | "leave";
 
@@ -112,17 +113,26 @@ export default function ReceptionistPage() {
           {/* This view used to be a welcome banner and nothing else — the one
               console whose dashboard offered no way into its own six tools. */}
           {activeView === "dashboard" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {NAV.filter((item) => item.id !== "dashboard").map((item) => (
-                <ConsoleQuickLink
-                  key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  description={item.summary ?? ""}
-                  tone={item.tone}
-                  onClick={() => setActiveView(item.id)}
+            <div className="space-y-5">
+              {data.summary?.kind === "RECEPTIONIST" ? (
+                <FrontDeskOverview
+                  summary={data.summary}
+                  campusLabel={`${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}`}
+                  onNavigate={(view) => setActiveView(view as ReceptionistView)}
                 />
-              ))}
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {NAV.filter((item) => item.id !== "dashboard").map((item) => (
+                  <ConsoleQuickLink
+                    key={item.id}
+                    icon={item.icon}
+                    label={item.label}
+                    description={item.summary ?? ""}
+                    tone={item.tone}
+                    onClick={() => setActiveView(item.id)}
+                  />
+                ))}
+              </div>
             </div>
           ) : null}
           {activeView === "visitors" ? <VisitorsPanel /> : null}

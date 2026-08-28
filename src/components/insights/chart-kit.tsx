@@ -492,7 +492,9 @@ export function StatTile({
           </div>
         </div>
       </div>
-      {trend && trend.length > 1 ? (
+      {/* A flat line adds nothing but ink, so a trend of one repeated value
+          (usually all zeroes) is dropped rather than drawn. */}
+      {trend && trend.length > 1 && new Set(trend).size > 1 ? (
         <div className="mt-3">
           <Sparkline points={trend} color={trendColor ?? "#8127cf"} label={`${label} trend`} width={120} />
         </div>
@@ -528,6 +530,38 @@ export function StatTile({
   return (
     <div className={className} style={style}>
       {body}
+    </div>
+  );
+}
+
+/**
+ * What a chart becomes when the data collapses to a single category.
+ *
+ * A one-slice donut and a one-bar bar chart both encode nothing the number
+ * does not already say, so every chart in this kit falls back to this rather
+ * than drawing a shape with one mark in it.
+ */
+export function SingleFigure({
+  value,
+  label,
+  color,
+  note,
+}: {
+  value: number | string;
+  label: string;
+  color: string;
+  note?: string;
+}) {
+  return (
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
+      <span className="text-5xl font-black leading-none tracking-tight text-[#1f1a23]">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+        <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{label}</span>
+      </span>
+      {note ? <p className="max-w-[220px] text-[10px] font-bold leading-relaxed text-ink-faint">{note}</p> : null}
     </div>
   );
 }

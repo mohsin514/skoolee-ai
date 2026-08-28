@@ -1478,6 +1478,16 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
   ]);
 
+  // Each console gets only its own summary. A librarian has no business
+  // pulling the fee book, and loading all three would triple the query cost
+  // of every one of these dashboards.
+  const summary =
+    session.role === "LIBRARIAN"
+      ? await librarianSummary(session.schoolId, campusId)
+      : session.role === "ACCOUNTANT"
+        ? await accountantSummary(session.schoolId, campusId)
+        : await receptionistSummary(session.schoolId, campusId);
+
   return {
     userName: session.fullName || roleLabel(session.role),
     userEmail: session.email,
@@ -1487,5 +1497,246 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
     schoolName: school?.name || "Institution",
     logoUrl: campus?.logoUrl || school?.logoUrl || null,
     campusId,
+    summary,
   };
 });
+
+/** Start of today, in the server's zone — the boundary every "today" count uses. */
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** `daysBack` days ago at midnight, for the rolling activity windows. */
+function daysAgo(days: number): Date {
+  const d = startOfToday();
+  d.setDate(d.getDate() - days);
+  return d;
+}
+
+/** The first of the month, `monthsBack` months ago. */
+function monthsAgo(months: number): Date {
+  const d = startOfToday();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - months);
+  return d;
+}
+
+/**
+ * Buckets timestamped rows by calendar day, emitting every day in the window
+ * — including the quiet ones, which are a real zero here rather than missing
+ * data (an empty front desk is a fact worth plotting).
+ */
+function bucketByDay(rows: { date: Date }[], days: number): { day: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = new Date(row.date).toISOString().slice(0, 10);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const out: { day: string; count: number }[] = [];
+  const cursor = daysAgo(days - 1);
+  for (let i = 0; i < days; i += 1) {
+    const key = cursor.toISOString().slice(0, 10);
+    out.push({ day: key, count: counts.get(key) ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+/** Same idea, by calendar month. */
+function bucketByMonth(
+  rows: { date: Date; value?: number }[],
+  months: number,
+): { month: string; count: number; value: number }[] {
+  const counts = new Map<string, { count: number; value: number }>();
+  for (const row of rows) {
+    const d = new Date(row.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = counts.get(key) ?? { count: 0, value: 0 };
+    bucket.count += 1;
+    bucket.value += row.value ?? 0;
+    counts.set(key, bucket);
+  }
+  const out: { month: string; count: number; value: number }[] = [];
+  const cursor = monthsAgo(months - 1);
+  for (let i = 0; i < months; i += 1) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = counts.get(key) ?? { count: 0, value: 0 };
+    out.push({ month: key, ...bucket });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
+}
+
+async function librarianSummary(schoolId: string, campusId: string) {
+  const now = new Date();
+  const sixMonths = monthsAgo(5);
+
+  const [books, categories, memberCount, openIssues, overdueCount, recentIssues, itemCount, topCategories] =
+    await Promise.all([
+      prisma.book.aggregate({
+        where: { campusId, schoolId },
+        _count: true,
+        _sum: { copiesTotal: true, copiesAvailable: true },
+      }),
+      prisma.bookCategory.count({ where: { campusId, schoolId } }),
+      prisma.libraryMember.count({ where: { campusId, schoolId } }),
+      prisma.bookIssue.count({ where: { schoolId, returnedAt: null, book: { campusId } } }),
+      prisma.bookIssue.count({
+        where: { schoolId, returnedAt: null, dueAt: { lt: now }, book: { campusId } },
+      }),
+      prisma.bookIssue.findMany({
+        where: { schoolId, issuedAt: { gte: sixMonths }, book: { campusId } },
+        select: { issuedAt: true, returnedAt: true, fine: true },
+      }),
+      prisma.item.count({ where: { campusId, schoolId } }),
+      prisma.book.groupBy({
+        by: ["categoryId"],
+        where: { campusId, schoolId, categoryId: { not: null } },
+        _count: true,
+        _sum: { copiesTotal: true },
+      }),
+    ]);
+
+  const categoryNames = topCategories.length
+    ? await prisma.bookCategory.findMany({
+        where: { id: { in: topCategories.map((c) => c.categoryId!).filter(Boolean) } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const nameById = new Map(categoryNames.map((c) => [c.id, c.name]));
+
+  return {
+    kind: "LIBRARIAN" as const,
+    titles: books._count,
+    copiesTotal: books._sum.copiesTotal ?? 0,
+    copiesAvailable: books._sum.copiesAvailable ?? 0,
+    categories,
+    members: memberCount,
+    onLoan: openIssues,
+    overdue: overdueCount,
+    finesOutstanding: recentIssues.reduce((sum, i) => sum + (i.returnedAt ? 0 : i.fine), 0),
+    issuesByMonth: bucketByMonth(recentIssues.map((i) => ({ date: i.issuedAt })), 6),
+    returnsByMonth: bucketByMonth(
+      recentIssues.filter((i) => i.returnedAt).map((i) => ({ date: i.returnedAt! })),
+      6,
+    ),
+    inventoryItems: itemCount,
+    byCategory: topCategories
+      .map((c) => ({
+        name: nameById.get(c.categoryId!) ?? "Uncategorised",
+        titles: c._count,
+        copies: c._sum.copiesTotal ?? 0,
+      }))
+      .sort((a, b) => b.titles - a.titles)
+      .slice(0, 8),
+  };
+}
+
+async function accountantSummary(schoolId: string, campusId: string) {
+  const twelveMonths = monthsAgo(11);
+
+  const [invoiceGroups, payments, defaulters, payrollRuns, studentsBilled] = await Promise.all([
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { campusId, campus: { schoolId } },
+      _count: true,
+      _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
+    }),
+    prisma.payment.findMany({
+      where: { campusId, schoolId, paymentDate: { gte: twelveMonths } },
+      select: { paymentDate: true, amount: true, paymentMethod: true },
+    }),
+    // "Past due" is any invoice still carrying a balance after its due date —
+    // the same definition the fee dashboard's overdue total uses. Keying off
+    // the status enum alone missed every PARTIAL invoice, which is exactly the
+    // family that has paid something and then stopped.
+    prisma.invoice.count({
+      where: {
+        campusId,
+        campus: { schoolId },
+        status: { not: "CANCELLED" },
+        balanceDue: { gt: 0 },
+        dueDate: { lt: new Date() },
+      },
+    }),
+    prisma.payrollRun.count({ where: { campusId, schoolId } }),
+    prisma.invoice.findMany({
+      where: { campusId, campus: { schoolId } },
+      select: { studentId: true },
+      distinct: ["studentId"],
+    }),
+  ]);
+
+  const byMethod = new Map<string, { count: number; amount: number }>();
+  for (const payment of payments) {
+    const key = payment.paymentMethod || "Other";
+    const bucket = byMethod.get(key) ?? { count: 0, amount: 0 };
+    bucket.count += 1;
+    bucket.amount += payment.amount;
+    byMethod.set(key, bucket);
+  }
+
+  return {
+    kind: "ACCOUNTANT" as const,
+    byStatus: invoiceGroups.map((g) => ({
+      status: g.status,
+      count: g._count,
+      billed: g._sum.totalAmount ?? 0,
+      paid: g._sum.totalAmountPaid ?? 0,
+      outstanding: g._sum.balanceDue ?? 0,
+    })),
+    collectionByMonth: bucketByMonth(
+      payments.map((p) => ({ date: p.paymentDate, value: p.amount })),
+      12,
+    ),
+    byMethod: [...byMethod.entries()]
+      .map(([method, v]) => ({ method, ...v }))
+      .sort((a, b) => b.amount - a.amount),
+    paymentCount: payments.length,
+    defaulters,
+    payrollRuns,
+    studentsBilled: studentsBilled.length,
+  };
+}
+
+async function receptionistSummary(schoolId: string, campusId: string) {
+  const today = startOfToday();
+  const fortnight = daysAgo(13);
+
+  const [visitorsToday, openVisits, visitors, complaintGroups, calls, postal, certificates] = await Promise.all([
+    prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today } } }),
+    prisma.visitorLog.count({ where: { campusId, schoolId, outTime: null, inTime: { gte: today } } }),
+    prisma.visitorLog.findMany({
+      where: { campusId, schoolId, inTime: { gte: fortnight } },
+      select: { inTime: true, outTime: true },
+    }),
+    prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId }, _count: true }),
+    prisma.phoneCallLog.findMany({
+      where: { campusId, schoolId, date: { gte: fortnight } },
+      select: { date: true, direction: true, followUpDate: true },
+    }),
+    prisma.postalRecord.findMany({
+      where: { campusId, schoolId, date: { gte: fortnight } },
+      select: { date: true, direction: true },
+    }),
+    prisma.certificateTemplate.count({ where: { campusId, schoolId } }),
+  ]);
+
+  return {
+    kind: "RECEPTIONIST" as const,
+    visitorsToday,
+    stillInside: openVisits,
+    visitorsByDay: bucketByDay(visitors.map((v) => ({ date: v.inTime })), 14),
+    complaintsByStatus: complaintGroups.map((g) => ({ status: g.status, count: g._count })),
+    callsByDay: bucketByDay(calls.map((c) => ({ date: c.date })), 14),
+    callsIn: calls.filter((c) => c.direction === "IN").length,
+    callsOut: calls.filter((c) => c.direction === "OUT").length,
+    followUpsDue: calls.filter((c) => c.followUpDate && c.followUpDate >= today).length,
+    postalReceived: postal.filter((p) => p.direction === "RECEIVE").length,
+    postalDispatched: postal.filter((p) => p.direction === "DISPATCH").length,
+    postalByDay: bucketByDay(postal.map((p) => ({ date: p.date })), 14),
+    certificateTemplates: certificates,
+  };
+}

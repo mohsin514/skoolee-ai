@@ -17,6 +17,7 @@ import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
 import { formatPKR } from "@/components/fees/fee-utils";
+import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,12 @@ export default function ParentOverviewPage() {
             <ParentStat key={s.label} icon={s.icon} label={s.label} value={s.value} sub={s.sub} tone={s.tone} />
           ))}
         </div>
+
+        {/* The child's record in chart form, before the day-to-day panels. */}
+        <LearnerInsights
+          series={learnerSeriesFromParent(data)}
+          possessive={student.fullName.split(" ")[0] || "your child"}
+        />
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">

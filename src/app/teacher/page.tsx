@@ -17,6 +17,7 @@ import {
 import { useTeacherData } from "./teacher-data-context";
 import { useGradingTools } from "./use-grading-tools";
 import { GradingModals, GradingToolbar } from "./grading-tools";
+import { TeachingInsights } from "@/components/insights";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { TodaySchedule, type TimetableSlot } from "@/components/teacher/today-schedule";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
@@ -215,6 +216,15 @@ export default function TeacherDashboardHub() {
               onClick: () => router.push("/teacher/attendance"),
             },
           ]}
+        />
+
+        {/* ── How the term is going, under what needs doing today ── */}
+        <TeachingInsights
+          exams={data.exams || []}
+          attendance={attendanceStats}
+          classHubs={classHubs}
+          reportCards={data.recentReportCards || []}
+          onNavigate={(path) => router.push(path)}
         />
       </div>
 

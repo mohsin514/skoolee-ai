@@ -38,7 +38,7 @@ import {
 } from "recharts";
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact } from "./palette";
+import { AXIS_TICK, INK, RAMP_BRAND, SERIES, STATUS, compact, fromMinor } from "./palette";
 
 export interface PlatformStats {
   schoolCount: number;
@@ -100,11 +100,6 @@ const INVOICE_COLOR: Record<string, string> = {
   CANCELLED: STATUS.neutral,
 };
 
-/** Payments are stored in the minor unit, and every screen divides by 100. */
-function toMajor(minor: number): number {
-  return Math.round((minor || 0) / 100);
-}
-
 function monthLabel(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "short" });
@@ -147,7 +142,7 @@ export function PlatformOverview({
 
     const revenue = (stats.revenueByMonth ?? []).map((r) => ({
       label: monthLabel(r.month),
-      amount: toMajor(r.amount),
+      amount: fromMinor(r.amount),
       payments: r.count,
     }));
 
@@ -158,7 +153,7 @@ export function PlatformOverview({
         status: r.status,
         label: r.status.charAt(0) + r.status.slice(1).toLowerCase(),
         count: r.count,
-        amount: r.amount,
+        amount: fromMinor(r.amount),
         color: INVOICE_COLOR[r.status] ?? STATUS.neutral,
       }))
       .filter((r) => r.count > 0)
@@ -188,7 +183,7 @@ export function PlatformOverview({
     };
   }, [stats]);
 
-  const revenueMajor = toMajor(stats.totalRevenue);
+  const revenueMajor = fromMinor(stats.totalRevenue);
   const activeShare = stats.totalUsers > 0 ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0;
 
   return (

@@ -95,7 +95,19 @@ export function compact(value: number): string {
   return value.toLocaleString();
 }
 
-/** Money, compacted, without pretending to know the reader's locale currency. */
+/**
+ * Invoice and payment amounts are stored in the minor unit (paisa). Every
+ * family- and finance-facing screen divides before it prints — `formatPKR`
+ * does it too — so the derivation layer converts once, here, and every chart
+ * downstream works in whole rupees.
+ */
+export function fromMinor(minor: number): number {
+  return (minor || 0) / 100;
+}
+
+/** Money, compacted, without pretending to know the reader's locale currency.
+ *  Expects major units — run `fromMinor` on anything straight out of the
+ *  database first. */
 export function money(value: number): string {
   return compact(Math.round(value));
 }

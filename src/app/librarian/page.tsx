@@ -20,6 +20,7 @@ import {
   type ConsoleNavItem,
 } from "@/components/operations/console-page";
 import { LibraryPanel, InventoryPanel } from "@/components/operations";
+import { LibraryOverview } from "@/components/insights";
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
 
 type LibrarianView = "dashboard" | "library" | "inventory" | "leave";
@@ -98,17 +99,26 @@ export default function LibrarianPage() {
           }
         >
           {activeView === "dashboard" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {NAV.filter((item) => item.id !== "dashboard").map((item) => (
-                <ConsoleQuickLink
-                  key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  description={item.summary ?? ""}
-                  tone={item.tone}
-                  onClick={() => setActiveView(item.id)}
+            <div className="space-y-5">
+              {data.summary?.kind === "LIBRARIAN" ? (
+                <LibraryOverview
+                  summary={data.summary}
+                  campusLabel={`${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}`}
+                  onNavigate={(view) => setActiveView(view as LibrarianView)}
                 />
-              ))}
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {NAV.filter((item) => item.id !== "dashboard").map((item) => (
+                  <ConsoleQuickLink
+                    key={item.id}
+                    icon={item.icon}
+                    label={item.label}
+                    description={item.summary ?? ""}
+                    tone={item.tone}
+                    onClick={() => setActiveView(item.id)}
+                  />
+                ))}
+              </div>
             </div>
           ) : null}
           {activeView === "library" ? <LibraryPanel /> : null}
