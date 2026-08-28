@@ -4,24 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertCircle,
-  BarChart3,
   Building2,
   ChevronRight,
   CheckCircle2,
   ClipboardList,
   CreditCard,
-  FileText,
   Globe,
   GraduationCap,
   HelpCircle,
   LayoutGrid,
+  Mail,
   Loader2,
   LogOut,
-  Mail,
   MapPin,
   Phone,
   MessageCircle,
-  MessageSquare,
   Plus,
   Receipt,
   School,
@@ -49,7 +46,6 @@ import {
   EmptyState,
   ManagementCard,
   RoleShell,
-  StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -57,6 +53,7 @@ import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
 import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { getPlanLimits } from "@/config/plans";
+import { NetworkOverview } from "@/components/insights";
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
@@ -405,69 +402,42 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : !selectedCampus ? (
           <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-            <div className="sk-rise flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-              <div>
-                <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal">School Network</h2>
-                <p className="text-ink-subtle font-bold mt-1 uppercase text-[10px] tracking-normal italic">
-                  {data.schoolName} Group
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <BrandButton variant="soft" icon={<Receipt className="w-5 h-5" />} onClick={openFees}>
-                  Fees
-                </BrandButton>
-                <BrandButton variant="soft" icon={<CreditCard className="w-5 h-5" />} onClick={openBilling}>
-                  Plans & Billing
-                </BrandButton>
-                <BrandButton icon={<Plus className="w-5 h-5" />} onClick={() => setShowAddCampusModal(true)}>
-                  Add New School
-                </BrandButton>
-              </div>
-            </div>
-
             <div className="sk-rise" style={{ animationDelay: "80ms" }}>
               <BillingBanner billing={data.billing} onOpen={openBilling} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
-              <StatCard
-                icon={CreditCard}
-                label="Plan"
-                value={getPlanLimits(data.billing?.plan || "FREE").name}
-                sub={data.billing?.status || "TRIAL"}
-                tone={data.billing?.status === "SUSPENDED" ? "rose" : "purple"}
-                entranceDelay={160}
-              />
-              <StatCard icon={School} label="Campuses" value={data.campuses.length} entranceDelay={240} />
-              <StatCard
-                icon={GraduationCap}
-                label="Students"
-                value={data.networkSummary.totalStudents}
-                tone="green"
-                entranceDelay={320}
-              />
-              <StatCard
-                icon={Shield}
-                label="Class Hubs"
-                value={data.networkSummary.totalClasses}
-                tone="rose"
-                entranceDelay={400}
-              />
-              <StatCard
-                icon={Sparkles}
-                label="AI Runs"
-                value={data.networkSummary.totalAiRuns}
-                tone="dark"
-                entranceDelay={480}
-              />
-            </div>
-
-            <div className="sk-rise" style={{ animationDelay: "560ms" }}>
-              <NetworkCommandPanel
+            <div className="mb-8">
+              <NetworkOverview
                 data={data}
                 onSelectCampus={openCampus}
                 onOpenBilling={openBilling}
                 onOpenFees={openFees}
+                onOpenAI={() => document.getElementById("network-ai-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={openFees}
+                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                    >
+                      <Receipt className="h-4 w-4" /> Fees
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openBilling}
+                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                    >
+                      <CreditCard className="h-4 w-4" /> Plans &amp; billing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCampusModal(true)}
+                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#1f1a23] shadow-sm transition-all hover:bg-[#fbf0fe] focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                    >
+                      <Plus className="h-4 w-4" /> Add campus
+                    </button>
+                  </>
+                }
               />
             </div>
 
@@ -505,12 +475,6 @@ const bottomItems: RoleNavItem[] = [];
                 </p>
               )}
             </div>
-
-            {data.campuses.length > 0 ? (
-              <div className="sk-rise" style={{ animationDelay: "640ms" }}>
-                <CampusComparison campuses={data.campuses} onManage={openCampus} />
-              </div>
-            ) : null}
 
             {data.campuses.length === 0 ? (
               <EmptyState
@@ -851,228 +815,6 @@ function SuperStatusPill({ status }: { status?: string }) {
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       {formatStatus(status)}
     </span>
-  );
-}
-
-function NetworkCommandPanel({
-  data,
-  onSelectCampus,
-  onOpenBilling,
-  onOpenFees,
-}: {
-  data: any;
-  onSelectCampus: (campus: any) => void;
-  onOpenBilling: () => void;
-  onOpenFees: () => void;
-}) {
-  const leadershipGaps = data.campuses.filter((campus: any) => !hasActiveSlot(campus.admin) || !hasActiveSlot(campus.principal));
-  const pendingInviteCampuses = data.campuses.filter((campus: any) => campus.pendingInvitations.length > 0);
-
-  return (
-    <div className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-      <div className="sk-rise relative rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-[#8127cf]" />
-            <h3 className="text-lg font-black text-[#1f1a23]">Network Command Center</h3>
-          </div>
-          <SuperStatusPill status={data.billing?.status || "TRIAL"} />
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <OwnerMetric icon={Users} label="Teachers" value={data.networkSummary.totalTeachers} />
-          <OwnerMetric icon={ClipboardList} label="Subjects" value={data.networkSummary.totalSubjects} />
-          <OwnerMetric icon={FileText} label="Reports" value={data.networkSummary.totalReportCards} />
-          <OwnerMetric icon={MessageSquare} label="Sent Messages" value={data.networkSummary.sentCommunications} />
-        </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryBucket
-            icon={AlertCircle}
-            label="Leadership Gaps"
-            value={data.networkSummary.adminGaps + data.networkSummary.principalGaps}
-            tone="rose"
-          />
-          <SummaryBucket
-            icon={Mail}
-            label="Pending Invites"
-            value={data.networkSummary.pendingInvites}
-            tone="purple"
-          />
-          <SummaryBucket
-            icon={CreditCard}
-            label="Fee Follow-up"
-            value={data.networkSummary.pendingInvoices + data.networkSummary.partialInvoices}
-            tone="amber"
-            onClick={onOpenFees}
-          />
-        </div>
-      </div>
-
-      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Shield className="h-5 w-5 text-[#8127cf]" />
-            <h3 className="text-lg font-black text-[#1f1a23]">Action Queue</h3>
-          </div>
-          <SuperStatusPill status={leadershipGaps.length ? "MISSING" : "ACTIVE"} />
-        </div>
-        <div className="space-y-3">
-          {leadershipGaps.slice(0, 4).map((campus: any, index: number) => (
-            <button
-              key={campus.id}
-              type="button"
-              onClick={() => onSelectCampus(campus)}
-              className="sk-rise flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#fbf0fe]/60 to-white px-4 py-3 text-left transition-all hover:from-[#fbf0fe] hover:shadow-sm border border-transparent hover:border-[#8127cf]/10"
-              style={{ animationDelay: `${160 + index * 60}ms` }}
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
-                  {!hasActiveSlot(campus.admin) ? "Admin needed" : ""}{!hasActiveSlot(campus.admin) && !hasActiveSlot(campus.principal) ? " - " : ""}{!hasActiveSlot(campus.principal) ? "Principal needed" : ""}
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#8127cf]" />
-            </button>
-          ))}
-          {leadershipGaps.length === 0 ? (
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-emerald-50/50 border border-emerald-100/50 px-4 py-3">
-              <p className="text-sm font-black text-emerald-700">All campuses have leadership assigned.</p>
-            </div>
-          ) : null}
-
-          {pendingInviteCampuses.length > 0 ? (
-            <div className="rounded-2xl bg-gradient-to-r from-[#f3f4f9] to-white border border-[#cfc2d6]/10 px-4 py-3">
-              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Pending Invitations</p>
-              <p className="mt-1 text-sm font-black text-[#1f1a23]">
-                {pendingInviteCampuses.length} campuses waiting for acceptance
-              </p>
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={onOpenBilling}
-            className="flex w-full cursor-pointer items-center justify-between rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] px-4 py-3 text-left text-white transition-all hover:from-black hover:to-[#1f1a23] shadow-sm"
-          >
-            <span className="text-sm font-black">Billing, plan, and AI credit control</span>
-            <CreditCard className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CampusComparison({ campuses, onManage }: { campuses: any[]; onManage: (campus: any) => void }) {
-  return (
-    <div className="mb-8 rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <TrendingUp className="h-5 w-5 text-[#8127cf]" />
-          <h3 className="text-lg font-black text-[#1f1a23]">Campus Comparison</h3>
-        </div>
-        <SuperStatusPill status={`${campuses.length} Campuses`} />
-      </div>
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full min-w-[760px] text-left">
-          <thead>
-            <tr className="text-[9px] font-black uppercase tracking-normal text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
-              <th className="px-4 py-3 rounded-tl-2xl">Campus</th>
-              <th className="px-4 py-3">Leadership</th>
-              <th className="px-4 py-3">Academics</th>
-              <th className="px-4 py-3">Reports</th>
-              <th className="px-4 py-3">Engagement</th>
-              <th className="px-4 py-3 text-right rounded-tr-2xl">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#f3f4f9]">
-            {campuses.map((campus) => (
-              <tr key={campus.id} className="text-sm transition-all duration-200 hover:bg-[#fbf0fe]/30">
-                <td className="px-4 py-4">
-                  <p className="font-black text-[#1f1a23]">{campus.name}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-normal text-ink-subtle">{campus.city}</p>
-                </td>
-                <td className="px-4 py-4">
-                  <div className="flex flex-wrap gap-2">
-                    <SuperStatusPill status={campus.admin ? campus.admin.status : "MISSING"} />
-                    <SuperStatusPill status={campus.principal ? campus.principal.status : "MISSING"} />
-                  </div>
-                </td>
-                <td className="px-4 py-4 font-bold text-ink">
-                  {campus.studentCount} students / {campus.classCount} classes / {campus.teacherCount} teachers
-                </td>
-                <td className="px-4 py-4 font-bold text-ink">
-                  {campus.reportCardCount} cards / {campus.examCount} exams
-                </td>
-                <td className="px-4 py-4 font-bold text-ink">
-                  {campus.communicationSummary.SENT || 0} sent / {(campus.communicationSummary.FAILED || 0) + (campus.communicationSummary.BLOCKED || 0)} issues
-                </td>
-                <td className="px-4 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onManage(campus)}
-                    className="cursor-pointer rounded-2xl bg-gradient-to-r from-[#fbf0fe] to-[#f3eeff] px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] transition-all hover:from-[#8127cf] hover:to-[#6a1fb0] hover:text-white shadow-sm"
-                  >
-                    Review
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function OwnerMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
-  return (
-    <div className="rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-[8px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
-      <p className="mt-1 text-2xl font-black text-[#1f1a23]">{value}</p>
-    </div>
-  );
-}
-
-function SummaryBucket({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  tone: "green" | "rose" | "purple" | "amber";
-  onClick?: () => void;
-}) {
-  const toneClass = {
-    green: "bg-emerald-50 text-emerald-600",
-    rose: "bg-rose-50 text-rose-600",
-    purple: "bg-[#fbf0fe] text-[#8127cf]",
-    amber: "bg-amber-50 text-amber-600",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className={`flex items-center justify-between gap-3 rounded-[24px] bg-white p-4 shadow-sm transition-all duration-300 ${
-        onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5" : "cursor-default"
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${toneClass} shadow-sm`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
-      </div>
-      <p className="text-xl font-black text-[#1f1a23]">{value}</p>
-    </button>
   );
 }
 

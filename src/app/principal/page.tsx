@@ -66,10 +66,10 @@ import {
   BrandButton,
   EmptyState,
   RoleShell,
-  StatCard,
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
+import { AcademicOverview } from "@/components/insights";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -496,21 +496,16 @@ export default function PrincipalDashboard() {
           />
         ) : null}
         {activeView === "overview" ? (
-          <div className="sk-rise flex flex-wrap justify-end gap-2 mb-8">
-            <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => setShowClassWizard(true)}>Add Class</BrandButton>
-            <BrandButton variant="soft" icon={<GraduationCap className="w-4 h-4" />} onClick={() => openAdmissionForm()} disabled={data.classes.length === 0}>Add Student</BrandButton>
+          <div className="space-y-6">
+            <AcademicOverview
+              data={data}
+              onNavigate={(view) => setActiveView(view as PrincipalView)}
+              onAddClass={() => setShowClassWizard(true)}
+              onAddStudent={data.classes.length > 0 ? () => openAdmissionForm() : undefined}
+            />
+            <OverviewPanel data={data} onViewReports={() => setActiveView("report-cards")} onComplete={() => { refetch(); }} />
           </div>
         ) : null}
-        {activeView === "overview" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
-            <StatCard icon={GraduationCap} label="Students" value={data.totalStudents} tone="green" onClick={() => setActiveView("students")} entranceDelay={80} />
-            <StatCard icon={Users} label="Teachers" value={data.totalTeachers} tone="purple" onClick={() => setActiveView("teachers")} entranceDelay={160} />
-            <StatCard icon={School} label="Classes" value={data.totalClasses} tone="rose" onClick={() => setActiveView("classes")} entranceDelay={240} />
-            <StatCard icon={FileText} label="Pending Reviews" value={data.pendingRemarkReviews} tone="dark" onClick={() => setActiveView("report-cards")} entranceDelay={320} />
-            <StatCard icon={Sparkles} label="AI Queue" value={data.pendingAIReviews || 0} tone="green" onClick={() => setActiveView("ai")} entranceDelay={400} />
-          </div>
-        ) : null}
-        {activeView === "overview" ? <OverviewPanel data={data} communicationTotals={communicationTotals} onViewReports={() => setActiveView("report-cards")} onViewEngagement={() => setActiveView("engagement")} onComplete={() => { refetch(); }} /> : null}
         {activeView === "leadership" ? (
           <LeadershipPanel
             data={data}
@@ -796,9 +791,11 @@ export default function PrincipalDashboard() {
   );
 }
 
-function OverviewPanel({ data, communicationTotals, onViewReports, onViewEngagement, onComplete }: {
-  data: any; communicationTotals: { sent: number; failed: number; blocked: number; noContact: number };
-  onViewReports: () => void; onViewEngagement: () => void; onComplete: () => void | Promise<void>;
+/** What the overview deck above does not cover: the review queue itself, and
+ *  the two AI panels that act on it. */
+function OverviewPanel({ data, onViewReports, onComplete }: {
+  data: any;
+  onViewReports: () => void; onComplete: () => void | Promise<void>;
 }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -809,13 +806,8 @@ function OverviewPanel({ data, communicationTotals, onViewReports, onViewEngagem
         </CollapsiblePanel>
       </div>
       <div className="space-y-6">
-        <div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-6 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: "160ms" }}>
-          <div className="flex items-center justify-between mb-5"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm"><MessageSquare className="w-5 h-5" /></div><p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider">Parent Engagement</p></div><button type="button" onClick={onViewEngagement} className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] hover:text-[#9c48ea]">View</button></div>
-          <div className="space-y-3"><EngagementMetric icon={CheckCircle2} label="Sent" value={communicationTotals.sent} /><EngagementMetric icon={AlertCircle} label="Needs Attention" value={communicationTotals.failed + communicationTotals.blocked + communicationTotals.noContact} /><EngagementMetric icon={Sparkles} label="AI Review" value={data.pendingAIReviews || 0} /></div>
-        </div>
         <div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-6 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: "240ms" }}><CornerSparkles /><AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} /></div>
         <div className="sk-rise bg-gradient-to-br from-[#fbf0fe]/40 via-[#fbf0fe]/20 to-white p-6 rounded-[28px] border border-[#8127cf]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: "320ms" }}><div className="flex items-center gap-3 mb-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 text-[#8127cf] shadow-sm"><Sparkles className="w-5 h-5" /></div><p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider">AI Review</p></div><AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} /></div>
-        <div className="sk-rise bg-gradient-to-br from-[#1f1a23] to-[#2d2533] p-8 rounded-[32px] text-white shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden" style={{ animationDelay: "400ms" }}><div className="absolute -top-16 -right-16 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/15 to-transparent rounded-full blur-[60px] pointer-events-none" /><div className="absolute -bottom-8 -left-8 w-24 h-24 bg-gradient-to-tr from-[#b876f0]/10 to-transparent rounded-full blur-[40px] pointer-events-none" /><div className="relative"><p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-5">Campus Yield</p><div className="flex items-end gap-3 mb-4"><span className="text-5xl font-black tracking-wider">{data.averageMarks}%</span><TrendingUp className="w-8 h-8 text-emerald-400 mb-1" /></div><p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Average marks across submitted assessments</p></div></div>
       </div>
     </div>
   );
@@ -883,10 +875,6 @@ function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCanc
 function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
   const toneStyles: Record<string, string> = { green: "bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700", rose: "bg-gradient-to-br from-rose-50 to-rose-100/50 text-rose-700", purple: "bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]", amber: "bg-gradient-to-br from-amber-50 to-amber-100/50 text-amber-700" };
   return (<div className="sk-rise rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"><div className="flex items-center gap-3 mb-3"><div className={`rounded-xl p-2 ${toneStyles[tone] || "bg-gradient-to-br from-[#f3f4f9] to-[#f3f4f9]/50 text-ink-muted"} shadow-sm`}><Icon className="w-4 h-4" /></div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</p></div><p className="text-3xl font-black tracking-wider text-[#1f1a23]">{value}</p></div>);
-}
-
-function EngagementMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
-  return (<div className="flex items-center justify-between p-1 transition-all hover:bg-[#fbf0fe]/40 rounded-xl -mx-1"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm"><Icon className="h-4 w-4" /></div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</p></div><p className="text-sm font-black text-[#1f1a23]">{value}</p></div>);
 }
 
 function SkeletonBlock({ className = "" }: { className?: string }) {

@@ -43,6 +43,7 @@ import { userMessage } from "@/lib/errors";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import { RoleShell, type RoleNavItem, BrandButton } from "@/components/role-dashboard";
+import { CampusOverview } from "@/components/insights";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
@@ -104,6 +105,7 @@ import {
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 
 type AdminView =
+  | "overview"
   | "leadership"
   | "classes"
   | "teachers"
@@ -136,11 +138,14 @@ type AdminView =
   | "institution"
   ;
 
-/** Land on the academic overview: it shows where the year stands and what to do
- *  next. Campus Control is account administration, not a daily starting point. */
-const DEFAULT_VIEW: AdminView = "academic-hub";
+/** Land on the command centre: it answers "how is the campus doing right now"
+ *  in one screen, and every other area is one click from it. Academic Overview
+ *  is still where the year's setup lives; Campus Control is account
+ *  administration, not a daily starting point. */
+const DEFAULT_VIEW: AdminView = "overview";
 
 const ADMIN_VIEWS: readonly AdminView[] = [
+  "overview",
   "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries",
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
@@ -988,6 +993,16 @@ export default function CampusAdminDashboard() {
   // against "students" — hiding the inbox from anyone without roster access.
   filteredNavItems.push({ icon: MessageCircle, label: "Messages", href: "/messages" });
 
+  // Same reasoning, at the other end of the list: the command centre is the
+  // landing screen for every admin, so it sits outside the module permissions
+  // rather than being graded against one of them.
+  filteredNavItems.unshift({
+    icon: LayoutDashboard,
+    label: "Command Centre",
+    active: activeView === "overview",
+    onClick: () => setActiveView("overview"),
+  });
+
   const bottomItems: RoleNavItem[] = [];
   const adminAIFeatures = [
     { feature: "at_risk_students", label: "At-risk Students", placeholder: "Class, exam, or attendance focus" },
@@ -1070,6 +1085,15 @@ export default function CampusAdminDashboard() {
               active={activeView}
               onNavigate={(v) => setActiveView(v as AdminView)}
               allowed={(v) => canViewModule(STUDENT_VIEW_MODULE[v] ?? "students")}
+            />
+          ) : null}
+
+          {activeView === "overview" ? (
+            <CampusOverview
+              data={data}
+              onNavigate={(view) => setActiveView(view as AdminView)}
+              onAddStudent={data.classes.length > 0 ? () => openAdmissionForm() : undefined}
+              onAddClass={() => setShowClassWizard(true)}
             />
           ) : null}
 
