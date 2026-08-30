@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const body = await readJsonBody(req);
     const { title, description, fare } = parseWith(transportRouteSchema, body);
-    const campusId = await resolveCampusId(user, (body as { campusId?: unknown }).campusId);
+    const campusId = await resolveCampusId(user, (body as { campusId?: string }).campusId);
 
     const route = await prisma.transportRoute.create({
       data: {
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
     // partial — the field *rules* still apply to whatever is present.
     const { id, vehicleIds, ...patch } = parseWith(transportRoutePatchSchema, body);
 
-    const campusId = await resolveCampusId(user, (body as { campusId?: unknown }).campusId);
+    const campusId = await resolveCampusId(user, (body as { campusId?: string }).campusId);
 
     const existing = await prisma.transportRoute.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Route not found", 404);
