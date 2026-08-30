@@ -20,6 +20,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
+import { downloadCSV } from "@/lib/csv";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -467,6 +468,69 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
     setStudentSearch("");
   }
 
+  /**
+   * Exports whatever is currently on screen, not a fixed report — the button
+   * sits above three different views and used to be wired to nothing at all.
+   * Inside a class it writes the per-student register; on the monthly view the
+   * per-class roll-up; on today/week the class breakdown behind the stat cards.
+   */
+  function handleDownloadReport() {
+    if (classDetail) {
+      downloadCSV(
+        `attendance-${classDetail.className.replace(/\s+/g, "-")}-${classDetail.month}`,
+        [
+          ["Roll No", "Student", "Present", "Absent", "Leave", "Attendance %"],
+          ...classDetail.students.map((st) => [
+            st.rollNo,
+            st.name,
+            st.present,
+            st.absent,
+            st.leave,
+            st.percentage,
+          ]),
+        ]
+      );
+      toast.success(`Exported ${classDetail.students.length} students`);
+      return;
+    }
+
+    if (period === "month" && monthlyData) {
+      downloadCSV(`attendance-by-class-${monthlyData.month}`, [
+        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Attendance %"],
+        ...monthlyData.classes.map((c) => [
+          c.className,
+          c.studentCount,
+          c.present,
+          c.absent,
+          c.leave,
+          c.total,
+          c.percentage,
+        ]),
+      ]);
+      toast.success(`Exported ${monthlyData.classes.length} classes`);
+      return;
+    }
+
+    if (summaryData) {
+      downloadCSV(`attendance-${summaryData.period}-${currentMonthStr()}`, [
+        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Unmarked"],
+        ...summaryData.classBreakdown.map((c) => [
+          c.className,
+          c.totalStudents,
+          c.present,
+          c.absent,
+          c.leave,
+          c.marked,
+          c.unmarked,
+        ]),
+      ]);
+      toast.success(`Exported ${summaryData.classBreakdown.length} classes`);
+      return;
+    }
+
+    toast.error("Nothing to export yet");
+  }
+
   function handlePrevMonth() {
     setSelectedMonth((m) => shiftMonth(m, -1));
   }
@@ -505,7 +569,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           <BrandButton
             variant="soft"
             icon={<Download className="h-4 w-4" />}
-            onClick={() => {}}
+            onClick={handleDownloadReport}
           >
             Download Report
           </BrandButton>

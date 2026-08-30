@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { assertModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { calculateWeightedGrade, calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
 export async function GET(request: NextRequest) {
-  const session = await getAuthUser();
-  if (!session || !session.campusId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Same shape, and the same gap, as grade-config/weighted-result: a classId
+  // returns every pupil's calculated grade. Staff-only, on the exams bit.
+  let session;
+  try {
+    session = await requireAuthUser();
+    await assertModuleRead(session, "exams");
+  } catch (error) {
+    return errorResponse(error, "[calculated-grades] GET failed");
+  }
+  if (!session.campusId) {
+    return NextResponse.json({ error: "No campus associated with this account" }, { status: 400 });
   }
 
   const { searchParams } = new URL(request.url);

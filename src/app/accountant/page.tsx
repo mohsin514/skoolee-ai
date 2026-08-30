@@ -26,6 +26,7 @@ import {
   type ConsoleNavItem,
 } from "@/components/operations/console-page";
 import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
+import type { FeeTab } from "@/components/fees/fee-types";
 import { FeeStructuresTab } from "@/components/fees/FeeStructuresTab";
 import { FeeInvoicesTab } from "@/components/fees/FeeInvoicesTab";
 import { FeePaymentsTab } from "@/components/fees/FeePaymentsTab";
@@ -64,6 +65,22 @@ const NAV: ConsoleNavItem<AccountantView>[] = [
   { id: "payroll", label: "Payroll", icon: Banknote, tone: "staff", group: "Staff", eyebrow: "Staff", summary: "Salaries, allowances and monthly payroll runs." },
   { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", group: "Staff", eyebrow: "Staff", summary: "Review and decide staff leave requests." },
 ];
+
+/**
+ * The fee overview's shortcuts ("Structures", "Invoices", "Payments", "Reports")
+ * speak in FeeTab, which is the vocabulary of the combined FeesPanel. This
+ * console splits those same tabs into its own top-level sections, so the two
+ * vocabularies have to be mapped. Passing a no-op instead rendered five buttons that
+ * looked live and did nothing.
+ */
+const FEE_TAB_TO_VIEW: Record<FeeTab, AccountantView> = {
+  overview: "fee-overview",
+  structures: "fee-structures",
+  invoices: "invoices",
+  payments: "payments",
+  reports: "fee-reports",
+  accounts: "accounts",
+};
 
 export default function AccountantPage() {
   const router = useRouter();
@@ -155,7 +172,7 @@ export default function AccountantPage() {
               </div>
             </div>
           ) : null}
-          {activeView === "fee-overview" ? <FeeOverviewTab campusId={data.campusId} onNavigate={() => {}} /> : null}
+          {activeView === "fee-overview" ? <FeeOverviewTab campusId={data.campusId} onNavigate={(tab) => setActiveView(FEE_TAB_TO_VIEW[tab])} /> : null}
           {activeView === "fee-structures" ? <FeeStructuresTab campusId={data.campusId} /> : null}
           {activeView === "fee-layers" ? <FeeLayersTab campusId={data.campusId} /> : null}
           {activeView === "invoices" ? <FeeInvoicesTab campusId={data.campusId} /> : null}

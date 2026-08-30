@@ -15,7 +15,9 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
+  Search,
   User,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -770,6 +772,142 @@ function StepPersonalInfo({
   );
 }
 
+// ─── Existing-guardian picker ─────────────────────────────
+
+interface ExistingParent {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  parentedStudents: {
+    id: string;
+    fullName: string;
+    rollNo: string;
+    siblingGroupId: string | null;
+    class: { name: string; section: string | null } | null;
+  }[];
+}
+
+/**
+ * Admitting a second child meant retyping the guardian from memory, and the
+ * parent portal groups siblings by guardian email — so one typo split a family
+ * into two accounts, each seeing one child. /api/students/parents was written
+ * for this and never wired to anything; this is its screen.
+ *
+ * Picking a guardian fills their contact details verbatim and links the new
+ * student to one of their existing children, so the sibling group forms itself.
+ */
+function GuardianPicker({
+  onPick,
+}: {
+  onPick: (parent: ExistingParent) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<ExistingParent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const term = search.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const controller = new AbortController();
+    // Typing a full name is eight keystrokes; without a debounce that is eight
+    // roster queries, and the last one to land wins rather than the last typed.
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/students/parents?search=${encodeURIComponent(term)}`,
+          { signal: controller.signal }
+        );
+        const json = await res.json();
+        if (json.success) {
+          setResults(json.data);
+          setOpen(true);
+        }
+      } catch {
+        // Aborted by the next keystroke, or the lookup failed. Either way the
+        // guardian fields below still work by hand, so stay quiet.
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+
+  return (
+    <div className="rounded-2xl border border-[#8127cf]/20 bg-[#fbf0fe]/50 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <UserCheck className="h-4 w-4 shrink-0 text-[#8127cf]" />
+        <p className="text-xs font-black text-[#1f1a23]">
+          Already have a guardian at this school?
+        </p>
+      </div>
+      <p className="mb-3 text-[11px] font-semibold leading-relaxed text-ink-muted">
+        Search by name, phone or email to reuse their details and link this student
+        to their brothers and sisters.
+      </p>
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Ahmed Khan, +92 300…, guardian@example.com"
+          className="pl-9"
+          aria-label="Search existing guardians"
+        />
+        {loading ? (
+          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8127cf]" />
+        ) : null}
+      </div>
+
+      {open && search.trim().length >= 2 ? (
+        <div className="mt-3 space-y-2">
+          {results.length === 0 && !loading ? (
+            <p className="px-1 text-[11px] font-bold text-ink-muted">
+              No existing guardian matches that. Fill the fields below to add a new one.
+            </p>
+          ) : null}
+          {results.map((parent) => (
+            <button
+              key={parent.id}
+              type="button"
+              onClick={() => {
+                onPick(parent);
+                setSearch("");
+                setResults([]);
+                setOpen(false);
+              }}
+              className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/30 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md"
+            >
+              <p className="truncate text-xs font-black text-[#1f1a23]">{parent.fullName}</p>
+              <p className="truncate text-[11px] font-semibold text-ink-muted">
+                {[parent.phone, parent.email].filter(Boolean).join(" · ") || "No contact details"}
+              </p>
+              {parent.parentedStudents.length > 0 ? (
+                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">
+                  {parent.parentedStudents
+                    .map((c) => `${c.fullName}${c.class ? ` (${c.class.name}${c.class.section ? ` ${c.class.section}` : ""})` : ""}`)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── Step 2: Guardian Details ─────────────────────────────
 
 function StepGuardianDetails({
@@ -782,8 +920,30 @@ function StepGuardianDetails({
   onUpdate: (field: keyof FormData, value: string) => void;
 }) {
   const noContact = !form.guardianPhone.trim() && !form.guardianEmail.trim();
+
+  /**
+   * Copy the chosen guardian across, and link the student to one of their
+   * existing children so the sibling group forms without a second step. Only
+   * fields the guardian actually has are written — an empty phone on their
+   * record must not wipe one the registrar has already typed here.
+   */
+  const applyExistingGuardian = (parent: ExistingParent) => {
+    onUpdate("guardianName", parent.fullName);
+    if (parent.phone) onUpdate("guardianPhone", parent.phone);
+    if (parent.email) onUpdate("guardianEmail", parent.email);
+    const firstChild = parent.parentedStudents[0];
+    if (firstChild) onUpdate("siblingStudentId", firstChild.id);
+    toast.success(
+      firstChild
+        ? `Guardian copied and linked as a sibling of ${firstChild.fullName}`
+        : "Guardian details copied"
+    );
+  };
+
   return (
     <div className="space-y-5">
+      <GuardianPicker onPick={applyExistingGuardian} />
+
       {/*
         Neither field is required by the API, but a student with no reachable
         guardian is a support ticket waiting to happen — so say so here rather

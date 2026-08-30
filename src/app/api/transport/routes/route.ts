@@ -8,6 +8,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseWith, readJsonBody } from "@/lib/api/validate";
+import { transportRoutePatchSchema, transportRouteSchema } from "@/lib/validators/operations";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,18 +37,16 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await req.json();
-    const { title, description, fare, campusId: rawCampusId } = body;
-    const campusId = await resolveCampusId(user, rawCampusId);
-
-    if (!title) throw new ApiError("Route name is required", 400);
+    const body = await readJsonBody(req);
+    const { title, description, fare } = parseWith(transportRouteSchema, body);
+    const campusId = await resolveCampusId(user, (body as { campusId?: unknown }).campusId);
 
     const route = await prisma.transportRoute.create({
       data: {
         campusId,
         title,
-        description: description ? String(description).trim() : null,
-        fare: typeof fare === "number" ? fare : 0,
+        description: description ?? null,
+        fare,
       },
       include: {
         _count: { select: { students: true } },
@@ -65,11 +65,12 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await req.json();
-    const { id, title, description, fare, campusId: rawCampusId, vehicleIds } = body;
-    if (!id) throw new ApiError("id is required", 400);
+    const body = await readJsonBody(req);
+    // A PATCH sends only what changed, so the create schema is relaxed to
+    // partial — the field *rules* still apply to whatever is present.
+    const { id, vehicleIds, ...patch } = parseWith(transportRoutePatchSchema, body);
 
-    const campusId = await resolveCampusId(user, rawCampusId);
+    const campusId = await resolveCampusId(user, (body as { campusId?: unknown }).campusId);
 
     const existing = await prisma.transportRoute.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Route not found", 404);
@@ -88,9 +89,9 @@ export async function PATCH(req: NextRequest) {
     const route = await prisma.transportRoute.update({
       where: { id },
       data: {
-        ...(title !== undefined ? { title } : {}),
-        ...(description !== undefined ? { description: description ? String(description).trim() : null } : {}),
-        ...(fare !== undefined ? { fare } : {}),
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.description !== undefined ? { description: patch.description ?? null } : {}),
+        ...(patch.fare !== undefined ? { fare: patch.fare } : {}),
       },
       include: {
         _count: { select: { students: true } },

@@ -14,6 +14,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A rejected request body, carrying the per-field messages.
+ *
+ * Separate from `ApiError` because the client needs the field map, not just a
+ * sentence: the dialog that submitted the form uses it to mark the offending
+ * inputs. `errorResponse` serialises it in the `{ error: { field: [msg] } }`
+ * shape the routes already emit by hand, so nothing downstream changes.
+ */
+export class ValidationError extends ApiError {
+  fieldErrors: Record<string, string[]>;
+
+  constructor(fieldErrors: Record<string, string[]>, message = "Please check the highlighted fields") {
+    super(message, 400);
+    this.fieldErrors = fieldErrors;
+  }
+}
+
 export async function requireAuthUser(options: { allowSuspended?: boolean } = {}): Promise<AuthUser> {
   const user = await getAuthUser();
   if (!user) throw new ApiError("Unauthorized", 401);
@@ -74,6 +91,15 @@ export async function requirePlatformOwner(): Promise<AuthUser> {
 }
 
 export function errorResponse(error: unknown, fallback = "Request failed") {
+  // Checked before ApiError — ValidationError extends it, and the field map is
+  // the whole point of the subclass.
+  if (error instanceof ValidationError) {
+    return Response.json(
+      { error: error.fieldErrors, message: error.message, details: error.fieldErrors },
+      { status: 400 }
+    );
+  }
+
   if (error instanceof ApiError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
