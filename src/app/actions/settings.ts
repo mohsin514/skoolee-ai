@@ -16,6 +16,11 @@ import {
   requiredText,
   safeTimezone,
 } from "@/lib/school/details";
+import { deleteFile } from "@/lib/storage/s3";
+
+function isS3LogoKey(value: string | null): value is string {
+  return !!value && value.startsWith("logos/");
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Who may edit what
@@ -164,8 +169,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
     session.role === "SUPER_ADMIN"
       ? campuses.map((c) => c.id)
       : (session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId
-      ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
-      : [];
+        ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
+        : [];
 
   return {
     canEditSchool,
@@ -237,6 +242,15 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   // or silently resetting the tenant to the schema default.
   const timezone = safeTimezone(input.timezone);
 
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  if (newLogoUrl !== undefined) {
+    const existing = await prisma.school.findUnique({ where: { id: session.schoolId }, select: { logoUrl: true } });
+    const prevLogo = existing?.logoUrl ?? null;
+    if (isS3LogoKey(prevLogo) && prevLogo !== newLogoUrl) {
+      void deleteFile(prevLogo).catch(() => { });
+    }
+  }
+
   const school = await prisma.school.update({
     where: { id: session.schoolId },
     data: {
@@ -246,7 +260,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
       address: patchText(input.address),
       phone: patchText(input.phone),
       website: patchText(input.website),
-      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
+      logoUrl: newLogoUrl,
       establishedYear:
         input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
       ...(timezone ? { timezone } : {}),
@@ -280,6 +294,15 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
     ? undefined
     : assertEmail(optionalText(input.email), "campus email address");
 
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  if (newLogoUrl !== undefined) {
+    const existing = await prisma.campus.findUnique({ where: { id: campusId }, select: { logoUrl: true } });
+    const prevLogo = existing?.logoUrl ?? null;
+    if (isS3LogoKey(prevLogo) && prevLogo !== newLogoUrl) {
+      void deleteFile(prevLogo).catch(() => { });
+    }
+  }
+
   const campus = await prisma.campus.update({
     where: { id: campusId },
     data: {
@@ -293,7 +316,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
       // A board is never left blank: clearing it falls back to the default
       // rather than leaving report cards with no affiliation printed.
       board: input.board === undefined ? undefined : optionalText(input.board) || DEFAULT_EXAM_BOARD,
-      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
+      logoUrl: newLogoUrl,
     },
   });
 

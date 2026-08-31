@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 
 interface AvatarImageProps {
   src?: string | null;
@@ -34,9 +35,10 @@ export function AvatarImage({
   initialsClassName = "text-sm",
 }: AvatarImageProps) {
   const [error, setError] = useState(false);
+  const resolved = resolveMediaUrl(src);
 
   // No usable photo — show initials rather than nothing.
-  if (error || !src) {
+  if (error || !resolved) {
     if (!name) return null;
     return (
       <span
@@ -49,13 +51,13 @@ export function AvatarImage({
   }
 
   const isExternal =
-    src.startsWith("http") &&
-    !src.includes("amazonaws.com") &&
-    !src.includes("r2.cloudflarestorage.com");
+    resolved.startsWith("http") &&
+    !resolved.includes("amazonaws.com") &&
+    !resolved.includes("r2.cloudflarestorage.com");
 
   return (
     <Image
-      src={src}
+      src={resolved}
       alt={alt}
       width={96}
       height={96}

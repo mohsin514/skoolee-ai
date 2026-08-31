@@ -2,6 +2,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
+import { resolveMediaUrlAsync } from "@/lib/storage/s3";
 
 /**
  * The two documents that leave the building (§80).
@@ -474,9 +475,9 @@ const CAMPUS_BRANDING_SELECT = {
   },
 } as const;
 
-function letterhead(campus: CampusBranding): Letterhead {
+async function letterhead(campus: CampusBranding): Promise<Letterhead> {
   const school = campus?.school ?? null;
-  const logo = campus?.logoUrl || school?.logoUrl || null;
+  const logo = await resolveMediaUrlAsync(campus?.logoUrl || school?.logoUrl || null);
   return {
     schoolName: school?.name ?? "School",
     campusName: [campus?.name, campus?.city].filter(Boolean).join(", "),
@@ -730,7 +731,7 @@ export async function buildDateSheetData(opts: {
       : "";
 
   return {
-    brand: letterhead(campus),
+    brand: await letterhead(campus),
     title: session?.title ?? first?.title ?? "Examination",
     term: session?.term ?? first?.term ?? "",
     academicYear: session?.academicYear ?? first?.academicYear ?? new Date().getFullYear(),
@@ -1076,7 +1077,7 @@ export async function buildSeatingData(opts: {
     });
 
   return {
-    brand: letterhead(campus),
+    brand: await letterhead(campus),
     title: session?.title ?? schedules[0]?.exam.title ?? "Examination",
     papers,
   };

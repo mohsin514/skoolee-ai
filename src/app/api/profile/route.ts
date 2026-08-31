@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
+import { deleteFile } from "@/lib/storage/s3";
 
 function cleanOptionalText(value: unknown) {
   if (value === null) return null;
@@ -15,10 +16,15 @@ function cleanProfileImage(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^profile-images\/\S+$/i.test(trimmed)) return trimmed;
   if (trimmed.length > 1_500_000) throw new ApiError("Profile image is too large", 413);
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);
+}
+
+function isS3Key(value: string | null): value is string {
+  return !!value && value.startsWith("profile-images/");
 }
 
 /**
@@ -104,7 +110,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { fullName: true },
+      select: { fullName: true, profileImageUrl: true },
     });
     const data: {
       fullName?: string;
@@ -124,6 +130,13 @@ export async function PATCH(req: NextRequest) {
 
     if (body.profileImageUrl !== undefined) {
       data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
+    }
+
+    if (data.profileImageUrl !== undefined) {
+      const prevImage = currentUser?.profileImageUrl ?? null;
+      if (isS3Key(prevImage) && prevImage !== data.profileImageUrl) {
+        void deleteFile(prevImage).catch(() => { });
+      }
     }
 
     const user = await prisma.user.update({

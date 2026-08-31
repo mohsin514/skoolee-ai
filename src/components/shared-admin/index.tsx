@@ -77,6 +77,7 @@ export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-confli
 export { StudentsPanel } from "@/components/shared-admin/students-panel";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { RoomsManager } from "@/components/academic/RoomsManager";
 import { csvCell, downloadCSV } from "@/lib/csv";
@@ -2607,7 +2608,7 @@ export function ClassDetailModal({
               >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <img
-                    src={student.profileImageUrl}
+                    src={resolveMediaUrl(student.profileImageUrl) ?? undefined}
                     alt=""
                     className="h-full w-full object-cover"
                   />
@@ -4969,7 +4970,7 @@ export function SectionCard({
                   <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
                     <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-[#fbf0fe] border border-white">
                       <img
-                        src={student.profileImageUrl}
+                        src={resolveMediaUrl(student.profileImageUrl) ?? undefined}
                         alt=""
                         className="h-full w-full object-cover"
                       />

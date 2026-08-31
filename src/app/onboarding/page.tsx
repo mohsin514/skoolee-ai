@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard is keyed by step *id*, not by number. A standalone school
@@ -112,6 +113,7 @@ export default function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<StepId>('identity');
   const [loading, setLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [session, setSession] = useState<{ role?: string; email?: string; phone?: string | null; school?: { name?: string; city?: string; contactEmail?: string; phone?: string | null; regId?: string; plan?: string } } | null>(null);
 
   const isStandalone = session?.role === 'ADMIN';
@@ -181,7 +183,7 @@ export default function OnboardingWizard() {
     loadSession();
   }, []);
 
-  const handleLogoFile = (file?: File) => {
+  const handleLogoFile = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please choose an image file");
@@ -192,13 +194,29 @@ export default function OnboardingWizard() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setSchoolData((prev) => ({ ...prev, logoUrl: reader.result as string }));
+    setLogoUploading(true);
+    try {
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "school-logo", fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+      });
+      const presignData = await presignRes.json();
+      if (!presignRes.ok || !presignData?.data?.key || !presignData?.data?.uploadUrl) {
+        throw new Error(presignData?.error || "Could not prepare upload");
       }
-    };
-    reader.readAsDataURL(file);
+      const { key, uploadUrl } = presignData.data;
+
+      const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error("Upload failed");
+
+      setSchoolData((prev) => ({ ...prev, logoUrl: key }));
+      toast.success("Logo uploaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const handleSchoolIdToggle = (auto: boolean) => {
@@ -492,22 +510,26 @@ export default function OnboardingWizard() {
                       <div className="space-y-6">
                         <div className="bg-white rounded-[28px] border-2 border-dashed border-[#8127cf]/25 p-6 flex items-center gap-5 hover:border-[#8127cf]/40 transition-colors">
                           <div className="w-20 h-20 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/10 shadow-sm overflow-hidden flex items-center justify-center flex-shrink-0">
-                            {schoolData.logoUrl ? (
-                              <Image src={schoolData.logoUrl} alt="Institution logo" width={80} height={80} className="w-full h-full object-cover" />
-                            ) : (
-                              <ImageIcon className="w-8 h-8 text-[#8127cf]/40" />
-                            )}
+                            {(() => {
+                              const logoSrc = resolveMediaUrl(schoolData.logoUrl);
+                              return logoSrc ? (
+                                <Image src={logoSrc} alt="Institution logo" width={80} height={80} className="w-full h-full object-cover" unoptimized />
+                              ) : (
+                                <ImageIcon className="w-8 h-8 text-[#8127cf]/40" />
+                              );
+                            })()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-black text-ink-muted uppercase tracking-normal mb-1">Institution Logo</p>
                             <p className="text-[9px] font-bold text-ink-subtle mb-3">PNG or JPG under 1.5 MB. Shown on report cards, emails and receipts.</p>
                             <div className="flex items-center gap-2">
-                              <label className="h-10 px-4 bg-[#8127cf] text-white rounded-xl font-black text-[10px] uppercase tracking-normal flex items-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
-                                <Upload className="w-4 h-4" /> Choose Logo
-                                <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} />
+                              <label className={`h-10 px-4 bg-[#8127cf] text-white rounded-xl font-black text-[10px] uppercase tracking-normal flex items-center gap-2 hover:bg-[#9c48ea] ${logoUploading ? "cursor-wait opacity-60" : "cursor-pointer"} shadow-lg shadow-[#8127cf]/20 transition-all`}>
+                                {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                {logoUploading ? "Uploading" : "Choose Logo"}
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} disabled={logoUploading} />
                               </label>
                               {schoolData.logoUrl && (
-                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-ink-muted rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer">Remove</button>
+                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} disabled={logoUploading} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-ink-muted rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-60">Remove</button>
                               )}
                             </div>
                           </div>
@@ -888,13 +910,16 @@ export default function OnboardingWizard() {
 
                   <div className="sk-rise bg-white p-6 md:p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Building className="w-32 h-32" /></div>
-                    {(schoolData.logoUrl || schoolData.tagline) && (
+                    {(resolveMediaUrl(schoolData.logoUrl) || schoolData.tagline) && (
                       <div className="flex items-center gap-4 mb-6 relative z-10">
-                        {schoolData.logoUrl && (
-                          <div className="w-14 h-14 rounded-xl overflow-hidden border border-[#cfc2d6]/10 shadow-sm flex-shrink-0 bg-[#fbf0fe]">
-                            <Image src={schoolData.logoUrl} alt="Institution logo" width={56} height={56} className="w-full h-full object-cover" />
-                          </div>
-                        )}
+                        {(() => {
+                          const logoSrc = resolveMediaUrl(schoolData.logoUrl);
+                          return logoSrc ? (
+                            <div className="w-14 h-14 rounded-xl overflow-hidden border border-[#cfc2d6]/10 shadow-sm flex-shrink-0 bg-[#fbf0fe]">
+                              <Image src={logoSrc} alt="Institution logo" width={56} height={56} className="w-full h-full object-cover" unoptimized />
+                            </div>
+                          ) : null;
+                        })()}
                         {schoolData.tagline && (
                           <p className="text-[11px] font-bold text-ink-muted italic">&ldquo;{schoolData.tagline}&rdquo;</p>
                         )}

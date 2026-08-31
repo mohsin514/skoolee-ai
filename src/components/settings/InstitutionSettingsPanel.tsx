@@ -32,6 +32,7 @@ import {
   updateSchoolDetails,
   type InstitutionSettings,
 } from "@/app/actions/settings";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
 const TIMEZONES = [
@@ -102,11 +103,14 @@ export function InstitutionSettingsPanel({
         <div className="mb-6 flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-              {data.school.logoUrl ? (
-                <Image src={data.school.logoUrl} alt="" width={56} height={56} className="h-full w-full object-cover" />
-              ) : (
-                <Building className="h-6 w-6" />
-              )}
+              {(() => {
+                const logoSrc = resolveMediaUrl(data.school.logoUrl);
+                return logoSrc ? (
+                  <Image src={logoSrc} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized />
+                ) : (
+                  <Building className="h-6 w-6" />
+                );
+              })()}
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Institution</p>
@@ -297,6 +301,7 @@ function SchoolDialog({
           inputRef={fileRef}
           onChange={(v) => set("logoUrl", v)}
           hint="Shown on report cards, emails and receipts."
+          kind="school-logo"
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -418,6 +423,8 @@ function CampusDialog({
           inputRef={fileRef}
           onChange={(v) => set("logoUrl", v)}
           hint="Used on this campus's report cards in place of the school logo."
+          kind="campus-logo"
+          campusId={form.id}
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -458,27 +465,58 @@ function CampusDialog({
 // ─────────────────────────────────────────────────────────────────
 
 function LogoPicker({
-  value, onChange, inputRef, hint,
+  value, onChange, inputRef, hint, kind, campusId,
 }: {
   value: string;
   onChange: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   hint: string;
+  kind: "school-logo" | "campus-logo";
+  campusId?: string;
 }) {
-  const handleFile = (file?: File) => {
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const displaySrc = previewUrl || resolveMediaUrl(value);
+
+  const handleFile = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return toast.error("Please choose an image file.");
     if (file.size > 1_500_000) return toast.error("Use a logo image under 1.5 MB.");
-    const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === "string") onChange(reader.result); };
-    reader.readAsDataURL(file);
+
+    setUploading(true);
+    const blobUrl = URL.createObjectURL(file);
+    setPreviewUrl(blobUrl);
+    try {
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, campusId, fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+      });
+      const presignData = await presignRes.json();
+      if (!presignRes.ok || !presignData?.data?.key || !presignData?.data?.uploadUrl) {
+        throw new Error(presignData?.error || "Could not prepare upload");
+      }
+      const { key, uploadUrl } = presignData.data;
+
+      const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error("Upload failed");
+
+      onChange(key);
+      toast.success("Logo uploaded");
+    } catch (error) {
+      URL.revokeObjectURL(blobUrl);
+      setPreviewUrl(null);
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
     <div className="flex items-center gap-5 rounded-[24px] border-2 border-dashed border-[#8127cf]/25 p-4">
       <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe]">
-        {value ? (
-          <Image src={value} alt="" width={64} height={64} className="h-full w-full object-cover" />
+        {displaySrc ? (
+          <Image src={displaySrc} alt="" width={64} height={64} className="h-full w-full object-cover" unoptimized />
         ) : (
           <ImageIcon className="h-6 w-6 text-[#8127cf]/40" />
         )}
@@ -490,15 +528,22 @@ function LogoPicker({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#8127cf] px-3.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea]"
+            disabled={uploading}
+            className="flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#8127cf] px-3.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea] disabled:cursor-wait disabled:opacity-60"
           >
-            <Upload className="h-3.5 w-3.5" /> {value ? "Replace" : "Choose"}
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {uploading ? "Uploading" : value ? "Replace" : "Choose"}
           </button>
           {value ? (
             <button
               type="button"
-              onClick={() => onChange("")}
-              className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/30 px-3.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500"
+              onClick={() => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(null);
+                onChange("");
+              }}
+              disabled={uploading}
+              className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/30 px-3.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500 disabled:opacity-60"
             >
               Remove
             </button>

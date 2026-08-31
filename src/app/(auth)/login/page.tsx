@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
   AlertCircle, CheckCircle2, Users, GraduationCap, Building2, Sparkles,
@@ -454,17 +455,23 @@ export default function LoginPage() {
                       className="sk-rise group flex w-full cursor-pointer items-center gap-4 rounded-2xl border-2 border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-4 text-left transition-all hover:border-[#8127cf]/45 hover:bg-white hover:shadow-lg hover:shadow-[#8127cf]/10 disabled:cursor-wait disabled:opacity-60"
                       style={{ animationDelay: `${i * 70}ms` }}
                     >
-                      {c.logoUrl ? (
-                        <img
-                          src={c.logoUrl}
-                          alt=""
-                          className="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-sm"
-                        />
-                      ) : (
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[15px] font-black text-white shadow-sm shadow-[#8127cf]/25">
-                          {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
-                        </span>
-                      )}
+                      {(() => {
+                        const logoSrc = resolveMediaUrl(c.logoUrl);
+                        if (logoSrc) {
+                          return (
+                            <img
+                              src={logoSrc}
+                              alt=""
+                              className="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-sm"
+                            />
+                          );
+                        }
+                        return (
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[15px] font-black text-white shadow-sm shadow-[#8127cf]/25">
+                            {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
+                          </span>
+                        );
+                      })()}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-black text-[#1f1a23]">
                           {c.schoolName}

@@ -6,6 +6,7 @@ import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight, Menu, X as XIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 
 export interface RoleNavItem {
   label: string;
@@ -65,9 +66,10 @@ function InstitutionBadge({
   className?: string;
 }) {
   const base = className ?? "h-11 w-11 shrink-0 rounded-2xl border border-[#cfc2d6]/25";
+  const resolved = resolveMediaUrl(logoUrl);
 
-  if (logoUrl) {
-    return <img src={logoUrl} alt="Institution logo" className={cn(base, "object-cover")} />;
+  if (resolved) {
+    return <img src={resolved} alt="Institution logo" className={cn(base, "object-cover")} />;
   }
 
   // No uploaded logo: a compact monogram tile. Never the wordmark — it sits

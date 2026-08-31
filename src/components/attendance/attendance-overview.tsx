@@ -19,6 +19,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { BrandButton } from "@/components/role-dashboard";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -976,13 +977,17 @@ function ClassDetailView({
                   </span>
                   <div className="col-span-3 flex items-center gap-2 min-w-0">
                     <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center shrink-0 text-[10px] font-black text-[#8127cf]">
-                      {student.profileImageUrl ? (
-                        <img
-                          src={student.profileImageUrl}
-                          alt=""
-                          className="h-full w-full rounded-xl object-cover"
-                        />
-                      ) : (
+                      {(() => {
+                        const imgSrc = resolveMediaUrl(student.profileImageUrl);
+                        return imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt=""
+                            className="h-full w-full rounded-xl object-cover"
+                          />
+                        ) : null;
+                      })()}
+                      {!resolveMediaUrl(student.profileImageUrl) && (
                         student.name
                           .split(" ")
                           .map((n) => n[0])
@@ -1049,13 +1054,17 @@ function ClassDetailView({
                 >
                   <div className="flex items-start gap-3">
                     <div className="h-9 w-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-[10px] font-black text-rose-600">
-                      {student.profileImageUrl ? (
-                        <img
-                          src={student.profileImageUrl}
-                          alt=""
-                          className="h-full w-full rounded-xl object-cover"
-                        />
-                      ) : (
+                      {(() => {
+                        const imgSrc = resolveMediaUrl(student.profileImageUrl);
+                        return imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt=""
+                            className="h-full w-full rounded-xl object-cover"
+                          />
+                        ) : null;
+                      })()}
+                      {!resolveMediaUrl(student.profileImageUrl) && (
                         student.studentName
                           .split(" ")
                           .map((n) => n[0])

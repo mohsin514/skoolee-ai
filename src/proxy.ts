@@ -63,7 +63,8 @@ export async function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.includes(".") || // Matches .css, .js, .png, .svg, etc.
-    pathname.startsWith("/api/public")
+    pathname.startsWith("/api/public") ||
+    pathname.startsWith("/api/media/logos/")
   ) {
     return NextResponse.next();
   }
@@ -150,7 +151,7 @@ export async function proxy(req: NextRequest) {
     }
 
     if (onboardingComplete && pathname.startsWith("/onboarding")) {
-       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
+      return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
     if (role === "APP_OWNER" && pathname.startsWith("/dashboard")) {

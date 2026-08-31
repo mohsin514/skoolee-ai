@@ -71,6 +71,7 @@ export function parseLogo(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^logos\/(school|campus)\/\S+$/i.test(trimmed)) return trimmed;
   if (trimmed.length > MAX_LOGO_CHARS) throw new Error("That logo image is too large — use one under 1.5 MB.");
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;

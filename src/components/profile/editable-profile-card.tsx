@@ -50,7 +50,9 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
   });
   const [loading, setLoading] = useState(!initialProfile);
   const [saving, setSaving] = useState(false);
-  const imageSrc = form.profileImageUrl || fallbackAvatar(form.fullName || profile.fullName);
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const imageSrc = previewUrl || form.profileImageUrl || fallbackAvatar(form.fullName || profile.fullName);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +79,7 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
     };
   }, [onSaved]);
 
-  const handleImageFile = (file?: File) => {
+  const handleImageFile = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please choose an image file");
@@ -88,13 +90,33 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setForm((current) => ({ ...current, profileImageUrl: reader.result as string }));
+    setUploading(true);
+    const blobUrl = URL.createObjectURL(file);
+    setPreviewUrl(blobUrl);
+    try {
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "profile", fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+      });
+      const presignData = await presignRes.json();
+      if (!presignRes.ok || !presignData?.data?.key || !presignData?.data?.uploadUrl) {
+        throw new Error(presignData?.error || "Could not prepare upload");
       }
-    };
-    reader.readAsDataURL(file);
+      const { key, uploadUrl } = presignData.data;
+
+      const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error("Upload failed");
+
+      setForm((current) => ({ ...current, profileImageUrl: key }));
+      toast.success("Image uploaded");
+    } catch (error) {
+      URL.revokeObjectURL(blobUrl);
+      setPreviewUrl(null);
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -154,10 +176,11 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-[#8127cf] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#8127cf] hover:text-white hover:shadow-lg active:scale-[0.97]"
+            disabled={uploading}
+            className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-[#8127cf] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#8127cf] hover:text-white hover:shadow-lg active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
           >
-            <Camera className="h-4 w-4" />
-            Add Image
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {uploading ? "Uploading" : "Add Image"}
           </button>
           <div className="mt-4 space-y-2">
             <ProfileChip icon={UserRound} label={profile.roleLabel || "Active account"} />
@@ -183,12 +206,14 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
             placeholder="+92..."
             onChange={(value) => setForm((current) => ({ ...current, phone: value }))}
           />
-          <ProfileInput
-            label="Image URL"
-            value={form.profileImageUrl.startsWith("data:") ? "" : form.profileImageUrl}
-            placeholder="https://example.com/photo.jpg"
-            onChange={(value) => setForm((current) => ({ ...current, profileImageUrl: value }))}
-          />
+          {form.profileImageUrl.startsWith("data:") || form.profileImageUrl.startsWith("profile-images/") ? null : (
+            <ProfileInput
+              label="Image URL"
+              value={form.profileImageUrl}
+              placeholder="https://example.com/photo.jpg"
+              onChange={(value) => setForm((current) => ({ ...current, profileImageUrl: value }))}
+            />
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ReadonlyDetail icon={ShieldCheck} label="Role" value={profile.roleLabel || "Active"} />
@@ -240,13 +265,17 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
           <div className="flex flex-wrap justify-end gap-3 pt-2">
             <BrandButton
               variant="soft"
-              onClick={() => setForm((current) => ({ ...current, profileImageUrl: "" }))}
-              disabled={saving || !form.profileImageUrl}
+              onClick={() => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(null);
+                setForm((current) => ({ ...current, profileImageUrl: "" }));
+              }}
+              disabled={saving || uploading || !form.profileImageUrl}
             >
               Remove Image
             </BrandButton>
-            <BrandButton variant="dark" icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} onClick={handleSave} disabled={saving}>
-              {saving ? "Saving" : "Save Profile"}
+            <BrandButton variant="dark" icon={saving || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} onClick={handleSave} disabled={saving || uploading}>
+              {saving ? "Saving" : uploading ? "Uploading" : "Save Profile"}
             </BrandButton>
           </div>
         </div>

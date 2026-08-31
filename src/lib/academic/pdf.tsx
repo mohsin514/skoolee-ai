@@ -2,6 +2,7 @@ import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } f
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
+import { resolveMediaUrlAsync } from "@/lib/storage/s3";
 
 type ReportPayload = Awaited<ReturnType<typeof getReportCardPdfPayload>>;
 
@@ -319,13 +320,13 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
   );
 }
 
-function ReportCardDocument({ payload }: { payload: ReportPayload }) {
+function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayload; logoUrl: string | null }) {
   const { reportCard, subjectDistribution, overall } = payload;
   const student = reportCard.student;
   const exam = reportCard.exam;
   const campus = reportCard.campus as any;
   const school = campus?.school;
-  const logo = campus?.logoUrl || school?.logoUrl || null;
+  const logo = logoUrl;
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
   const displayPercentage = overall ? overall.overallPercentage : Math.round(reportCard.percentage || 0);
   const displayGrade = overall ? overall.overallGrade : reportCard.grade || "—";
@@ -451,7 +452,8 @@ export async function renderReportCardPdfBuffer(
   reportCardId: string,
 ): Promise<{ buffer: Buffer; filename: string }> {
   const payload = await getReportCardPdfPayload(reportCardId);
-  const buffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
+  const logoUrl = await resolveMediaUrlAsync(payload.reportCard.campus?.logoUrl || payload.reportCard.campus?.school?.logoUrl || null);
+  const buffer = await renderToBuffer(<ReportCardDocument payload={payload} logoUrl={logoUrl} />);
   const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
   return {
     buffer,
@@ -465,7 +467,8 @@ export async function renderReportCardPdfBuffer(
  */
 export async function generateReportCardPdf(reportCardId: string): Promise<string | null> {
   const payload = await getReportCardPdfPayload(reportCardId);
-  const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
+  const logoUrl = await resolveMediaUrlAsync(payload.reportCard.campus?.logoUrl || payload.reportCard.campus?.school?.logoUrl || null);
+  const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} logoUrl={logoUrl} />);
   const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
   const filename = `${safeRollNo || payload.reportCard.studentId}-${payload.reportCard.id}.pdf`;
 

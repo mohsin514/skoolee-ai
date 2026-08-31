@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { parseDateOnly, parseEstablishedYear, safeTimezone } from "@/lib/school/details";
+import { parseDateOnly, parseEstablishedYear, parseLogo, safeTimezone } from "@/lib/school/details";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
@@ -25,7 +25,7 @@ export async function getOnboardingSession() {
       where: { id: String(payload.userId) },
       include: { school: true }
     });
-    
+
     return { user };
   } catch (e) {
     return { error: true };
@@ -121,7 +121,7 @@ export async function finishOnboarding(
       regId: schoolData.regId,
       phone: schoolData.phone || null,
       website: schoolData.website || null,
-      logoUrl: schoolData.logoUrl || null,
+      logoUrl: parseLogo(schoolData.logoUrl || null),
       establishedYear,
       tagline: schoolData.tagline || null,
       // Governs which calendar day an attendance mark or fee cutoff lands on.
@@ -193,10 +193,10 @@ export async function finishOnboarding(
     fullName: updatedUser.fullName,
     role: updatedUser.role,
     schoolId: updatedUser.schoolId,
-      campusId: updatedUser.campusId, // CRITICAL: Include campusId
-      schoolSlug: updatedUser.school?.slug,
-      schoolStatus: updatedUser.school?.status,
-      onboardingComplete: true,
+    campusId: updatedUser.campusId, // CRITICAL: Include campusId
+    schoolSlug: updatedUser.school?.slug,
+    schoolStatus: updatedUser.school?.status,
+    onboardingComplete: true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")

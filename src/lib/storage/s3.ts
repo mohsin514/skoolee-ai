@@ -149,3 +149,68 @@ export function chatAttachmentKey(
     .slice(0, 80);
   return `chat/${schoolId}/${conversationId}/${safe}`;
 }
+
+function safeFileName(fileName: string): string {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export function profileImageKey(
+  schoolId: string,
+  userId: string,
+  fileName: string
+): string {
+  const safe = safeFileName(fileName);
+  return `profile-images/${schoolId}/${userId}/${crypto.randomUUID()}-${safe}`;
+}
+
+export function schoolLogoKey(
+  schoolId: string,
+  fileName: string
+): string {
+  const safe = safeFileName(fileName);
+  return `logos/school/${schoolId}/${crypto.randomUUID()}-${safe}`;
+}
+
+export function campusLogoKey(
+  schoolId: string,
+  campusId: string,
+  fileName: string
+): string {
+  const safe = safeFileName(fileName);
+  return `logos/campus/${schoolId}/${campusId}/${crypto.randomUUID()}-${safe}`;
+}
+
+const S3_KEY_PREFIXES = ["profile-images/", "logos/", "student-docs/", "staff-docs/", "chat/", "reports/"];
+
+function isS3Key(value: string): boolean {
+  return S3_KEY_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+export function resolveMediaUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (isS3Key(value)) return `/api/media/${value}`;
+  return value;
+}
+
+export async function resolveMediaUrlAsync(value: string | null | undefined): Promise<string | null> {
+  if (!value) return null;
+  if (isS3Key(value)) return getDownloadUrl(value);
+  return value;
+}
+
+export async function getObjectStream(key: string): Promise<{
+  body: import("stream").Readable;
+  contentType: string | undefined;
+  contentLength: number | undefined;
+}> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  return {
+    body: res.Body as import("stream").Readable,
+    contentType: res.ContentType,
+    contentLength: res.ContentLength,
+  };
+}
