@@ -116,7 +116,7 @@ export const studentSchema = z.object({
   phone: optionalText,
   guardianName: optionalText,
   guardianNameUr: optionalText,
-  guardianPhone: optionalText,
+  guardianPhone: z.string().trim().min(1, "Guardian phone number is required"),
   guardianEmail: optionalEmail,
   guardianWhatsapp: optionalText,
   guardianRelationship: z.enum(["father", "mother", "uncle", "aunt", "sibling", "other"]).optional().nullable(),
@@ -156,6 +156,32 @@ export const studentSchema = z.object({
       message: "Roll number is required",
     });
   }
+
+  // Address is required
+  if (!data.address || !data.address.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["address"],
+      message: "Street address is required",
+    });
+  }
+
+  if (!data.city || !data.city.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["city"],
+      message: "City is required",
+    });
+  }
+
+  // Medical notes are required
+  if (!data.medicalNotes || !data.medicalNotes.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["medicalNotes"],
+      message: "Medical notes are required (enter 'None' if not applicable)",
+    });
+  }
 }).transform((data) => ({
   fullName: data.fullName || [data.firstName, data.lastName].filter(Boolean).join(" ").trim(),
   nameUr: data.nameUr || null,
@@ -167,7 +193,7 @@ export const studentSchema = z.object({
   phone: data.phone || null,
   guardianName: data.guardianName || null,
   guardianNameUr: data.guardianNameUr || null,
-  guardianPhone: data.guardianPhone || null,
+  guardianPhone: data.guardianPhone,
   guardianEmail: data.guardianEmail || null,
   guardianWhatsapp: data.guardianWhatsapp || null,
   guardianRelationship: data.guardianRelationship || null,

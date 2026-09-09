@@ -365,6 +365,9 @@ function CampusDialog({
   const blockedReason =
     !form.name.trim() ? "Enter the campus name."
     : !form.city.trim() ? "Enter the city."
+    : form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? "Enter a valid email address."
+    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length < 7 ? "Phone number is too short to be valid."
+    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length > 15 ? "Phone number is too long to be valid."
     : null;
 
   const save = async () => {

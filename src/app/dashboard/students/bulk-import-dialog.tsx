@@ -123,6 +123,7 @@ function validateRow(student: StudentRow, rowNum: number): string[] {
   if (!student.fullName.trim()) errors.push("Name is required");
   if (!student.rollNo.trim()) errors.push("Roll number is required");
   if (!student.classId) errors.push("Class ID is required");
+  if (!student.guardianPhone.trim()) errors.push("Guardian phone is required");
   if (student.guardianEmail && !isValidEmail(student.guardianEmail)) {
     errors.push("Invalid guardian email");
   }

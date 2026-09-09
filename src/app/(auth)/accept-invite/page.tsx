@@ -13,6 +13,7 @@ import {
   Lock,
   MailCheck,
   ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { acceptInvite } from "@/app/actions/invite";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export default function AcceptInvitePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   const passwordChecks = useMemo(
     () => [
@@ -85,17 +87,27 @@ export default function AcceptInvitePage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setValidationError("");
 
     if (!token) {
-      toast.error("This invitation link is missing its secure token.");
+      const errorMsg = "This invitation link is missing its secure token.";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
     if (inviteStatus !== "pending") {
-      toast.error("This invitation is no longer active.");
+      const errorMsg = "This invitation is no longer active.";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
-    if (!passwordChecks.every((item) => item.met)) {
-      toast.error("Please complete the password requirements.");
+    
+    // Check individual password requirements
+    const unmetRequirements = passwordChecks.filter(check => !check.met);
+    if (unmetRequirements.length > 0) {
+      const errorMsg = `Please complete the following: ${unmetRequirements.map(req => req.label).join(", ")}`;
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
@@ -106,7 +118,9 @@ export default function AcceptInvitePage() {
       await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not accept invitation");
+      const errorMsg = error instanceof Error ? error.message : "Could not accept invitation";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -173,6 +187,12 @@ export default function AcceptInvitePage() {
                   </div>
                 ) : null}
                 <form onSubmit={handleSubmit} className="space-y-5">
+                {validationError && (
+                  <div className="rounded-3xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Password
@@ -183,7 +203,10 @@ export default function AcceptInvitePage() {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(event) => setPassword(event.target.value)}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setValidationError("");
+                      }}
                       placeholder="Create a secure password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-12 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />
@@ -208,7 +231,10 @@ export default function AcceptInvitePage() {
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
                       value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        setValidationError("");
+                      }}
                       placeholder="Repeat password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />

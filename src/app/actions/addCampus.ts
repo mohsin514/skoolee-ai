@@ -48,6 +48,14 @@ export async function addCampus(input: AddCampusInput) {
 
   const email = optional(input.email);
   if (email && !EMAIL_PATTERN.test(email)) throw new Error("Enter a valid campus email address.");
+  
+  const phone = optional(input.phone);
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 7) throw new Error("Phone number is too short to be valid.");
+    if (digits.length > 15) throw new Error("Phone number is too long to be valid.");
+  }
+  
   const adminEmail = optional(input.adminEmail);
   if (adminEmail && !EMAIL_PATTERN.test(adminEmail)) throw new Error("Enter a valid campus admin email address.");
 

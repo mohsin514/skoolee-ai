@@ -2,6 +2,23 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
 
+const DEFAULT_FROM_EMAIL = "noreply@skoolee.ai";
+
+function getFromEmail() {
+  return (
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.EMAIL_FROM_ADDRESS ||
+    process.env.SMTP_USER ||
+    DEFAULT_FROM_EMAIL
+  );
+}
+
+function getEmailDomain() {
+  const fromEmail = getFromEmail();
+  const domain = fromEmail.split('@')[1];
+  return domain || 'skoolee.ai';
+}
+
 export interface SmtpConfig {
   host: string;
   port: number;
@@ -173,8 +190,15 @@ function plainTextFromHtml(html: string) {
     .trim();
 }
 
+function getEmailDomain() {
+  const fromEmail = getFromEmail();
+  const domain = fromEmail.split('@')[1];
+  return domain || 'skoolee.ai';
+}
+
 function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
-  const messageId = `<${randomUUID()}@skoolee-ai.local>`;
+  const emailDomain = getEmailDomain();
+  const messageId = `<${randomUUID()}@${emailDomain}>`;
   const boundary = `skoolee_${randomUUID().replace(/-/g, "")}`;
   const text = input.text?.trim() || plainTextFromHtml(input.html);
   const headers = [
@@ -186,6 +210,14 @@ function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
     `Message-ID: ${messageId}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "X-Mailer: Skoolee AI v1.0",
+    "X-Priority: 3",
+    "Importance: normal",
+    // Help prevent spam filtering by marking as transactional
+    "Precedence: bulk",
+    "Auto-Submitted: auto-generated",
+    // List-Unsubscribe improves deliverability for bulk senders
+    "List-Unsubscribe: <mailto:support@skoolee.ai>",
   ].filter(Boolean);
 
   const body = [
@@ -210,6 +242,10 @@ function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
 }
 
 async function connect(config: SmtpConfig) {
+  // Use the from email domain for EHLO to improve deliverability
+  const fromEmail = config.user || 'noreply@skoolee.ai';
+  const domain = fromEmail.split('@')[1] || 'skoolee.ai';
+  
   let socket: net.Socket | tls.TLSSocket;
   if (config.secure) {
     socket = tls.connect({
@@ -231,7 +267,7 @@ async function connect(config: SmtpConfig) {
     throw new Error(`SMTP greeting failed (${greeting.code}): ${greeting.message}`);
   }
 
-  await command(socket, "EHLO skoolee-ai.local", [250]);
+  await command(socket, `EHLO ${domain}`, [250]);
 
   if (!config.secure && config.startTls) {
     await command(socket, "STARTTLS", [220]);
@@ -241,7 +277,7 @@ async function connect(config: SmtpConfig) {
       rejectUnauthorized: config.rejectUnauthorized,
     });
     await onceSocketEvent(socket, "secureConnect");
-    await command(socket, "EHLO skoolee-ai.local", [250]);
+    await command(socket, `EHLO ${domain}`, [250]);
   }
 
   if (config.user && config.pass) {

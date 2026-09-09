@@ -31,6 +31,15 @@ export function assertEmail(value: string | null, field: string) {
   return value;
 }
 
+export function assertPhone(value: string | null, field: string) {
+  if (value) {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 7) throw new Error(`${field} is too short to be valid.`);
+    if (digits.length > 15) throw new Error(`${field} is too long to be valid.`);
+  }
+  return value;
+}
+
 /**
  * A real IANA zone, or null when the value is unusable.
  *

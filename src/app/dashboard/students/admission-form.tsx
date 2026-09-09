@@ -422,6 +422,10 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     }
 
     if (stepIndex === 1) {
+      // Guardian phone is mandatory
+      if (!form.guardianPhone.trim()) {
+        newErrors.guardianPhone = "Guardian phone number is required";
+      }
       if (form.guardianEmail && !isValidEmail(form.guardianEmail)) {
         newErrors.guardianEmail = "Enter a valid email address";
       }
@@ -431,6 +435,20 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
         form.studentEmail.toLowerCase() === form.guardianEmail.toLowerCase()
       ) {
         newErrors.guardianEmail = "Must be different from student email";
+      }
+    }
+
+    if (stepIndex === 2) {
+      // Address information is mandatory
+      if (!form.address.trim()) {
+        newErrors.address = "Street address is required";
+      }
+      if (!form.city.trim()) {
+        newErrors.city = "City is required";
+      }
+      // Medical information is mandatory
+      if (!form.medicalNotes.trim()) {
+        newErrors.medicalNotes = "Medical notes are required (enter 'None' if not applicable)";
       }
     }
 
@@ -447,7 +465,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const handleSubmit = async () => {
-    if (!validateStep(0) || !validateStep(1)) {
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) {
       toast.error("Please fix errors in the form before submitting");
       return;
     }
@@ -944,21 +962,6 @@ function StepGuardianDetails({
     <div className="space-y-5">
       <GuardianPicker onPick={applyExistingGuardian} />
 
-      {/*
-        Neither field is required by the API, but a student with no reachable
-        guardian is a support ticket waiting to happen — so say so here rather
-        than letting the directory flag it weeks later.
-      */}
-      {noContact ? (
-        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <Users className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs font-semibold text-amber-800">
-            No guardian phone or email yet. You can finish the admission without one, but the school will have
-            no way to contact this student&apos;s family and no parent portal invite can be sent.
-          </p>
-        </div>
-      ) : null}
-
       <FormSection icon={Users} title="Guardian" hint="The primary contact for this student.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Guardian Full Name (English)">
@@ -1004,7 +1007,7 @@ function StepGuardianDetails({
 
       <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Guardian Phone (WhatsApp)">
+        <FieldGroup label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
           <Input
             value={form.guardianPhone}
             onChange={(e) => onUpdate("guardianPhone", e.target.value)}
@@ -1046,9 +1049,9 @@ function StepAddressMedical({
 }) {
   return (
     <div className="space-y-5">
-      <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records.">
+      <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records. This information is required.">
         <>
-          <FieldGroup label="Street Address">
+          <FieldGroup label="Street Address *" error={errors.address}>
             <Input
               value={form.address}
               onChange={(e) => onUpdate("address", e.target.value)}
@@ -1056,7 +1059,7 @@ function StepAddressMedical({
             />
           </FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FieldGroup label="City">
+            <FieldGroup label="City *" error={errors.city}>
               <Input
                 value={form.city}
                 onChange={(e) => onUpdate("city", e.target.value)}
@@ -1090,14 +1093,14 @@ function StepAddressMedical({
       <FormSection
         icon={Heart}
         title="Medical Information"
-        hint="Anything staff must know in an emergency. Visible to teachers and the school office."
+        hint="Anything staff must know in an emergency. Visible to teachers and the school office. This information is required."
       >
         <>
-          <FieldGroup label="Medical Notes">
+          <FieldGroup label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
             <Textarea
               value={form.medicalNotes}
               onChange={(e) => onUpdate("medicalNotes", e.target.value)}
-              placeholder="Any medical conditions or notes..."
+              placeholder="Any medical conditions, health notes, or write 'None' if not applicable..."
               rows={2}
             />
           </FieldGroup>
@@ -1246,17 +1249,19 @@ function StepReview({
             value={[form.address, form.city, form.province, form.postalCode]
               .filter(Boolean)
               .join(", ")}
+            required={!!(form.address && form.city)}
           />
         ) : (
-          <p className="text-sm text-ink-subtle">No address provided</p>
+          <p className="text-sm text-rose-500 font-semibold">⚠️ Address is required - please go back and fill it in</p>
+        )}
+        {form.medicalNotes ? (
+          <ReviewRow label="Medical Notes" value={form.medicalNotes} required />
+        ) : (
+          <p className="text-sm text-rose-500 font-semibold">⚠️ Medical notes are required - please go back and fill them in</p>
         )}
         {form.allergies && <ReviewRow label="Allergies" value={form.allergies} />}
-        {form.medicalNotes && <ReviewRow label="Medical Notes" value={form.medicalNotes} />}
         {form.specialNeeds && <ReviewRow label="Special Needs" value={form.specialNeeds} />}
         {form.medications && <ReviewRow label="Medications" value={form.medications} />}
-        {!form.allergies && !form.medicalNotes && !form.specialNeeds && !form.medications && !form.address && !form.city && (
-          <p className="text-sm text-ink-subtle">No medical information provided</p>
-        )}
       </ReviewSection>
     </div>
   );

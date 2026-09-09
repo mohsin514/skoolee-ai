@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { parseDateOnly, parseEstablishedYear, safeTimezone } from "@/lib/school/details";
+import { assertEmail, assertPhone, parseDateOnly, parseEstablishedYear, safeTimezone } from "@/lib/school/details";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 
@@ -133,14 +133,21 @@ export async function finishOnboarding(
   // 2. Create All Campuses
   let primaryCampusId = null;
   for (const c of campuses) {
+    // Validate campus email and phone
+    const campusEmail = c.email?.trim() || null;
+    assertEmail(campusEmail, "Campus email");
+    
+    const campusPhone = c.phone?.trim() || null;
+    assertPhone(campusPhone, "Campus phone number");
+    
     const campus = await prisma.campus.create({
       data: {
         schoolId: schoolId,
         name: c.name,
         city: c.city,
         address: c.address,
-        phone: c.phone,
-        email: c.email || null,
+        phone: campusPhone,
+        email: campusEmail,
         website: c.website || null,
         principalName: c.principalName || null,
         regId: c.regId,

@@ -10,6 +10,7 @@ import { enterTenantContext } from "@/lib/db/tenant-context";
 import { DEFAULT_EXAM_BOARD } from "@/config/boards";
 import {
   assertEmail,
+  assertPhone,
   optionalText,
   parseEstablishedYear,
   parseLogo,
@@ -279,6 +280,9 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
   const email = input.email === undefined
     ? undefined
     : assertEmail(optionalText(input.email), "campus email address");
+  const phone = input.phone === undefined
+    ? undefined
+    : assertPhone(optionalText(input.phone), "Phone number");
 
   const campus = await prisma.campus.update({
     where: { id: campusId },
@@ -286,7 +290,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
       name,
       city,
       address: patchText(input.address),
-      phone: patchText(input.phone),
+      phone,
       email,
       website: patchText(input.website),
       principalName: patchText(input.principalName),

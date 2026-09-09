@@ -10,7 +10,7 @@ import {
   Shield, Hash,
   Trash2, LucideIcon, LogOut, Phone, School, Users,
   Globe, Mail, Upload, ImageIcon, CalendarDays, Tag, UserRound,
-  CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw,
+  CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw, Pencil,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -26,6 +26,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard is keyed by step *id*, not by number. A standalone school
@@ -51,6 +59,7 @@ interface InputFieldProps {
   required?: boolean;
   readonly?: boolean;
   type?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'search' | 'none' | 'decimal';
 }
 
 interface SummaryItemProps {
@@ -152,6 +161,9 @@ export default function OnboardingWizard() {
   const [campuses, setCampuses] = useState<CampusDraft[]>([]);
   const [newCampus, setNewCampus] = useState<Omit<CampusDraft, 'id'>>(emptyCampus);
 
+  const [editingCampusId, setEditingCampusId] = useState<string | null>(null);
+  const [campusToDelete, setCampusToDelete] = useState<CampusDraft | null>(null);
+
   useEffect(() => {
     const loadSession = async () => {
       const res = await getOnboardingSession();
@@ -180,6 +192,18 @@ export default function OnboardingWizard() {
 
     loadSession();
   }, []);
+
+  // When navigating back to identity step in standalone mode, restore campus settings
+  useEffect(() => {
+    if (isStandalone && step === 'identity' && campuses.length > 0) {
+      const existingCampus = campuses[0];
+      setNewCampus(prev => ({
+        ...prev,
+        regId: existingCampus.regId,
+        autoId: existingCampus.autoId,
+      }));
+    }
+  }, [step, isStandalone, campuses]);
 
   const handleLogoFile = (file?: File) => {
     if (!file) return;
@@ -252,24 +276,90 @@ export default function OnboardingWizard() {
       toast.error("Please fill in Campus Name, City, and Campus ID.");
       return;
     }
-    if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase())) {
+    
+    // Validate email format if provided
+    if (newCampus.email && newCampus.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampus.email.trim())) {
+        toast.error("Please enter a valid email address.");
+        return;
+      }
+    }
+    
+    // Validate phone number format if provided
+    if (newCampus.phone && newCampus.phone.trim()) {
+      // Remove all non-digit characters to count actual digits
+      const digits = newCampus.phone.replace(/\D/g, '');
+      if (digits.length < 7) {
+        toast.error("Phone number is too short to be valid.");
+        return;
+      }
+      if (digits.length > 15) {
+        toast.error("Phone number is too long to be valid.");
+        return;
+      }
+    }
+    
+    // Check for duplicate Campus ID (exclude the campus being edited)
+    if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase() && c.id !== editingCampusId)) {
       toast.error("That Campus ID is already used by another campus.");
       return;
     }
-    try {
-      const plan = session?.school?.plan;
-      const maxCampuses = getPlanLimits(plan).maxCampuses;
-      if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
-        const planName = getPlanLimits(plan).name || 'your plan';
-        toast.error(`${planName} allows ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Upgrade to add more.`);
-        return;
+    
+    if (editingCampusId) {
+      // Update existing campus
+      setCampuses(campuses.map(c => c.id === editingCampusId ? { ...newCampus, id: editingCampusId } : c));
+      setEditingCampusId(null);
+      setNewCampus(emptyCampus());
+      toast.success(`${newCampus.name} updated.`);
+    } else {
+      // Add new campus
+      try {
+        const plan = session?.school?.plan;
+        const maxCampuses = getPlanLimits(plan).maxCampuses;
+        if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
+          const planName = getPlanLimits(plan).name || 'your plan';
+          toast.error(`Your ${planName} package is limited to ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Please upgrade to an applicable package to add multiple campuses.`);
+          return;
+        }
+      } catch {
+        // let server validate
       }
-    } catch {
-      // let server validate
+      setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
+      setNewCampus(emptyCampus());
+      toast.success(`${newCampus.name} added.`);
     }
-    setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
+  };
+
+  const editCampus = (campus: CampusDraft) => {
+    setNewCampus({
+      name: campus.name,
+      city: campus.city,
+      address: campus.address,
+      phone: campus.phone,
+      email: campus.email,
+      website: campus.website,
+      principalName: campus.principalName,
+      regId: campus.regId,
+      autoId: campus.autoId,
+      board: campus.board,
+    });
+    setEditingCampusId(campus.id);
+    // Scroll to the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingCampusId(null);
     setNewCampus(emptyCampus());
-    toast.success(`${newCampus.name} added.`);
+  };
+
+  const confirmDeleteCampus = () => {
+    if (campusToDelete) {
+      setCampuses(campuses.filter(x => x.id !== campusToDelete.id));
+      toast.success(`${campusToDelete.name} deleted.`);
+      setCampusToDelete(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -290,12 +380,17 @@ export default function OnboardingWizard() {
       toast.error("School name and city are required.");
       return;
     }
-    if (isStandalone && !newCampus.regId) {
-      toast.error("Campus ID is required.");
-      return;
-    }
 
     if (isStandalone) {
+      // Validate Campus ID is provided
+      const campusRegId = campuses.length > 0 ? campuses[0].regId : (newCampus.regId || schoolData.regId);
+      const campusAutoId = campuses.length > 0 ? campuses[0].autoId : (newCampus.autoId);
+      
+      if (!campusRegId) {
+        toast.error("Campus ID is required.");
+        return;
+      }
+
       // A single-campus school still needs a Campus row: every class, student
       // and timetable hangs off one, so it is created from the school's own
       // details rather than asked for twice.
@@ -308,8 +403,8 @@ export default function OnboardingWizard() {
         email: schoolData.email,
         website: schoolData.website,
         principalName: '',
-        regId: newCampus.regId,
-        autoId: newCampus.autoId,
+        regId: campusRegId,
+        autoId: campusAutoId,
         board: DEFAULT_EXAM_BOARD,
       }]);
     }
@@ -520,10 +615,32 @@ export default function OnboardingWizard() {
                       </div>
 
                       <div className="space-y-6">
-                        <InputField label="Contact Email" value={schoolData.email} onChange={(v: string) => setSchoolData({ ...schoolData, email: v })} placeholder="e.g. info@school.edu.pk" icon={Mail} readonly />
                         <div className="grid grid-cols-2 gap-5">
-                          <InputField label="Phone Number" value={schoolData.phone} onChange={(v: string) => setSchoolData({ ...schoolData, phone: v })} placeholder="+92 300 0000000" icon={Phone} />
-                          <InputField label="Est. Year" value={schoolData.establishedYear} onChange={(v: string) => setSchoolData({ ...schoolData, establishedYear: v.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="e.g. 1998" icon={CalendarDays} />
+                          <InputField 
+                            label="Phone Number" 
+                            value={schoolData.phone} 
+                            onChange={(v: string) => {
+                              // Basic phone validation: allow digits, spaces, +, -, and parentheses
+                              const cleaned = v.replace(/[^\d\s+\-()]/g, '');
+                              setSchoolData({ ...schoolData, phone: cleaned });
+                            }} 
+                            placeholder="+92 300 0000000" 
+                            icon={Phone}
+                            type="tel"
+                          />
+                          <InputField 
+                            label="Est. Year" 
+                            value={schoolData.establishedYear} 
+                            onChange={(v: string) => {
+                              // Allow year input and validation
+                              const year = v.replace(/[^\d]/g, '').slice(0, 4);
+                              setSchoolData({ ...schoolData, establishedYear: year });
+                            }} 
+                            placeholder="e.g. 1998" 
+                            icon={CalendarDays}
+                            type="number"
+                            inputMode="numeric"
+                          />
                         </div>
                         <InputField label="Website" value={schoolData.website} onChange={(v: string) => setSchoolData({ ...schoolData, website: v })} placeholder="e.g. www.school.edu.pk (optional)" icon={Globe} />
                         <div className="bg-[#fbf0fe] p-6 md:p-8 rounded-[32px] border border-[#cfc2d6]/20">
@@ -572,8 +689,12 @@ export default function OnboardingWizard() {
                           <Building className="w-6 h-6" />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Add Your Campuses</h2>
-                          <p className="text-xs font-semibold text-ink-muted mt-0.5">Add each branch or campus of your school group.</p>
+                          <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">
+                            {editingCampusId ? "Edit Campus" : "Add Your Campuses"}
+                          </h2>
+                          <p className="text-xs font-semibold text-ink-muted mt-0.5">
+                            {editingCampusId ? "Update the campus details below." : "Add each branch or campus of your school group."}
+                          </p>
                         </div>
                       </div>
                       <div className="space-y-5">
@@ -633,9 +754,24 @@ export default function OnboardingWizard() {
                               className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center focus:ring-2 focus:ring-[#8127cf]/10 transition-all text-sm"
                             />
                           </div>
-                          <button onClick={addCampus} className="h-12 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
-                            <Plus className="w-4 h-4" /> Add Campus
-                          </button>
+                          <div className="flex gap-2">
+                            {editingCampusId && (
+                              <button onClick={cancelEdit} className="h-12 px-4 bg-gray-100 text-gray-600 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-gray-200 cursor-pointer transition-all">
+                                Cancel
+                              </button>
+                            )}
+                            <button onClick={addCampus} className="h-12 flex-1 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
+                              {editingCampusId ? (
+                                <>
+                                  <CheckCircle2 className="w-4 h-4" /> Update Campus
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4" /> Add Campus
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -661,20 +797,48 @@ export default function OnboardingWizard() {
 
                       <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                         {campuses.map((c, i) => (
-                          <div key={c.id} className="p-4 bg-[#fbf0fe]/50 rounded-[20px] border border-transparent flex items-center justify-between group hover:bg-white hover:border-[#8127cf]/10 transition-all shadow-sm">
+                          <div 
+                            key={c.id} 
+                            className={`p-4 rounded-[20px] border flex items-center justify-between group transition-all shadow-sm ${
+                              editingCampusId === c.id 
+                                ? 'bg-[#8127cf]/10 border-[#8127cf]/30' 
+                                : 'bg-[#fbf0fe]/50 border-transparent hover:bg-white hover:border-[#8127cf]/10'
+                            }`}
+                          >
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#8127cf] font-black text-[10px] shadow-sm">{i + 1}</div>
                               <div>
-                                <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">{c.name}</p>
+                                <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">
+                                  {c.name}
+                                  {editingCampusId === c.id && (
+                                    <span className="ml-2 text-[8px] font-black text-[#8127cf] uppercase tracking-wider bg-[#8127cf]/10 px-2 py-0.5 rounded">
+                                      Editing
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
                                 {(c.phone || c.email || c.principalName) && (
                                   <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
                                 )}
                               </div>
                             </div>
-                            <button onClick={() => setCampuses(campuses.filter(x => x.id !== c.id))} className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => editCampus(c)} 
+                                className="text-[#8127cf] p-2 hover:bg-[#fbf0fe] rounded-lg cursor-pointer transition-colors"
+                                title="Edit campus"
+                                disabled={editingCampusId === c.id}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => setCampusToDelete(c)} 
+                                className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                title="Delete campus"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                         {campuses.length === 0 && (
@@ -977,6 +1141,32 @@ export default function OnboardingWizard() {
         </div>
       </main>
 
+      {/* ═══ DELETE CONFIRMATION DIALOG ═══ */}
+      <Dialog open={!!campusToDelete} onOpenChange={(open) => !open && setCampusToDelete(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Delete Campus?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{campusToDelete?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              onClick={() => setCampusToDelete(null)}
+              className="h-12 px-6 rounded-xl border border-[#cfc2d6]/30 font-bold text-sm text-ink-muted hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteCampus}
+              className="h-12 px-6 bg-rose-500 text-white rounded-xl font-bold text-sm hover:bg-rose-600 cursor-pointer shadow-lg shadow-rose-500/20 transition-all"
+            >
+              Delete Campus
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
@@ -1008,7 +1198,7 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text" }: InputFieldProps) {
+function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
@@ -1030,6 +1220,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             readOnly={readonly}
+            inputMode={inputMode}
             className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}

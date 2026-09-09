@@ -108,13 +108,13 @@ export default function SuperAdminDashboard() {
     website: "",
     principalName: "",
     board: DEFAULT_EXAM_BOARD as string,
-    regId: "",
+    regId: generateRegId(),
     autoId: true,
     adminEmail: "",
   });
   const emptyCampusForm = {
     name: "", city: "", address: "", phone: "", email: "", website: "",
-    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: "", autoId: true, adminEmail: "",
+    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: generateRegId(), autoId: true, adminEmail: "",
   };
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
@@ -218,6 +218,35 @@ export default function SuperAdminDashboard() {
     if (!newCampusData.name.trim() || !newCampusData.city.trim()) {
       return toast.error("Campus name and city are required.");
     }
+    
+    // Validate email format if provided
+    if (newCampusData.email && newCampusData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampusData.email.trim())) {
+        return toast.error("Please enter a valid email address.");
+      }
+    }
+    
+    // Validate phone number format if provided
+    if (newCampusData.phone && newCampusData.phone.trim()) {
+      // Remove all non-digit characters to count actual digits
+      const digits = newCampusData.phone.replace(/\D/g, '');
+      if (digits.length < 7) {
+        return toast.error("Phone number is too short to be valid.");
+      }
+      if (digits.length > 15) {
+        return toast.error("Phone number is too long to be valid.");
+      }
+    }
+    
+    // Validate admin email format if provided
+    if (newCampusData.adminEmail && newCampusData.adminEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampusData.adminEmail.trim())) {
+        return toast.error("Please enter a valid admin email address.");
+      }
+    }
+    
     setAddingCampus(true);
     try {
       await addCampus({
@@ -238,7 +267,7 @@ export default function SuperAdminDashboard() {
           : `${newCampusData.name.trim()} created.`
       );
       setShowAddCampusModal(false);
-      setNewCampusData({ ...emptyCampusForm });
+      setNewCampusData({ ...emptyCampusForm, regId: generateRegId() });
       await refetch();
     } catch (error: any) {
       toast.error(error.message);
@@ -763,7 +792,7 @@ const bottomItems: RoleNavItem[] = [];
                     setNewCampusData({
                       ...newCampusData,
                       autoId: !newCampusData.autoId,
-                      regId: !newCampusData.autoId ? generateRegId() : ""
+                      regId: !newCampusData.autoId ? "" : generateRegId()
                     })
                   }
                   className="text-[9px] font-black uppercase tracking-normal px-3 py-1 rounded-lg bg-white text-[#8127cf] border border-[#8127cf]/20"

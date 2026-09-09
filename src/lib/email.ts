@@ -178,12 +178,31 @@ export async function sendInviteEmail(email: string, role: string, campusName: s
     const inviteBaseUrl = normalizeBaseUrl(baseUrl);
     const actionUrl = `${inviteBaseUrl}/accept-invite?token=${encodeURIComponent(token)}`;
     const html = await renderTemplate(InviteEmail({ role: roleName, campusName, actionUrl, logoUrl: getLogoUrl(inviteBaseUrl) }));
+    
+    // Customize messaging based on role
+    const isParent = role === "PARENT";
+    
+    // Use the campus name in the from name to make it more legitimate and recognizable
+    const fromName = isParent 
+      ? `${campusName}` 
+      : `${campusName} via Skoolee AI`;
+    
+    // Make subject line more specific and less spammy
+    const subject = isParent
+      ? `Parent Portal Access for ${campusName}`
+      : `You've been invited to ${campusName}`;
+    
+    // Enhance text version for better spam score
+    const textContent = isParent
+      ? `Welcome to ${campusName} Parent Portal\n\nYou have been invited to access the parent portal for ${campusName}.\n\nThe parent portal allows you to:\n- View your child's attendance and academic progress\n- Check exam results and report cards\n- Monitor fee payments and invoices\n- Receive important school notifications\n\nActivate your account: ${actionUrl}\n\nThis activation link will expire in 48 hours.\n\nFor security, please do not share this link with anyone.\n\n---\n${campusName}\nPowered by Skoolee AI Campus Management System`
+      : `You have been invited to join ${campusName} as ${roleName}. Accept your invitation: ${actionUrl}`;
+    
     const result = await deliverEmail({
       to: email,
-      subject: `You've been invited to ${campusName}`,
+      subject,
       html,
-      text: `You have been invited to join ${campusName} as ${roleName}. Accept your invitation: ${actionUrl}`,
-      fromName: "Campus Admin",
+      text: textContent,
+      fromName,
     });
 
     if (!result.success) {

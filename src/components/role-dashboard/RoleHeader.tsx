@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Modal } from "@/components/ui/modal";
 import { useEffect, useRef, useState } from "react";
@@ -84,6 +85,7 @@ export function RoleHeader({
   compact = false,
   actions,
 }: RoleHeaderProps) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
@@ -192,6 +194,21 @@ export function RoleHeader({
     window.location.href = "/login";
   };
 
+  const handleNotificationClick = (notification: AppNotification) => {
+    // Mark as read
+    if (!notification.isRead) {
+      markAsRead([notification.id]);
+    }
+    
+    // Close the dropdown
+    setNotifOpen(false);
+    
+    // Navigate to the link if available
+    if (notification.link) {
+      router.push(notification.link);
+    }
+  };
+
   return (
     <>
       <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
@@ -250,11 +267,12 @@ export function RoleHeader({
                   liveNotifications.map((n) => {
                     const Icon = resolveNotifIcon(n.icon);
                     return (
-                      <div
+                      <button
                         key={n.id}
-                        onClick={() => { if (!n.isRead) markAsRead([n.id]); }}
+                        type="button"
+                        onClick={() => handleNotificationClick(n)}
                         className={cn(
-                          "flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60",
+                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-left",
                           !n.isRead && "bg-[#fbf0fe]/30"
                         )}
                       >
@@ -272,7 +290,7 @@ export function RoleHeader({
                           <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
                           <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt)}</p>
                         </div>
-                      </div>
+                      </button>
                     );
                   })
                 )}
