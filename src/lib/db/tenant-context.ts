@@ -94,13 +94,21 @@ export function enterTenantContext(context: TenantContext) {
  *
  * Returns null outside a request (background jobs, build-time prerender), where
  * the caller is expected to have bound context itself.
+ *
+ * Intentionally does NOT check whether the session has been revoked. This
+ * answers "whose data is this request about", which is a routing question, not
+ * "is this request allowed", which is an authorisation question — getAuthUser()
+ * and requireAuthUser() own that. Adding the check here would also be circular:
+ * the revocation lookup is itself a Prisma query, and this function is what the
+ * Prisma guard calls to scope one.
  */
 export async function resolveTenantFromRequest(): Promise<TenantContext | null> {
   try {
     // Imported lazily so non-Next runtimes (BullMQ workers, scripts) never
     // pull in next/headers.
     const { cookies } = await import("next/headers");
-    const token = (await cookies()).get("skoolee_token")?.value;
+    const { SESSION_COOKIE_NAME } = await import("@/lib/auth/session-cookie");
+    const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
 
     const { jwtVerify } = await import("jose");

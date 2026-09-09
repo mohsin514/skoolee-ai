@@ -46,7 +46,6 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PlatformOverview } from "@/components/insights";
 import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
@@ -248,7 +247,6 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function OwnerDashboard() {
-  const router = useRouter();
   const [activeView, setActiveView] = useState<OwnerView>("schools");
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -268,11 +266,10 @@ export default function OwnerDashboard() {
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools", onClick: () => setActiveView("schools") },
     { icon: Users, label: "Users", active: activeView === "users", onClick: () => setActiveView("users") },

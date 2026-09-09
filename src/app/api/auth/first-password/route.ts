@@ -9,17 +9,28 @@
 // mustChangePassword is still true. Once cleared, it is a no-op.
 // ─────────────────────────────────────────────────────────────────
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { rotateLoginSession } from "@/lib/audit";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_DAYS,
+  sessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 export async function PUT(req: NextRequest) {
   try {
     const auth = await getAuthUser();
     if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Captured before the new token is minted below, so the row belonging to
+    // the token being replaced can be closed rather than orphaned.
+    const previousToken = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
 
     const { newPassword } = await req.json();
     if (typeof newPassword !== "string" || newPassword.length < 8) {
@@ -90,19 +101,27 @@ export async function PUT(req: NextRequest) {
       .setExpirationTime("7d")
       .sign(JWT_SECRET);
 
+    // Close the replaced session and record the new one, so the session stays
+    // revocable across the re-mint and the active-session lists stay honest.
+    await rotateLoginSession({
+      previousToken,
+      token,
+      userId: user.id,
+      schoolId: user.schoolId,
+      expiresAt: new Date(Date.now() + SESSION_DAYS.default * 24 * 60 * 60 * 1000),
+    });
+
     const res = NextResponse.json({
       success: true,
       role: user.role,
       onboardingComplete: user.onboardingComplete,
     });
 
-    res.cookies.set("skoolee_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
+    res.cookies.set(
+      SESSION_COOKIE_NAME,
+      token,
+      sessionCookieAttributes(SESSION_DAYS.default)
+    );
 
     return res;
   } catch (error) {

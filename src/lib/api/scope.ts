@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { isCurrentSessionRevoked } from "@/lib/auth/session-revocation";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
@@ -33,7 +34,19 @@ export class ValidationError extends ApiError {
 
 export async function requireAuthUser(options: { allowSuspended?: boolean } = {}): Promise<AuthUser> {
   const user = await getAuthUser();
-  if (!user) throw new ApiError("Unauthorized", 401);
+
+  if (!user) {
+    // getAuthUser() returns null for a revoked session as well as for no
+    // session at all, and the difference is worth telling the client. A bare
+    // "Unauthorized" leaves a signed-out tab showing failed panels; this
+    // message is the one signOutInvalidSession() already recovers from, so the
+    // tab tears its cookie down and returns to /login on its own. Shares the
+    // per-request memo with the check above, so it costs no extra query.
+    if (await isCurrentSessionRevoked()) {
+      throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
+    }
+    throw new ApiError("Unauthorized", 401);
+  }
   if (!options.allowSuspended) {
     try {
       await assertSchoolOperational(user.schoolId);

@@ -31,7 +31,6 @@ import {
   type LucideIcon,
   Network,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
@@ -93,7 +92,6 @@ const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36)
 
 type SuperView = "schools" | "billing" | "fees" | "settings";
 export default function SuperAdminDashboard() {
-  const router = useRouter();
   const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
@@ -155,11 +153,10 @@ export default function SuperAdminDashboard() {
     }
   }, []);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   const syncSuperUrl = (view: SuperView) => {
     const query =
       view === "billing" ? "?view=billing"

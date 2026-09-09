@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
@@ -9,15 +8,17 @@ import { useTeacherData } from "./teacher-data-context";
 import { TEACHER_NAV } from "@/components/teacher/teacher-page";
 import { TeacherCommandPalette } from "@/components/teacher/command-palette";
 
+// Sign-out lives in RoleHeader, which this shell renders via RoleShell. A
+// handleLogout() used to be declared here too, doing the same fetch and then a
+// router.push("/login") — but it was never wired to anything: RoleShell takes no
+// onLogout prop, so nothing could ever call it. Removed rather than corrected,
+// because the soft navigation it used was also wrong (router.push keeps the
+// router cache, so Back could re-render this console after sign-out) and
+// wiring it would have meant two sign-out implementations again. One button,
+// in RoleHeader, doing a full-document navigation.
 export function TeacherShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const { data } = useTeacherData();
   const teacherName = data?.teacherName || "Teacher";
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
 
   // Built from the same list the in-page subnav uses, so the two can never
   // drift apart. Messaging is not a teacher "screen", so it is appended.

@@ -37,7 +37,6 @@ import {
   Wrench,
   Network,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage } from "@/lib/errors";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
@@ -228,7 +227,6 @@ function RestrictedView({ onBack }: { onBack: () => void }) {
 }
 
 export default function CampusAdminDashboard() {
-  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useAdminView();
@@ -325,11 +323,10 @@ export default function CampusAdminDashboard() {
     loadData();
   }, [loadData]);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   // Exports exactly what the directory is showing, so a filtered view exports
   // the filtered roster rather than silently dumping every student.
   const exportStudentsCSV = (visible?: any[]) =>

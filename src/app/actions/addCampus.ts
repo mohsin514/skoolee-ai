@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { inviteStaff } from "./invite";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
@@ -35,7 +36,7 @@ function optional(value?: string) {
 
 export async function addCampus(input: AddCampusInput) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("Unauthorized");
 
   const { payload } = await jwtVerify(token, JWT_SECRET);

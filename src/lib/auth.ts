@@ -6,6 +6,8 @@ import { cookies } from "next/headers";
 import { normalizeUserRole, type UserRole } from "@/lib/roles";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
+import { isSessionRevoked } from "@/lib/auth/session-revocation";
 
 export interface AuthUser {
   userId: string;
@@ -22,7 +24,7 @@ export interface AuthUser {
 export async function getAuthUser(): Promise<AuthUser | null> {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("skoolee_token")?.value;
+    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
@@ -31,6 +33,18 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const schoolId = typeof payload.schoolId === "string" ? payload.schoolId : null;
 
     if (!role || !userId || !schoolId) return null;
+
+    // A valid signature says this server issued the token. It says nothing
+    // about whether the session still exists — the cookie is a bearer
+    // credential good for 7 or 30 days, so a copy taken before sign-out stayed
+    // fully usable for the remainder of that window. Signing out has to mean
+    // the token stops working, not merely that one browser forgot it.
+    //
+    // This lives here rather than in requireAuthUser() alone so that server
+    // components and layouts calling getAuthUser() directly are covered too;
+    // API routes were never the only way in. The lookup is memoised per
+    // request, so the repeated calls a single render makes cost one query.
+    if (await isSessionRevoked(hashSessionToken(token))) return null;
 
     const campusId = typeof payload.campusId === "string" && payload.campusId.length > 0
       ? payload.campusId

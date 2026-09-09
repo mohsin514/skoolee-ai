@@ -7,10 +7,16 @@ import { SignJWT, jwtVerify } from "jose";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { rotateLoginSession } from "@/lib/audit";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_DAYS,
+  sessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 export async function getTeacherOnboardingSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
@@ -65,7 +71,7 @@ export async function completeTeacherOnboarding(data: {
   if (!phone || phone.length < 7) throw new Error("Phone number is required (min 7 digits)");
 
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("No session found");
 
   const { payload } = await jwtVerify(token, JWT_SECRET);
@@ -119,13 +125,22 @@ export async function completeTeacherOnboarding(data: {
     .setExpirationTime("7d")
     .sign(JWT_SECRET);
 
-  cookieStore.set("skoolee_token", newToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
+  // Close the row for the token being replaced and record one for its
+  // successor, so this session stays revocable across the re-mint instead of
+  // leaving a permanently-open row keyed to a token nobody holds.
+  await rotateLoginSession({
+    previousToken: token,
+    token: newToken,
+    userId: updatedUser.id,
+    schoolId: updatedUser.schoolId,
+    expiresAt: new Date(Date.now() + SESSION_DAYS.default * 24 * 60 * 60 * 1000),
   });
+
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    newToken,
+    sessionCookieAttributes(SESSION_DAYS.default)
+  );
 
   return { success: true, role: updatedUser.role };
 }

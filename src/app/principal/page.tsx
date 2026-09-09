@@ -57,7 +57,6 @@ import {
   Network,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -184,7 +183,6 @@ const principalAIFeatures = [
 ];
 
 export default function PrincipalDashboard() {
-  const router = useRouter();
   // `loading` is not read: the provider hands back null until the first
   // payload lands, and null is what the skeleton keys off.
   const { data, refetch } = usePrincipalData();
@@ -231,8 +229,10 @@ export default function PrincipalDashboard() {
   const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
   const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
 
-  const handleLogout = async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   // Exports exactly what the directory is showing, so a filtered view exports
   // the filtered roster rather than silently dumping every student.
   const exportStudentsCSV = (visible?: any[]) =>

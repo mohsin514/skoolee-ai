@@ -364,7 +364,15 @@ export default function OnboardingWizard() {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
+
+    // A full-document navigation, not router.push. The App Router keeps a
+    // client-side cache of rendered segments, and a soft navigation leaves it
+    // intact — so Back could paint this half-finished onboarding flow, with the
+    // school details already typed into it, after the user had signed out.
+    // Replacing the document discards that cache along with all component
+    // state. This is what every other sign-out control in the app does; this
+    // was the one that did not.
+    window.location.href = '/login';
   };
 
   const goTo = (target: StepId) => {

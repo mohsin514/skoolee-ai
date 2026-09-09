@@ -13,6 +13,12 @@ import {
 } from "./lib/roles";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+// Dependency-free by design, so nothing here drags Prisma or next/headers into
+// the proxy — see the note on the revocation check below.
+import {
+  SESSION_COOKIE_NAME,
+  clearedSessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",
@@ -74,7 +80,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Protected routes — verify JWT
-  const token = req.cookies.get("skoolee_token")?.value;
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
 
   if (!token) {
     if (pathname.startsWith("/api")) {
@@ -86,6 +92,22 @@ export async function proxy(req: NextRequest) {
   }
 
   try {
+    // NOTE: this verifies the signature only, and deliberately does not check
+    // whether the session has been revoked.
+    //
+    // Revocation is a database read, and this function runs on every request
+    // that is not a static asset — including every prefetch the router fires as
+    // a user moves the mouse over navigation. Next's own guidance is explicit
+    // that proxy checks should stay optimistic and cookie-only for exactly that
+    // reason, and that the real check belongs next to the data. Proxy is also
+    // documented as something that may be hoisted to a CDN and must not depend
+    // on shared modules, which rules out reaching for Prisma here.
+    //
+    // So this stays a cheap filter, and getAuthUser() — which every page,
+    // layout and route handler already goes through — is where a revoked token
+    // is actually turned away. The consequence to be aware of: a revoked token
+    // still passes this point, so nothing downstream may infer "the proxy let
+    // it through" as evidence that a session is live.
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = normalizeUserRole(payload.role);
     const onboardingComplete = Boolean(payload.onboardingComplete);
@@ -197,7 +219,7 @@ export async function proxy(req: NextRequest) {
     }
     const loginUrl = new URL("/login", req.url);
     const res = NextResponse.redirect(loginUrl);
-    res.cookies.set("skoolee_token", "", { maxAge: 0, path: "/" });
+    res.cookies.set(SESSION_COOKIE_NAME, "", clearedSessionCookieAttributes());
     return res;
   }
 }
