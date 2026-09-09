@@ -190,12 +190,6 @@ function plainTextFromHtml(html: string) {
     .trim();
 }
 
-function getEmailDomain() {
-  const fromEmail = getFromEmail();
-  const domain = fromEmail.split('@')[1];
-  return domain || 'skoolee.ai';
-}
-
 function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
   const emailDomain = getEmailDomain();
   const messageId = `<${randomUUID()}@${emailDomain}>`;
