@@ -51,8 +51,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
+          node-version: 22
+          # NOTE: no `cache: pnpm` here. setup-node's pnpm cache runs
+          # `pnpm store path`, which reads pnpm-workspace.yaml; that file has
+          # no `packages:` field, so pnpm errors "packages field missing or
+          # empty" in clean CI. Caching is not worth re-shaping the workspace
+          # file over — install is fast enough.
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
