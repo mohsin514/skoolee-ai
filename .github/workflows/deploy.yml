@@ -37,7 +37,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: prisma migrate deploy
+    name: prisma db push
     runs-on: ubuntu-latest
     # Bind the job to the GitHub Environment matching the branch, so it reads
     # that environment's secrets and honours any required reviewers.
@@ -60,11 +60,16 @@ jobs:
       - name: Prisma generate
         run: pnpm prisma generate
 
-      - name: Apply migrations (deploy — never db push in CI)
+      - name: Sync schema to env DB
+        # NOTE: prisma migrate deploy is NOT usable here — prisma/migrations/
+        # 20260730000000_baseline/migration.sql is a captured stdout summary,
+        # not SQL, so `migrate deploy` fails on it. This project manages schema
+        # with `db push` (schema.prisma is the source of truth). Keep it that way
+        # until the baseline is regenerated as real SQL.
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
-        run: pnpm prisma migrate deploy
+        run: pnpm prisma db push --skip-generate
 
       - name: Regenerate tenant registry sanity check
         run: node scripts/gen-tenant-registry.mjs
