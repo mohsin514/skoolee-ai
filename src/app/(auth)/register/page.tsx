@@ -258,8 +258,22 @@ export default function RegisterPage() {
 
   const panel = PANEL_COPY[type];
 
+  /**
+   * Step 2 is the long one. It gets a wider shell and a two-column layout so the
+   * whole form lands on one laptop screen instead of scrolling; the brand panel
+   * gives up some of its share to pay for it. Steps 1 and 3 stay narrow — two
+   * radio cards and a success message stretched to 860px look broken.
+   */
+  const wide = step === 2;
+
   return (
-    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+    <main
+      className={`sk-shell w-full min-h-screen grid grid-cols-1 bg-[#fff7fe] font-sans ${
+        wide
+          ? "lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)]"
+          : "lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]"
+      }`}
+    >
       <style>{`
         @keyframes skDrift {
           0%,100% { transform: translate3d(0,0,0) scale(1); }
@@ -286,9 +300,11 @@ export default function RegisterPage() {
         .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
         .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
         .sk-shake { animation: skShake .34s ease-in-out; }
+        /* The split moves when step 2 claims more room — glide rather than jump. */
+        .sk-shell { transition: grid-template-columns .5s cubic-bezier(.2,.7,.3,1), max-width .5s cubic-bezier(.2,.7,.3,1); }
         @media (prefers-reduced-motion: reduce) {
           .sk-blob, .sk-rise, .sk-shimmer, .sk-shake { animation: none !important; }
-          .sk-parallax { transition: none !important; }
+          .sk-parallax, .sk-shell { transition: none !important; }
         }
       `}</style>
 
@@ -297,7 +313,9 @@ export default function RegisterPage() {
         ref={brandRef}
         onMouseMove={handleBrandMouseMove}
         onMouseLeave={resetBrandParallax}
-        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
+        className={`relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] ${
+          wide ? "p-10 xl:p-12" : "p-12 xl:p-14"
+        }`}
       >
         <div aria-hidden className="absolute inset-0 overflow-hidden">
           <div
@@ -355,7 +373,9 @@ export default function RegisterPage() {
 
           <h1
             key={`${type}-headline`}
-            className="sk-rise mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
+            className={`sk-rise font-black leading-[1.04] tracking-[-0.035em] text-white text-balance ${
+              wide ? "mt-6 text-[2.1rem] xl:text-[2.5rem]" : "mt-7 text-[2.6rem] xl:text-[3.1rem]"
+            }`}
             style={{ animationDelay: "80ms" }}
           >
             {panel.headline}
@@ -367,7 +387,9 @@ export default function RegisterPage() {
 
           <div
             key={`${type}-card`}
-            className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl"
+            className={`sk-rise rounded-3xl border border-white/25 bg-[#3d0f6b]/40 shadow-xl backdrop-blur-xl ${
+              wide ? "mt-7 p-5" : "mt-9 p-6"
+            }`}
             style={{ animationDelay: "160ms" }}
           >
             <div className="flex items-start gap-4">
@@ -399,14 +421,31 @@ export default function RegisterPage() {
       </section>
 
       {/* ─── FORM PANEL ──────────────────────────────── */}
-      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
-        <div className="w-full max-w-lg">
-          <div className="sk-rise mb-7 flex flex-col items-center">
-            <SkooleeLogo size="2.35rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
-          </div>
+      <section
+        className={`relative flex flex-col items-center justify-center px-6 py-8 sm:px-10 sm:py-10 ${
+          wide ? "lg:px-10 lg:py-6" : "lg:p-14"
+        }`}
+      >
+        <div className={`sk-shell w-full ${wide ? "max-w-[860px]" : "max-w-lg"}`}>
+          {wide ? (
+            /* Logo and progress share a row on the long step. Stacked, the
+               wordmark, its rule and the rail cost ~65px of height that the
+               form needs more than the flourish does. */
+            <div className="sk-rise mb-4 flex items-center gap-5 sm:gap-7">
+              <SkooleeLogo size="1.85rem" weight="heavy" />
+              <span aria-hidden className="h-6 w-px shrink-0 bg-[#cfc2d6]/50" />
+              <StepRail step={step} className="mb-0 flex-1" />
+            </div>
+          ) : (
+            <>
+              <div className="sk-rise mb-7 flex flex-col items-center">
+                <SkooleeLogo size="2.35rem" weight="heavy" />
+                <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
+              </div>
 
-          <StepRail step={step} />
+              <StepRail step={step} />
+            </>
+          )}
 
           <AnimatePresence mode="wait">
             {/* ─── Step 1: Choose Type ─── */}
@@ -467,14 +506,14 @@ export default function RegisterPage() {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
-                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-7"
               >
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
                       {type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}
                     </p>
-                    <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-1">Create your account</h2>
+                    <h2 className="text-[1.6rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-0.5 sm:text-[1.75rem]">Create your account</h2>
                   </div>
                   <button
                     type="button"
@@ -496,199 +535,216 @@ export default function RegisterPage() {
                   </div>
                 )}
 
-                <form className="space-y-4" onSubmit={handleStep2Submit} noValidate>
+                {/* Four labelled groups laid out two-up once the card is wide
+                    enough (container query, so it keys off the card and not the
+                    viewport — the brand panel appearing at lg would otherwise
+                    trigger columns with no room for them). The pairing is
+                    deliberate: the two tall groups lead each row, so neither
+                    row is padded out by a short neighbour. */}
+                <form className="@container" onSubmit={handleStep2Submit} noValidate>
+                  <div className="grid items-start gap-4 @2xl:grid-cols-2 @2xl:gap-x-7">
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <InputField
-                      id="name" label="Full Name" placeholder="Your full name" required
-                      autoComplete="name" error={nameError}
-                      value={formData.name} onChange={(v) => set('name', v)} icon={UserIcon}
-                    />
-                    <InputField
-                      id="email" label="Work Email" placeholder="you@school.edu.pk" required type="email"
-                      autoComplete="email" error={emailError}
-                      value={formData.email} onChange={(v) => set('email', v)} icon={Mail}
-                    />
-                  </div>
-
-                  <InputField
-                    id="phone" label="Phone Number" placeholder="+92 300 0000000" type="tel"
-                    autoComplete="tel" hint="Used for account recovery and parent-facing contact details."
-                    value={formData.phone} onChange={(v) => set('phone', v)} icon={Phone}
-                  />
-
-                  {/* Institution identity. Previously the single-campus path
-                      invented a name ("<your name> Academy") and a hidden ID,
-                      which is not something a school can live with — both are
-                      asked for here regardless of type. */}
-                  <div className="space-y-4 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5">
-                    <InputField
-                      id="schoolName"
-                      label={type === 'school_group' ? "School Group Name" : "School Name"}
-                      placeholder={type === 'school_group' ? "e.g. Beaconhouse School System" : "e.g. Horizon Academy"}
-                      required error={schoolNameError} autoComplete="organization"
-                      value={formData.schoolName} onChange={(v) => set('schoolName', v)}
-                      icon={Building} className="bg-white"
-                    />
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between px-1.5">
-                        <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
-                          {type === 'school_group' ? 'School Group ID' : 'School ID'}
-                        </Label>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAutoId(true)}
-                            className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
-                          >
-                            Auto
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAutoId(false)}
-                            className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
-                          >
-                            Manual
-                          </button>
-                        </div>
-                      </div>
-                      <div className="relative flex items-center">
-                        <Hash className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
-                        <Input
-                          id="regId"
-                          readOnly={formData.autoId}
-                          value={formData.regId}
-                          placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
-                          onChange={e => set('regId', e.target.value.toUpperCase())}
-                          className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
+                    <FieldGroup icon={UserIcon} title="Your details">
+                      <div className="grid grid-cols-1 gap-4 @md:grid-cols-2">
+                        <InputField
+                          id="name" label="Full Name" placeholder="Your full name" required
+                          autoComplete="name" error={nameError}
+                          value={formData.name} onChange={(v) => set('name', v)} icon={UserIcon}
                         />
-                        {formData.autoId && (
-                          <button
-                            type="button"
-                            onClick={() => set('regId', generateRegId(type))}
-                            aria-label="Generate a new ID"
-                            className="absolute right-3.5 cursor-pointer text-ink-subtle transition-all hover:rotate-90 hover:text-[#8127cf]"
-                          >
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      <p className="px-1.5 text-[10px] font-bold text-ink-subtle">
-                        Printed on report cards, invoices and receipts. It cannot be changed later.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <InputField
-                      id="password" label="Password" placeholder="Min 8 characters" required
-                      autoComplete="new-password"
-                      type={showPass ? "text" : "password"}
-                      value={formData.password} onChange={(v) => set('password', v)} icon={Lock}
-                      onToggleReveal={() => setShowPass((v) => !v)}
-                      revealed={showPass}
-                      onCapsChange={setCapsOn}
-                    />
-                    <InputField
-                      id="confirmPassword" label="Confirm Password" placeholder="Re-enter password" required
-                      autoComplete="new-password"
-                      type={showConfirm ? "text" : "password"}
-                      value={formData.confirmPassword} onChange={(v) => set('confirmPassword', v)} icon={ShieldCheck}
-                      onToggleReveal={() => setShowConfirm((v) => !v)}
-                      revealed={showConfirm}
-                    />
-                  </div>
-
-                  {capsOn && (
-                    <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
-                      <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
-                    </p>
-                  )}
-
-                  <div className="space-y-3 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
-                    <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Password strength</p>
-                      <p className={`text-[10px] font-black uppercase tracking-wider ${
-                        strength.score >= 4 ? "text-emerald-600" : strength.score >= 3 ? "text-amber-600" : strength.score > 0 ? "text-rose-500" : "text-ink-subtle"
-                      }`}>
-                        {strength.label || "—"}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5" aria-hidden>
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <span
-                          key={i}
-                          className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                            i <= strength.score ? strength.tone : "bg-[#cfc2d6]/30"
-                          }`}
+                        <InputField
+                          id="email" label="Work Email" placeholder="you@school.edu.pk" required type="email"
+                          autoComplete="email" error={emailError}
+                          value={formData.email} onChange={(v) => set('email', v)} icon={Mail}
                         />
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-y-1.5 pt-1">
-                      {passwordRequirements.map((r) => (
-                        <div key={r.label} className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                          {r.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />} {r.label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Explicit consent. Required — a school signing up is agreeing
-                      on behalf of its pupils' data, so it cannot be implied. */}
-                  <label className="group flex cursor-pointer items-start gap-2.5 px-1 select-none">
-                    <span className="relative mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.acceptedTerms}
-                        onChange={(e) => set('acceptedTerms', e.target.checked)}
-                        className="peer sr-only"
+                      <InputField
+                        id="phone" label="Phone Number" placeholder="+92 300 0000000" type="tel"
+                        autoComplete="tel" hint="Used for account recovery and parent-facing contact."
+                        value={formData.phone} onChange={(v) => set('phone', v)} icon={Phone}
                       />
-                      <span
-                        aria-hidden
-                        className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
-                          formData.acceptedTerms
-                            ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
-                            : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
-                        }`}
-                      >
-                        <Check
-                          className={`h-3 w-3 text-white transition-all duration-200 ${
-                            formData.acceptedTerms ? "scale-100 opacity-100" : "scale-50 opacity-0"
-                          }`}
-                          strokeWidth={3.5}
-                        />
-                      </span>
-                    </span>
-                    <span className="text-[12px] font-semibold leading-snug text-ink-muted">
-                      I agree to the{" "}
-                      <Link href="/privacy" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">Privacy Policy</Link>
-                      {" "}and{" "}
-                      <Link href="/ai-governance" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">AI Governance policy</Link>
-                      , and confirm I&apos;m authorised to register this institution.
-                    </span>
-                  </label>
+                    </FieldGroup>
 
-                  <div className="flex gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      aria-label="Back"
-                      className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-ink-muted transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="group relative flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
-                      <span className="relative z-10 flex items-center gap-2">
-                        {loading
-                          ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>
-                          : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
-                      </span>
-                    </button>
+                    {/* Institution identity. Previously the single-campus path
+                        invented a name ("<your name> Academy") and a hidden ID,
+                        which is not something a school can live with — both are
+                        asked for here regardless of type. */}
+                    <FieldGroup icon={Building} title="Your institution">
+                      <InputField
+                        id="schoolName"
+                        label={type === 'school_group' ? "School Group Name" : "School Name"}
+                        placeholder={type === 'school_group' ? "e.g. Beaconhouse School System" : "e.g. Horizon Academy"}
+                        required error={schoolNameError} autoComplete="organization"
+                        value={formData.schoolName} onChange={(v) => set('schoolName', v)}
+                        icon={Building}
+                      />
+                      <div className="space-y-1.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-3.5">
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                            {type === 'school_group' ? 'School Group ID' : 'School ID'}
+                          </Label>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAutoId(true)}
+                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                            >
+                              Auto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAutoId(false)}
+                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                            >
+                              Manual
+                            </button>
+                          </div>
+                        </div>
+                        <div className="relative flex items-center">
+                          <Hash className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
+                          <Input
+                            id="regId"
+                            readOnly={formData.autoId}
+                            value={formData.regId}
+                            placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
+                            onChange={e => set('regId', e.target.value.toUpperCase())}
+                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
+                          />
+                          {formData.autoId && (
+                            <button
+                              type="button"
+                              onClick={() => set('regId', generateRegId(type))}
+                              aria-label="Generate a new ID"
+                              className="absolute right-3.5 cursor-pointer text-ink-subtle transition-all hover:rotate-90 hover:text-[#8127cf]"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <p className="px-1 text-[10px] font-bold leading-snug text-ink-subtle">
+                          Printed on report cards, invoices and receipts. It cannot be changed later.
+                        </p>
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup icon={Lock} title="Security">
+                      <InputField
+                        id="password" label="Password" placeholder="Min 8 characters" required
+                        autoComplete="new-password"
+                        type={showPass ? "text" : "password"}
+                        value={formData.password} onChange={(v) => set('password', v)} icon={Lock}
+                        onToggleReveal={() => setShowPass((v) => !v)}
+                        revealed={showPass}
+                        onCapsChange={setCapsOn}
+                      />
+                      <InputField
+                        id="confirmPassword" label="Confirm Password" placeholder="Re-enter password" required
+                        autoComplete="new-password"
+                        type={showConfirm ? "text" : "password"}
+                        value={formData.confirmPassword} onChange={(v) => set('confirmPassword', v)} icon={ShieldCheck}
+                        onToggleReveal={() => setShowConfirm((v) => !v)}
+                        revealed={showConfirm}
+                      />
+
+                      {capsOn && (
+                        <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
+                          <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
+                        </p>
+                      )}
+                    </FieldGroup>
+
+                    {/* Sits beside the password fields rather than under them, so
+                        the checklist is readable while the field is being typed
+                        in instead of being pushed off the fold. */}
+                    <FieldGroup icon={ShieldCheck} title="Password strength">
+                      <div className="space-y-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-1 gap-1.5" aria-hidden>
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <span
+                                key={i}
+                                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                                  i <= strength.score ? strength.tone : "bg-[#cfc2d6]/30"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p className={`shrink-0 text-[10px] font-black uppercase tracking-wider ${
+                            strength.score >= 4 ? "text-emerald-600" : strength.score >= 3 ? "text-amber-600" : strength.score > 0 ? "text-rose-500" : "text-ink-subtle"
+                          }`}>
+                            {strength.label || "—"}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                          {passwordRequirements.map((r) => (
+                            <div key={r.label} className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
+                              {r.met ? <CheckCircle className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0 opacity-30" />} {r.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </FieldGroup>
+
+                    {/* Consent and the actions share the closing line — a full
+                        row each was ~50px of height for one checkbox. */}
+                    <div className="flex flex-col gap-4 border-t border-[#cfc2d6]/20 pt-4 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-6 @2xl:col-span-2">
+                      {/* Explicit consent. Required — a school signing up is agreeing
+                          on behalf of its pupils' data, so it cannot be implied. */}
+                      <label className="group flex cursor-pointer items-start gap-2.5 px-1 select-none">
+                        <span className="relative mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.acceptedTerms}
+                            onChange={(e) => set('acceptedTerms', e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <span
+                            aria-hidden
+                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                              formData.acceptedTerms
+                                ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
+                                : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
+                            }`}
+                          >
+                            <Check
+                              className={`h-3 w-3 text-white transition-all duration-200 ${
+                                formData.acceptedTerms ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                              }`}
+                              strokeWidth={3.5}
+                            />
+                          </span>
+                        </span>
+                        <span className="text-[12px] font-semibold leading-snug text-ink-muted">
+                          I agree to the{" "}
+                          <Link href="/privacy" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">Privacy Policy</Link>
+                          {" "}and{" "}
+                          <Link href="/ai-governance" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">AI Governance policy</Link>
+                          , and confirm I&apos;m authorised to register this institution.
+                        </span>
+                      </label>
+                      <div className="flex shrink-0 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          aria-label="Back"
+                          className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-ink-muted transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="group relative flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 @xl:flex-none @xl:w-52"
+                        >
+                          {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
+                          <span className="relative z-10 flex items-center gap-2">
+                            {loading
+                              ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>
+                              : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </form>
               </motion.div>
@@ -739,7 +795,7 @@ export default function RegisterPage() {
             )}
           </AnimatePresence>
 
-          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">
+          <div className={`flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle ${wide ? "mt-4" : "mt-6"}`}>
             <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
             <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>
@@ -753,9 +809,9 @@ export default function RegisterPage() {
 }
 
 /** Three-stop progress rail above the card, so the flow's length is visible. */
-function StepRail({ step }: { step: number }) {
+function StepRail({ step, className = "mb-6" }: { step: number; className?: string }) {
   return (
-    <div className="mb-6 flex items-center gap-2 px-1">
+    <div className={`flex items-center gap-2 px-1 ${className}`}>
       {STEP_LABELS.map((label, i) => {
         const num = i + 1;
         const done = step > num;
@@ -795,6 +851,36 @@ function StepRail({ step }: { step: number }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * A titled block of related fields. Two-up, a bare 2x2 grid of inputs reads as
+ * noise, so each half announces what it is asking for. Its own `@container` lets
+ * the fields inside react to the column width rather than the whole card's — a
+ * name/email pair splits when the group is full-width and stacks when it is a
+ * column.
+ */
+function FieldGroup({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
+  // The heading is only a visual cue unless it names the group, and side-by-side
+  // columns are exactly where a screen reader loses the thread.
+  const headingId = `grp-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  return (
+    <section role="group" aria-labelledby={headingId} className="@container space-y-4">
+      <div className="flex items-center gap-2 px-1">
+        <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
+        <h3 id={headingId} className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{title}</h3>
+      </div>
+      {children}
+    </section>
   );
 }
 
