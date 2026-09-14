@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
-  AlertCircle, CheckCircle2, Users, GraduationCap, Building2, Sparkles,
+  AlertCircle, CheckCircle2, Building2, Sparkles,
   ChevronLeft, Timer, Check,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,31 +19,22 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
 
-// Rotating proof points on the brand panel. Each pairs a claim with a
-// concrete number so the panel says something instead of decorating.
-const PROOF = [
-  {
-    icon: GraduationCap,
-    stat: "32",
-    unit: "live event types",
-    quote: "Every mark, payment and absence reaches the right person the moment it happens.",
-    caption: "Real-time notifications across every role",
-  },
-  {
-    icon: Building2,
-    stat: "Multi",
-    unit: "campus by design",
-    quote: "One login for the whole group. Each campus stays sealed from the others.",
-    caption: "Built for school groups, not single classrooms",
-  },
-  {
-    icon: Users,
-    stat: "8",
-    unit: "role-aware dashboards",
-    quote: "Owners, principals, teachers and parents each see exactly their slice.",
-    caption: "Nothing more, nothing less",
-  },
-];
+/**
+ * One proof point on the brand panel, pairing the claim with something concrete
+ * so the panel says a thing instead of decorating.
+ *
+ * This was a three-item carousel on a 6s timer with dot tabs. Rotating it meant
+ * remounting the card (`key={slide}`) to re-fire `sk-rise`, so the panel
+ * flickered every six seconds next to a form people are trying to type into,
+ * and two thirds of the copy was never read. One card, stated once.
+ */
+const PROOF = {
+  icon: Building2,
+  stat: "Multi",
+  unit: "campus by design",
+  quote: "One login for the whole group. Each campus stays sealed from the others.",
+  caption: "Built for school groups, not single classrooms",
+};
 
 /**
  * One address can hold accounts at several schools (a parent with children at
@@ -82,9 +73,6 @@ export default function LoginPage() {
   // Seconds left on a 429. The button stays disabled and says so, rather than
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
-  const [slide, setSlide] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const liveRef = useRef<HTMLParagraphElement>(null);
   const brandRef = useRef<HTMLElement>(null);
 
   // Subtle parallax: blobs and the avatar orbit drift opposite the cursor
@@ -98,7 +86,6 @@ export default function LoginPage() {
     el.style.setProperty("--my", String((e.clientY - rect.top) / rect.height - 0.5));
   }, []);
   const resetBrandParallax = useCallback(() => {
-    setPaused(false);
     const el = brandRef.current;
     el?.style.setProperty("--mx", "0");
     el?.style.setProperty("--my", "0");
@@ -119,14 +106,6 @@ export default function LoginPage() {
     }
     if (verified || invited || expired) window.history.replaceState(null, "", "/login");
   }, [searchParams]);
-
-  // Rotate the proof panel; pause on hover and honour reduced motion.
-  useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced || paused) return;
-    const id = setInterval(() => setSlide((s) => (s + 1) % PROOF.length), 6000);
-    return () => clearInterval(id);
-  }, [paused]);
 
   // Tick the rate-limit cooldown down to zero.
   useEffect(() => {
@@ -236,8 +215,7 @@ export default function LoginPage() {
     }
   };
 
-  const active = PROOF[slide];
-  const ActiveIcon = active.icon;
+  const ProofIcon = PROOF.icon;
 
   return (
     <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
@@ -282,7 +260,6 @@ export default function LoginPage() {
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
         ref={brandRef}
-        onMouseEnter={() => setPaused(true)}
         onMouseLeave={resetBrandParallax}
         onMouseMove={handleBrandMouseMove}
         className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
@@ -360,40 +337,24 @@ export default function LoginPage() {
           {/* Sits on a mid-purple ground, so the card needs a darker scrim
               and near-opaque text to stay legible. */}
           <div
-            key={slide}
             className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl"
-            style={{ animationDelay: slide === 0 ? "160ms" : "0ms" }}
+            style={{ animationDelay: "160ms" }}
           >
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
-                <ActiveIcon className="h-5 w-5 text-white" />
+                <ProofIcon className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2.5">
-                  <span className="text-2xl font-black tracking-tight text-white">{active.stat}</span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-[#f0dcff]">{active.unit}</span>
+                  <span className="text-2xl font-black tracking-tight text-white">{PROOF.stat}</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#f0dcff]">{PROOF.unit}</span>
                 </div>
-                <p ref={liveRef} aria-live="polite" className="mt-2 text-[15px] font-semibold leading-relaxed text-white">
-                  {active.quote}
+                <p className="mt-2 text-[15px] font-semibold leading-relaxed text-white">
+                  {PROOF.quote}
                 </p>
-                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">{active.caption}</p>
+                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">{PROOF.caption}</p>
               </div>
             </div>
-          </div>
-
-          <div className="mt-6 flex items-center gap-2.5" role="tablist" aria-label="Product highlights">
-            {PROOF.map((p, i) => (
-              <button
-                key={p.caption}
-                role="tab"
-                aria-selected={i === slide}
-                aria-label={p.caption}
-                onClick={() => setSlide(i)}
-                className={`h-1.5 rounded-full transition-all duration-400 cursor-pointer hover:bg-white/70 ${
-                  i === slide ? "w-9 bg-white" : "w-1.5 bg-white/30"
-                }`}
-              />
-            ))}
           </div>
 
           <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
