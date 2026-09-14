@@ -7,13 +7,12 @@ sharing the **same Supabase database** (per current infrastructure decision).
 |-------------|-------------|----------------------------|------------------------------------------|
 | Development | `dev`       | `skoolee-ai-dev`           | Active feature work, unstable            |
 | Staging     | `staging`   | `skoolee-ai-staging`       | Pre-release integration                  |
-| QA          | `qa-env`    | `skoolee-ai-qa`            | Test/validation passes                   |
+| QA          | `qa`        | `skoolee-ai-qa`            | Test/validation passes                   |
 | Production  | `production`| `skoolee-ai-prod`          | Live traffic                             |
 | Demo        | `demo`      | `skoolee-ai-demo`          | Sales / showcase                         |
 
-> **`qa-env`, not `qa`** — the repo already has a `qa/wave1-isolation-auth-a11y`
-> branch. Git cannot hold both a ref named `qa` and one under `qa/`, so the QA
-> environment branch is `qa-env`.
+> **`qa` branch** — the old `qa/wave1-isolation-auth-a11y` branch (fully merged
+> into `main`) was deleted so the QA environment branch can be named simply `qa`.
 
 > **Note on `main`** — the pre-existing Vercel project is linked to `main`. Leave
 > that project as-is; the five projects above are additional. If you prefer, point
@@ -64,7 +63,7 @@ branch triggers a deploy.
 ## Deploy flow
 
 ```
-feature branch → dev → staging → qa-env → production
+feature branch → dev → staging → qa → production
                                         └→ demo (independent, from main or production)
 ```
 

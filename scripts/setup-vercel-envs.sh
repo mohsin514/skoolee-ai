@@ -29,7 +29,7 @@ set -euo pipefail
 ENVS=(
   "dev|skoolee-ai-dev|dev"
   "staging|skoolee-ai-staging|staging"
-  "qa|skoolee-ai-qa|qa-env"
+  "qa|skoolee-ai-qa|qa"
   "production|skoolee-ai-prod|production"
   "demo|skoolee-ai-demo|demo"
 )
@@ -53,7 +53,7 @@ MANUAL RUNBOOK (Vercel dashboard) — repeat for each of the 5 projects
 1. Vercel → Add New → Project → import github.com/mohsin514/skoolee-ai
 2. Name the project (skoolee-ai-dev / -staging / -qa / -prod / -demo)
 3. Settings → Git → Production Branch → set to the env's branch:
-      dev → dev,  staging → staging,  qa → qa-env,
+      dev → dev,  staging → staging,  qa → qa,
       production → production,  demo → demo
 4. Settings → Environment Variables → add every var from
    .env.<env>.example (values from your secure store / .env.supabase-backup).
@@ -102,4 +102,4 @@ done
 
 echo
 echo "Done linking. Finish env vars + Production Branch per project, then push:"
-echo "  git push origin dev staging qa-env production demo"
+echo "  git push origin dev staging qa production demo"
