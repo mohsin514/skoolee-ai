@@ -1,15 +1,16 @@
 # Environments
 
-SkooleeAI runs five environments, each backed by its **own Vercel project** but
-sharing the **same Supabase database** (per current infrastructure decision).
+SkooleeAI runs five environments. Each has its **own Vercel project** AND its
+**own Supabase database** — full isolation, so no environment can read or write
+another's tenant data.
 
-| Environment | Git branch  | Vercel project (suggested) | Purpose                                  |
-|-------------|-------------|----------------------------|------------------------------------------|
-| Development | `dev`       | `skoolee-ai-dev`           | Active feature work, unstable            |
-| Staging     | `staging`   | `skoolee-ai-staging`       | Pre-release integration                  |
-| QA          | `qa`        | `skoolee-ai-qa`            | Test/validation passes                   |
-| Production  | `production`| `skoolee-ai-prod`          | Live traffic                             |
-| Demo        | `demo`      | `skoolee-ai-demo`          | Sales / showcase                         |
+| Environment | Git branch  | Vercel project       | Supabase project | Purpose                 |
+|-------------|-------------|----------------------|------------------|-------------------------|
+| Development | `dev`       | `skoolee-ai-dev`     | `skoolee-dev`    | Active feature work     |
+| Staging     | `staging`   | `skoolee-ai-staging` | `skoolee-staging`| Pre-release integration |
+| QA          | `qa`        | `skoolee-ai-qa`      | `skoolee-qa`     | Test/validation passes  |
+| Production  | `production`| `skoolee-ai-prod`    | `skoolee-prod`   | Live traffic            |
+| Demo        | `demo`      | `skoolee-ai-demo`    | `skoolee-demo`   | Sales / showcase        |
 
 > **`qa` branch** — the old `qa/wave1-isolation-auth-a11y` branch (fully merged
 > into `main`) was deleted so the QA environment branch can be named simply `qa`.
@@ -19,20 +20,33 @@ sharing the **same Supabase database** (per current infrastructure decision).
 > the existing project's Production branch at `production` and treat `main` as an
 > integration trunk.
 
-## ⚠️ Shared-database caveat
+## Database isolation (one Supabase project per env)
 
-All five environments read and write the **same Supabase Postgres instance**.
-That means:
+Every environment points at its **own** Supabase project. Nothing is shared:
 
-- A demo or QA action **mutates production tenant data**. There is no isolation.
-- Schema changes (`prisma db push`) applied from any environment affect **all** of
-  them at once.
-- Destructive scripts (`db:reset`, `db:seed`) must **never** be run against this
-  DB from a non-production context.
+- `dev` mistakes never touch `production` data.
+- `db:reset` / `db:seed` run against an env's own DB only.
+- Schema changes propagate through the deploy pipeline (migrations run per env),
+  not by mutating one shared instance.
 
-If data isolation is later required, the clean fix is a separate Supabase project
-(or at least a separate database/schema prefix) per environment. This doc assumes
-the shared-DB model was chosen deliberately.
+**Provisioning:** run `scripts/provision-supabase-envs.sh` (dashboard runbook by
+default; scripted via the Supabase Management API when `SUPABASE_ACCESS_TOKEN` is
+set). Create five projects — `skoolee-dev`, `skoolee-staging`, `skoolee-qa`,
+`skoolee-prod`, `skoolee-demo` — all in the same region.
+
+For each project, collect:
+
+| Value                          | Where it goes                                   |
+|--------------------------------|-------------------------------------------------|
+| Pooler URI (port 6543)         | `DATABASE_URL` (runtime)                         |
+| Direct URI (port 5432)         | `DIRECT_URL` (migrations)                         |
+| Project URL / anon / service   | `NEXT_PUBLIC_SUPABASE_URL` + keys                |
+
+...and put them in BOTH the GitHub Environment secrets and the Vercel project.
+
+Because each DB starts **empty**, the first deploy applies all 26 migrations
+cleanly via `prisma migrate deploy` — no hand-backfill of `_prisma_migrations`
+(the local-DB quirk noted in project memory) is needed on the new envs.
 
 ## Environment variables
 
@@ -45,13 +59,48 @@ Each environment has an example file in the repo root:
 - `.env.demo.example`
 
 These contain **placeholders only** — no secrets are committed. Real values live
-in each Vercel project's Environment Variables, and locally in `.env` (gitignored).
+in each Vercel project's Environment Variables (and the GitHub Environment secrets
+for CI migrations), and locally in `.env` (gitignored).
 
-The only value that legitimately differs per environment is `NEXT_PUBLIC_APP_URL`
-(each Vercel project gets its own URL). Everything else — the Supabase DB URLs,
-Supabase keys, `OPENAI_API_KEY`, `AUTH_SECRET`, SMTP — is shared because the DB is
-shared. Copy them from your secure store (they are in `.env.supabase-backup`
-locally, which is gitignored).
+Because each environment has its own Supabase project, the DB URLs and Supabase
+keys **differ per environment** — copy each env's values from its own Supabase
+project. `NEXT_PUBLIC_APP_URL` also differs (each Vercel project has its own URL).
+Values that legitimately stay the same across envs: `OPENAI_API_KEY`, SMTP, and
+(optionally) `AUTH_SECRET` — though a distinct `AUTH_SECRET` per env is safer.
+
+## Git-driven deploy automation
+
+A single workflow, `.github/workflows/deploy.yml`, wires "push a branch → that
+environment updates":
+
+1. You push (or merge) to `dev` / `staging` / `qa` / `production` / `demo`.
+2. GitHub Actions binds the run to the matching **GitHub Environment**, reads that
+   env's `DATABASE_URL` / `DIRECT_URL` secrets, and runs `pnpm prisma migrate
+   deploy` against that env's own Supabase DB (migrations use `DIRECT_URL`).
+3. Vercel's Git integration builds and deploys that env's Vercel project from the
+   same push (Production Branch = the env branch).
+
+So the DB schema is migrated **before** the new build serves traffic, per env.
+
+You can also run it on demand: Actions → "Migrate & Deploy" → Run workflow →
+pick an environment.
+
+### One-time secret setup (GitHub)
+
+Settings → Environments → create `dev`, `staging`, `qa`, `production`, `demo`.
+For each, add secrets:
+
+| Secret         | Value                                              |
+|----------------|----------------------------------------------------|
+| `DATABASE_URL` | that env's Supabase **pooler** URI (port 6543)     |
+| `DIRECT_URL`   | that env's Supabase **direct** URI (port 5432)     |
+
+Add required reviewers on the `production` environment to gate prod migrations.
+
+### If you want CI to trigger Vercel too (no Git integration)
+
+Uncomment the `deploy:` job in `deploy.yml` and add `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, and a per-env `VERCEL_PROJECT_ID`.
 
 ## Vercel setup
 

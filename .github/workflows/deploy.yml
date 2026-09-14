@@ -1,0 +1,91 @@
+name: Migrate & Deploy
+
+# One workflow, five environments. A push to an env branch runs the DB
+# migration against THAT environment's Supabase database, then (optionally)
+# triggers that environment's Vercel deploy.
+#
+# ── How environments are selected ──────────────────────────────────────────
+# The branch name maps 1:1 to an environment. Each environment's DB URLs live
+# in GitHub Environment secrets (Settings → Environments → <name> → Secrets):
+#   DATABASE_URL   pooled  (port 6543, pgbouncer)  — used at runtime
+#   DIRECT_URL     direct  (port 5432)             — used by prisma migrate
+#
+# Migrations ALWAYS run against DIRECT_URL (no pgbouncer). See prisma/schema.prisma.
+#
+# ── Deploy ─────────────────────────────────────────────────────────────────
+# By default the app deploy is handled by Vercel's own Git integration
+# (connect each Vercel project's Production Branch to the matching branch).
+# This workflow's job is to get the schema migrated BEFORE that build serves
+# traffic. If you'd rather have CI trigger Vercel explicitly, set the repo
+# secret VERCEL_DEPLOY (see the commented job at the bottom).
+
+on:
+  push:
+    branches: [dev, staging, qa, production, demo]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to migrate"
+        required: true
+        type: choice
+        options: [dev, staging, qa, production, demo]
+
+concurrency:
+  # Never run two migrations against the same env DB at once.
+  group: migrate-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: prisma migrate deploy
+    runs-on: ubuntu-latest
+    # Bind the job to the GitHub Environment matching the branch, so it reads
+    # that environment's secrets and honours any required reviewers.
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: pnpm prisma generate
+
+      - name: Apply migrations (deploy — never db push in CI)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: pnpm prisma migrate deploy
+
+      - name: Regenerate tenant registry sanity check
+        run: node scripts/gen-tenant-registry.mjs
+        continue-on-error: true
+
+  # ── OPTIONAL: explicit Vercel deploy from CI ────────────────────────────────
+  # Uncomment and set repo/environment secrets VERCEL_TOKEN, VERCEL_ORG_ID,
+  # and a per-env VERCEL_PROJECT_ID if you do NOT use Vercel's Git integration.
+  #
+  # deploy:
+  #   needs: migrate
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Deploy to Vercel
+  #       env:
+  #         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  #         VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  #         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  #       run: |
+  #         npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+  #         npx vercel build --prod --token="$VERCEL_TOKEN"
+  #         npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
