@@ -1,5 +1,6 @@
 "use client";
 
+import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import type { ReactNode } from "react";
@@ -419,53 +420,53 @@ export default function PrincipalDashboard() {
   };
 
   const navItems: SidebarEntry[] = [
-    { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
+    { icon: LayoutGrid, label: "Overview", active: activeView === "overview", module: moduleForView("overview"), onClick: () => setActiveView("overview") },
     {
       icon: GraduationCap, label: "Students", children: [
-        { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
-        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
-        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
-        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
+        { icon: GraduationCap, label: "Student List", active: activeView === "students", module: moduleForView("students"), onClick: () => setActiveView("students") },
+        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", module: moduleForView("admission-queries"), onClick: () => setActiveView("admission-queries") },
+        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", module: moduleForView("student-setup"), onClick: () => setActiveView("student-setup") },
+        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", module: moduleForView("promote-archive"), onClick: () => setActiveView("promote-archive") },
       ],
     },
     {
       icon: BookOpen, label: "Academics", children: [
-        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", onClick: () => setActiveView("academic-hub") },
-        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", onClick: () => setActiveView("year-setup") },
-        { icon: School, label: "Classes & Subjects", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: History, label: "Academic Years", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", onClick: () => setActiveView("grading-rules") },
-        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
+        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", module: moduleForView("academic-hub"), onClick: () => setActiveView("academic-hub") },
+        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", module: moduleForView("year-setup"), onClick: () => setActiveView("year-setup") },
+        { icon: School, label: "Classes & Subjects", active: activeView === "classes", module: moduleForView("classes"), onClick: () => setActiveView("classes") },
+        { icon: History, label: "Academic Years", active: activeView === "year-cycle", module: moduleForView("year-cycle"), onClick: () => setActiveView("year-cycle") },
+        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", module: moduleForView("school-calendar"), onClick: () => setActiveView("school-calendar") },
+        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", module: moduleForView("timetable"), onClick: () => setActiveView("timetable") },
+        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", module: moduleForView("period-setup"), onClick: () => setActiveView("period-setup") },
+        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", module: moduleForView("class-rooms"), onClick: () => setActiveView("class-rooms") },
+        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", module: moduleForView("exam-cycles"), onClick: () => setActiveView("exam-cycles") },
+        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", module: moduleForView("grading-rules"), onClick: () => setActiveView("grading-rules") },
+        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", module: moduleForView("report-cards"), onClick: () => setActiveView("report-cards") },
       ],
     },
     {
       icon: UserCog, label: "Staff", children: [
-        { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", onClick: () => setActiveView("staff-hierarchy") },
-        { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
-        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
+        { icon: Users, label: "Teachers", active: activeView === "teachers", module: moduleForView("teachers"), onClick: () => setActiveView("teachers") },
+        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", module: moduleForView("staff-hierarchy"), onClick: () => setActiveView("staff-hierarchy") },
+        { icon: Plane, label: "Staff Leave", active: activeView === "leave", module: moduleForView("leave"), onClick: () => setActiveView("leave") },
+        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", module: moduleForView("teacher-performance"), onClick: () => setActiveView("teacher-performance") },
+        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", module: moduleForView("permissions"), onClick: () => setActiveView("permissions") },
       ],
     },
-    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
-    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", module: moduleForView("attendance"), onClick: () => setActiveView("attendance") },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", module: moduleForView("fees"), onClick: () => setActiveView("fees") },
     {
       icon: Wrench, label: "Operations", children: [
-        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
-        { icon: Building2, label: "Hostel", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+        { icon: Bus, label: "Transport", active: activeView === "transport", module: moduleForView("transport"), onClick: () => setActiveView("transport") },
+        { icon: Building2, label: "Hostel", active: activeView === "dormitory", module: moduleForView("dormitory"), onClick: () => setActiveView("dormitory") },
+        { icon: Package, label: "Inventory", active: activeView === "inventory", module: moduleForView("inventory"), onClick: () => setActiveView("inventory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", module: moduleForView("library"), onClick: () => setActiveView("library") },
       ],
     },
-    { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
-    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", module: moduleForView("engagement"), onClick: () => setActiveView("engagement") },
+    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", module: moduleForView("ai"), onClick: () => setActiveView("ai") },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
-    { icon: School, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
+    { icon: School, label: "Admins & Access", active: activeView === "leadership", module: moduleForView("leadership"), onClick: () => setActiveView("leadership") },
   ];
   const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);

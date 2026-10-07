@@ -42,27 +42,33 @@ export function FormField({
   className,
   children,
 }: FormFieldProps) {
-  const fieldId = `field-${name}`;
+  const control = React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(children) ? children : null;
+  const fieldId = control?.props.id ?? `field-${name}`;
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label ? (
-        <Label htmlFor={fieldId}>
+        <Label htmlFor={fieldId} className="mb-1">
           {label}
           {required ? (
             // aria-hidden because the requirement is already conveyed to
             // assistive tech by `aria-required` on the control itself; without
             // this the label is read as "Email star".
-            <span aria-hidden="true" className="ml-0.5 text-red-500">
+            <span aria-hidden="true" className="ms-0.5 text-red-500">
               *
             </span>
           ) : null}
         </Label>
       ) : null}
 
-      {children}
+      {control ? React.cloneElement(control, {
+        id: fieldId,
+        "aria-invalid": error ? true : control.props["aria-invalid"],
+        "aria-required": required || control.props["aria-required"],
+        "aria-describedby": [control.props["aria-describedby"], hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined,
+      }) : children}
 
       {error ? (
         <p
@@ -70,13 +76,14 @@ export function FormField({
           // `role="alert"` so the message is announced when it appears after a
           // blur or a failed submit, rather than only on next focus.
           role="alert"
-          className="flex items-start gap-1 text-[11px] font-bold text-red-600"
+          className="flex items-start gap-1 text-sm font-bold text-destructive"
         >
           <AlertCircle aria-hidden="true" className="mt-px h-3 w-3 shrink-0" />
           <span>{error}</span>
         </p>
-      ) : hint ? (
-        <p id={hintId} className="text-[11px] font-medium text-ink-subtle">
+      ) : null}
+      {hint ? (
+        <p id={hintId} className="text-sm font-medium text-ink-subtle">
           {hint}
         </p>
       ) : null}
@@ -94,7 +101,7 @@ export function FieldError({ id, children }: { id?: string; children?: React.Rea
     <p
       id={id}
       role="alert"
-      className="flex items-start gap-1 text-[11px] font-bold text-red-600"
+      className="flex items-start gap-1 text-sm font-bold text-destructive"
     >
       <AlertCircle aria-hidden="true" className="mt-px h-3 w-3 shrink-0" />
       <span>{children}</span>
@@ -143,8 +150,8 @@ export function FormErrorSummary({
           <li key={field}>
             <button
               type="button"
-              onClick={() => onFocusField?.(field)}
-              className="text-left text-[11px] font-bold underline decoration-red-300 underline-offset-2 hover:decoration-red-600"
+              onClick={() => { if (onFocusField) onFocusField(field); else document.getElementById(`field-${field}`)?.focus(); }}
+              className="text-start text-sm font-bold underline decoration-red-300 underline-offset-2 hover:decoration-red-600"
             >
               {message}
             </button>

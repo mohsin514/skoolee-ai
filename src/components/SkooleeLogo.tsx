@@ -23,6 +23,7 @@ export default function SkooleeLogo({
 }) {
   return (
     <span
+      dir="ltr"
       role="img"
       aria-label="Skoolee AI"
       className={`${styles.logo} ${weight === "heavy" ? styles.logoHeavy : ""} ${className}`}

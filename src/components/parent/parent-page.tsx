@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkspaceSubnav } from "@/components/nav/WorkspaceSubnav";
 import React, { type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -44,40 +45,9 @@ export const PARENT_NAV: ParentNavItem[] = [
  * session, so a bare href would bounce them to the login screen.
  */
 export function ParentSubnav() {
-  const pathname = usePathname();
-  const router = useRouter();
   const { token } = useParentData();
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
-
-  return (
-    <nav
-      aria-label="Guardian sections"
-      className="flex items-center gap-1 overflow-x-auto border-b border-[#cfc2d6]/12 bg-white/70 px-3 py-1.5 backdrop-blur-xl custom-scrollbar"
-    >
-      {PARENT_NAV.map((item) => {
-        const Icon = item.icon;
-        // "/parent" would otherwise light up on every child route.
-        const isActive = item.href === "/parent" ? pathname === "/parent" : pathname.startsWith(item.href);
-        return (
-          <button
-            key={item.href}
-            type="button"
-            onClick={() => router.push(`${item.href}${q}`)}
-            aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black uppercase tracking-wider transition-all",
-              isActive
-                ? "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.65)]"
-                : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]",
-            )}
-          >
-            <Icon className={cn("h-3.5 w-3.5", isActive ? "text-white" : toneOf(item.tone).text)} />
-            {item.label}
-          </button>
-        );
-      })}
-    </nav>
-  );
+  return <WorkspaceSubnav label="Parent sections" items={PARENT_NAV.map((item) => ({ id: item.href, label: item.label, href: item.href + q }))} />;
 }
 
 export function ParentPage({
@@ -132,7 +102,7 @@ export function ParentPage({
             )}
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
                   {title}
                 </h1>
                 <span className={cn("hidden shrink-0 truncate text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
@@ -140,7 +110,7 @@ export function ParentPage({
                 </span>
               </div>
               {summary ? (
-                <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
+                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">
                   {summary}
                 </p>
               ) : null}
