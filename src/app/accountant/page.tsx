@@ -1,5 +1,6 @@
 "use client";
 
+import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
 import {
   Banknote,
@@ -113,6 +114,7 @@ export default function AccountantPage() {
       label: item.label,
       icon: item.icon,
       active: activeView === item.id,
+      module: moduleForView(item.id),
       onClick: () => setActiveView(item.id),
     })),
     { label: "Messages", icon: MessageCircle, href: "/messages" },

@@ -65,6 +65,9 @@ function isPublic(pathname: string) {
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Synthetic component reference only; the page also refuses production access.
+  if (process.env.NODE_ENV === "development" && pathname === "/design-system") return NextResponse.next();
+
   // 1. Lightning-fast early exit for static assets and internal Next.js files
   if (
     pathname.startsWith("/_next") ||

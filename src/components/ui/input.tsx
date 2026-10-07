@@ -13,7 +13,7 @@ const Input = React.forwardRef<
     <input
       type={type}
       className={cn(
-        "flex h-12 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3.5 py-2 text-sm font-bold text-[#1f1a23] shadow-none transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-ink-subtle hover:border-[#cfc2d6]/40 focus-visible:border-[#8127cf]/40 focus-visible:bg-white focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:bg-red-50/60 aria-[invalid=true]:text-red-950 aria-[invalid=true]:focus-visible:border-red-500 aria-[invalid=true]:focus-visible:shadow-[0_0_0_3px_rgba(239,68,68,0.12)]",
+        "flex min-h-12 w-full rounded-2xl border border-[#d8cfe5] bg-[#fcfaff] px-4 py-2.5 text-base font-semibold text-foreground shadow-[0_2px_3px_-2px_rgba(55,27,77,0.12),inset_0_1px_0_white,inset_0_-10px_18px_-16px_rgba(129,39,207,0.12)] transition-[background-color,border-color,box-shadow] duration-200 enabled:hover:border-[#b39acb] enabled:hover:bg-white enabled:hover:shadow-[0_4px_12px_-8px_rgba(90,42,128,0.3),inset_0_1px_0_white] focus-visible:border-primary focus-visible:bg-white focus-visible:shadow-[0_0_0_4px_rgba(129,39,207,0.08),0_4px_12px_-8px_rgba(90,42,128,0.3)] placeholder:font-normal placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-ink-muted disabled:shadow-none aria-[invalid=true]:border-destructive aria-[invalid=true]:bg-red-50/60 aria-[invalid=true]:focus-visible:outline-destructive",
         className
       )}
       ref={ref}

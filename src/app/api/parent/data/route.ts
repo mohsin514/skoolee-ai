@@ -1,3 +1,4 @@
+import { loadPermissionMap } from "@/lib/permissions";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       where: { id: studentId },
       include: {
         class: { select: { name: true, section: true, academicYear: true } },
-        campus: { select: { name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
+        campus: { select: { schoolId: true, name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
         // A report card sits in GENERATED/REVIEWED while the office is still
         // checking it. Families only ever see one the school has released.
         reportCards: {
@@ -54,6 +55,8 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
+    const navigationPermissions = await loadPermissionMap(student.campus.schoolId, "PARENT");
+
     const currentYearAttendance = attendanceForYear(
       student.attendance,
       student.class?.academicYear
@@ -79,6 +82,7 @@ export async function GET(req: NextRequest) {
         // a switcher instead of stranding siblings behind the default pick.
         children,
         selectedStudentId: studentId,
+        navigationAccess: Object.fromEntries([...navigationPermissions].map(([module, flags]) => [module, flags.canView])),
         student: {
           fullName: student.fullName,
           rollNo: student.rollNo,
@@ -87,7 +91,7 @@ export async function GET(req: NextRequest) {
           className: [student.class.name, student.class.section].filter(Boolean).join(" - "),
           academicYear: student.class.academicYear,
         },
-        campus: student.campus,
+        campus: { ...student.campus, schoolId: undefined },
         reportCards: student.reportCards.map((r) => ({
           id: r.id,
           examTitle: r.exam.title,

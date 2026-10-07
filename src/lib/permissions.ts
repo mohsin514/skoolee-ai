@@ -225,7 +225,12 @@ export async function loadPermissionMap(schoolId: string, role: string): Promise
     return map;
   })();
   permissionCache.set(key, promise);
-  return promise;
+  try {
+    return await promise;
+  } catch (error) {
+    permissionCache.delete(key);
+    throw error;
+  }
 }
 
 export async function assertPermission(user: AuthUser, module: PermissionModule, action: PermissionAction) {

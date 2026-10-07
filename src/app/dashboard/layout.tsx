@@ -37,9 +37,9 @@ export default async function DashboardLayout({
     // This console predates RoleShell, so the messenger is mounted here too —
     // otherwise the school-group workspace would be the one dashboard without it.
     <ChatProvider>
-      <div className="flex min-h-screen bg-[#fbf0fe] font-sans text-[#1f1a23]">
+      <div className="flex min-h-screen bg-background font-sans text-[#1f1a23]">
         <Sidebar />
-        <main className="skoolee-dashboard-main min-h-screen flex-1 pb-24 md:ml-64 md:pb-0">
+        <main className="skoolee-dashboard-main min-h-screen min-w-0 flex-1 pb-24 md:ms-64 md:pb-0">
           {isSuspended && (
             <div className="border-b border-amber-200 bg-amber-50/90 px-6 py-3 text-sm font-bold text-amber-800">
               Subscription suspended. Billing is still available so an administrator can restore access.

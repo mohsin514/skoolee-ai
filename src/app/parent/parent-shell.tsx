@@ -4,9 +4,10 @@ import { MessageCircle } from "lucide-react";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
 import { PARENT_NAV } from "@/components/parent/parent-page";
+import { ParentErrorState } from "@/components/parent/parent-components";
 
 export function ParentShell({ children }: { children: React.ReactNode }) {
-  const { data, token } = useParentData();
+  const { data, token, error, refetch } = useParentData();
 
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const link = (path: string) => `${path}${q}`;
@@ -30,6 +31,8 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
   return (
     <RoleShell
       navItems={navItems}
+      navigationAccess={data?.navigationAccess ?? null}
+      navigationAccessFallback={error ? <ParentErrorState error={error} onRetry={refetch} /> : undefined}
       eyebrow="Parent Guardian Console"
       userName={child?.fullName || "Guardian"}
       userRole={child?.className || "Guardian Console"}

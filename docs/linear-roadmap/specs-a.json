@@ -1,0 +1,4076 @@
+[
+  {
+    "key": "F61",
+    "userStory": "As a person working across SkooleeAI modules, I want consistent navigation and task patterns so that I can complete school work without relearning controls or searching through irrelevant modules.",
+    "problem": "The current app supplies violet branding, role shells and reusable components, but repeated local patterns and historical accessibility findings show drift. Retain recognizable branding while improving task hierarchy, contrast and predictability. A large global catalogue must not create an equally large navigation burden: teachers, families, support staff and institutional leaders need different default workspaces with shared interaction rules underneath.",
+    "currentEvidence": [
+      "src/components/role-dashboard/RoleShell.tsx",
+      "src/components/layout/sidebar.tsx",
+      "src/components/ui",
+      "src/components/nav/SectionSubnav.tsx",
+      "src/app/globals.css",
+      "docs/qa/evidence/UX-UI-A11Y-audit.md"
+    ],
+    "scope": [
+      "Define design tokens for neutral surfaces, solid readable text, restrained violet actions, spacing, typography, focus and status colors.",
+      "Specify role-based information architecture with stable primary navigation, local module navigation and enabled-module filtering.",
+      "Standardize forms, data tables, task queues, dialogs, confirmation, skeletons, feedback and responsive page headers.",
+      "Build documented reference compositions for staff productivity and family/student mobile tasks using synthetic data.",
+      "Migrate priority workflows through component-level accessibility and visual regression checks rather than isolated cosmetic overrides.",
+      "Publish ownership and contribution rules so new features reuse the system and document justified exceptions."
+    ],
+    "outOfScope": [
+      "A brand replacement or a decorative dashboard redesign disconnected from task completion.",
+      "Displaying all global capabilities to every role or forcing mobile tables into unreadable miniature layouts."
+    ],
+    "acceptance": [
+      "Each supported role has a documented primary navigation with visible active state and no links to unavailable modules.",
+      "Reference pages use shared tokens and components for headings, actions, validation, dialogs and empty states.",
+      "Text contrast and focus visibility pass the agreed accessibility checks across default, disabled and error states.",
+      "Forms preserve labels, help and errors consistently, and tables offer keyboard-operable selection and actions.",
+      "Family/student pages remain usable at narrow phone width without horizontal page scrolling.",
+      "New feature reviews identify reused components and any approved exceptions before implementation."
+    ],
+    "qa": [
+      "Complete equivalent create/edit/review actions in admissions, reports and fees and compare interaction consistency.",
+      "Navigate a family account with only two enabled modules at phone width and increased text size.",
+      "Switch an Arabic role shell between task list, form and dialog using keyboard only."
+    ],
+    "successMetric": "Measure task completion and navigation errors on representative role journeys; track shared-component adoption and accessibility regressions.",
+    "ux": {
+      "principles": [
+        "Use violet for primary action and selected context, with calm neutral work surfaces.",
+        "One clear primary action per task surface; secondary actions remain discoverable but quieter.",
+        "Let roles determine navigation and density while preserving familiar control behavior."
+      ],
+      "flow": [
+        "Identify role and task",
+        "Choose shared page pattern",
+        "Apply tokens and navigation",
+        "Design full state set",
+        "Review responsive behavior",
+        "Validate with real task criteria"
+      ],
+      "screens": [
+        {
+          "name": "Staff workspace reference",
+          "layout": "queue",
+          "purpose": "A reusable staff composition presents the current scope, the next useful work and contextual navigation. This is a design reference for implementation, not a claim that synthetic activity reflects a real school.",
+          "primaryAction": "Review next",
+          "secondaryAction": "View all activity",
+          "fields": [
+            "Campus",
+            "Academic period",
+            "Responsibility",
+            "Search"
+          ],
+          "columns": [
+            "Task",
+            "Owner",
+            "Due",
+            "State"
+          ],
+          "rows": [
+            [
+              "Review reports",
+              "Principal",
+              "Today",
+              "3 pending"
+            ],
+            [
+              "Check attendance",
+              "Office",
+              "09:00",
+              "1 missing"
+            ],
+            [
+              "Resolve delivery",
+              "Office",
+              "Today",
+              "2 failed"
+            ]
+          ],
+          "notes": [
+            "Reference composition only",
+            "Solid text contrast",
+            "Violet reserved for selected action"
+          ]
+        },
+        {
+          "name": "Form pattern reference",
+          "layout": "form",
+          "purpose": "The reference form demonstrates durable labels, section hierarchy, contextual help, a concise review summary and validation. The designer must show exactly how keyboard focus and recovery work rather than only a pristine empty form.",
+          "primaryAction": "Review changes",
+          "secondaryAction": "Save draft",
+          "fields": [
+            "Record name",
+            "Effective date",
+            "Scope",
+            "Reason"
+          ],
+          "columns": [
+            "Section",
+            "Status",
+            "Issue",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Identity",
+              "Complete",
+              "None",
+              "Edit"
+            ],
+            [
+              "Placement",
+              "Needs review",
+              "Choose campus",
+              "Open"
+            ],
+            [
+              "Review",
+              "Blocked",
+              "One required field",
+              "Resolve"
+            ]
+          ],
+          "notes": [
+            "Single primary action",
+            "Persistent field labels",
+            "Error summary links to fields"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "Every module explains the absence of records and offers only an authorized useful next action.",
+        "loading": "Use layout-matched panel skeletons while retaining navigation and already loaded context.",
+        "error": "Errors explain the failed task, preserve input and offer a bounded recovery action.",
+        "permission": "Hide unavailable navigation but explain direct-link denials without confidential details.",
+        "success": "Confirm the real completed action with a source link; avoid generic celebration blocking the next task."
+      },
+      "mobile": "Define family/student layouts from phone tasks first; staff tables use responsive priority columns or cards while retaining efficient desktop density.",
+      "rtl": "Use logical CSS properties, mirrored directional icons and explicit bidirectional isolation for identifiers, emails, equations and numeric values.",
+      "accessibility": "Require semantic controls, visible focus, keyboard parity, accessible names, adequate targets, readable contrast and reduced-motion support on reference flows.",
+      "copy": [
+        "Changes saved. Review the updated record.",
+        "Choose a campus to continue."
+      ]
+    }
+  },
+  {
+    "key": "F01",
+    "userStory": "As a school administrator, I want every school, campus and child relationship checked consistently so that staff and families receive exactly the records their current responsibilities permit.",
+    "problem": "The main dashboard uses explicit pupil links, while the AI context still includes full-name matching and broader result reads. These are source concerns requiring verification, not demonstrated production exploits. Independently implemented guards also make future modules difficult to review. Central policy must express institutional scope, active membership, action and record relationship, while keeping forbidden identities out of error messages. The two operational screens are optional runbook or review-tool visualizations; delivery may use existing dashboards, CI reports or documented procedures rather than building new application panels.",
+    "currentEvidence": [
+      "src/lib/api/scope.ts",
+      "src/lib/auth.ts",
+      "src/lib/db/prisma.ts",
+      "src/app/actions/dashboard.ts",
+      "src/app/api/ai/insights/route.ts",
+      "src/lib/parent/resolve-child.ts"
+    ],
+    "scope": [
+      "Define role/action/resource policies with explicit school and campus membership, guardianship and pupil-account relationships.",
+      "Build shared resolvers for APIs, server actions, AI context, exports and notifications; remove name-based ownership fallbacks.",
+      "Require current authorization at read and mutation time, including staff reassignment and multi-campus membership changes.",
+      "Add denied-access audit metadata without logging confidential record contents or revealing another family in the response.",
+      "Maintain a synthetic adversarial matrix covering different schools, campuses, classes, guardians and published versus draft results."
+    ],
+    "outOfScope": [
+      "Changes to the commercial role names or manifest dependencies.",
+      "Giving school users a new security debugging console."
+    ],
+    "acceptance": [
+      "Two pupils sharing a full name never become interchangeable in dashboard, AI, report, fee or export requests.",
+      "A parent requesting an unrelated child receives a consistent denial without that child’s name or existence details.",
+      "Campus-limited staff cannot expand scope through query parameters, nested writes, search, attachments or background job identifiers.",
+      "Published-result rules apply to family-facing AI context as well as ordinary result endpoints.",
+      "All tested public entry points use the shared policy or an explicitly documented service identity with equivalent restrictions.",
+      "An authorized administrator can inspect a permission decision using synthetic fixtures without accessing another tenant’s real records."
+    ],
+    "qa": [
+      "Try the same namesake pupil fixture through portal, AI context and report download.",
+      "Reassign a teacher while their tab is open and repeat old-campus requests.",
+      "Submit a bulk request containing one valid record and one cross-school identifier."
+    ],
+    "successMetric": "Zero unauthorized disclosures or mutations in the versioned adversarial matrix; track policy coverage for every newly added entry point.",
+    "ux": {
+      "principles": [
+        "Operational screens belong to authorized internal reviewers, never pupil navigation.",
+        "Explain permissions in school language while showing technical decision detail only in the operator drill-down.",
+        "Keep the school and campus under test visible throughout a review."
+      ],
+      "flow": [
+        "Choose synthetic persona",
+        "Select scope and action",
+        "Run policy checks",
+        "Review denied cases",
+        "Export release evidence"
+      ],
+      "screens": [
+        {
+          "name": "Access review",
+          "layout": "table",
+          "purpose": "Internal release workspace comparing expected and actual decisions for a selected synthetic persona. It should reveal policy inconsistency without turning protected school records into support browsing material.",
+          "primaryAction": "Run checks",
+          "secondaryAction": "View policy",
+          "fields": [
+            "Persona",
+            "School",
+            "Campus",
+            "Action"
+          ],
+          "columns": [
+            "Case",
+            "Expected",
+            "Actual",
+            "Result"
+          ],
+          "rows": [
+            [
+              "Own class",
+              "Allow",
+              "Allow",
+              "Pass"
+            ],
+            [
+              "Other campus",
+              "Deny",
+              "Deny",
+              "Pass"
+            ],
+            [
+              "Namesake child",
+              "Deny",
+              "Deny",
+              "Pass"
+            ]
+          ],
+          "notes": [
+            "Synthetic fixtures only",
+            "Decision details open beside the matrix",
+            "Operational reference; new panel optional"
+          ]
+        },
+        {
+          "name": "Decision detail",
+          "layout": "flow",
+          "purpose": "Show which relationship and publication rules produced a decision, the policy version and affected entry points. A failed check links to implementation evidence rather than offering an override.",
+          "primaryAction": "Open finding",
+          "secondaryAction": "Back to checks",
+          "fields": [
+            "Policy version",
+            "Record type",
+            "Request scope",
+            "Decision"
+          ],
+          "columns": [
+            "Check",
+            "Input",
+            "Outcome",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "Membership",
+              "Campus North",
+              "Valid",
+              "Fixture A"
+            ],
+            [
+              "Child link",
+              "Unrelated",
+              "Denied",
+              "Link check"
+            ],
+            [
+              "Visibility",
+              "Draft result",
+              "Denied",
+              "Release gate"
+            ]
+          ],
+          "notes": [
+            "No override button",
+            "Copy a redacted diagnostic reference",
+            "Operational reference; new panel optional"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No policy runs yet; offer the seeded matrix and explain its synthetic scope.",
+        "loading": "Keep the persona and previous run visible while individual checks complete.",
+        "error": "Preserve completed checks and give a redacted run reference with retry for failed infrastructure.",
+        "permission": "Hide the tool from school roles; reject direct access and avoid exposing fixture identities outside authorized review.",
+        "success": "Show coverage, failures and evidence timestamp; completion never implies certification."
+      },
+      "mobile": "On narrow operator screens show one case per card, with expected and actual decisions adjacent and details in a full-screen sheet.",
+      "rtl": "Mirror reading order; isolate policy IDs and paths as LTR so operators can copy exact identifiers.",
+      "accessibility": "All checks have text outcomes, table headers and keyboard access; focus returns to the inspected case after closing details.",
+      "copy": [
+        "This account cannot access that record.",
+        "All 24 synthetic access checks passed."
+      ]
+    }
+  },
+  {
+    "key": "F02",
+    "userStory": "As a school owner or invited staff member, I want sign-in, invitation, recovery and account removal to behave predictably so that legitimate access is easy and lost privileges stop immediately.",
+    "problem": "Current helpers differ in whether they check active account and current role, while staff removal updates an activity flag. Historical logout tests do not establish every lifecycle path. Add consistent session invalidation and administrator MFA without stranding schools when an authenticator or recovery email is unavailable. Recovery must prove control without revealing whether an arbitrary email belongs to a pupil.",
+    "currentEvidence": [
+      "src/lib/auth.ts",
+      "src/lib/api/scope.ts",
+      "src/lib/auth/session-revocation.ts",
+      "src/app/actions/invite.ts",
+      "src/app/api/auth/change-password/route.ts",
+      "tests/logout"
+    ],
+    "scope": [
+      "Unify invitation states, expiry, resend and acceptance with role/campus details visible before account activation.",
+      "Invalidate relevant sessions after deactivation, role/campus change and sensitive recovery; check current membership server-side.",
+      "Add administrator MFA enrollment, verification, recovery codes and clearly audited recovery handling.",
+      "Show users their active sessions with device/time information and a revoke action, using cautious location claims.",
+      "Define email delivery failure and expired-link recovery paths with rate limits and generic unauthenticated responses."
+    ],
+    "outOfScope": [
+      "Enterprise SSO protocol implementation, owned by the identity integration feature.",
+      "SMS as a mandatory second factor or automatic account recovery through support impersonation."
+    ],
+    "acceptance": [
+      "An invitation can be accepted once within its validity period and cannot silently assign a different school or role.",
+      "Existing sessions lose revoked privileges on the next protected request, including server actions and AI routes.",
+      "Administrators finish MFA setup only after a successful challenge and acknowledgement of recovery instructions.",
+      "Recovery codes are single-use and never retrievable as plaintext after the initial protected presentation.",
+      "Expired invites preserve a clear route to request a new link without creating duplicate users.",
+      "Failed MFA or delivery attempts expose useful recovery actions without leaking account existence."
+    ],
+    "qa": [
+      "Deactivate a signed-in teacher and attempt marks entry, messaging and report export.",
+      "Use one recovery code twice from separate browser sessions.",
+      "Accept an expired invitation after the administrator changes the intended campus."
+    ],
+    "successMetric": "Measure invitation completion and recovery success; require all session-revocation paths to pass before enabling real school accounts.",
+    "ux": {
+      "principles": [
+        "Show institution and role before asking a person to accept access.",
+        "Avoid security jargon and retain progress when verification fails.",
+        "Separate a reversible resend from a consequential revoke action."
+      ],
+      "flow": [
+        "Open invitation",
+        "Confirm school and role",
+        "Set credentials",
+        "Enroll required MFA",
+        "Save recovery method",
+        "Enter workspace"
+      ],
+      "screens": [
+        {
+          "name": "Account access",
+          "layout": "table",
+          "purpose": "School administrators manage invitations and active access without confusing staff employment records with login privileges. Each row exposes its actual state, intended campus and next permissible action.",
+          "primaryAction": "Invite person",
+          "secondaryAction": "Review sessions",
+          "fields": [
+            "Campus",
+            "Role",
+            "Access state",
+            "Search"
+          ],
+          "columns": [
+            "Person",
+            "Role",
+            "Campus",
+            "Access"
+          ],
+          "rows": [
+            [
+              "Jordan Lee",
+              "Teacher",
+              "North",
+              "Invited"
+            ],
+            [
+              "Sam Reed",
+              "Admin",
+              "North",
+              "MFA active"
+            ],
+            [
+              "Casey Chen",
+              "Teacher",
+              "West",
+              "Disabled"
+            ]
+          ],
+          "notes": [
+            "Synthetic people",
+            "Resend appears only for invitations",
+            "Revocation explains immediate effects"
+          ]
+        },
+        {
+          "name": "Protect your account",
+          "layout": "form",
+          "purpose": "An administrator verifies an authenticator and stores a recovery method before privileged access is enabled. The page explains what happens if the device is lost, with no forced abandonment of setup.",
+          "primaryAction": "Verify code",
+          "secondaryAction": "Use recovery code",
+          "fields": [
+            "Authenticator code",
+            "Device label",
+            "Remember device",
+            "Recovery acknowledgement"
+          ],
+          "columns": [
+            "Step",
+            "Status",
+            "Action",
+            "Help"
+          ],
+          "rows": [
+            [
+              "Add authenticator",
+              "Complete",
+              "Change",
+              "Setup guide"
+            ],
+            [
+              "Verify code",
+              "Required",
+              "Verify",
+              "Code refreshed"
+            ],
+            [
+              "Recovery codes",
+              "Next",
+              "Save safely",
+              "Why needed"
+            ]
+          ],
+          "notes": [
+            "Never display secret after setup",
+            "Errors remain beside the code",
+            "Show the school being protected"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No invited people; explain who can be invited and make role/campus required.",
+        "loading": "Keep entered email and selected role while the invitation request completes.",
+        "error": "Show a resend or verification retry with preserved input; never mark an undelivered invite accepted.",
+        "permission": "Explain when only an institutional administrator can change access and provide a safe contact path.",
+        "success": "Confirm which sessions ended or invitation was sent, with timestamp and next step."
+      },
+      "mobile": "MFA and invitation acceptance are single-column mobile flows with large code inputs; account tables become concise person cards.",
+      "rtl": "Arabic guidance mirrors normally; email addresses, one-time codes and recovery codes remain isolated LTR.",
+      "accessibility": "Codes support paste, accessible labels and announced validation; do not force separate character boxes or rely on timed animations.",
+      "copy": [
+        "Your invitation has expired. Request a new link.",
+        "Access removed. Existing sessions will need to sign in again."
+      ]
+    }
+  },
+  {
+    "key": "F03",
+    "userStory": "As a principal, I want to approve an exact report version before families can see or receive it so that a later edit cannot silently change an already approved result.",
+    "problem": "The bulk report path checks individual remarks, but a single-send path overrides approval after checking exam publication. Exam-state transitions do not prove every remark was approved. These source inconsistencies require a shared invariant, versioned content and fresh tests. Reviewers need to understand the changes they approve, while families need one clearly current published report and an understandable correction notice.",
+    "currentEvidence": [
+      "src/app/api/reports/route.ts",
+      "src/app/api/reports/[id]/send/route.ts",
+      "src/app/api/exams/route.ts",
+      "src/lib/notifications/service.ts",
+      "src/components/academic/ReportCardPipeline.tsx"
+    ],
+    "scope": [
+      "Create report versions capturing marks, grading rules, remarks, language and generated document identity at approval time.",
+      "Centralize review, publication, PDF/export and delivery eligibility; remove caller-supplied approval overrides.",
+      "Invalidate approval after any material content change and retain prior published versions in restricted history.",
+      "Provide a class review queue with blockers, changed sections and batch approval only for individually eligible versions.",
+      "Make delivery reference the exact published version and give families a clear superseded/corrected status."
+    ],
+    "outOfScope": [
+      "Changing the school’s grading policy or permitting AI to approve final results.",
+      "Replacing the existing examination lifecycle with a separate publication system."
+    ],
+    "acceptance": [
+      "A report lacking approved remarks cannot be published or sent through bulk, individual, API or background paths.",
+      "Editing approved marks or remarks creates a new reviewable version and does not mutate the old published artifact.",
+      "An approval records reviewer, time and content version, and is rejected if the version changes during review.",
+      "Families and AI explanations receive only an authorized published version, including through old links.",
+      "Repeated send requests for the same version do not produce duplicate logical deliveries.",
+      "A corrected release identifies its predecessor and reason without exposing internal review notes to families."
+    ],
+    "qa": [
+      "Approve version two while another staff member edits a remark in parallel.",
+      "Attempt the current single-send override path against an unapproved report.",
+      "Open an old family PDF link after a corrected report is published."
+    ],
+    "successMetric": "Zero deliveries of unapproved or mismatched versions; measure reviewer minutes per class and percentage blocked for meaningful corrections.",
+    "ux": {
+      "principles": [
+        "Put approval blockers and changed content before decorative performance summaries.",
+        "Use explicit version labels and separate Approve from Publish.",
+        "Keep family-facing correction language factual and free of staff blame."
+      ],
+      "flow": [
+        "Choose exam",
+        "Review blocked reports",
+        "Inspect changed version",
+        "Approve eligible reports",
+        "Preview family release",
+        "Publish and track delivery"
+      ],
+      "screens": [
+        {
+          "name": "Report review",
+          "layout": "queue",
+          "purpose": "A principal sees the class release readiness and can inspect reports that need attention. Counts distinguish missing marks, unreviewed remarks and eligible versions so batch actions never conceal unfinished work.",
+          "primaryAction": "Review next",
+          "secondaryAction": "Preview release",
+          "fields": [
+            "Exam",
+            "Class",
+            "Reviewer",
+            "Readiness"
+          ],
+          "columns": [
+            "Student",
+            "Version",
+            "Blocker",
+            "State"
+          ],
+          "rows": [
+            [
+              "Ari Taylor",
+              "v3",
+              "Remark changed",
+              "Review"
+            ],
+            [
+              "Noor Sample",
+              "v2",
+              "None",
+              "Approved"
+            ],
+            [
+              "Leo Morgan",
+              "v1",
+              "Missing mark",
+              "Blocked"
+            ]
+          ],
+          "notes": [
+            "Synthetic pupil names",
+            "Batch selection excludes blockers",
+            "Show last reviewer beside each item"
+          ]
+        },
+        {
+          "name": "Approve this version",
+          "layout": "timeline",
+          "purpose": "Compare the pending report with its last approved version and preview exactly what the family receives. The reviewer can return a specific section for correction without publishing partial changes.",
+          "primaryAction": "Approve v3",
+          "secondaryAction": "Request correction",
+          "fields": [
+            "Version",
+            "Changed sections",
+            "Reviewer note",
+            "Language"
+          ],
+          "columns": [
+            "Section",
+            "Before",
+            "Pending",
+            "Review"
+          ],
+          "rows": [
+            [
+              "Mathematics",
+              "72",
+              "76",
+              "Corrected"
+            ],
+            [
+              "Remark",
+              "Needs practice",
+              "Improving",
+              "Changed"
+            ],
+            [
+              "Attendance",
+              "94%",
+              "94%",
+              "Unchanged"
+            ]
+          ],
+          "notes": [
+            "Version checked again on submit",
+            "Internal notes stay private",
+            "Publication is a separate action"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No reports generated; link to the eligible locked exam and state what must be completed first.",
+        "loading": "Load report sections within the stable review layout; never show old values as the pending version.",
+        "error": "If another edit arrives, stop approval and show the new changes with a fresh review action.",
+        "permission": "Teachers can correct assigned drafts; only authorized reviewers see approval and publication controls.",
+        "success": "Confirm the approved version and remaining class blockers, then offer release preview."
+      },
+      "mobile": "Stack report comparison sections vertically with clearly labeled prior and pending values; keep approval summary reachable without side-by-side scrolling.",
+      "rtl": "Render each language version in its native direction while keeping marks, version identifiers and comparison arrows unambiguous.",
+      "accessibility": "Changes include text labels and not color alone; preview text is selectable, keyboard navigable and available outside the PDF.",
+      "copy": [
+        "This report changed after approval. Review version 3.",
+        "Published version 3. Families will receive this version."
+      ]
+    }
+  },
+  {
+    "key": "F62",
+    "userStory": "As a school buyer, I want product claims, plan limits and billing behavior to agree so that I can evaluate SkooleeAI and purchase without discovering a different promise inside the application.",
+    "problem": "The reviewed marketing site and local plan configuration disagree on enrollment and AI-credit limits. The site described credit rollover while the reset path only clears usage. The founder reported no school customers at review time, so testimonials and measured savings require evidence before publication. This feature makes commercial truth a versioned product contract, not merely a copywriting cleanup, and preserves existing customer commitments when plans change. The two operational screens are optional runbook or review-tool visualizations; delivery may use existing dashboards, CI reports or documented procedures rather than building new application panels.",
+    "currentEvidence": [
+      "src/config/plans.ts",
+      "src/lib/billing/entitlements.ts",
+      "src/app/api/cron/ai-credits-reset/route.ts",
+      "docs/SKOOLEEAI-PRODUCT-REVIEW-AND-GLOBAL-ROADMAP.md: Marketing corrections",
+      "Live website observations recorded in the review, not a current re-audit"
+    ],
+    "scope": [
+      "Create a versioned commercial catalogue for plan names, limits, allowances, renewal/rollover rules and regional presentation.",
+      "Drive marketing comparison, app billing, checkout and server entitlements from the same approved contract or generated artifact.",
+      "Audit testimonials, metrics, competitor statements and platform availability against permissioned supporting evidence.",
+      "Add clearly labeled shipped, pilot and planned capability states and avoid presenting assumptions as measured results.",
+      "Define plan-change and grandfathering behavior with migration previews, effective dates and understandable customer communication.",
+      "Add release checks comparing displayed plan data with enforced limits and credit-reset behavior."
+    ],
+    "outOfScope": [
+      "Inventing customer evidence, legal guarantees or a universal global price without market validation.",
+      "Automatically changing existing subscriptions merely to match newly written marketing copy."
+    ],
+    "acceptance": [
+      "A selected plan has identical relevant limits in marketing, signup, billing, checkout and server enforcement.",
+      "Credit allowance and rollover wording matches tested renewal behavior, including any explicit expiry rules.",
+      "Every customer quotation or measured outcome has a traceable source and publication permission, otherwise it is removed or labeled appropriately.",
+      "Planned capabilities are never represented as generally available in pricing or sales material.",
+      "Existing customer contracts retain their approved terms or receive an explicitly authorized change process.",
+      "A release check detects entitlement drift and blocks publication of mismatched commercial data."
+    ],
+    "qa": [
+      "Compare free, paid and custom plans across signup, upgrade and quota-exceeded flows.",
+      "Run a monthly credit reset with unused allowance and compare the resulting balance to displayed policy.",
+      "Update plan limits while an existing school has grandfathered terms and an open checkout."
+    ],
+    "successMetric": "Zero plan-contract discrepancies in release checks; track billing expectation complaints and claims with verified evidence.",
+    "ux": {
+      "principles": [
+        "Explain limits in school terms and put variable-cost allowances next to their practical effect.",
+        "Distinguish measured evidence from calculators, examples and future intentions.",
+        "Make plan changes understandable without exposing internal tier identifiers."
+      ],
+      "flow": [
+        "Review commercial contract",
+        "Verify claims and evidence",
+        "Preview all surfaces",
+        "Test renewal and limits",
+        "Approve effective version",
+        "Publish synchronized content"
+      ],
+      "screens": [
+        {
+          "name": "Plan contract review",
+          "layout": "table",
+          "purpose": "An internal commercial review compares one plan version across public and authenticated surfaces. It exposes mismatches before release and records who approved the wording and enforcement contract.",
+          "primaryAction": "Validate contract",
+          "secondaryAction": "Preview pricing",
+          "fields": [
+            "Plan version",
+            "Region",
+            "Effective date",
+            "Reviewer"
+          ],
+          "columns": [
+            "Surface",
+            "Student limit",
+            "AI allowance",
+            "Match"
+          ],
+          "rows": [
+            [
+              "Marketing",
+              "500",
+              "1000 monthly",
+              "Yes"
+            ],
+            [
+              "Application",
+              "500",
+              "1000 monthly",
+              "Yes"
+            ],
+            [
+              "Enforcement",
+              "500",
+              "1000 monthly",
+              "Yes"
+            ]
+          ],
+          "notes": [
+            "Synthetic plan values",
+            "Use approved contract values",
+            "Operational reference; new panel optional"
+          ]
+        },
+        {
+          "name": "Claims evidence",
+          "layout": "table",
+          "purpose": "Content owners review statements against their evidence and permitted presentation. Demonstration personas, assumed savings and future platform capabilities remain explicitly labeled instead of borrowing the appearance of customer proof.",
+          "primaryAction": "Approve revisions",
+          "secondaryAction": "Open evidence",
+          "fields": [
+            "Claim category",
+            "Status",
+            "Evidence owner",
+            "Review date"
+          ],
+          "columns": [
+            "Claim",
+            "Evidence",
+            "Presentation",
+            "State"
+          ],
+          "rows": [
+            [
+              "Time saving",
+              "Pilot pending",
+              "Illustrative model",
+              "Revise"
+            ],
+            [
+              "Testimonial",
+              "No permission",
+              "Remove quotation",
+              "Blocked"
+            ],
+            [
+              "Paper scanning",
+              "Pilot version",
+              "Pilot capability",
+              "Ready"
+            ]
+          ],
+          "notes": [
+            "No invented quotations",
+            "Evidence date is visible",
+            "Operational reference; new panel optional"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No approved contract; show current discrepancies and prevent new unreviewed commercial publication.",
+        "loading": "Keep the selected version and last validation result visible during checks.",
+        "error": "Identify the differing field and affected surfaces; preserve drafted wording for correction.",
+        "permission": "Only designated commercial owners publish; engineering reviewers can validate without changing prices.",
+        "success": "Record the approved contract version, effective date and verified publication surfaces."
+      },
+      "mobile": "Buyer pricing is easy to compare on mobile with concise limits and expandable detail; internal validation tables become field comparison cards.",
+      "rtl": "Localize plan names and commercial explanations while isolating numeric allowances and currencies; avoid ambiguous translated rollover wording.",
+      "accessibility": "Pricing comparisons expose semantic headers and feature text; tooltips supplement rather than hide essential purchase conditions.",
+      "copy": [
+        "Unused monthly allowance expires at renewal, as described in this plan.",
+        "This time-saving example is illustrative, not a measured customer result."
+      ]
+    }
+  },
+  {
+    "key": "F05",
+    "userStory": "As a platform operator, I want reproducible upgrades and rehearsed restoration so that schools can recover after a deployment or data incident with known, demonstrated limits.",
+    "problem": "The checked-in migration baseline contains CLI output, and CI documents a schema-push workaround. Historical local security and QA evidence cannot prove current deployment recovery. This feature is operational infrastructure with an internal runbook interface, not a new pupil dashboard. It must make the difference between a backup existing, a backup being restorable and a school being ready to reopen explicit. The two operational screens are optional runbook or review-tool visualizations; delivery may use existing dashboards, CI reports or documented procedures rather than building new application panels.",
+    "currentEvidence": [
+      "prisma/migrations/20260730000000_baseline/migration.sql",
+      ".github/workflows/deploy.yml",
+      "prisma/schema.prisma",
+      "docs/ENVIRONMENTS.md",
+      "docs/qa/evidence/ISO-4.8-rls-status.txt"
+    ],
+    "scope": [
+      "Replace the invalid migration baseline with an agreed, verified history and test clean provisioning plus upgrades from supported versions.",
+      "Inventory database, object storage, configuration and encryption dependencies required for a complete recovery.",
+      "Schedule and document isolated restoration rehearsals using synthetic or approved appropriately protected data.",
+      "Add deployment gates for migration checks, critical workflows, integrity reconciliation and a documented forward-recovery decision.",
+      "Record backup age, actual restored point, elapsed recovery time, integrity findings and operator sign-off."
+    ],
+    "outOfScope": [
+      "Claiming a contractual recovery target before measurements and operating commitments exist.",
+      "Allowing school staff to run destructive production restore operations."
+    ],
+    "acceptance": [
+      "A clean environment provisions successfully from versioned migrations without manual schema edits.",
+      "Every supported upgrade path passes on a representative populated staging database with reconciliation checks.",
+      "A rehearsal restores both records and referenced files into an isolated destination that cannot send real notifications.",
+      "The run report states the actual recovery point and elapsed time rather than assuming provider plan guarantees.",
+      "A failed migration or verification gate prevents release promotion and preserves diagnostic evidence.",
+      "Production restoration requires recorded operator authorization, destination confirmation and an approved incident procedure."
+    ],
+    "qa": [
+      "Upgrade a populated database with existing grades, invoices and attachments from the prior release.",
+      "Restore a backup whose object-storage reference is missing and confirm the rehearsal fails clearly.",
+      "Interrupt a migration at an identified failure point and exercise the documented recovery route."
+    ],
+    "successMetric": "All supported migration paths pass; every scheduled restore rehearsal has measured recovery time, verified records/files and an accountable owner.",
+    "ux": {
+      "principles": [
+        "Use an operator checklist with evidence links, not a reassuring green backup badge.",
+        "Make environment and destination impossible to confuse during consequential actions.",
+        "Distinguish rehearsal, readiness and incident execution in the interface."
+      ],
+      "flow": [
+        "Choose release or backup",
+        "Verify destination",
+        "Run isolated rehearsal",
+        "Reconcile records and files",
+        "Review failures",
+        "Record readiness decision"
+      ],
+      "screens": [
+        {
+          "name": "Recovery readiness",
+          "layout": "table",
+          "purpose": "Internal operations view showing restore evidence, backup freshness and release readiness for each environment. It helps an operator identify missing proof without exposing pupil records or secret connection values.",
+          "primaryAction": "Run rehearsal",
+          "secondaryAction": "Open runbook",
+          "fields": [
+            "Environment",
+            "Backup point",
+            "Release",
+            "Evidence state"
+          ],
+          "columns": [
+            "Check",
+            "Last run",
+            "Result",
+            "Owner"
+          ],
+          "rows": [
+            [
+              "Database restore",
+              "08 Oct",
+              "Passed",
+              "Operator A"
+            ],
+            [
+              "File references",
+              "08 Oct",
+              "Passed",
+              "Operator A"
+            ],
+            [
+              "Critical flows",
+              "08 Oct",
+              "Pending",
+              "Reviewer B"
+            ]
+          ],
+          "notes": [
+            "Synthetic environment labels",
+            "Secrets never appear",
+            "Operational reference; new panel optional"
+          ]
+        },
+        {
+          "name": "Rehearsal result",
+          "layout": "flow",
+          "purpose": "Document the complete recovery sequence and blocking discrepancies. The final decision requires actual restored-record and file checks, with a path to a remediation issue rather than a one-click production replacement.",
+          "primaryAction": "Record decision",
+          "secondaryAction": "Download evidence",
+          "fields": [
+            "Destination",
+            "Recovered point",
+            "Elapsed time",
+            "Reviewer"
+          ],
+          "columns": [
+            "Stage",
+            "Expected",
+            "Observed",
+            "Result"
+          ],
+          "rows": [
+            [
+              "Provision",
+              "Schema v12",
+              "Schema v12",
+              "Pass"
+            ],
+            [
+              "Reconcile",
+              "400 fixtures",
+              "400 fixtures",
+              "Pass"
+            ],
+            [
+              "Delivery",
+              "Disabled",
+              "Disabled",
+              "Pass"
+            ]
+          ],
+          "notes": [
+            "Production remains separate",
+            "List unresolved discrepancies",
+            "Operational reference; new panel optional"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No successful rehearsal; say recovery is unverified and link the prerequisite checklist.",
+        "loading": "Show the current stage and elapsed time without inventing a completion percentage.",
+        "error": "Preserve logs and the isolated destination for authorized diagnosis; mark readiness blocked.",
+        "permission": "Only operational roles can execute; school administrators receive a plain service update when relevant.",
+        "success": "Record measured recovery evidence and reviewer sign-off, without promising untested availability."
+      },
+      "mobile": "Provide a read-friendly incident checklist on mobile; require deliberate confirmation for operator actions and avoid tiny dense log tables.",
+      "rtl": "Mirror operator labels if localized; keep timestamps with explicit zone, commands and evidence hashes isolated LTR.",
+      "accessibility": "Checklist stages have semantic headings and text results; logs are expandable and searchable without a keyboard trap.",
+      "copy": [
+        "Restore completed. Verification is still pending.",
+        "Release blocked: file reconciliation did not pass."
+      ]
+    }
+  },
+  {
+    "key": "F06",
+    "userStory": "As an authorized academic or finance reviewer, I want corrections to preserve original values and reasons so that families and auditors can understand how an official record changed.",
+    "problem": "Grade and finance workflows already write audit records, but a shared correction experience should preserve meaning across reports, invoices, receipts and exported documents. A correction is not merely an edit icon: it needs a before/after preview, current-version protection and domain-specific consequences. Financial entries often require a reversal or adjustment rather than rewriting history, while released grades require a new approved report version.",
+    "currentEvidence": [
+      "src/lib/audit.ts",
+      "src/app/api/marks/route.ts",
+      "src/lib/fees/payment.ts",
+      "src/app/api/audit-log/route.ts",
+      "src/lib/academic/report-cards.ts",
+      "prisma/schema.prisma"
+    ],
+    "scope": [
+      "Define correction commands for marks and finance records with immutable original reference, reason, actor and timestamp.",
+      "Require before/after review and current-record version checks before committing consequential changes.",
+      "Route published grades through renewed approval and financial changes through appropriate adjustment or reversal entries.",
+      "Separate correction requester and approver where school policy requires it, preventing self-approval for those cases.",
+      "Expose a redacted understandable history and correction receipt while keeping internal notes restricted."
+    ],
+    "outOfScope": [
+      "Inventing universal accounting rules or replacing country-specific finance requirements.",
+      "Deleting original audit entries to simplify the activity timeline."
+    ],
+    "acceptance": [
+      "Every correction retains the original record and links its successor or compensating transaction.",
+      "A missing reason or stale record version prevents commitment and preserves the user’s draft.",
+      "Published mark changes require the report-version approval path before family visibility.",
+      "Financial corrections reconcile balances and do not silently rewrite an already issued receipt.",
+      "Policies requiring a second approver reject self-approval through both UI and direct API requests.",
+      "An authorized reviewer can reconstruct values, reasons and actors without reading application logs."
+    ],
+    "qa": [
+      "Two staff request different changes to the same mark and the second sees a stale-version conflict.",
+      "Reverse a partially allocated payment and reconcile all affected invoice balances.",
+      "Review a family-visible correction history containing a restricted internal note."
+    ],
+    "successMetric": "One hundred percent of consequential corrections have traceable before/after evidence; track approval time and unresolved reconciliation exceptions.",
+    "ux": {
+      "principles": [
+        "Present the consequence in domain language before asking for confirmation.",
+        "Keep original and proposed values adjacent with explicit units and currency.",
+        "Distinguish public explanation from private reviewer notes."
+      ],
+      "flow": [
+        "Open record history",
+        "Request correction",
+        "Enter reason",
+        "Review consequences",
+        "Approve if required",
+        "Issue correction receipt"
+      ],
+      "screens": [
+        {
+          "name": "Request correction",
+          "layout": "form",
+          "purpose": "Staff propose a specific change against the current record and see downstream effects before submission. The form adapts to grades or money while retaining one recognizable correction structure.",
+          "primaryAction": "Review correction",
+          "secondaryAction": "Save draft",
+          "fields": [
+            "Original value",
+            "Proposed value",
+            "Reason",
+            "Public explanation"
+          ],
+          "columns": [
+            "Affected item",
+            "Current",
+            "Proposed",
+            "Next step"
+          ],
+          "rows": [
+            [
+              "Math mark",
+              "72 / 100",
+              "76 / 100",
+              "Reapprove"
+            ],
+            [
+              "Report",
+              "v2 published",
+              "v3 draft",
+              "Review"
+            ],
+            [
+              "Family notice",
+              "None",
+              "Correction",
+              "On release"
+            ]
+          ],
+          "notes": [
+            "Synthetic grade example",
+            "Private note is clearly labeled",
+            "Original value cannot be edited"
+          ]
+        },
+        {
+          "name": "Correction history",
+          "layout": "timeline",
+          "purpose": "Review a record’s successive approved changes and linked receipts. The view separates the initial record from later corrections and shows which version is currently authoritative without discarding earlier evidence.",
+          "primaryAction": "Open current record",
+          "secondaryAction": "Export history",
+          "fields": [
+            "Record reference",
+            "Current version",
+            "Date range",
+            "Change type"
+          ],
+          "columns": [
+            "Version",
+            "Change",
+            "Approved by",
+            "State"
+          ],
+          "rows": [
+            [
+              "v1",
+              "Initial entry",
+              "Teacher A",
+              "Superseded"
+            ],
+            [
+              "v2",
+              "Released result",
+              "Principal B",
+              "Superseded"
+            ],
+            [
+              "v3",
+              "Mark corrected",
+              "Principal B",
+              "Current"
+            ]
+          ],
+          "notes": [
+            "Amounts carry currency",
+            "Rejected proposals remain restricted",
+            "Every entry links its source"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No corrections; show the original record and explain when a formal correction is necessary.",
+        "loading": "Preserve the proposed change while impact calculations load; do not enable approval until complete.",
+        "error": "Show the changed underlying value and ask the requester to review their proposal again.",
+        "permission": "Explain which reviewer can approve; never make lack of access look like missing history.",
+        "success": "Provide a correction reference, updated authoritative version and status of any downstream review."
+      },
+      "mobile": "Stack original and proposed values with labels; use a fixed review summary that does not cover reason fields or the keyboard.",
+      "rtl": "Mirror the timeline and form while isolating currency amounts, identifiers and mathematical comparisons.",
+      "accessibility": "Do not use strikethrough alone for previous values; announce totals and validation changes and preserve focus after approval.",
+      "copy": [
+        "This change will create report version 3 for review.",
+        "Correction recorded. The original receipt remains in history."
+      ]
+    }
+  },
+  {
+    "key": "F63",
+    "userStory": "As the platform AI owner and school administrator, I want approved provider policies, controlled data handling and recorded evaluation so that AI features remain accountable and manual school work continues when AI is unavailable.",
+    "problem": "The provider switchboard and pseudonymization exist, but free-text fields can preserve identifiers, the scanner is Pakistan-specific and invalid provider-order configuration can reintroduce a public fallback. These are source findings to remediate and test, not evidence of a live disclosure. A configurable Ollama URL alone also does not prove local processing. Build one gateway that validates actual destinations, complete prompts, allowed features and review requirements. The two operational screens are optional runbook or review-tool visualizations; delivery may use existing dashboards, CI reports or documented procedures rather than building new application panels.",
+    "currentEvidence": [
+      "src/lib/ai/openai.ts",
+      "src/lib/ai/pseudonymize.ts",
+      "src/app/api/ai/insights/route.ts",
+      "src/lib/ai/prompts.ts",
+      "src/app/api/ai/review/[id]/route.ts"
+    ],
+    "scope": [
+      "Define an explicit provider/destination allowlist with school policy, region requirements and approved fallback behavior; invalid configuration fails closed.",
+      "Minimize structured context and scan the complete outbound payload including free text, attachments and source excerpts using reviewed multilingual cases.",
+      "Centralize feature policy, prompt/source versions, request budgets, evaluation metadata and required human approval.",
+      "Evaluate generated questions, answer keys, remarks and translations on educator-reviewed sets with documented failure thresholds.",
+      "Provide safe degraded behavior preserving manual authoring, saved drafts and transparent quota/service messages.",
+      "Record redacted operational evidence and retention controls without logging raw sensitive prompts by default."
+    ],
+    "outOfScope": [
+      "Claiming anonymization, regulatory certification or local-only processing solely from a provider name.",
+      "Autonomous consequential decisions or training providers on school data without an explicit approved arrangement."
+    ],
+    "acceptance": [
+      "Only approved actual destinations receive requests; malformed or unknown provider settings never activate a public fallback.",
+      "The full outbound payload is checked, including identifiers embedded in free text and non-Pakistani formats.",
+      "Denied payloads and provider failures do not expose raw sensitive content through logs or user errors.",
+      "Each generated artifact records the model, prompt, source and policy versions needed for review.",
+      "Required educator evaluation checks pass before a new model/prompt version is promoted.",
+      "Budgets and rate limits prevent unauthorized excess usage without disabling non-AI school tasks.",
+      "Human approval requirements remain enforced by the authoritative publication service, not a model instruction alone."
+    ],
+    "qa": [
+      "Insert a guardian name and Saudi-style phone into a free-text generation prompt.",
+      "Configure an invalid provider order and a remote Ollama destination under a local-only school policy.",
+      "Promote a model that fails Arabic answer-key checks and verify rollout remains blocked."
+    ],
+    "successMetric": "Track blocked unsafe payload tests, educator-reviewed quality failures, approved-draft rate, latency and cost per completed workflow.",
+    "ux": {
+      "principles": [
+        "Operational AI controls show actual processing destinations and policy decisions.",
+        "School users receive plain explanations and manual alternatives, not vendor stack traces.",
+        "Evaluation results distinguish content quality, privacy controls and availability."
+      ],
+      "flow": [
+        "Define school policy",
+        "Approve provider destination",
+        "Run payload and quality checks",
+        "Review evaluation",
+        "Promote version",
+        "Monitor redacted outcomes"
+      ],
+      "screens": [
+        {
+          "name": "AI policy",
+          "layout": "settings",
+          "purpose": "Authorized operators configure the actual processing destination, allowed features and fallback policy. The view should make data-routing consequences inspectable without displaying secrets or suggesting that every provider label implies a hosting guarantee.",
+          "primaryAction": "Validate policy",
+          "secondaryAction": "View evaluation",
+          "fields": [
+            "Provider destination",
+            "Allowed features",
+            "Data policy",
+            "Fallback rule"
+          ],
+          "columns": [
+            "Feature",
+            "Provider policy",
+            "Review required",
+            "State"
+          ],
+          "rows": [
+            [
+              "Quiz draft",
+              "Approved endpoint",
+              "Teacher",
+              "Enabled"
+            ],
+            [
+              "Report remark",
+              "Approved endpoint",
+              "Principal",
+              "Enabled"
+            ],
+            [
+              "Public fallback",
+              "Disallowed",
+              "Not applicable",
+              "Blocked"
+            ]
+          ],
+          "notes": [
+            "No secret values displayed",
+            "Destination policy is explicit",
+            "Operational reference; new panel optional"
+          ]
+        },
+        {
+          "name": "Evaluation release",
+          "layout": "table",
+          "purpose": "Review educator and privacy test evidence for a proposed model or prompt release. Failed cases link to redacted examples and remediation; a passing latency chart cannot compensate for an unsafe data or answer-key failure.",
+          "primaryAction": "Approve promotion",
+          "secondaryAction": "Open failed cases",
+          "fields": [
+            "Candidate version",
+            "Dataset version",
+            "Reviewer",
+            "Release state"
+          ],
+          "columns": [
+            "Check",
+            "Target",
+            "Observed",
+            "Result"
+          ],
+          "rows": [
+            [
+              "Payload privacy",
+              "All cases",
+              "All blocked",
+              "Pass"
+            ],
+            [
+              "Answer key",
+              "Reviewed set",
+              "2 invalid",
+              "Blocked"
+            ],
+            [
+              "Arabic clarity",
+              "Educator review",
+              "Pending",
+              "Pending"
+            ]
+          ],
+          "notes": [
+            "Synthetic evaluation cases",
+            "Document threshold rationale",
+            "Operational reference; new panel optional"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No approved provider policy; disable generation and offer manual authoring with an administrator setup route.",
+        "loading": "Keep saved drafts visible while a request runs; record genuine job progress only.",
+        "error": "Use a neutral explanation with retry or manual continuation; never echo raw provider payloads.",
+        "permission": "Only policy owners change destinations; educators can review permitted content without secret access.",
+        "success": "Confirm the policy/evaluation version and what features may now use it."
+      },
+      "mobile": "School users see concise AI state and manual options; operator policy/evaluation screens support review on mobile without exposing dense secret configuration.",
+      "rtl": "Use Arabic educator-reviewed examples and bidirectional identifier tests; keep destination hosts, versions and numeric budgets isolated LTR.",
+      "accessibility": "Errors and review states have text labels; tables are keyboard navigable and evaluation evidence is available as readable text.",
+      "copy": [
+        "AI drafting is unavailable. You can continue writing manually.",
+        "Release blocked: two answer keys failed educator review."
+      ]
+    }
+  },
+  {
+    "key": "F07",
+    "userStory": "As a school staff member, I want the status and next action for a report batch or message delivery so that I know what completed and can recover failures without repeating successful work.",
+    "problem": "Workers, notification records and delivery fields exist, but accepting a request is not proof that a recipient received it. Build one understandable job-status contract on the durable orchestration dependency. It should distinguish queued work, completed processing, provider acceptance and delivery evidence, while preventing manual retries from generating duplicate reports or messages.",
+    "currentEvidence": [
+      "src/lib/queue/queues.ts",
+      "src/workers/pdf-worker.ts",
+      "src/workers/notification-worker.ts",
+      "src/lib/notifications/service.ts",
+      "src/app/api/reports/[id]/send/route.ts"
+    ],
+    "scope": [
+      "Define user-facing job and recipient states with timestamps, counts and links to source records.",
+      "Expose resumable progress for imports, PDF generation and report delivery using the durable job identifier.",
+      "Allow authorized retry of failed items only, preserving idempotency and the original approved report version.",
+      "Show actionable failure categories such as missing contact, invalid file, provider outage and expired authorization.",
+      "Record cancellation requests honestly: completed work remains completed and already sent messages cannot be unsent."
+    ],
+    "outOfScope": [
+      "Implementing the underlying outbox, owned by F70.",
+      "Claiming read receipts where the chosen channel does not supply them."
+    ],
+    "acceptance": [
+      "A batch’s item counts reconcile with queued, running, completed, failed and cancelled outcomes.",
+      "Retrying failed recipients does not resend successful recipients or substitute a newer unapproved report.",
+      "Refreshing or changing devices reopens the same persisted job status.",
+      "Provider accepted, delivered and read remain separate states with only supported evidence shown.",
+      "A school user cannot read or retry another tenant’s job through its identifier.",
+      "Cancellation explains which items had already completed and produces an auditable outcome."
+    ],
+    "qa": [
+      "Retry a 100-recipient batch with 97 successes and three different failure reasons.",
+      "Restart a worker while PDFs are being created and reopen the progress view.",
+      "Receive late duplicate provider callbacks after a user has requested cancellation."
+    ],
+    "successMetric": "Track time to recover failed items, oldest unresolved job age and duplicate delivery rate; require reconciled counts on every test batch.",
+    "ux": {
+      "principles": [
+        "Show progress as accountable counts rather than an optimistic success toast.",
+        "Put the recovery action beside the reason it is needed.",
+        "Do not make teachers learn provider error codes to retry a report."
+      ],
+      "flow": [
+        "Start batch",
+        "View progress",
+        "Inspect failed items",
+        "Correct cause",
+        "Retry selected failures",
+        "Review receipt"
+      ],
+      "screens": [
+        {
+          "name": "Job activity",
+          "layout": "queue",
+          "purpose": "Staff see the jobs they are allowed to manage with actual completion counts and meaningful next steps. Long-running work stays visible after navigation and links back to the original class or process.",
+          "primaryAction": "Open latest job",
+          "secondaryAction": "Filter activity",
+          "fields": [
+            "Job type",
+            "Campus",
+            "State",
+            "Started date"
+          ],
+          "columns": [
+            "Job",
+            "Progress",
+            "State",
+            "Next action"
+          ],
+          "rows": [
+            [
+              "Reports 7A",
+              "97 of 100",
+              "Needs attention",
+              "Review 3"
+            ],
+            [
+              "Roster import",
+              "126 of 126",
+              "Complete",
+              "Receipt"
+            ],
+            [
+              "Fee notices",
+              "0 of 40",
+              "Queued",
+              "View queue"
+            ]
+          ],
+          "notes": [
+            "Do not equate queued with sent",
+            "Preserve completed counts on retry",
+            "Use the source record name"
+          ]
+        },
+        {
+          "name": "Delivery recovery",
+          "layout": "table",
+          "purpose": "Inspect recipient-level failures without repeating successful sends. Contact corrections are saved through the proper pupil or guardian workflow; this screen retries only the approved delivery job.",
+          "primaryAction": "Retry 2 items",
+          "secondaryAction": "Export receipt",
+          "fields": [
+            "Batch",
+            "Channel",
+            "Outcome",
+            "Recipient"
+          ],
+          "columns": [
+            "Recipient",
+            "Channel",
+            "Outcome",
+            "Reason"
+          ],
+          "rows": [
+            [
+              "Family A",
+              "Email",
+              "Delivered",
+              "Confirmed"
+            ],
+            [
+              "Family B",
+              "Email",
+              "Failed",
+              "Address rejected"
+            ],
+            [
+              "Family C",
+              "WhatsApp",
+              "Pending",
+              "Provider accepted"
+            ]
+          ],
+          "notes": [
+            "Synthetic family labels",
+            "Show approved report version",
+            "Unsupported read state stays unavailable"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No recent jobs; explain where report, import and communication work will appear.",
+        "loading": "Keep current totals visible while polling or reconnecting; show the last update time.",
+        "error": "If status cannot refresh, say it is unknown and prevent blind duplicate starts.",
+        "permission": "Read-only staff see results without retry or cancellation controls.",
+        "success": "Show reconciled counts and outstanding exceptions, with a durable receipt."
+      },
+      "mobile": "Use stacked job cards and recipient details; primary retry remains tied to selected failed items with a count.",
+      "rtl": "Mirror queue layout; retain LTR phone, email and job references with clear channel labels.",
+      "accessibility": "Announce phase changes, not every polling update; status icons have text and keyboard-selectable rows.",
+      "copy": [
+        "97 delivered. Three families need attention.",
+        "Retry requested for two failed deliveries."
+      ]
+    }
+  },
+  {
+    "key": "F08",
+    "userStory": "As a teacher completing a long form, I want navigation, refresh and connection problems to preserve my work so that an interruption does not force me to re-enter it.",
+    "problem": "Existing unsaved-change helpers and role layouts provide a base, while imported issues report form refresh loss and inconsistent navigation. Draft recovery must distinguish local unsaved input from confirmed server data. It also needs explicit expiration and account boundaries so a shared school computer never restores one person’s draft into another account. Accessibility should be repaired in shared components and verified in real task flows.",
+    "currentEvidence": [
+      "src/lib/hooks/use-unsaved-guard.ts",
+      "src/lib/hooks/use-validated-form.ts",
+      "src/components/ui/dialog.tsx",
+      "src/components/role-dashboard/RoleShell.tsx",
+      "docs/qa/evidence/UX-UI-A11Y-audit.md",
+      "Linear SKO-196 and SKO-190"
+    ],
+    "scope": [
+      "Inventory long forms and implement a consistent saved, saving, unsaved and recovery contract using the shared design system.",
+      "Persist permitted drafts with account, school, record and schema-version boundaries plus an explicit retention policy.",
+      "Handle back, refresh, route changes and concurrent record updates without silently discarding edits.",
+      "Replace disruptive full-page transitions with stable shells and meaningful panel loading states.",
+      "Audit keyboard, focus, labels, contrast and error summaries on onboarding, admission, marks and settings flows."
+    ],
+    "outOfScope": [
+      "Full offline transactional synchronization, owned by the offline feature.",
+      "Persisting secrets, payment credentials or unrestricted confidential notes in browser storage."
+    ],
+    "acceptance": [
+      "Refreshing an eligible form restores its same-account draft with a visible last-saved time and review choice.",
+      "Signing out or switching accounts cannot reveal the former account’s local draft.",
+      "When the server record changed, recovery shows conflicting fields and requires an explicit resolution.",
+      "All modal flows support keyboard entry, contained focus and focus return to their trigger.",
+      "Validation provides field messages and an error summary without clearing valid input.",
+      "Primary navigation preserves context and shows the active section consistently across roles."
+    ],
+    "qa": [
+      "Enter a long admission draft, refresh, then switch accounts on the same browser.",
+      "Recover a draft after another staff member changes the underlying pupil record.",
+      "Complete a marks-and-review flow using keyboard only at increased text size."
+    ],
+    "successMetric": "Measure lost-draft incidents and recovery completion; require zero critical keyboard or labeling failures on the designated task paths.",
+    "ux": {
+      "principles": [
+        "Saving indicators must describe actual durability, not imply server confirmation.",
+        "Preserve familiar navigation while reducing full-screen interruption.",
+        "Ask about discarding work only when unsaved changes genuinely exist."
+      ],
+      "flow": [
+        "Start form",
+        "Edit with save status",
+        "Navigate or interrupt",
+        "Review recovered draft",
+        "Resolve conflicts",
+        "Save confirmed record"
+      ],
+      "screens": [
+        {
+          "name": "Admission draft",
+          "layout": "form",
+          "purpose": "A long form keeps its section navigation, completion status and reliable draft indicator visible. Staff can move between sections without treating each movement as a submission or losing entered details.",
+          "primaryAction": "Review admission",
+          "secondaryAction": "Save draft",
+          "fields": [
+            "Pupil name",
+            "Enrollment date",
+            "Class",
+            "Guardian contact"
+          ],
+          "columns": [
+            "Section",
+            "Completion",
+            "Validation",
+            "Saved"
+          ],
+          "rows": [
+            [
+              "Pupil",
+              "Complete",
+              "Valid",
+              "Just now"
+            ],
+            [
+              "Guardian",
+              "In progress",
+              "Email needed",
+              "Just now"
+            ],
+            [
+              "Documents",
+              "Optional",
+              "None",
+              "Not changed"
+            ]
+          ],
+          "notes": [
+            "Example data only",
+            "Save status next to primary action",
+            "Errors link to sections"
+          ]
+        },
+        {
+          "name": "Recover your work",
+          "layout": "table",
+          "purpose": "Compare a recovered draft with current server values before applying it. Resolve conflicts field by field and give a clear discard option that removes only the draft, never the existing school record.",
+          "primaryAction": "Apply selected draft",
+          "secondaryAction": "Discard draft",
+          "fields": [
+            "Draft saved",
+            "Account",
+            "Record version",
+            "Conflicts"
+          ],
+          "columns": [
+            "Field",
+            "Server",
+            "Draft",
+            "Choice"
+          ],
+          "rows": [
+            [
+              "Class",
+              "7A",
+              "7B",
+              "Review"
+            ],
+            [
+              "Phone",
+              "Unchanged",
+              "New value",
+              "Use draft"
+            ],
+            [
+              "Address",
+              "Office updated",
+              "Older value",
+              "Keep server"
+            ]
+          ],
+          "notes": [
+            "Do not auto-merge conflicting fields",
+            "Explain draft expiry",
+            "Return to the same section"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No saved draft; start from current server values and explain when recovery becomes available.",
+        "loading": "Show the form shell while fetching the record; never replace an active edited form with a spinner.",
+        "error": "Keep input and show whether the latest change exists locally, on the server or nowhere durable.",
+        "permission": "A revoked account cannot restore restricted records; discard local protected drafts safely.",
+        "success": "Confirm that the server accepted the record and clear the corresponding draft only afterward."
+      },
+      "mobile": "Single-column sections retain progress and save state; keyboard appearance must not cover errors or submission controls.",
+      "rtl": "Use logical spacing and mirrored section navigation; isolate email/phone fields without reversing cursor behavior.",
+      "accessibility": "Use persistent labels, visible focus, readable solid text colors and non-color error markers; test 200% text scaling.",
+      "copy": [
+        "Draft saved on this device at 10:42.",
+        "This record changed. Review three fields before restoring."
+      ]
+    }
+  },
+  {
+    "key": "F11",
+    "userStory": "As a registrar, I want a permanent pupil identity with dated enrollments so that transfers, promotions and changes of roll number preserve accurate academic and financial history.",
+    "problem": "The current Student model links directly to a current class/campus and already has admission number, timeline and class history. Global school groups need a clearer distinction between the person and each enrollment period. A name or roll number must not become identity, and moving a pupil must not rewrite the historical context of a report, invoice or attendance entry.",
+    "currentEvidence": [
+      "prisma/schema.prisma",
+      "src/app/api/students/promote/route.ts",
+      "src/app/api/students/timeline/route.ts",
+      "src/app/api/students/siblings/route.ts",
+      "src/lib/academic/year-closure.ts"
+    ],
+    "scope": [
+      "Define immutable internal pupil identity and scoped institution identifiers separate from year/class roll numbers.",
+      "Represent enrollment periods with institution, campus, curriculum, class, status and effective dates.",
+      "Make transfers and promotion create reviewed enrollment transitions with referential history retained.",
+      "Provide a registrar timeline joining identity, enrollment and source documents while restricting confidential fields.",
+      "Implement duplicate review and carefully authorized identity consolidation with a dry-run dependency report and auditable outcome."
+    ],
+    "outOfScope": [
+      "Automatically sharing records between unrelated schools merely because identifiers or names match.",
+      "Rewriting historical reports to use the pupil’s current class or grading rules."
+    ],
+    "acceptance": [
+      "A pupil keeps the same permitted permanent identity when class, roll number or campus changes.",
+      "Historical attendance, reports and invoices retain their original enrollment context after a transfer.",
+      "Overlapping enrollments are validated against explicit school policy and never silently created.",
+      "Two pupils with the same name remain distinct in search, imports, family linking and AI context.",
+      "A duplicate consolidation preview lists affected records and blocks incompatible or unauthorized merges.",
+      "A registrar can reconstruct the pupil’s dated path using timeline events and their source records."
+    ],
+    "qa": [
+      "Promote a pupil with published reports and unpaid prior-year fees.",
+      "Transfer between campuses on a mid-term date and check attendance boundaries.",
+      "Review two same-name pupils with different guardians and prevent accidental consolidation."
+    ],
+    "successMetric": "Zero historical record relabeling after transition tests; measure duplicate resolution time and enrollment exceptions per intake.",
+    "ux": {
+      "principles": [
+        "Keep permanent identity visible but secondary to the pupil’s readable name.",
+        "Show current placement separately from the chronological record.",
+        "Make effective dates and historical consequences explicit before a transfer."
+      ],
+      "flow": [
+        "Find pupil",
+        "Verify permanent identity",
+        "Choose enrollment change",
+        "Set effective dates",
+        "Review impact",
+        "Record transition"
+      ],
+      "screens": [
+        {
+          "name": "Pupil record",
+          "layout": "timeline",
+          "purpose": "The registrar sees current enrollment at the top and dated transitions below it. Each past placement links to the appropriate period’s records, avoiding the impression that all history belongs to the current class.",
+          "primaryAction": "Change enrollment",
+          "secondaryAction": "Open history",
+          "fields": [
+            "Pupil ID",
+            "Current campus",
+            "Current class",
+            "Status"
+          ],
+          "columns": [
+            "Period",
+            "Campus",
+            "Class",
+            "State"
+          ],
+          "rows": [
+            [
+              "2024–25",
+              "North",
+              "5A",
+              "Completed"
+            ],
+            [
+              "2025–26",
+              "North",
+              "6A",
+              "Completed"
+            ],
+            [
+              "2026–27",
+              "West",
+              "7B",
+              "Active"
+            ]
+          ],
+          "notes": [
+            "Synthetic pupil ST-0042",
+            "Current placement clearly separated",
+            "Historical labels remain immutable"
+          ]
+        },
+        {
+          "name": "Transfer review",
+          "layout": "form",
+          "purpose": "Preview a proposed enrollment transition and the records that remain with the prior period. The registrar confirms identity, target placement and effective date before any downstream timetable or family views change.",
+          "primaryAction": "Confirm transfer",
+          "secondaryAction": "Save proposal",
+          "fields": [
+            "From enrollment",
+            "Target campus",
+            "Target class",
+            "Effective date"
+          ],
+          "columns": [
+            "Record",
+            "Existing context",
+            "After transfer",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Report v2",
+              "North 6A",
+              "Preserved",
+              "None"
+            ],
+            [
+              "Invoice 08",
+              "North term 1",
+              "Preserved",
+              "Collect"
+            ],
+            [
+              "Attendance",
+              "Before date",
+              "North",
+              "Continue history"
+            ]
+          ],
+          "notes": [
+            "Check target capacity separately",
+            "No name-based identity match",
+            "Display guardian access impact"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No enrollment yet; show identity details and a controlled create-enrollment action.",
+        "loading": "Keep the identity header visible while history loads with date-ordered placeholders.",
+        "error": "A conflicting transition stops the operation and highlights overlapping dates.",
+        "permission": "Registrars manage transitions; families see only authorized historical summaries.",
+        "success": "Confirm the new enrollment and list historical records preserved unchanged."
+      },
+      "mobile": "Timeline becomes chronological cards with an always-visible current-placement summary; transfers use a short step form.",
+      "rtl": "Mirror timeline alignment and isolate pupil IDs; localized academic-year labels retain unambiguous start/end dates.",
+      "accessibility": "Use semantic chronology and descriptive links; do not depend on visual timeline position to communicate sequence.",
+      "copy": [
+        "Transfer changes current enrollment; past reports remain unchanged.",
+        "Pupil ST-0042 is enrolled in West 7B from 12 October."
+      ]
+    }
+  },
+  {
+    "key": "F04",
+    "userStory": "As a school data administrator, I want to preview, reconcile and safely reverse a bulk import so that correcting a spreadsheet does not require repairing hundreds of records manually.",
+    "problem": "Bulk pupil import and financial bank import already exist, but a consistent staged reconciliation and rollback contract is missing. Different imports carry different consequences: an unchanged new roster can be reversed, while records already used in invoices or grades need guarded compensation. The experience must distinguish file parsing from committed changes and must never suggest that uploading a file immediately made authoritative records.",
+    "currentEvidence": [
+      "src/app/dashboard/students/bulk-import-dialog.tsx",
+      "src/app/api/fees/bank-import/route.ts",
+      "src/lib/csv.ts",
+      "src/lib/validators/schemas.ts",
+      "src/lib/queue/queues.ts"
+    ],
+    "scope": [
+      "Introduce a staged import batch with file fingerprint, mapped columns, target scope, validation results and row-level decisions.",
+      "Preview additions, updates, duplicates and rejected rows with explicit match keys and downloadable corrections.",
+      "Validate dates, currencies, identity links and references using the target institution’s configuration before committing.",
+      "Commit reviewed batches idempotently with per-row results and an audit link; resume interrupted jobs without duplication.",
+      "Provide reversal eligibility analysis and compensating correction guidance when later records reference imported data."
+    ],
+    "outOfScope": [
+      "Automatic acceptance of fuzzy identity matches or silent merging of similar pupil names.",
+      "Unrestricted database restore as the normal import undo button."
+    ],
+    "acceptance": [
+      "Uploading and validating a file does not mutate live student, finance or enrollment records.",
+      "A duplicate file or repeated commit returns the same logical batch outcome rather than duplicate records.",
+      "The preview reconciles input row counts with accepted, rejected, skipped and unresolved categories.",
+      "Ambiguous identity matches require a staff choice using stable identifiers, not automatic full-name matching.",
+      "Only validated, explicitly selected rows commit; the final receipt lists every row outcome.",
+      "Reversal refuses destructive deletion of referenced records and explains the affected dependencies with a correction route."
+    ],
+    "qa": [
+      "Import a mixed file containing duplicate pupils, an invalid date and an unknown class.",
+      "Disconnect after commit starts, reopen the batch and retry without duplicate rows.",
+      "Attempt reversal after an imported pupil receives a published result and invoice."
+    ],
+    "successMetric": "Track time from upload to reconciled commit, unresolved-row rate and post-import corrections; require zero silent duplicate creation in retry tests.",
+    "ux": {
+      "principles": [
+        "Expose match rules and counts before the final commit action.",
+        "Keep the source row beside the proposed record when resolving an ambiguity.",
+        "Use precise verbs: Upload, Validate, Commit and Reverse have different effects."
+      ],
+      "flow": [
+        "Upload file",
+        "Map columns",
+        "Validate rows",
+        "Resolve conflicts",
+        "Review changes",
+        "Commit batch"
+      ],
+      "screens": [
+        {
+          "name": "Import preview",
+          "layout": "table",
+          "purpose": "Show the proposed changes grouped by issue severity and allow staff to fix mappings or exclude rows without losing the staged file. The summary reconciles every source row before the commit step.",
+          "primaryAction": "Review changes",
+          "secondaryAction": "Download errors",
+          "fields": [
+            "Import type",
+            "Campus",
+            "Match key",
+            "Row state"
+          ],
+          "columns": [
+            "Row",
+            "Identity",
+            "Change",
+            "Issue"
+          ],
+          "rows": [
+            [
+              "12",
+              "ST-0042",
+              "Update class",
+              "Ready"
+            ],
+            [
+              "13",
+              "ST-0043",
+              "Create pupil",
+              "Ready"
+            ],
+            [
+              "14",
+              "Name only",
+              "Unresolved",
+              "Choose match"
+            ]
+          ],
+          "notes": [
+            "Source remains unchanged",
+            "No commit with unresolved selected rows",
+            "Saved staging expires visibly"
+          ]
+        },
+        {
+          "name": "Batch receipt",
+          "layout": "timeline",
+          "purpose": "A durable import receipt shows what actually committed and whether reversal remains safe. Staff can inspect later dependencies before choosing an undo operation, and can export evidence for reconciliation.",
+          "primaryAction": "Check reversal",
+          "secondaryAction": "Export receipt",
+          "fields": [
+            "Batch reference",
+            "Committed at",
+            "Created count",
+            "Updated count"
+          ],
+          "columns": [
+            "Record",
+            "Outcome",
+            "Referenced by",
+            "Reversal"
+          ],
+          "rows": [
+            [
+              "ST-0042",
+              "Updated",
+              "None",
+              "Eligible"
+            ],
+            [
+              "ST-0043",
+              "Created",
+              "Invoice 08",
+              "Review"
+            ],
+            [
+              "Row 14",
+              "Skipped",
+              "None",
+              "No action"
+            ]
+          ],
+          "notes": [
+            "Recheck dependencies at execution",
+            "Reversal has its own receipt",
+            "Never label partial completion Done"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No import batch; offer a sample template and explain required stable identifiers.",
+        "loading": "Show separate upload, validation and commit progress with retained row counts.",
+        "error": "Keep the staged batch and identify affected rows; allow corrected re-upload with explicit rematching.",
+        "permission": "Only authorized importers can commit; reviewers may inspect without a mutation action.",
+        "success": "Display committed and skipped counts plus the receipt and reversal eligibility."
+      },
+      "mobile": "Allow mobile receipt review and error download; complex column mapping remains a usable stacked form with an explicit larger-screen recommendation.",
+      "rtl": "Keep spreadsheet row numbers and identifiers LTR while mirroring explanatory panels and Arabic column names.",
+      "accessibility": "Errors link to the exact row and field; status summaries are announced once per phase and progress is not conveyed only by animation.",
+      "copy": [
+        "14 rows need attention before import.",
+        "126 records committed. Download the batch receipt."
+      ]
+    }
+  },
+  {
+    "key": "F09",
+    "userStory": "As a school implementation lead, I want a guided setup that reconciles imported records and shows readiness so that I can begin a real class workflow without guessing what remains unfinished.",
+    "problem": "The onboarding wizard and many settings already exist, but setup should be a durable implementation journey rather than one long success animation. Schools arrive with inconsistent spreadsheets, missing guardian links and unresolved opening balances. The workflow must separate essential first-class configuration from optional modules and record reconciliation evidence before claiming the institution is ready.",
+    "currentEvidence": [
+      "src/app/onboarding/page.tsx",
+      "src/app/actions/completeOnboarding.ts",
+      "src/components/settings/InstitutionSettingsPanel.tsx",
+      "src/app/dashboard/students/bulk-import-dialog.tsx",
+      "Linear SKO-192 and SKO-179"
+    ],
+    "scope": [
+      "Create a persistent setup checklist based on institution type, enabled modules, country and curriculum choices.",
+      "Guide creation of one campus, academic structure, class and staff assignments before broad module activation.",
+      "Connect staged imports to a reconciliation summary covering pupils, guardians, staff and selected opening balances.",
+      "Provide a synthetic practice mode and a first-class walkthrough clearly separated from live records.",
+      "Let an authorized lead mark readiness only after required checks pass and record unresolved optional work with owners."
+    ],
+    "outOfScope": [
+      "An unconditional same-day migration promise or automatic activation of every optional module.",
+      "Country-specific curriculum design, owned by the localization and curriculum configuration features."
+    ],
+    "acceptance": [
+      "Setup resumes at the last completed step after refresh or changing authorized implementation staff.",
+      "Required fields and dependencies reflect the selected institution configuration, not only Pakistan defaults.",
+      "Imported counts and unresolved guardian/class relationships are visible before readiness approval.",
+      "Practice records are visibly synthetic and cannot send messages or produce real financial entries.",
+      "The first-class walkthrough reaches attendance, assessment setup and family preview using configured data.",
+      "Completing setup records the approver, time and outstanding optional tasks without hiding them."
+    ],
+    "qa": [
+      "Configure a two-campus school with different calendars and one shared teacher.",
+      "Reconcile an import with missing guardian links and a pupil assigned to an unknown class.",
+      "Leave midway through setup, return on mobile and complete only the required first-class steps."
+    ],
+    "successMetric": "Measure time to first verified class workflow and number of reconciliation issues discovered after go-live.",
+    "ux": {
+      "principles": [
+        "Present the next necessary decision and defer optional configuration.",
+        "Use readiness evidence rather than a percentage that treats all tasks as equal.",
+        "Show the institution scope consistently when moving between setup and module settings."
+      ],
+      "flow": [
+        "Choose institution setup",
+        "Configure first campus",
+        "Create academic structure",
+        "Import and reconcile",
+        "Rehearse first class",
+        "Approve readiness"
+      ],
+      "screens": [
+        {
+          "name": "School readiness",
+          "layout": "flow",
+          "purpose": "An implementation home shows the next required task, blocked dependencies and optional follow-ups. It lets the school expand progressively without mistaking a partially completed import for a usable pupil register.",
+          "primaryAction": "Continue setup",
+          "secondaryAction": "Open practice mode",
+          "fields": [
+            "Institution",
+            "Campus",
+            "Lead",
+            "Target start"
+          ],
+          "columns": [
+            "Task",
+            "Owner",
+            "State",
+            "Next step"
+          ],
+          "rows": [
+            [
+              "Academic year",
+              "Lead A",
+              "Ready",
+              "Review"
+            ],
+            [
+              "Pupil import",
+              "Office B",
+              "Blocked",
+              "Resolve 4"
+            ],
+            [
+              "Guardian access",
+              "Office B",
+              "Pending",
+              "Link families"
+            ]
+          ],
+          "notes": [
+            "Practice mode labeled clearly",
+            "Optional modules collapsed",
+            "Resume links open the exact step"
+          ]
+        },
+        {
+          "name": "Reconcile before start",
+          "layout": "table",
+          "purpose": "Compare source totals with configured records and resolve discrepancies before the lead approves live use. The review names the missing relationship or balance rather than showing a generic setup failure.",
+          "primaryAction": "Approve readiness",
+          "secondaryAction": "Return to import",
+          "fields": [
+            "Source batch",
+            "Campus",
+            "Required checks",
+            "Reviewer"
+          ],
+          "columns": [
+            "Area",
+            "Source",
+            "System",
+            "Difference"
+          ],
+          "rows": [
+            [
+              "Pupils",
+              "126",
+              "126",
+              "0"
+            ],
+            [
+              "Guardians",
+              "94",
+              "90",
+              "4 unlinked"
+            ],
+            [
+              "Classes",
+              "6",
+              "6",
+              "0"
+            ]
+          ],
+          "notes": [
+            "No approval while required checks fail",
+            "Retain reconciliation receipt",
+            "Assign optional follow-ups"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "New institution; explain the first-class goal and offer a short setup path.",
+        "loading": "Keep completed checklist items visible as readiness checks refresh.",
+        "error": "Failed imports remain recoverable with exact batch links and counts.",
+        "permission": "Only authorized leads approve readiness; other staff see tasks assigned to them.",
+        "success": "Show verified live readiness, practice completion and next optional setup separately."
+      },
+      "mobile": "Checklist and simple configuration work on mobile; dense reconciliation becomes cards with source and system counts adjacent.",
+      "rtl": "Mirror the step flow and localize examples; use explicit timezone and currency labels in configuration summaries.",
+      "accessibility": "Step headings expose completion text; progress does not depend on color and focus moves to the first validation issue.",
+      "copy": [
+        "Four guardian links need review before family access.",
+        "Your first class is ready. Review optional setup next."
+      ]
+    }
+  },
+  {
+    "key": "F10",
+    "userStory": "As an admissions officer, I want configurable applications and a clear enquiry-to-enrollment process so that families give information once and each application has an accountable next step.",
+    "problem": "Admission queries, follow-ups and a pupil admission form exist, but they need a single application identity and controlled conversion into enrollment. Different schools require different questions and documents. Requiredness must be configurable without turning every form into an unstructured survey, and an admitted child must not be duplicated when a staff member retries enrollment or imports a later spreadsheet.",
+    "currentEvidence": [
+      "src/app/api/admission-queries/route.ts",
+      "src/app/api/admission-queries/follow-ups/route.ts",
+      "src/app/dashboard/students/admission-form.tsx",
+      "prisma/schema.prisma",
+      "Linear SKO-205"
+    ],
+    "scope": [
+      "Add versioned application form configuration with reusable identity fields, conditional sections and required document rules.",
+      "Track enquiry, application, review, offer, waitlist, acceptance and conversion with owner and next-contact date.",
+      "Offer a mobile family application link with draft recovery, submission receipt and limited status access.",
+      "Detect possible duplicates using configured stable identifiers and require staff review before merging or conversion.",
+      "Convert accepted applications to permanent pupil/enrollment records transactionally while preserving submitted form versions and consent evidence."
+    ],
+    "outOfScope": [
+      "Automated admissions ranking or decisions based on sensitive characteristics.",
+      "A general-purpose public survey builder unrelated to school admission."
+    ],
+    "acceptance": [
+      "Publishing a revised form does not alter answers or requiredness of previously submitted application versions.",
+      "Families can save and resume permitted drafts and receive a stable submission reference.",
+      "The pipeline identifies unassigned applications and overdue follow-ups without exposing them to students or unrelated guardians.",
+      "Required document and conditional field rules are validated on the server as well as in the form.",
+      "Repeated conversion of the same accepted application creates one pupil/enrollment outcome.",
+      "Potential duplicate identities require an explicit authorized choice with linked history."
+    ],
+    "qa": [
+      "Submit under form version one while an administrator publishes version two.",
+      "Retry conversion after a network interruption and confirm one enrollment.",
+      "Complete an Arabic application on mobile with missing required and optional documents."
+    ],
+    "successMetric": "Track application completion, time waiting for the next staff action and duplicate enrollment rate after conversion.",
+    "ux": {
+      "principles": [
+        "Families see clear requirements and progress without internal admissions notes.",
+        "Staff work from ownership and next action, not an ambiguous card color.",
+        "Separate offer acceptance from creation of the authoritative pupil record."
+      ],
+      "flow": [
+        "Configure form",
+        "Receive enquiry or application",
+        "Review missing items",
+        "Record offer or waitlist",
+        "Confirm acceptance",
+        "Convert to enrollment"
+      ],
+      "screens": [
+        {
+          "name": "Admissions pipeline",
+          "layout": "queue",
+          "purpose": "Office staff prioritize applications by stage, ownership and missing requirements. A list view remains available alongside stage filters so keyboard users can manage the same work without drag-only interactions.",
+          "primaryAction": "Review next",
+          "secondaryAction": "Create enquiry",
+          "fields": [
+            "Intake",
+            "Stage",
+            "Owner",
+            "Follow-up"
+          ],
+          "columns": [
+            "Application",
+            "Stage",
+            "Missing",
+            "Next action"
+          ],
+          "rows": [
+            [
+              "APP-041",
+              "Review",
+              "Proof of age",
+              "Request file"
+            ],
+            [
+              "APP-042",
+              "Offer",
+              "None",
+              "Await acceptance"
+            ],
+            [
+              "APP-043",
+              "Waitlist",
+              "None",
+              "Contact family"
+            ]
+          ],
+          "notes": [
+            "Synthetic references",
+            "Conversion separate from stage move",
+            "Show last family contact"
+          ]
+        },
+        {
+          "name": "Application review",
+          "layout": "form",
+          "purpose": "Review submitted answers against the exact form version and enrollment target. Missing files and possible duplicate records appear before the final conversion, with confidential office notes kept distinct from family messages.",
+          "primaryAction": "Prepare enrollment",
+          "secondaryAction": "Request information",
+          "fields": [
+            "Intake class",
+            "Identity match",
+            "Document checklist",
+            "Office note"
+          ],
+          "columns": [
+            "Requirement",
+            "Submitted",
+            "Review",
+            "Visibility"
+          ],
+          "rows": [
+            [
+              "Identity record",
+              "File 1",
+              "Accepted",
+              "Staff"
+            ],
+            [
+              "Guardian contact",
+              "Verified",
+              "Accepted",
+              "Family"
+            ],
+            [
+              "Prior school",
+              "Missing",
+              "Optional",
+              "Family"
+            ]
+          ],
+          "notes": [
+            "Preview family request before sending",
+            "Retain original submission",
+            "Require target enrollment confirmation"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No applications for this intake; offer the published form link or create an enquiry.",
+        "loading": "Keep the selected application and stage visible while documents load.",
+        "error": "Preserve review notes and explain failed upload or conversion without losing the submitted application.",
+        "permission": "Admissions staff see private notes; families see only their own submission and permitted status.",
+        "success": "Issue an enrollment reference linked to the original application and record the conversion owner."
+      },
+      "mobile": "Family forms are mobile-first with upload progress and resumable sections; office reviews use stacked requirement cards on small screens.",
+      "rtl": "Localize form labels and conditional help; isolate application IDs and contact fields while mirroring step order.",
+      "accessibility": "Every required field is programmatically identified; conditional sections announce changes and errors link to the exact question.",
+      "copy": [
+        "Your application is saved. Two required documents remain.",
+        "Enrollment created from application APP-042."
+      ]
+    }
+  },
+  {
+    "key": "F64",
+    "userStory": "As a teacher, I want one approved resource library with precise audience and version controls so that learners and families can find the right materials without receiving staff-only answers or outdated documents.",
+    "problem": "Pupil and staff document records, upload signing and chat attachments exist, but they do not form a curriculum resource library. Learning content needs its own version, objective mappings, audience and review state. A handout, school policy and answer key may look like similar files while carrying very different sharing rules. The library must also supply trustworthy source references to generation and study-assistant features.",
+    "currentEvidence": [
+      "src/app/api/uploads/presign/route.ts",
+      "src/lib/storage/s3.ts",
+      "src/app/api/students/documents/route.ts",
+      "src/app/api/staff/documents/route.ts",
+      "src/app/api/chat/attachments/route.ts",
+      "Linear SKO-204"
+    ],
+    "scope": [
+      "Create resource records with file/link content, owner, source/license information, version, language, accessibility metadata and review state.",
+      "Assign curriculum objectives and intended classes, groups, guardians or staff audiences with a sharing preview.",
+      "Support secure upload, content-type/size validation, safe processing and recoverable storage failures.",
+      "Publish approved resource versions and retain stable references for assignments, generated questions and policy citations.",
+      "Provide learner/family access, search and download views that enforce current membership and resource audience rules.",
+      "Handle replacement and retirement without silently changing material pinned to existing assessments or assignments."
+    ],
+    "outOfScope": [
+      "A public copyrighted textbook repository or unrestricted web scraping.",
+      "Replacing pupil administrative document custody or physical library circulation."
+    ],
+    "acceptance": [
+      "Every published resource identifies its owner, audience and exact version, including files linked from assignments.",
+      "A staff-only answer key is excluded from learner search, previews, direct downloads and AI source retrieval.",
+      "Upload failure or unsafe content prevents publication and leaves a clear recoverable draft state.",
+      "Replacing content creates a successor version while existing pinned references remain reproducible.",
+      "Revoked membership or changed audience prevents new access, with signed-link expiry behavior documented and tested.",
+      "Teachers can preview what a selected class or guardian audience will see before publishing.",
+      "Resource descriptions and accessible alternatives are available when a format cannot be previewed inline."
+    ],
+    "qa": [
+      "Upload an answer key beside a pupil handout and inspect both through student search and direct links.",
+      "Replace a resource used in a published quiz and verify the original citation still resolves correctly.",
+      "Interrupt a large file upload on mobile, resume or retry and confirm one resource version."
+    ],
+    "successMetric": "Measure successful resource access, upload recovery and incidents of outdated or incorrectly shared materials; require no answer-key leakage in role tests.",
+    "ux": {
+      "principles": [
+        "Audience is a first-class publishing decision, not a hidden advanced setting.",
+        "Show version and curriculum context where teachers reuse a resource.",
+        "Offer an accessible reading route instead of requiring every user to open a PDF."
+      ],
+      "flow": [
+        "Upload or link resource",
+        "Describe and map objective",
+        "Choose audience",
+        "Review file and accessibility",
+        "Publish version",
+        "Track access or replace safely"
+      ],
+      "screens": [
+        {
+          "name": "Learning resources",
+          "layout": "table",
+          "purpose": "Teachers find and manage approved class resources with audience and version visible in the list. The same catalogue can present a restricted learner view without exposing staff metadata or answer-key names.",
+          "primaryAction": "Add resource",
+          "secondaryAction": "View as learner",
+          "fields": [
+            "Class",
+            "Objective",
+            "Type",
+            "Review state"
+          ],
+          "columns": [
+            "Resource",
+            "Version",
+            "Audience",
+            "State"
+          ],
+          "rows": [
+            [
+              "Fractions guide",
+              "v2",
+              "Class 7A",
+              "Published"
+            ],
+            [
+              "Worked answers",
+              "v1",
+              "Teachers",
+              "Restricted"
+            ],
+            [
+              "Practice audio",
+              "v1",
+              "Class 7A",
+              "Draft"
+            ]
+          ],
+          "notes": [
+            "Synthetic resource titles",
+            "Administrative files remain separate",
+            "Pin version when used in assessment"
+          ]
+        },
+        {
+          "name": "Publish resource",
+          "layout": "form",
+          "purpose": "Before publication, the teacher checks the resource preview, source rights and actual recipient scope. The review highlights answer-key classification and missing accessibility information so a file cannot be casually shared with the wrong group.",
+          "primaryAction": "Publish v2",
+          "secondaryAction": "Save draft",
+          "fields": [
+            "Audience",
+            "Source rights",
+            "Language",
+            "Accessible alternative"
+          ],
+          "columns": [
+            "Check",
+            "Selected value",
+            "Result",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Audience",
+              "Class 7A pupils",
+              "28 learners",
+              "Preview"
+            ],
+            [
+              "Answer material",
+              "No",
+              "Confirmed",
+              "Change"
+            ],
+            [
+              "Text alternative",
+              "Available",
+              "Ready",
+              "Open"
+            ]
+          ],
+          "notes": [
+            "Show exact recipient scope",
+            "Do not expose file storage URLs",
+            "Retired versions remain referenced safely"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No resources for this class; teachers can add approved material while learners see a plain availability message.",
+        "loading": "Show upload progress and processing state separately; retain the resource draft if navigation occurs.",
+        "error": "Explain file, permission or storage failure with retry and preserved metadata.",
+        "permission": "Denied resource access reveals no restricted title or answer content and offers a relevant staff contact.",
+        "success": "Confirm published version and audience, with a preview of the learner-visible resource."
+      },
+      "mobile": "Learners and parents get readable cards and low-bandwidth download choices; teacher uploads use native file selection with clear progress.",
+      "rtl": "Mirror catalogue and forms; render resource language independently and isolate filenames, URLs and scientific notation.",
+      "accessibility": "Require descriptive link names, keyboard file controls, readable HTML descriptions and accessible alternatives for essential image/audio content.",
+      "copy": [
+        "Only Class 7A learners can open this published handout.",
+        "Version 2 published. Existing quiz citations still use version 1."
+      ]
+    }
+  },
+  {
+    "key": "F66",
+    "userStory": "As an authorized school staff member, I want predictable search and filters across school records so that I can find the correct pupil, family, class or document without guessing exact wording.",
+    "problem": "Existing directories, filters and a teacher command palette provide separate search experiences, and imported issues report filtering defects. Global search must be an authorized index of useful records rather than an accidental cross-school directory. Similar names need stable contextual identifiers, and zero results must be distinguishable from restrictive filters or a temporarily unavailable source. Actions should open the original workspace rather than duplicate editing inside search.",
+    "currentEvidence": [
+      "src/components/teacher/command-palette.tsx",
+      "src/components/shared-admin/students-panel.tsx",
+      "src/app/dashboard/students/page.tsx",
+      "src/lib/chat/directory.ts",
+      "Linear SKO-191, SKO-189 and SKO-193"
+    ],
+    "scope": [
+      "Define supported record types and searchable fields with role, tenant, campus and child-scoped filtering before ranking or counting.",
+      "Standardize text normalization, exact identifier search, filter semantics, sort order, pagination and URL-restorable state.",
+      "Show disambiguating class, campus, year and stable identifiers without exposing unrelated confidential fields.",
+      "Provide keyboard search navigation and source deep links that preserve the caller’s permitted context.",
+      "Measure and repair stale results after updates, enrollment changes, archiving and permission revocation.",
+      "Keep family/student search limited to authorized tasks and resources rather than the full staff directory."
+    ],
+    "outOfScope": [
+      "Indexing private safeguarding notes, raw AI prompts or unrestricted message bodies by default.",
+      "A parallel record editor or fuzzy automatic identity merger inside search."
+    ],
+    "acceptance": [
+      "Results, suggestions and counts exclude unauthorized records before presentation and do not leak their existence.",
+      "Searching a stable pupil identifier returns the correct authorized record despite name changes.",
+      "Combined filters have documented AND/OR semantics and remain visible when results are empty.",
+      "Clearing filters restores predictable results, and refresh/back navigation restores the same search state.",
+      "Archived and historical records appear only through explicit permitted filters with clear labels.",
+      "Updates and revocations converge within a documented tested indexing window; stale links recheck current authorization.",
+      "Every result opens the authoritative module and identifies enough context to distinguish namesakes."
+    ],
+    "qa": [
+      "Search two same-name pupils in different campuses using both a partial name and a stable ID.",
+      "Combine class, status and academic-year filters, then clear only one and navigate back.",
+      "Revoke access to a resource that is already present in cached search suggestions."
+    ],
+    "successMetric": "Measure successful record-finding tasks, zero-result recovery and stale/unauthorized result defects against a representative scoped fixture set.",
+    "ux": {
+      "principles": [
+        "Always expose active filters and scope before declaring that nothing exists.",
+        "Rank exact identifiers clearly and disambiguate names without excessive personal detail.",
+        "Search finds the record; its original module remains responsible for editing."
+      ],
+      "flow": [
+        "Open scoped search",
+        "Enter name or identifier",
+        "Apply visible filters",
+        "Compare result context",
+        "Open source record",
+        "Return to preserved results"
+      ],
+      "screens": [
+        {
+          "name": "Search school records",
+          "layout": "table",
+          "purpose": "Staff search within a visible institution/campus scope and compare contextual results. Compact type filters and explicit chips prevent hidden filter combinations from creating confusing empty screens.",
+          "primaryAction": "Open selected",
+          "secondaryAction": "Clear filters",
+          "fields": [
+            "Search query",
+            "Campus",
+            "Record type",
+            "Academic year"
+          ],
+          "columns": [
+            "Record",
+            "Identifier",
+            "Context",
+            "Type"
+          ],
+          "rows": [
+            [
+              "Ari Taylor",
+              "ST-0042",
+              "North 7A",
+              "Pupil"
+            ],
+            [
+              "Ari Taylor",
+              "ST-0198",
+              "West 5B",
+              "Pupil"
+            ],
+            [
+              "Fractions guide",
+              "RES-0012",
+              "Class 7A v2",
+              "Resource"
+            ]
+          ],
+          "notes": [
+            "Synthetic names and references",
+            "Scope shown before counts",
+            "No unrestricted family directory"
+          ]
+        },
+        {
+          "name": "No matching records",
+          "layout": "flow",
+          "purpose": "A useful zero-result state explains the exact active filters and offers safe ways to broaden the query. It never suggests that inaccessible records exist, and preserves the original input while the user changes one constraint at a time.",
+          "primaryAction": "Clear class filter",
+          "secondaryAction": "Keep filters",
+          "fields": [
+            "Query",
+            "Current scope",
+            "Active filters",
+            "Source status"
+          ],
+          "columns": [
+            "Constraint",
+            "Current value",
+            "Effect",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Campus",
+              "North",
+              "Required scope",
+              "Keep"
+            ],
+            [
+              "Class",
+              "7B",
+              "Narrowing",
+              "Clear"
+            ],
+            [
+              "Year",
+              "2026–27",
+              "Current enrollment",
+              "Change"
+            ]
+          ],
+          "notes": [
+            "No unauthorized counts",
+            "Distinguish unavailable source",
+            "Offer exact-ID search help"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No matches in the displayed authorized scope; show active filters and safe query suggestions.",
+        "loading": "Keep the query and filters stable, cancel stale requests and mark source-specific loading.",
+        "error": "If a source fails, label results partial and offer retry without clearing the query.",
+        "permission": "Unauthorized records never appear; direct stale links are rechecked in the destination module.",
+        "success": "Open the exact record and restore the previous query, filters and selected row on return."
+      },
+      "mobile": "Use a focused search sheet with compact result cards; keep filter chips visible and avoid a tiny desktop-style multi-column table.",
+      "rtl": "Support Arabic normalization deliberately without corrupting exact IDs; mirror result alignment and isolate Latin identifiers and mixed-script names.",
+      "accessibility": "Provide labeled search, keyboard result navigation, announced result counts and a clear escape route from the command palette.",
+      "copy": [
+        "No matches with Class 7B selected. Clear that filter to try again.",
+        "Results are partial: the resource library could not refresh."
+      ]
+    }
+  },
+  {
+    "key": "F17",
+    "userStory": "As a curriculum lead, I want lessons and assessment items mapped to versioned learning objectives so that coverage and follow-up refer to what pupils were actually expected to learn.",
+    "problem": "Subjects and syllabus topics exist, but a topic name alone is too broad to support meaningful assessment blueprints or misconception analysis. A school may follow different curricula at different stages, and the same objective can appear in several resources. Establish a lightweight objective hierarchy with source provenance and effective versions, while avoiding claims of mastery from a single total mark or merely scheduled teaching.",
+    "currentEvidence": [
+      "src/lib/academic/cycle.ts",
+      "src/app/api/subjects/[subjectId]/syllabus/route.ts",
+      "src/components/shared-admin/subject-syllabus.tsx",
+      "prisma/schema.prisma: SyllabusTopic",
+      "src/lib/ai/prompts.ts"
+    ],
+    "scope": [
+      "Extend syllabus topics with stable objective identifiers, descriptions, prerequisite links, curriculum version and approved source references.",
+      "Map objectives to classes, teaching periods, approved resources and later assessment items without duplicating objective identities.",
+      "Support reviewed import of curriculum structures and local additions with provenance and conflict handling.",
+      "Show planned, taught and assessed coverage separately with the evidence behind each state.",
+      "Preserve objective versions on existing assessments when curriculum wording or structure changes."
+    ],
+    "outOfScope": [
+      "Automatic certification that a school complies with an external curriculum.",
+      "Student mastery prediction without sufficient item-level evidence and educator interpretation."
+    ],
+    "acceptance": [
+      "Every objective has a stable identifier, curriculum context and a clear learner-oriented description.",
+      "Moving or renaming an objective does not break linked resources or historically versioned assessment items.",
+      "Coverage distinguishes scheduled teaching, teacher-recorded delivery and actual assessment evidence.",
+      "Unmapped questions and resources are visible as review work rather than silently assigned by title similarity.",
+      "Imported duplicates require a reviewed match using identifiers and version information.",
+      "Teachers only edit objectives permitted by their curriculum role, while authorized leads approve structural changes."
+    ],
+    "qa": [
+      "Import two curriculum versions with the same code but changed objective wording.",
+      "Map one resource to two objectives and check coverage counts avoid duplicate evidence.",
+      "Rename a topic after a paper is published and inspect the original assessment blueprint."
+    ],
+    "successMetric": "Measure assessment items with reviewed objective mappings and time needed to identify uncovered required objectives.",
+    "ux": {
+      "principles": [
+        "Organize by the teacher’s subject and teaching period before exposing curriculum administration.",
+        "Show the source and evidence behind each coverage indicator.",
+        "Do not equate a checked teaching box with demonstrated pupil understanding."
+      ],
+      "flow": [
+        "Select curriculum version",
+        "Review topic hierarchy",
+        "Define objectives",
+        "Link resources and lessons",
+        "Map assessment evidence",
+        "Review coverage gaps"
+      ],
+      "screens": [
+        {
+          "name": "Objective map",
+          "layout": "table",
+          "purpose": "A curriculum workspace displays concise objectives and their current teaching/assessment coverage. Filters help teachers find the objectives relevant to their class without navigating a large national framework tree.",
+          "primaryAction": "Add objective",
+          "secondaryAction": "Import framework",
+          "fields": [
+            "Curriculum",
+            "Grade",
+            "Subject",
+            "Period"
+          ],
+          "columns": [
+            "Objective",
+            "Planned",
+            "Taught",
+            "Assessed"
+          ],
+          "rows": [
+            [
+              "M7-F1 Fractions",
+              "3 lessons",
+              "2 lessons",
+              "Quiz 04"
+            ],
+            [
+              "M7-F2 Equivalence",
+              "2 lessons",
+              "1 lesson",
+              "Not yet"
+            ],
+            [
+              "M7-F3 Comparison",
+              "1 lesson",
+              "Not yet",
+              "Not yet"
+            ]
+          ],
+          "notes": [
+            "Synthetic framework codes",
+            "Coverage states stay distinct",
+            "Expand for prerequisites and sources"
+          ]
+        },
+        {
+          "name": "Objective evidence",
+          "layout": "timeline",
+          "purpose": "Inspect the resources, delivered lessons and assessment items supporting an objective. The lead can correct mappings and see historical versions before approving a curriculum change that affects future planning.",
+          "primaryAction": "Review mappings",
+          "secondaryAction": "View source",
+          "fields": [
+            "Objective version",
+            "Source",
+            "Linked class",
+            "Evidence type"
+          ],
+          "columns": [
+            "Evidence",
+            "Version",
+            "Mapping",
+            "Status"
+          ],
+          "rows": [
+            [
+              "Resource 12",
+              "v2",
+              "Direct",
+              "Approved"
+            ],
+            [
+              "Lesson 08",
+              "Delivered",
+              "Teacher linked",
+              "Recorded"
+            ],
+            [
+              "Question 31",
+              "v1",
+              "Direct",
+              "Reviewed"
+            ]
+          ],
+          "notes": [
+            "No mastery score from coverage",
+            "Show unmapped items separately",
+            "Historical links keep their version"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No objectives in this subject; offer a reviewed import or a small manual starting set.",
+        "loading": "Retain subject filters while loading objective branches and evidence counts.",
+        "error": "Invalid prerequisite cycles or duplicate codes are explained before saving.",
+        "permission": "Teachers can link permitted resources; curriculum structure edits require the appropriate role.",
+        "success": "Confirm the objective version and show which future mappings are affected."
+      },
+      "mobile": "Objective lists become readable cards; editing uses a short form and avoids requiring a wide hierarchy canvas.",
+      "rtl": "Mirror hierarchy controls, preserve curriculum codes and mathematical expressions as isolated segments, and support Arabic objective descriptions.",
+      "accessibility": "Provide a table alternative to hierarchy trees, keyboard expand/collapse and text equivalents for coverage graphics.",
+      "copy": [
+        "Taught in two lessons; assessment evidence is still missing.",
+        "Objective v2 saved. Existing published papers retain v1."
+      ]
+    }
+  },
+  {
+    "key": "F19",
+    "userStory": "As an assessment lead, I want a reviewed, versioned question bank and paper blueprint so that teachers reuse reliable questions and can verify coverage before students encounter an assessment.",
+    "problem": "The exam pipeline records aggregate marks but does not yet define questions, answers, rubrics or objective-level assessment composition. Build the shared assessment domain before paper generation, OCR and online attempts diverge. Question reuse needs provenance, review status, controlled answer visibility and fixed versions in released papers; later edits must never change an assessment pupils have already taken.",
+    "currentEvidence": [
+      "prisma/schema.prisma: Exam and Mark",
+      "src/lib/academic/exam-pipeline.ts",
+      "src/components/academic/ExamCycleManager.tsx",
+      "src/app/teacher/tests/page.tsx"
+    ],
+    "scope": [
+      "Define item types, content, answer keys, scoring rubrics, objective tags, source/license metadata and immutable reviewed versions.",
+      "Build question authoring and peer/lead review with draft, reviewed, retired and restricted states.",
+      "Create blueprints specifying objective coverage, marks, duration and question-type distribution with explicit validation.",
+      "Assemble assessment versions from pinned question versions and produce controlled paper/online representations.",
+      "Provide duplicate/similarity review and usage history without exposing active assessment answers to learners."
+    ],
+    "outOfScope": [
+      "Public question marketplace or external teacher-sharing network.",
+      "Claiming calibrated difficulty or equivalent variants before sufficient response evidence exists."
+    ],
+    "acceptance": [
+      "Only reviewed eligible item versions can be included in a releasable assessment version.",
+      "An item edit creates a draft successor and leaves already issued papers and attempts unchanged.",
+      "Blueprint totals reconcile item marks, coverage and configured assessment duration assumptions.",
+      "Teacher-only answer and rubric fields cannot be retrieved through learner endpoints or resource previews.",
+      "Question provenance and allowed use are recorded before sharing outside its original private scope.",
+      "Retiring an item prevents future selection while preserving historical assessments and marking evidence."
+    ],
+    "qa": [
+      "Edit an answer key after a paper has been published and inspect the original issued version.",
+      "Assemble a blueprint with an uncovered objective and mismatched marks total.",
+      "Attempt to fetch a restricted answer using a student account and a known question identifier."
+    ],
+    "successMetric": "Track reuse of reviewed items, blueprint blockers caught before release and question defects reported after administration.",
+    "ux": {
+      "principles": [
+        "Separate question quality review from assembling a particular paper.",
+        "Make version and answer visibility easy to inspect at the point of reuse.",
+        "Show coverage gaps as specific missing objectives rather than a vague readiness score."
+      ],
+      "flow": [
+        "Author or import item",
+        "Map objective and source",
+        "Review item",
+        "Define blueprint",
+        "Assemble pinned items",
+        "Approve assessment draft"
+      ],
+      "screens": [
+        {
+          "name": "Reviewed question bank",
+          "layout": "table",
+          "purpose": "Teachers find reusable items using curriculum, objective, type and review status. The table emphasizes eligible versions and marks, with usage details available before adding an item to a paper.",
+          "primaryAction": "Create question",
+          "secondaryAction": "Import items",
+          "fields": [
+            "Subject",
+            "Objective",
+            "Item type",
+            "Review state"
+          ],
+          "columns": [
+            "Question",
+            "Objective",
+            "Marks",
+            "State"
+          ],
+          "rows": [
+            [
+              "Q-031 v2",
+              "Equivalence",
+              "2",
+              "Reviewed"
+            ],
+            [
+              "Q-032 v1",
+              "Comparison",
+              "3",
+              "Draft"
+            ],
+            [
+              "Q-033 v4",
+              "Operations",
+              "5",
+              "Retired"
+            ]
+          ],
+          "notes": [
+            "Synthetic item identifiers",
+            "Answer previews staff-only",
+            "Usage history in detail panel"
+          ]
+        },
+        {
+          "name": "Blueprint review",
+          "layout": "assessment",
+          "purpose": "The lead checks the proposed paper against its intended curriculum coverage and scoring plan. Each item is pinned to a reviewed version, and unresolved gaps prevent the draft being treated as ready for release.",
+          "primaryAction": "Approve blueprint",
+          "secondaryAction": "Adjust selection",
+          "fields": [
+            "Assessment title",
+            "Total marks",
+            "Duration",
+            "Target class"
+          ],
+          "columns": [
+            "Objective",
+            "Target",
+            "Selected",
+            "Gap"
+          ],
+          "rows": [
+            [
+              "Equivalence",
+              "6 marks",
+              "6 marks",
+              "None"
+            ],
+            [
+              "Comparison",
+              "4 marks",
+              "2 marks",
+              "2 marks"
+            ],
+            [
+              "Operations",
+              "5 marks",
+              "5 marks",
+              "None"
+            ]
+          ],
+          "notes": [
+            "Do not auto-fill from unreviewed items",
+            "Show question-version list",
+            "Estimated timing remains editable"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No reviewed questions match; offer authoring or change filters without showing unauthorized items.",
+        "loading": "Keep selected questions visible while filtering or recalculating blueprint totals.",
+        "error": "Explain missing marks, invalid answer schema or stale item version without losing the paper draft.",
+        "permission": "Review and release permissions differ from ordinary authoring; locked answer fields remain protected.",
+        "success": "Confirm the approved blueprint and pinned item versions with remaining assessment setup steps."
+      },
+      "mobile": "Question search becomes cards with objective, marks and state; blueprint totals stay visible above the selected-item list.",
+      "rtl": "Mirror bank/filter layout; isolate question IDs, equations and option markers while supporting Arabic source and item text.",
+      "accessibility": "Question selection works with keyboard and checkboxes; all item content has text alternatives and rubric tables expose headers.",
+      "copy": [
+        "Two marks of Comparison coverage are still missing.",
+        "Blueprint approved with six reviewed question versions."
+      ]
+    }
+  },
+  {
+    "key": "F18",
+    "userStory": "As a teacher, I want an editable quiz draft grounded in selected approved materials so that I can prepare an appropriate assessment faster while checking its sources, answers and coverage.",
+    "problem": "AI currently generates remarks, lesson plans and other drafts, but no assessment item generation workflow exists. A useful test generator needs more than a prompt box: it must start from a reviewed blueprint and available source material, create structured editable questions, and make uncertainty visible. Generated difficulty is an estimate, citations must resolve to actual source passages, and approval must remain a teacher action before paper or online release.",
+    "currentEvidence": [
+      "src/lib/ai/prompts.ts",
+      "src/lib/ai/openai.ts",
+      "src/app/api/ai/insights/route.ts",
+      "src/app/teacher/ai/page.tsx",
+      "No question-generation or learner-attempt model found in the reviewed source"
+    ],
+    "scope": [
+      "Create a generator flow from reviewed objective coverage, question-type mix, marks, duration, language and approved source versions.",
+      "Return structured draft items with answers, explanations, marking guidance and resolvable source references.",
+      "Validate required fields, marks totals, duplicate items, answer consistency and supported mathematical expressions before review.",
+      "Allow item-level editing, rejection and targeted regeneration without replacing teacher-approved items.",
+      "Record generation policy/model/prompt versions and teacher approval before adding reviewed items to an assessment version."
+    ],
+    "outOfScope": [
+      "Automatic publication, final grading or guaranteed equivalence between generated paper variants.",
+      "Training on school material or fetching unapproved copyrighted content as an implicit fallback."
+    ],
+    "acceptance": [
+      "Every generated item references a selected source passage or is explicitly marked unsupported and blocked from approval.",
+      "The draft conforms to the chosen blueprint or reports which constraints could not be satisfied.",
+      "Teachers can change a question, answer and rubric together, with stale answer references flagged.",
+      "Regenerating one rejected item preserves approved questions and records the new draft version.",
+      "The interface labels estimated difficulty and never represents it as measured item calibration.",
+      "A provider outage or budget limit leaves manual question authoring and saved drafts usable.",
+      "Generated questions, answers and rubrics remain drafts until an authorized teacher approves their exact version; neither UI nor direct API can publish or distribute unapproved content. Teacher answer keys and private source annotations remain excluded from student outputs until their separate configured release conditions are met."
+    ],
+    "qa": [
+      "Use an unsupported source, then attempt to publish or distribute its generated draft through both UI and direct API before teacher approval; verify release is rejected and the source gap remains visible.",
+      "Edit a question’s numbers and ensure its answer/rubric requires renewed review.",
+      "Interrupt a long generation job after several items complete and resume the saved draft."
+    ],
+    "successMetric": "Measure teacher acceptance without revision, invalid/unsupported item rate and time to an approved paper, including review and corrections.",
+    "ux": {
+      "principles": [
+        "Grounding and review status must be visible per question, not buried in a global disclaimer.",
+        "Let teachers control the blueprint before generation and preserve their edits.",
+        "Treat a confident-looking answer as a draft until it passes substantive review."
+      ],
+      "flow": [
+        "Select blueprint",
+        "Choose approved sources",
+        "Confirm generation settings",
+        "Generate draft items",
+        "Review questions and keys",
+        "Approve assessment version"
+      ],
+      "screens": [
+        {
+          "name": "Generate assessment",
+          "layout": "form",
+          "purpose": "The teacher defines a constrained draft using approved curriculum resources. A compact blueprint preview shows coverage and totals before generation, with estimated processing cost and a manual-authoring route.",
+          "primaryAction": "Generate draft",
+          "secondaryAction": "Add questions manually",
+          "fields": [
+            "Blueprint",
+            "Source versions",
+            "Language",
+            "Duration"
+          ],
+          "columns": [
+            "Objective",
+            "Questions",
+            "Marks",
+            "Type"
+          ],
+          "rows": [
+            [
+              "Equivalent fractions",
+              "3",
+              "6",
+              "Short answer"
+            ],
+            [
+              "Compare fractions",
+              "2",
+              "4",
+              "Multiple choice"
+            ],
+            [
+              "Mixed review",
+              "1",
+              "5",
+              "Worked solution"
+            ]
+          ],
+          "notes": [
+            "Synthetic blueprint",
+            "Difficulty is estimated",
+            "Only approved accessible sources"
+          ]
+        },
+        {
+          "name": "Question review",
+          "layout": "assessment",
+          "purpose": "Review one draft item beside its source evidence, answer and marking guidance. Teachers accept or revise each component, and unsupported claims are blockers rather than decorative warning badges.",
+          "primaryAction": "Approve item",
+          "secondaryAction": "Regenerate item",
+          "fields": [
+            "Question version",
+            "Source passage",
+            "Estimated difficulty",
+            "Review state"
+          ],
+          "columns": [
+            "Component",
+            "Draft",
+            "Check",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Question",
+              "Compare 2/3 and 3/5",
+              "Valid form",
+              "Edit"
+            ],
+            [
+              "Answer",
+              "2/3 is greater",
+              "Review math",
+              "Inspect"
+            ],
+            [
+              "Source",
+              "Resource 12 p4",
+              "Resolved",
+              "Open"
+            ]
+          ],
+          "notes": [
+            "Teacher answer key stays private",
+            "Approved items preserved",
+            "Show marks and objective tags"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No reviewed blueprint or sources; link to those prerequisites and retain any settings already entered.",
+        "loading": "Show item-level progress and saved drafts; generation acceptance is not content approval.",
+        "error": "Report missing evidence or service failure precisely, with manual editing and retry of only unfinished items.",
+        "permission": "Only assigned academic staff generate from permitted resources; answer keys remain staff-only.",
+        "success": "Confirm approved item count, remaining blockers and the exact assessment draft version."
+      },
+      "mobile": "Teachers can review a question and source sequentially on mobile; desktop uses a split view with synchronized evidence links.",
+      "rtl": "Generate in the selected language; render Arabic questions RTL while isolating equations, Latin terms and numeric answer options correctly.",
+      "accessibility": "Use semantic question structures, accessible math where supported, labeled answer options and source links that return focus to the reviewed item.",
+      "copy": [
+        "No selected source supports this objective. Add material or revise the blueprint.",
+        "Five items approved. One answer key still needs review."
+      ]
+    }
+  },
+  {
+    "key": "F13",
+    "userStory": "As an examination officer, I want dates, rooms, seating and invigilators checked together so that a published examination plan is feasible for every affected pupil and staff member.",
+    "problem": "Examination sessions, room capacity, seating and conflict helpers are substantial existing capabilities. The next step is one coherent planning and publication experience rather than adding another calendar. Formal office examinations and teacher classroom quizzes must retain their different permissions. Capacity warnings need to include usable seating and accommodations, and schedule changes must produce a versioned update for the right audiences.",
+    "currentEvidence": [
+      "src/lib/academic/exam-rooms.ts",
+      "src/lib/academic/exam-conflicts.ts",
+      "src/lib/academic/room-capacity.ts",
+      "src/components/academic/exams/MasterDatesheet.tsx",
+      "src/components/academic/exams/SeatingPlanner.tsx",
+      "src/app/api/academic/exam-sessions"
+    ],
+    "scope": [
+      "Unify session planning with dated papers, candidate enrollment, usable room capacity and permitted invigilator assignments.",
+      "Evaluate pupil, teacher, room and timetable conflicts before draft approval and again at publication.",
+      "Represent split rooms, accessibility seating and authorized accommodation timing without publicly exposing support details.",
+      "Provide accessible seating/date-sheet previews and versioned exports linked to the exact published session.",
+      "Make post-publication changes show affected candidates, staff and documents before issuing controlled updates."
+    ],
+    "outOfScope": [
+      "Building online exam attempts or secure-browser behavior in this scheduling feature.",
+      "Automatically optimizing an entire institution timetable without human review."
+    ],
+    "acceptance": [
+      "A paper cannot publish with unresolved hard conflicts in candidate, room or invigilator schedules.",
+      "Split-room allocations reconcile every candidate exactly once and respect usable capacity.",
+      "Restricted accommodation details are visible only to authorized staff while required scheduling effects are honored.",
+      "Printed date sheets and seating exports identify the same published session version.",
+      "Changing a published paper creates a reviewed version and an explicit list of affected recipients.",
+      "Teacher quiz permissions cannot bypass office control over formal examination sessions."
+    ],
+    "qa": [
+      "Schedule overlapping papers for pupils taking different elective combinations.",
+      "Reduce a room’s usable seats after a draft allocation and attempt publication.",
+      "Extend one candidate’s authorized timing and check invigilator/room overlap warnings."
+    ],
+    "successMetric": "Measure unresolved conflicts at publication and time to produce a reconciled datesheet; require zero duplicate or unseated candidates.",
+    "ux": {
+      "principles": [
+        "Keep constraints beside the schedule so officers see why a choice is unavailable.",
+        "Use a compact table alternative to every calendar or seating canvas.",
+        "Distinguish draft planning from the family-visible published version."
+      ],
+      "flow": [
+        "Select exam session",
+        "Place papers",
+        "Assign rooms and staff",
+        "Resolve conflicts",
+        "Review seating and exports",
+        "Publish version"
+      ],
+      "screens": [
+        {
+          "name": "Exam planning",
+          "layout": "calendar",
+          "purpose": "Officers coordinate paper times and room allocations with a persistent conflict list. The calendar is a planning aid; each paper also has an editable table row and a clear draft/publication state.",
+          "primaryAction": "Review session",
+          "secondaryAction": "Open conflicts",
+          "fields": [
+            "Session",
+            "Date range",
+            "Campus",
+            "Version"
+          ],
+          "columns": [
+            "Paper",
+            "Time",
+            "Room",
+            "Status"
+          ],
+          "rows": [
+            [
+              "Math 7",
+              "09:00",
+              "Hall A",
+              "Ready"
+            ],
+            [
+              "Science 7",
+              "11:00",
+              "Room B",
+              "2 conflicts"
+            ],
+            [
+              "English 7",
+              "13:00",
+              "Hall A",
+              "Draft"
+            ]
+          ],
+          "notes": [
+            "Synthetic papers",
+            "School timezone shown",
+            "Do not rely on drag to schedule"
+          ]
+        },
+        {
+          "name": "Publication checks",
+          "layout": "table",
+          "purpose": "Review candidate coverage, capacity and staff availability before issuing the datesheet. Each blocker links to the responsible paper or allocation, while the publication summary identifies exactly who will receive changes.",
+          "primaryAction": "Publish v2",
+          "secondaryAction": "Export draft",
+          "fields": [
+            "Candidates",
+            "Allocated seats",
+            "Invigilators",
+            "Blocking conflicts"
+          ],
+          "columns": [
+            "Check",
+            "Expected",
+            "Actual",
+            "Result"
+          ],
+          "rows": [
+            [
+              "Candidate seats",
+              "126",
+              "126",
+              "Pass"
+            ],
+            [
+              "Room overlaps",
+              "0",
+              "0",
+              "Pass"
+            ],
+            [
+              "Invigilator overlap",
+              "0",
+              "1",
+              "Blocked"
+            ]
+          ],
+          "notes": [
+            "Publication disabled while blocked",
+            "Review changed papers only filter",
+            "PDF and portal share version"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No papers planned; create the first paper from an authorized exam definition.",
+        "loading": "Keep the selected session visible while recalculating constraints; mark suggestions temporarily stale.",
+        "error": "Show conflicting resources and safe alternatives; preserve the draft schedule.",
+        "permission": "Office staff publish formal sessions; teachers see only permitted quizzes and assigned duties.",
+        "success": "Confirm version, recipient scope and export availability with delivery tracking links."
+      },
+      "mobile": "Mobile staff see their duties and paper details first; officers can use a table/list editor instead of the wide calendar.",
+      "rtl": "Mirror calendar labels carefully while preserving chronological time order; keep seat and room codes isolated LTR.",
+      "accessibility": "Offer keyboard room/seat assignment controls and a textual seating list; conflict icons always include a reason.",
+      "copy": [
+        "One invigilator is already assigned at this time.",
+        "Datesheet v2 published for 126 candidates."
+      ]
+    }
+  },
+  {
+    "key": "F20",
+    "userStory": "As a teacher, I want to photograph a structured marks sheet, verify uncertain cells and approve a reconciled import so that I save transcription time without surrendering control of official marks.",
+    "problem": "No OCR, OMR or QR assessment scanning implementation was found. Existing marks validation and exam locking provide a good destination, but extraction must be a separate staged process. QR should identify an opaque assessment/template reference; it does not recognize handwriting or prove authority. The initial scope is teacher-recorded numeric marks on a known template, with explicit review, duplicate handling and a reversible batch receipt.",
+    "currentEvidence": [
+      "src/app/api/marks/route.ts",
+      "src/lib/academic/report-cards.ts",
+      "src/components/teacher/teacher-components.tsx",
+      "src/app/api/uploads/presign/route.ts",
+      "No assessment scanning workflow found in current source"
+    ],
+    "scope": [
+      "Generate versioned structured marks sheets with opaque QR references, roster snapshot, subject/question limits and page numbers.",
+      "Capture or upload images with orientation, blur, crop and completeness checks before extraction.",
+      "Extract numeric cells and absent markers into a staging batch, retaining image crops and confidence evidence for review.",
+      "Validate identity, roster membership, allowed marks, totals, duplicates and current exam state before teacher approval.",
+      "Commit approved changes through the shared marks service with before/after preview, idempotency and reversible import receipt.",
+      "Record extraction corrections for quality measurement without using pupil images for model training by default."
+    ],
+    "outOfScope": [
+      "Autonomous grading of essays or arbitrary handwritten mathematical reasoning.",
+      "Treating OCR confidence as proof that a mark or pupil identity is correct."
+    ],
+    "acceptance": [
+      "A valid QR resolves only inside authorized school scope and contains no plaintext pupil personal data.",
+      "An image with missing pages, severe blur or unreadable references cannot silently proceed as a complete batch.",
+      "Confidence only prioritizes review and never automatically approves or commits marks. Every uncertain or invalid cell requires explicit review beside its original image crop; high-confidence cells remain reviewable in the batch preview, and every committed batch requires recorded teacher approval.",
+      "Values outside configured limits, mismatched rosters and locked exams block commitment with actionable explanations.",
+      "Scanning the same page twice does not duplicate grades; changed rescans require a reviewed before/after decision.",
+      "Only approved cells enter the gradebook, with batch identity, teacher, original evidence and correction history retained.",
+      "The resulting marks still require normal exam/report approval before family visibility."
+    ],
+    "qa": [
+      "Scan a tilted sheet with an ambiguous 7/1 digit, one confidently misread numeric cell, an absent pupil and a missing page; verify confidence cannot bypass review or teacher-approved commitment.",
+      "Rescan a corrected page while another teacher has changed one of its marks.",
+      "Attempt import after the exam is locked or its roster changes."
+    ],
+    "successMetric": "Measure verified cell accuracy, review burden, uncorrected transcription errors and minutes per class including rescans and correction time.",
+    "ux": {
+      "principles": [
+        "Put the original crop beside the editable extracted mark at every review point.",
+        "Use confidence to prioritize review, never to disguise unverified official data.",
+        "Keep capture, extraction, review and commit as visibly different stages."
+      ],
+      "flow": [
+        "Choose exam template",
+        "Capture all pages",
+        "Check image quality",
+        "Review extracted cells",
+        "Compare gradebook changes",
+        "Approve import"
+      ],
+      "screens": [
+        {
+          "name": "Scan review",
+          "layout": "scan",
+          "purpose": "A teacher checks the captured sheet against extracted values with the selected cell crop enlarged. The main navigation advances through required reviews first, while allowing every supposedly confident value to be inspected.",
+          "primaryAction": "Review next cell",
+          "secondaryAction": "Retake page",
+          "fields": [
+            "Exam",
+            "Page",
+            "Review count",
+            "Template version"
+          ],
+          "columns": [
+            "Pupil ID",
+            "Extracted",
+            "Limit",
+            "Review"
+          ],
+          "rows": [
+            [
+              "ST-0042",
+              "17",
+              "20",
+              "Confirm"
+            ],
+            [
+              "ST-0043",
+              "1 or 7",
+              "20",
+              "Needs review"
+            ],
+            [
+              "ST-0044",
+              "Absent",
+              "20",
+              "Confirm absent"
+            ]
+          ],
+          "notes": [
+            "Synthetic marks only",
+            "Image crop remains adjacent",
+            "Never commit from capture screen"
+          ]
+        },
+        {
+          "name": "Approve marks import",
+          "layout": "table",
+          "purpose": "The final preview reconciles pages, roster and grade changes before writing anything. Staff see existing marks and proposed replacements, including explicit conflicts with changes made after the scan began.",
+          "primaryAction": "Approve 24 changes",
+          "secondaryAction": "Return to review",
+          "fields": [
+            "Batch",
+            "Pages received",
+            "Roster matched",
+            "Exam state"
+          ],
+          "columns": [
+            "Pupil ID",
+            "Existing",
+            "Proposed",
+            "Result"
+          ],
+          "rows": [
+            [
+              "ST-0042",
+              "Blank",
+              "17 / 20",
+              "New"
+            ],
+            [
+              "ST-0043",
+              "6 / 20",
+              "7 / 20",
+              "Review change"
+            ],
+            [
+              "ST-0044",
+              "Blank",
+              "Absent",
+              "New"
+            ]
+          ],
+          "notes": [
+            "Locked exam blocks commit",
+            "Duplicate pages listed separately",
+            "Receipt supports guarded reversal"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No scan yet; offer the correct printable template and a short capture example.",
+        "loading": "Show upload and extraction separately, saving completed pages before further work.",
+        "error": "Explain blur, missing page or roster mismatch with retake, replace or resolve actions.",
+        "permission": "Only staff assigned to the exam can review and import; QR possession grants no access.",
+        "success": "Show committed count, skipped/conflicted cells and the import receipt; results remain unpublished."
+      },
+      "mobile": "Camera capture is mobile-first with a large preview and retake control; cell review stacks crop above input with a fixed Next button.",
+      "rtl": "Mirror review panels while preserving table-template coordinates; isolate numeric marks and opaque IDs without changing extraction orientation.",
+      "accessibility": "Provide file upload as a camera alternative, large readable crops, keyboard cell navigation and text descriptions of every validation blocker.",
+      "copy": [
+        "Please confirm this digit: 1 or 7.",
+        "24 marks imported. Review and publish results through the usual workflow."
+      ]
+    }
+  },
+  {
+    "key": "F65",
+    "userStory": "As a teacher or guardian, I want permitted conversations and attachments to send reliably with recoverable status so that important school communication does not disappear or reach the wrong family.",
+    "problem": "The chat domain already has relationship policies, attachments, realtime streams, read state and school settings. Improve its reliability rather than building a second messaging system. Reconnects, retried sends, changed class relationships and failed uploads must have clear outcomes. A read marker should not be confused with completion of a school request, and private school messages should not spill into notification previews.",
+    "currentEvidence": [
+      "src/lib/chat/policy.ts",
+      "src/lib/chat/service.ts",
+      "src/lib/chat/realtime.ts",
+      "src/components/chat/composer.tsx",
+      "src/components/chat/message-thread.tsx",
+      "src/app/api/chat/attachments/route.ts",
+      "Linear SKO-182"
+    ],
+    "scope": [
+      "Unify persisted send identifiers, retry semantics and reconciliation between optimistic messages and server-confirmed history.",
+      "Make attachment upload, validation, association and download authorization robust across interrupted connections and membership changes.",
+      "Reconnect realtime streams with gap recovery so messages and unread counts converge without duplicates.",
+      "Expose failed/pending/delivered states accurately and keep read acknowledgement distinct from task completion.",
+      "Apply current school relationship policy to conversation discovery, sending, members and attachment access.",
+      "Respect quiet hours and safe notification previews while preserving access to urgent school actions through the appropriate workflow."
+    ],
+    "outOfScope": [
+      "Opening pupil-to-pupil or parent-to-parent messaging by default.",
+      "Automatic monitoring that labels students or treats message sentiment as a safeguarding diagnosis."
+    ],
+    "acceptance": [
+      "Retrying a pending message with the same send identifier creates one authoritative message.",
+      "After reconnect, the thread and unread count match persisted server state with no missing sequence gap.",
+      "An attachment cannot be sent before successful validation/storage and cannot be retrieved outside current authorized scope.",
+      "Relationship changes prevent newly forbidden communication without leaking conversation previews in search.",
+      "Failed sends preserve draft text and attachment state with an explicit retry or remove action.",
+      "Quiet-hour behavior follows school and recipient policy, and urgent exceptions are explicit rather than silently inferred.",
+      "Read status never marks a separate consent, payment or report-review action complete."
+    ],
+    "qa": [
+      "Send a message, lose the acknowledgement and retry after reconnect.",
+      "Remove a teacher’s class relationship while an old attachment link is open.",
+      "Upload a disallowed file and a valid large file from a slow mobile connection."
+    ],
+    "successMetric": "Measure missing/duplicate message incidents, attachment completion and reconnection recovery; track unresolved failed sends separately from unread messages.",
+    "ux": {
+      "principles": [
+        "Never present an optimistic bubble as confirmed delivery.",
+        "Keep recovery attached to the affected message rather than a fleeting global toast.",
+        "Make recipient context obvious before sending sensitive school information."
+      ],
+      "flow": [
+        "Choose permitted conversation",
+        "Compose message",
+        "Attach and validate files",
+        "Send with tracked status",
+        "Reconnect or retry if needed",
+        "Review acknowledgement separately"
+      ],
+      "screens": [
+        {
+          "name": "School conversation",
+          "layout": "timeline",
+          "purpose": "A familiar thread shows the verified recipient relationship, concise messages and trustworthy send states. Failed messages remain at their original position with their own recovery action, preserving the conversation context.",
+          "primaryAction": "Send message",
+          "secondaryAction": "Attach file",
+          "fields": [
+            "Conversation",
+            "Recipient role",
+            "Draft message",
+            "Attachments"
+          ],
+          "columns": [
+            "Message",
+            "Author",
+            "Time",
+            "State"
+          ],
+          "rows": [
+            [
+              "Homework note",
+              "Teacher A",
+              "14:05",
+              "Sent"
+            ],
+            [
+              "Permission question",
+              "Guardian B",
+              "14:06",
+              "Read"
+            ],
+            [
+              "Study guide",
+              "Teacher A",
+              "14:07",
+              "Upload pending"
+            ]
+          ],
+          "notes": [
+            "Synthetic conversation only",
+            "Recipient class context visible",
+            "No fake delivery ticks"
+          ]
+        },
+        {
+          "name": "Recover attachment",
+          "layout": "queue",
+          "purpose": "The sender sees each attachment’s processing state and can retry the failed upload without duplicating the message. Access checks and file validation are explained plainly, with a safe option to send the text separately.",
+          "primaryAction": "Retry upload",
+          "secondaryAction": "Send text only",
+          "fields": [
+            "Message reference",
+            "File",
+            "Upload state",
+            "Validation"
+          ],
+          "columns": [
+            "File",
+            "Progress",
+            "Check",
+            "Next action"
+          ],
+          "rows": [
+            [
+              "guide.pdf",
+              "Complete",
+              "Allowed",
+              "Ready"
+            ],
+            [
+              "worksheet.png",
+              "Failed",
+              "Not checked",
+              "Retry"
+            ],
+            [
+              "notes.exe",
+              "Rejected",
+              "Unsupported",
+              "Remove"
+            ]
+          ],
+          "notes": [
+            "Keep draft text intact",
+            "No attachment URL exposure",
+            "Resend uses original logical message"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No messages yet; name the permitted participants and offer a school-appropriate starting action.",
+        "loading": "Keep existing history and draft visible during reconnect; show the last synchronized point.",
+        "error": "Display retry on the failed message or file and explain whether anything was actually sent.",
+        "permission": "If access changes, stop new sends and show a neutral explanation without expanding the address book.",
+        "success": "Confirm server acceptance and update delivery/read states only when evidence arrives."
+      },
+      "mobile": "Messaging is mobile-first with a reachable composer, upload progress above the keyboard and no controls hidden beneath safe-area insets.",
+      "rtl": "Align message layout by sender while rendering each message’s language correctly; isolate filenames, links and times within Arabic text.",
+      "accessibility": "New messages announce politely without stealing focus; attachment controls have names and the composer supports keyboard send alternatives.",
+      "copy": [
+        "Upload failed. Your message draft is still here.",
+        "Message sent. Reading it does not complete the linked school request."
+      ]
+    }
+  },
+  {
+    "key": "F12",
+    "userStory": "As a principal, I want one prioritized queue of unresolved school work with an owner and next action so that important tasks are completed instead of disappearing inside separate dashboards.",
+    "problem": "Principal dashboards, notifications and AI summaries exist, but a summary does not establish an accountable work item. The queue should be driven by explicit source conditions such as missing attendance, pending report approval and failed delivery. AI may explain the evidence but must not invent urgency, close tasks or turn fee difficulty into a judgment about a child.",
+    "currentEvidence": [
+      "src/app/principal/page.tsx",
+      "src/app/principal/principal-data-context.tsx",
+      "src/components/insights/CampusOverview.tsx",
+      "src/lib/notifications/events.ts",
+      "Linear SKO-202"
+    ],
+    "scope": [
+      "Define actionable item types with source record, deterministic trigger, owner, due time and resolution condition.",
+      "Aggregate attendance, report approval and delivery exceptions from the dependent modules without duplicating their authoritative state.",
+      "Allow assignment, acknowledgement and justified snooze while preserving overdue visibility and audit history.",
+      "Deep-link each task to its exact resolution workspace and reconcile closure from the actual source outcome.",
+      "Provide campus and responsibility filters with a transparent explanation of sorting and urgency."
+    ],
+    "outOfScope": [
+      "Autonomous AI actions changing grades, finances, staffing or pupil classifications.",
+      "A second generic task manager disconnected from source school records."
+    ],
+    "acceptance": [
+      "Every item identifies its originating record, trigger, owner and supported next action.",
+      "Resolving a source issue closes or updates the queue item without requiring duplicate manual completion.",
+      "Opening the same underlying exception through different channels does not create duplicate active work items.",
+      "Snoozing requires a reason and return time, and overdue items remain discoverable.",
+      "Campus and role restrictions apply to queue summaries and deep links alike.",
+      "Sorting explains urgent categories and does not silently use an opaque pupil risk score."
+    ],
+    "qa": [
+      "Complete attendance from the teacher workspace while a principal has the queue open.",
+      "Snooze a report blocker until tomorrow and trigger a publication deadline today.",
+      "Open an old notification after its source exception has already been resolved."
+    ],
+    "successMetric": "Measure median exception age, overdue unresolved work and percentage resolved through the linked source action.",
+    "ux": {
+      "principles": [
+        "Put the next useful action ahead of charts and overall counts.",
+        "Show why an item exists and who is responsible without blame-oriented language.",
+        "Keep resolved work available as evidence without crowding the active queue."
+      ],
+      "flow": [
+        "Open campus queue",
+        "Filter responsibility",
+        "Inspect source evidence",
+        "Assign or act",
+        "Resolve in workspace",
+        "Confirm queue update"
+      ],
+      "screens": [
+        {
+          "name": "Principal queue",
+          "layout": "queue",
+          "purpose": "A concise list shows work requiring attention today, grouped by responsibility and due time. The principal can distinguish an overdue administrative task from a pupil support concern without reading an AI-generated narrative.",
+          "primaryAction": "Review next",
+          "secondaryAction": "View resolved",
+          "fields": [
+            "Campus",
+            "Owner",
+            "Due window",
+            "Task type"
+          ],
+          "columns": [
+            "Action",
+            "Owner",
+            "Due",
+            "Source"
+          ],
+          "rows": [
+            [
+              "Review 7A reports",
+              "Principal",
+              "Today",
+              "Exam 12"
+            ],
+            [
+              "Complete attendance",
+              "Teacher A",
+              "09:00",
+              "Class 6B"
+            ],
+            [
+              "Fix family contact",
+              "Office B",
+              "Today",
+              "Delivery 31"
+            ]
+          ],
+          "notes": [
+            "Sorting reason visible",
+            "No opaque risk ranking",
+            "Counts match active source conditions"
+          ]
+        },
+        {
+          "name": "Action detail",
+          "layout": "flow",
+          "purpose": "The detail view explains the trigger and offers the source-specific next step. Assignment and snooze are secondary actions; actual completion comes from the authoritative workflow so the queue cannot hide unresolved school work.",
+          "primaryAction": "Open report review",
+          "secondaryAction": "Assign owner",
+          "fields": [
+            "Source",
+            "Trigger",
+            "Owner",
+            "Due time"
+          ],
+          "columns": [
+            "Evidence",
+            "Observed",
+            "Required",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Reports",
+              "3 unapproved",
+              "All approved",
+              "Review"
+            ],
+            [
+              "Version",
+              "v3 pending",
+              "Reviewed v3",
+              "Inspect"
+            ],
+            [
+              "Release",
+              "Tomorrow",
+              "Ready today",
+              "Plan"
+            ]
+          ],
+          "notes": [
+            "Show last source refresh",
+            "Keep assignment history",
+            "Resolved source disables stale actions"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No unresolved items in this scope; show when sources were checked and a route to resolved history.",
+        "loading": "Retain filters and prior items with a refreshing label; avoid flashing an empty success state.",
+        "error": "Show which source feed failed and mark totals incomplete until recovery.",
+        "permission": "A task outside the caller’s scope gives a neutral denial, not a preview of its confidential details.",
+        "success": "Confirm the actual source resolution and remove the active item while preserving history."
+      },
+      "mobile": "Use a mobile-first action list with thumb-friendly primary actions; dense evidence expands only on demand.",
+      "rtl": "Mirror list and evidence order; keep due times explicit in the school timezone and identifiers isolated.",
+      "accessibility": "Queue items have descriptive link names, visible keyboard focus and text urgency labels; live updates do not steal focus.",
+      "copy": [
+        "Three report versions still need approval.",
+        "Resolved in Report Review. This action is now complete."
+      ]
+    }
+  },
+  {
+    "key": "F15",
+    "userStory": "As a teacher or student-support lead, I want a concern linked to a specific intervention, responsible adult and reassessment so that support continues until its outcome is reviewed.",
+    "problem": "The existing intervention model stores recommendations and approval but lacks structured goals, owners, due dates and measured outcomes. An AI paragraph should not become a permanent label on a child. Build evidence-based, time-bounded support using assessed work and appropriate family involvement. Progress must distinguish participation, task completion and comparable reassessment, without treating correlation as proof that the intervention caused improvement.",
+    "currentEvidence": [
+      "prisma/schema.prisma: InterventionPlan",
+      "src/app/api/ai/insights/route.ts",
+      "src/app/api/ai/review/[id]/route.ts",
+      "src/app/api/cron/risk-digest/route.ts"
+    ],
+    "scope": [
+      "Add structured concern evidence, baseline, goal, owner, planned activity, review date and approval to intervention records.",
+      "Link question-level learning evidence and approved family actions without exposing unrelated financial or confidential support details.",
+      "Provide check-ins for assigned staff and record actual participation, adjustments and pupil feedback.",
+      "Schedule a comparable reassessment or documented review and capture its result alongside the baseline.",
+      "Close, extend or escalate the intervention through a human decision with a reason and retained history."
+    ],
+    "outOfScope": [
+      "Automated diagnoses, disciplinary decisions or fixed ability labels based on scores.",
+      "Claiming causal learning gains from an uncontrolled before/after comparison."
+    ],
+    "acceptance": [
+      "Every activated intervention has an owner, specific goal, source evidence and review date.",
+      "Only authorized reviewers can activate suggested plans; AI output remains an editable draft.",
+      "Missed check-ins remain visible to the owner and principal queue until resolved or rescheduled.",
+      "Families see only explicitly shared goals/actions, not private professional notes.",
+      "Outcome review distinguishes baseline, follow-up evidence, completion and contextual limitations.",
+      "Closing or extending a plan records a human decision and preserves prior plan versions."
+    ],
+    "qa": [
+      "Create support for a misconception supported by two items rather than an overall average.",
+      "Change the responsible teacher mid-plan and verify follow-up ownership transfers.",
+      "Review improved scores when attendance changed and record the limitation without a causal claim."
+    ],
+    "successMetric": "Measure activated plans with timely check-ins and completed outcome reviews; separately report learning evidence and participation.",
+    "ux": {
+      "principles": [
+        "Use supportive, specific language about skills and actions rather than labeling children.",
+        "Put the next check-in and responsible adult above AI narrative.",
+        "Show what is shared with the family before approval."
+      ],
+      "flow": [
+        "Review concern evidence",
+        "Set goal and owner",
+        "Approve activity and sharing",
+        "Record check-ins",
+        "Compare follow-up evidence",
+        "Close or extend plan"
+      ],
+      "screens": [
+        {
+          "name": "Support plan",
+          "layout": "form",
+          "purpose": "The teacher converts a concrete concern into a manageable support plan. Evidence, goal and owner are required; generated suggestions are editable and kept visually separate from the approved action.",
+          "primaryAction": "Request approval",
+          "secondaryAction": "Save draft",
+          "fields": [
+            "Learning goal",
+            "Owner",
+            "Review date",
+            "Family action"
+          ],
+          "columns": [
+            "Evidence",
+            "Baseline",
+            "Planned action",
+            "Review"
+          ],
+          "rows": [
+            [
+              "Equivalent fractions",
+              "2 of 5",
+              "Three practices",
+              "22 Oct"
+            ],
+            [
+              "Work completion",
+              "4 of 6",
+              "Check-in routine",
+              "22 Oct"
+            ],
+            [
+              "Pupil reflection",
+              "Needs examples",
+              "Worked example",
+              "Next lesson"
+            ]
+          ],
+          "notes": [
+            "Synthetic learning evidence",
+            "Private notes separated",
+            "Family preview before activation"
+          ]
+        },
+        {
+          "name": "Outcome review",
+          "layout": "timeline",
+          "purpose": "Compare the starting evidence with a later review while recording what was actually delivered. The reviewer can continue, adjust or close the plan and should see missing evidence before drawing conclusions.",
+          "primaryAction": "Record outcome",
+          "secondaryAction": "Extend plan",
+          "fields": [
+            "Plan version",
+            "Review date",
+            "Follow-up evidence",
+            "Decision"
+          ],
+          "columns": [
+            "Milestone",
+            "Planned",
+            "Observed",
+            "State"
+          ],
+          "rows": [
+            [
+              "Practice sessions",
+              "3",
+              "3 completed",
+              "Done"
+            ],
+            [
+              "Reassessment",
+              "5 items",
+              "4 correct",
+              "Reviewed"
+            ],
+            [
+              "Family action",
+              "Acknowledge",
+              "Received",
+              "Done"
+            ]
+          ],
+          "notes": [
+            "Do not claim causality",
+            "Record contextual changes",
+            "Closure requires a reason"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No active plan; start from a selected concern or create a specific support goal.",
+        "loading": "Keep plan details visible while linked evidence loads; mark missing sources clearly.",
+        "error": "Preserve check-in notes and prevent an outcome decision based on unavailable evidence.",
+        "permission": "Restricted professional notes remain hidden from families and unrelated staff.",
+        "success": "Confirm the decision, next owner/date and precisely which family update was shared."
+      },
+      "mobile": "Teachers can record short check-ins on mobile; families receive a concise action card rather than the internal case workspace.",
+      "rtl": "Mirror timeline and form; keep assessment fractions and dates isolated and avoid negative labels in translated copy.",
+      "accessibility": "Goals and evidence are available as text, charts have equivalents and status changes are announced without focus theft.",
+      "copy": [
+        "Goal: explain equivalent fractions using two examples.",
+        "Review complete. Continue practice until 29 October."
+      ]
+    }
+  },
+  {
+    "key": "F14",
+    "userStory": "As a cover coordinator, I want an absence to produce a feasible substitute plan and a checked catch-up task so that the school preserves teaching continuity rather than only recording missed lessons.",
+    "problem": "Staff leave, availability, timetables and AI lesson drafts exist, but a connected substitution and missed-learning recovery workflow does not. Availability alone is insufficient: qualifications, workload, supervision requirements and campus travel matter. Suggested cover must remain a reviewed proposal, and a missed lesson should produce a concrete teaching handover rather than an unsupported assumption that pupils learned the topic.",
+    "currentEvidence": [
+      "src/app/api/leave/route.ts",
+      "src/lib/academic/availability.ts",
+      "src/lib/timetable/suggest.ts",
+      "src/app/api/teachers/availability/route.ts",
+      "src/lib/ai/prompts.ts"
+    ],
+    "scope": [
+      "Translate approved absence dates into affected lessons and an accountable cover request.",
+      "Suggest eligible substitutes using availability, teaching suitability, workload and campus constraints with visible reasons.",
+      "Let coordinators approve partial coverage, record unresolved lessons and issue controlled timetable updates.",
+      "Attach the original teacher’s approved lesson resources and concise handover instructions to each covered lesson.",
+      "Create a reviewed missed-learning recovery task when coverage changes the planned learning, and track completion in the student agenda."
+    ],
+    "outOfScope": [
+      "Automatic staffing commitments or punitive teacher performance judgments.",
+      "A claim that generated substitute lessons guarantee equivalent learning outcomes."
+    ],
+    "acceptance": [
+      "Each approved absence identifies affected lessons using current published timetable versions.",
+      "Suggestions explain eligibility and reject timetable conflicts or required qualification mismatches.",
+      "Approving cover rechecks availability and fails safely if another coordinator has already assigned the teacher.",
+      "Substitutes receive only authorized class resources and duties for the covered period.",
+      "Uncovered or materially changed lessons create an explicit follow-up decision rather than appearing completed.",
+      "Family/student updates reflect only approved changes and link to the correct lesson or catch-up task."
+    ],
+    "qa": [
+      "Two coordinators simultaneously assign the same substitute to different lessons.",
+      "An absent teacher works across campuses with travel time constraints.",
+      "A lesson is supervised but its practical activity is postponed; create and complete catch-up work."
+    ],
+    "successMetric": "Track uncovered teaching periods, coordinator time per absence and percentage of missed-learning follow-ups completed.",
+    "ux": {
+      "principles": [
+        "Explain why a teacher is suggested instead of presenting an opaque ranking.",
+        "Separate covering the room from delivering the planned learning.",
+        "Keep urgent same-day scheduling concise and defer optional handover detail."
+      ],
+      "flow": [
+        "Open absence impact",
+        "Review affected lessons",
+        "Select eligible cover",
+        "Confirm handover",
+        "Publish approved changes",
+        "Review catch-up completion"
+      ],
+      "screens": [
+        {
+          "name": "Cover required",
+          "layout": "queue",
+          "purpose": "The coordinator sees affected lessons and the reason each remains uncovered. Suggestions show relevant constraints, allowing a quick decision without opening several staff and timetable pages.",
+          "primaryAction": "Review cover",
+          "secondaryAction": "Notify coordinator",
+          "fields": [
+            "Absence",
+            "Campus",
+            "Date",
+            "Coverage"
+          ],
+          "columns": [
+            "Lesson",
+            "Time",
+            "Suggested cover",
+            "State"
+          ],
+          "rows": [
+            [
+              "7A Math",
+              "09:00",
+              "Teacher B",
+              "Available"
+            ],
+            [
+              "8B Science",
+              "10:00",
+              "None eligible",
+              "Uncovered"
+            ],
+            [
+              "6A English",
+              "11:00",
+              "Teacher C",
+              "Review load"
+            ]
+          ],
+          "notes": [
+            "Synthetic staff names",
+            "No automatic assignment",
+            "Show updated availability time"
+          ]
+        },
+        {
+          "name": "Lesson handover",
+          "layout": "form",
+          "purpose": "Confirm the substitute, resources and expected learning before publication. If the original objective cannot be taught, the coordinator records the actual activity and assigns a follow-up owner instead of marking it as delivered.",
+          "primaryAction": "Approve cover",
+          "secondaryAction": "Save proposal",
+          "fields": [
+            "Substitute",
+            "Lesson objective",
+            "Approved resource",
+            "Follow-up owner"
+          ],
+          "columns": [
+            "Task",
+            "Plan",
+            "Owner",
+            "State"
+          ],
+          "rows": [
+            [
+              "Teach fractions",
+              "Resource 12",
+              "Teacher B",
+              "Ready"
+            ],
+            [
+              "Practical work",
+              "Postponed",
+              "Teacher A",
+              "Follow-up"
+            ],
+            [
+              "Student notice",
+              "Schedule change",
+              "System",
+              "After approval"
+            ]
+          ],
+          "notes": [
+            "Staff-only handover notes",
+            "Catch-up needs teacher review",
+            "Recheck conflict on approval"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No uncovered lessons; retain upcoming approved absences and recently resolved cover.",
+        "loading": "Keep the absence impact list while eligibility checks run.",
+        "error": "Explain the newly conflicting assignment and preserve the proposed handover.",
+        "permission": "Only coordinators commit cover; substitutes can acknowledge their assigned duties.",
+        "success": "Confirm affected timetable versions and notification jobs; show remaining uncovered lessons."
+      },
+      "mobile": "A same-day mobile cover list prioritizes time, room and handover action; full planning remains productive on desktop.",
+      "rtl": "Mirror panels and localize dates while keeping lesson chronology, room codes and resource filenames readable.",
+      "accessibility": "Provide keyboard selection for substitutes and text conflict reasons; urgent tasks do not rely on flashing indicators.",
+      "copy": [
+        "Teacher B is available and assigned to this subject.",
+        "Cover approved. One lesson still needs a follow-up plan."
+      ]
+    }
+  },
+  {
+    "key": "F16",
+    "userStory": "As a school-group leader, I want shared policy templates with controlled campus overrides so that campuses follow group standards while retaining explicitly permitted local differences.",
+    "problem": "Multi-campus institutions and local settings already exist, but there is no established versioned inheritance model for group policy. Simply copying values creates drift, while forcing one configuration can violate a campus’s valid calendar, curriculum or operating needs. The design must show the effective value, its source and the consequence of a group change before applying it.",
+    "currentEvidence": [
+      "prisma/schema.prisma: School and Campus",
+      "src/components/settings/InstitutionSettingsPanel.tsx",
+      "src/lib/staff/hierarchy-presets.ts",
+      "src/app/api/grade-config/route.ts"
+    ],
+    "scope": [
+      "Define versioned templates for approved configurable domains with effective dates and explicit override permissions.",
+      "Display inherited, overridden and locked values distinctly at campus level, including a reason and author for overrides.",
+      "Preview the effect of a template update across campuses and identify incompatible curriculum or calendar settings.",
+      "Require an authorized review process for overrides and material group policy changes.",
+      "Retain policy provenance on records that depend on it, avoiding retrospective alteration of published academic or financial artifacts."
+    ],
+    "outOfScope": [
+      "One universal policy that automatically satisfies all countries or school types.",
+      "Retroactively recalculating old reports or invoices when a new template is published."
+    ],
+    "acceptance": [
+      "Campus users can see the effective value and whether it comes from the group template or an approved override.",
+      "Locked fields reject changes through both UI and API, with a clear explanation and escalation route.",
+      "Publishing a new template shows affected campuses, preserved overrides and blocking incompatibilities.",
+      "An override records reason, approver, validity period and the template version it modifies.",
+      "Historical records retain the rules effective when they were produced.",
+      "A template can be staged for a future date and its activation is recorded with an auditable activation event."
+    ],
+    "qa": [
+      "Publish a group grading change where one campus uses a different curriculum.",
+      "Expire an approved local override and verify the intended inherited value resumes.",
+      "Attempt a locked-field change by direct API while reviewing the same field in settings."
+    ],
+    "successMetric": "Track unexplained configuration drift and time to review group changes; require complete provenance for every effective policy value.",
+    "ux": {
+      "principles": [
+        "Always show effective values instead of making users mentally combine templates.",
+        "Explain locked and locally editable fields in ordinary school language.",
+        "Make a multi-campus impact preview mandatory before applying broad changes."
+      ],
+      "flow": [
+        "Choose template domain",
+        "Edit draft version",
+        "Set override rules",
+        "Preview campus impact",
+        "Approve effective date",
+        "Publish and monitor exceptions"
+      ],
+      "screens": [
+        {
+          "name": "Campus policy",
+          "layout": "settings",
+          "purpose": "Campus administrators see the effective rules with their origins. A local override is a deliberate, reviewed exception and never appears identical to an inherited default.",
+          "primaryAction": "Request override",
+          "secondaryAction": "View group template",
+          "fields": [
+            "Campus",
+            "Policy domain",
+            "Effective date",
+            "Template version"
+          ],
+          "columns": [
+            "Setting",
+            "Effective value",
+            "Source",
+            "Control"
+          ],
+          "rows": [
+            [
+              "Weekend",
+              "Fri–Sat",
+              "Group v3",
+              "Locked"
+            ],
+            [
+              "Reminder hour",
+              "17:00",
+              "Local override",
+              "Editable"
+            ],
+            [
+              "Grade scale",
+              "Scale B",
+              "Group v3",
+              "Review required"
+            ]
+          ],
+          "notes": [
+            "Show override expiry",
+            "No hidden inherited values",
+            "Links explain policy ownership"
+          ]
+        },
+        {
+          "name": "Group change review",
+          "layout": "table",
+          "purpose": "The group leader reviews the precise effect of a proposed template release across campuses. Conflicts and existing overrides remain visible before approval, avoiding silent replacement of legitimate local settings.",
+          "primaryAction": "Schedule v4",
+          "secondaryAction": "Return to draft",
+          "fields": [
+            "Template",
+            "Effective date",
+            "Reviewer",
+            "Affected campuses"
+          ],
+          "columns": [
+            "Campus",
+            "Current",
+            "Proposed",
+            "Outcome"
+          ],
+          "rows": [
+            [
+              "North",
+              "v3",
+              "v4",
+              "Compatible"
+            ],
+            [
+              "West",
+              "Local scale",
+              "Preserve override",
+              "Review"
+            ],
+            [
+              "East",
+              "v3",
+              "v4",
+              "Calendar conflict"
+            ]
+          ],
+          "notes": [
+            "Block incompatible applications",
+            "Preview downstream domains",
+            "Retain prior versions"
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No group template; explain whether current campus settings will become the initial baseline.",
+        "loading": "Keep effective values visible while calculating proposed changes.",
+        "error": "List affected campuses and prevent partial silent application when validation fails.",
+        "permission": "Campus editors can request permitted overrides; only group policy owners publish templates.",
+        "success": "Confirm the activation date, version and campuses requiring additional review."
+      },
+      "mobile": "Campus policy is readable on mobile as setting cards; group impact tables offer stacked comparisons with a persistent affected count.",
+      "rtl": "Mirror inheritance indicators and isolate version identifiers; translate policy explanations rather than exposing internal keys.",
+      "accessibility": "Use text labels for inherited/overridden/locked states, and ensure disabled controls have an accessible reason nearby.",
+      "copy": [
+        "This value is inherited from Group Policy v3.",
+        "Version 4 is scheduled. Two campus exceptions need review."
+      ]
+    }
+  }
+]

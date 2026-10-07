@@ -123,7 +123,7 @@ function DialogBody({ children }: { children: React.ReactNode }) {
 
       <button
         type="button"
-        className="absolute right-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
         onClick={requestClose}
       >
         <X className="h-4 w-4" />
@@ -166,7 +166,7 @@ function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mb-5 flex flex-col space-y-1.5 pr-10 text-left", className)}
+      className={cn("mb-5 flex flex-col space-y-1.5 pe-10 text-start", className)}
       {...props}
     />
   );
@@ -176,10 +176,12 @@ function DialogTitle({
   className,
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) {
+  const { titleId } = useModalSurface();
   return (
     <h2
-      className={cn("text-2xl font-black leading-tight text-[#1f1a23]", className)}
+      className={cn("text-2xl font-black leading-tight text-foreground", className)}
       {...props}
+      id={titleId}
     />
   );
 }

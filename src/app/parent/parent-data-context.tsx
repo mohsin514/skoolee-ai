@@ -54,6 +54,7 @@ interface FeeItem {
 }
 
 export interface ParentData {
+  navigationAccess: Record<string, boolean>;
   student: {
     fullName: string;
     rollNo: string;

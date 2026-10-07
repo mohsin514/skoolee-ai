@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkspaceSubnav } from "@/components/nav/WorkspaceSubnav";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,104 +54,9 @@ export function ConsoleSubnav<T extends string>({
   onSelect: (id: T) => void;
   label?: string;
 }) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const [overflow, setOverflow] = useState({ left: false, right: false });
-
-  const measure = () => {
-    const el = scroller.current;
-    if (!el) return;
-    setOverflow({
-      left: el.scrollLeft > 4,
-      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
-    });
-  };
-
-  useEffect(() => {
-    measure();
-    const el = scroller.current;
-    if (!el) return;
-    const onScroll = () => measure();
-    el.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
-
-  // Keep the current view in view when it is changed from the sidebar too.
-  useEffect(() => {
-    scroller.current
-      ?.querySelector<HTMLElement>(`[data-view="${activeId}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  }, [activeId]);
-
-  const nudge = (direction: -1 | 1) =>
-    scroller.current?.scrollBy({ left: direction * 240, behavior: "smooth" });
-
-  return (
-    <nav
-      aria-label={label}
-      className="flex items-center gap-1 border-b border-[#cfc2d6]/12 bg-white/70 px-3 py-1.5 backdrop-blur-xl"
-    >
-      {overflow.left ? (
-        <button
-          type="button"
-          onClick={() => nudge(-1)}
-          aria-label="Scroll left"
-          className="flex h-8 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-      ) : null}
-
-      <div
-        ref={scroller}
-        className="custom-scrollbar flex flex-1 items-center gap-1 overflow-x-auto scroll-smooth"
-      >
-        {items.map((item, i) => {
-          const Icon = item.icon;
-          const isActive = item.id === activeId;
-          const startsGroup = i > 0 && items[i - 1].group !== item.group;
-          return (
-            <React.Fragment key={item.id}>
-              {startsGroup ? (
-                <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-[#cfc2d6]/30" />
-              ) : null}
-              <button
-                type="button"
-                data-view={item.id}
-                onClick={() => onSelect(item.id)}
-                aria-current={isActive ? "page" : undefined}
-                title={item.group ? `${item.group} · ${item.label}` : item.label}
-                className={cn(
-                  "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                  isActive
-                    ? "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.65)]"
-                    : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]",
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5", isActive ? "text-white" : toneOf(item.tone).text)} />
-                {item.label}
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      {overflow.right ? (
-        <button
-          type="button"
-          onClick={() => nudge(1)}
-          aria-label="Scroll right"
-          className="flex h-8 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      ) : null}
-    </nav>
-  );
+  return <WorkspaceSubnav label={label} items={items} active={activeId} onSelect={(id) => onSelect(id as T)} />;
 }
+
 
 export function ConsolePage<T extends string>({
   items,
@@ -203,7 +109,7 @@ export function ConsolePage<T extends string>({
             </span>
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
                   {title}
                 </h1>
                 <span
@@ -216,7 +122,7 @@ export function ConsolePage<T extends string>({
                 </span>
               </div>
               {summary ? (
-                <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">{summary}</p>
+                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">{summary}</p>
               ) : null}
             </div>
           </div>
