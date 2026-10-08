@@ -178,21 +178,17 @@ export async function GET(req: NextRequest) {
     // Teachers see only the roster of classes they teach or lead. Campus scope
     // alone hands every teacher the whole campus roster, medical notes and
     // guardian contacts included.
-    const teacherScope =
-      user.role === "TEACHER"
-        ? {
-            class: {
-              OR: [
-                { classTeacherId: user.userId },
-                { subjects: { some: { teacherId: user.userId } } },
-              ],
-            },
-          }
-        : {};
-
     const where = {
       ...scopedCampusWhere(user, campusId),
-      ...teacherScope,
+      class: {
+        is: {
+          ...(archivedOnly ? {} : { archivedAt: null }),
+          ...(user.role === "TEACHER" ? { OR: [
+            { classTeacherId: user.userId },
+            { subjects: { some: { teacherId: user.userId } } },
+          ] } : {}),
+        },
+      },
       ...(classId ? { classId } : {}),
       ...(archivedOnly
         ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
@@ -690,6 +686,29 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
 
+    if (body?.action === "restore") {
+      const id = typeof body.id === "string" ? body.id : "";
+      if (!id) throw new ApiError("Student id is required", 400);
+      const student = await prisma.student.findFirst({
+        where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
+        select: { id: true, status: true, archivedAt: true, campusId: true, classId: true, rollNo: true, admissionNo: true },
+      });
+      if (!student || !student.archivedAt) throw new ApiError("Archived student not found", 404);
+      const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
+        prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
+        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+        prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
+        student.admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
+      ]);
+      if (!campus || !cls) throw new ApiError("Restore requires an active campus and class", 409);
+      if (rollConflict || admissionConflict) {
+        throw new ApiError("Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", 409);
+      }
+      await prisma.student.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: "active" } });
+      await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
+      return Response.json({ success: true, restored: true });
+    }
+
     // Bulk status change from the roster's multi-select (§22). Deliberately
     // narrow: status only. A bulk editor that could rewrite names, guardians or
     // medical notes across a selection is a much bigger blast radius than the
@@ -702,20 +721,64 @@ export async function PATCH(req: NextRequest) {
       if (!STUDENT_STATUSES.includes(status)) {
         throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
       }
+      if (status === "archived") await assertPermission(user, "students", "delete");
 
       // Scope first, then update only what came back — an id from another
       // campus is silently absent rather than quietly updated.
       const owned = await prisma.student.findMany({
         where: { id: { in: ids }, ...scopedCampusWhere(user, user.campusId) },
-        select: { id: true },
+        select: { id: true, schoolId: true, campusId: true, classId: true, rollNo: true, admissionNo: true, archivedAt: true, status: true },
       });
       if (owned.length !== ids.length) {
         throw new ApiError("One or more students are not in this campus", 404);
       }
 
-      const result = await prisma.student.updateMany({
-        where: { id: { in: owned.map((s) => s.id) } },
-        data: { status },
+      if (status === "active") {
+        const restoring = owned.filter((student) => student.archivedAt || student.status === "archived");
+        const rollKeys = new Set<string>();
+        const admissionKeys = new Set<string>();
+        for (const student of restoring) {
+          const rollKey = `${student.campusId}:${student.rollNo}`;
+          if (rollKeys.has(rollKey)) throw new ApiError("Restore conflict: selected students share a roll number. Assign distinct current identifiers and retry.", 409);
+          rollKeys.add(rollKey);
+          if (student.admissionNo) {
+            const admissionKey = `${student.schoolId}:${student.admissionNo}`;
+            if (admissionKeys.has(admissionKey)) throw new ApiError("Restore conflict: selected students share an admission number. Assign distinct current identifiers and retry.", 409);
+            admissionKeys.add(admissionKey);
+          }
+          const [cls, rollConflict, admissionConflict] = await Promise.all([
+            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+            prisma.student.findFirst({ where: { id: { notIn: ids }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true } }),
+            student.admissionNo ? prisma.student.findFirst({ where: { id: { notIn: ids }, schoolId: student.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
+          ]);
+          if (!cls) throw new ApiError("Restore requires an active class. Resolve the class assignment and retry.", 409);
+          if (rollConflict || admissionConflict) throw new ApiError("Restore conflict: a roll number or admission number is in use. Assign new current identifiers and retry; historical documents keep their original values.", 409);
+        }
+      }
+
+      const wasArchived = owned.filter((student) => student.archivedAt !== null || student.status === "archived");
+      const now = new Date();
+      const archiveReason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
+      const changing = status === "archived"
+        ? owned.filter((student) => student.archivedAt === null)
+        : status === "active"
+          ? wasArchived
+          : owned;
+      const updateData = status === "archived"
+        ? { status, archivedAt: now, archiveReason }
+        : status === "active"
+          ? { status, archivedAt: null, archiveReason: null }
+          : { status };
+      const result = await prisma.$transaction(async (tx) => {
+        const changed = changing.length ? await tx.student.updateMany({ where: { id: { in: changing.map((s) => s.id) } }, data: updateData }) : { count: 0 };
+        const auditChanging = status === "archived" ? changing : status === "active" ? changing : [];
+        if (auditChanging.length) await tx.auditLog.createMany({ data: auditChanging.map((student) => ({
+          tableName: "student", recordId: student.id,
+          oldValue: { archived: status !== "active" },
+          newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
+          userId: user.userId,
+        })) });
+        return changed;
       });
       return Response.json({ success: true, updated: result.count, status });
     }
@@ -944,11 +1007,18 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.student.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true, campusId: true, fullName: true, classId: true, class: { select: { name: true, section: true } } },
+      select: { id: true, campusId: true, fullName: true, classId: true, archivedAt: true, _count: { select: { marks: true, attendance: true, reportCards: true, invoices: true, payments: true, documents: true } }, class: { select: { name: true, section: true } } },
     });
     if (!existing) throw new ApiError("Student not found", 404);
-
-    await prisma.student.delete({ where: { id } });
+    const impact = { marks: existing._count.marks, attendance: existing._count.attendance, reports: existing._count.reportCards, invoices: existing._count.invoices, payments: existing._count.payments, documents: existing._count.documents };
+    if (new URL(req.url).searchParams.get("preview") === "true") {
+      return Response.json({ success: true, action: "archive", record: existing.fullName, dependencies: impact, permanentDeletion: "blocked" });
+    }
+    if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
+    const { reason } = await req.json().catch(() => ({}));
+    const archiveReason = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Administrative archive";
+    await prisma.student.update({ where: { id }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
+    await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
     notify("STUDENT_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,
@@ -958,7 +1028,7 @@ export async function DELETE(req: NextRequest) {
       className: [existing.class?.name, existing.class?.section].filter(Boolean).join(" "),
       classId: existing.classId,
     });
-    return Response.json({ success: true });
+    return Response.json({ success: true, archived: true, dependencies: impact, message: "Student archived. Academic, financial and document history is preserved." });
   } catch (error) {
     return errorResponse(error, "[students] DELETE failed");
   }

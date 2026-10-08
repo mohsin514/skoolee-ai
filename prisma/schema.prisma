@@ -270,6 +270,8 @@ model Campus {
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
   localePolicies LocalePolicy[]
   id            String   @id @default(uuid())
+  archivedAt    DateTime? @map("archived_at")
+  archiveReason String?   @map("archive_reason")
   schoolId      String   @default("") @map("school_id")
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name          String
@@ -959,6 +961,9 @@ model PayrollLine {
 // ─── 4. CLASSES ───────────────────────────────────────────
 model Class {
   id             String  @id @default(uuid())
+  archivedAt     DateTime? @map("archived_at")
+  archiveReason  String?   @map("archive_reason")
+  archivePreviousStatus String? @map("archive_previous_status")
   schoolId       String  @default("") @map("school_id")
   school         School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String  @map("campus_id")
@@ -1000,6 +1005,8 @@ model Student {
   consolidatedInto Student? @relation("ConsolidatedIdentity", fields: [consolidatedIntoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   identityAliases Student[] @relation("ConsolidatedIdentity")
   id                   String    @id @default(uuid())
+  archivedAt           DateTime? @map("archived_at")
+  archiveReason        String?   @map("archive_reason")
   schoolId             String    @default("") @map("school_id")
   school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId             String    @map("campus_id")
@@ -1066,8 +1073,8 @@ model Student {
   dormRoomId             String?                 @map("dorm_room_id")
   dormRoom               DormRoom?               @relation("StudentDormRoom", fields: [dormRoomId], references: [id], onDelete: SetNull)
 
-  @@unique([schoolId, admissionNo])
-  @@unique([campusId, rollNo])
+  @@index([schoolId, admissionNo])
+  @@index([campusId, rollNo])
   @@index([schoolId])
   @@map("students")
 }

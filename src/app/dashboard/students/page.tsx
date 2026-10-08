@@ -232,10 +232,24 @@ export default function StudentsPage() {
     if (selected.size === 0) return;
     setBulkBusy(true);
     try {
+      if (status === "archived") {
+        const previews = await Promise.all([...selected].map(async (id) => {
+          const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`);
+          const preview = await response.json();
+          if (!response.ok) throw new Error(preview.error || "Could not calculate archive impact");
+          return preview.dependencies as Record<string, number>;
+        }));
+        const totals = previews.reduce<Record<string, number>>((all, item) => {
+          for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
+          return all;
+        }, {});
+        const summary = Object.entries(totals).filter(([, count]) => count > 0).map(([key, count]) => `${count} ${key}`).join(", ") || "no linked records";
+        if (!window.confirm(`Archive ${selected.size} student${selected.size === 1 ? "" : "s"}? The selected records have ${summary}. Academic, financial and document history will remain preserved.`)) return;
+      }
       const res = await fetch("/api/students", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selected], status }),
+        body: JSON.stringify({ ids: [...selected], status, reason: "Archived by administrator" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Bulk update failed");
