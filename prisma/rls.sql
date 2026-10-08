@@ -65,6 +65,23 @@
 CREATE OR REPLACE FUNCTION current_school_id() RETURNS text
   LANGUAGE sql STABLE AS $$ SELECT current_setting('app.current_school_id', true) $$;
 
+-- The durable dispatcher needs a separately reviewed service role for cross-school scans.
+ALTER TABLE "workflow_events" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "workflow_events" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "workflow_events";
+CREATE POLICY tenant_isolation ON "workflow_events"
+  USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+ALTER TABLE "workflow_jobs" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "workflow_jobs" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "workflow_jobs";
+CREATE POLICY tenant_isolation ON "workflow_jobs"
+  USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+ALTER TABLE "workflow_effects" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "workflow_effects" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "workflow_effects";
+CREATE POLICY tenant_isolation ON "workflow_effects"
+  USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "academic_cycles" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "academic_cycles" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "academic_cycles";

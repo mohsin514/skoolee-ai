@@ -1,0 +1,55 @@
+name: Durable workflow verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  outbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["55420:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["56420:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
+      DIRECT_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
+      REDIS_URL: redis://127.0.0.1:56420
+      AUTH_SECRET: sko220-local-synthetic-test-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: node tests/outbox/prepare.mjs
+      - run: pnpm prisma generate
+      - run: pnpm exec tsc --noEmit --incremental false
+      - run: pnpm test:outbox
+      - name: Check live operator and publication APIs
+        run: |
+          pnpm exec next dev --hostname 127.0.0.1 --port 3220 > /tmp/outbox-app.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -s -o /dev/null http://127.0.0.1:3220/api/owner/workflows; then break; fi
+            sleep 1
+          done
+          pnpm test:outbox:api

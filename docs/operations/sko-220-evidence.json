@@ -1,0 +1,15 @@
+{
+  "issue": "SKO-220",
+  "date": "2026-10-08",
+  "integratedDev": "dc4fa970",
+  "dataClass": "synthetic",
+  "destinations": { "postgres": "127.0.0.1:55420/sko220_test", "redis": "127.0.0.1:56420", "app": "127.0.0.1:3220" },
+  "environment": "Scrubbed child environments; no repository .env loaded; no provider credentials or real sends.",
+  "workerTests": { "passed": 11, "failed": 0, "coverage": ["domain/event atomic rollback", "SIGKILL after commit", "Redis publish outage and duplicate transport", "dispatcher leases", "concurrent idempotent effects", "mid-batch SIGKILL/checkpoint recovery", "interleaved tenant failure", "bounded retries/dead letter", "audited operator retry", "cancellation boundaries", "uncertain external receipt", "current actor/publication/permission revocation", "stale-token fencing", "real worker process/live inbox hint", "optional non-bypass RLS"] },
+  "apiTests": { "passed": 3, "failed": 0, "coverage": ["anonymous and all 11 database roles", "empty and selected workflow report", "redacted metadata", "cross-school mutation denial", "audited cancellation", "live account deactivation", "report publication/event rollback and successful delivery"] },
+  "recovery": { "passed": 10, "failed": 0, "status": "verified-awaiting-sign-off", "includesPendingWorkflowAndPartialReceipt": true, "baselineSqlSha256": "3e653920ef9312aa574bb53cfdffc5d1d302eda10bb57613afa4296d47cae01d", "restoreElapsedSeconds": 6.269 },
+  "staticChecks": ["TypeScript noEmit", "ESLint for changed/new workflow modules and tests", "git diff --check"],
+  "scope": "REPORT_PUBLISHED in-app notifications are the registered durable consumer. Existing direct PDF, AI and provider flows are not claimed migrated.",
+  "ui": "No new product console or school-facing workflow UI. Mobile, RTL and visual accessibility states are N/A for this infrastructure release; existing inbox retained.",
+  "limitations": ["No production deployment or infrastructure provisioning", "Requires supervised long-lived worker process", "Production alert thresholds and service database role require environment configuration", "Uncertain external outcomes require provider reconciliation; no exactly-once external claim", "Production restore readiness still requires operator sign-off"]
+}
