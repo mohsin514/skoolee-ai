@@ -26,7 +26,7 @@ export async function getOnboardingSession() {
   try {
     const payload = await getAuthUser();
     if (!payload) throw new Error("Unauthorized");
-    if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
+    if (payload.onboardingComplete || !payload.isInstitutionOwner) return { redirect: true, role: payload.role as string };
 
     // Bind the current principal for the rest of this action.
     enterTenantContext({ schoolId: payload.schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
@@ -209,6 +209,7 @@ export async function finishOnboarding(
   // 4. Re-issue Session
   const newToken = await new SignJWT({
     userId: updatedUser.id,
+      accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,
     fullName: updatedUser.fullName,
     role: updatedUser.role,

@@ -116,6 +116,7 @@ export async function completeTeacherOnboarding(data: {
 
   const newToken = await new SignJWT({
     userId: updatedUser.id,
+      accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,
     fullName: updatedUser.fullName,
     role: updatedUser.role,

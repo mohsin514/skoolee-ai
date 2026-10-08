@@ -11,6 +11,10 @@ import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie
 import { isSessionRevoked } from "@/lib/auth/session-revocation";
 
 export interface AuthUser {
+  isInstitutionOwner?: boolean;
+  canPurchaseSubscription?: boolean;
+  canManageMemberships?: boolean;
+  accessVersion?: number;
   userId: string;
   email: string;
   fullName?: string;
@@ -47,7 +51,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     // request, so the repeated calls a single render makes cost one query.
     if (await isSessionRevoked(hashSessionToken(token))) return null;
 
-    return await resolveCurrentPrincipal({ userId, schoolId, role });
+    return await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion });
   } catch {
     return null;
   }
