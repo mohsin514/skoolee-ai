@@ -12,7 +12,7 @@ async function main() {
    for (const year of [2026,2027]) await db.class.create({data:{id:`${campusId}-${year}`,schoolId,campusId,name:year===2026?"Seven":"Eight",section:"B",academicYear:year}});
   }
  }
- for(const role of roles) await db.user.create({data:{id:`identity-${role}`,schoolId:"identity-school",campusId:["SUPER_ADMIN","APP_OWNER"].includes(role)?null:"identity-school-a",email:`${role.toLowerCase()}@example.invalid`,fullName:`Synthetic ${role}`,role,isActive:true,onboardingComplete:true}});
+ for(const role of roles) await db.user.create({data:{id:`identity-${role}`,schoolId:"identity-school",campusId:["SUPER_ADMIN","APP_OWNER"].includes(role)?null:"identity-school-a",email:`${role.toLowerCase()}@example.invalid`,fullName:`Synthetic ${role}`,role,mfaEnabled:true,isActive:true,onboardingComplete:true}});
  await db.user.create({data:{id:"other-guardian",schoolId:"identity-school",campusId:"identity-school-a",email:"other-guardian@example.invalid",fullName:"Different guardian",role:"PARENT",isActive:true,onboardingComplete:true}});
  for(const id of ["pupil-main","pupil-same-name","pupil-duplicate","pupil-survivor","pupil-browser"]) await db.student.create({data:{id,schoolId:"identity-school",campusId:"identity-school-a",classId:"identity-school-a-2026",fullName:"Alex Same Name علي",rollNo:id,admissionNo:id,gender:"MALE",dateOfBirth:new Date("2014-01-01Z"),enrollmentDate:new Date("2026-01-01Z"),parentUserId:id==="pupil-same-name"?"other-guardian":"identity-PARENT",studentUserId:id==="pupil-main"?"identity-STUDENT":null,medicalNotes:"CONFIDENTIAL MEDICAL TEST"}});
  await db.student.create({data:{id:"foreign-pupil",schoolId:"foreign-school",campusId:"foreign-school-a",classId:"foreign-school-a-2026",fullName:"Foreign",rollNo:"foreign",gender:"MALE",enrollmentDate:new Date("2026-01-01Z")}});
@@ -21,6 +21,7 @@ async function main() {
  await db.reportCard.create({data:{id:"identity-report",schoolId:"identity-school",campusId:"identity-school-a",studentId:"pupil-main",examId:"identity-exam",status:"PUBLISHED",generatedAt:new Date("2026-08-01Z")}});
  await db.attendance.create({data:{id:"identity-attendance",schoolId:"identity-school",campusId:"identity-school-a",classId:"identity-school-a-2026",studentId:"pupil-main",date:new Date("2026-08-01Z"),status:"PRESENT"}});
  await db.invoice.create({data:{id:"identity-invoice",schoolId:"identity-school",campusId:"identity-school-a",studentId:"pupil-main",invoiceDate:new Date("2026-08-01Z"),dueDate:new Date("2026-08-30Z"),currency:"KWD",invoiceNumber:"SYNTHETIC-UNPAID",monthlyFee:123456,subtotal:123456,totalAmount:123456,balanceDue:123456}});
+ await db.reportVersion.create({ data: { id:"identity-version",schoolId:"identity-school",reportCardId:"identity-report",number:1,contentHash:"synthetic-hash",documentIdentity:"SYNTHETIC-PUBLISHED-001",documentBytes:Buffer.from("synthetic immutable report bytes"),snapshot:{className:"Seven B",rollNo:"pupil-main",studentId:"pupil-main"},blockers:[],changedSections:[],approvedBy:"identity-PRINCIPAL",approvedAt:new Date("2026-08-01Z"),publishedAt:new Date("2026-08-01Z") } });
  console.log("Synthetic identity fixtures ready; no external services configured");
 }
 main().finally(()=>db.$disconnect());

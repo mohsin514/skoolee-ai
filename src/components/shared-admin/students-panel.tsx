@@ -84,6 +84,7 @@ const SORTS: Record<string, { label: string; compare: (a: Student, b: Student) =
 interface Student {
   id: string;
   fullName?: string;
+  admissionNo?: string | null;
   rollNo?: string;
   profileImageUrl?: string | null;
   guardianName?: string | null;
@@ -234,6 +235,8 @@ export function StudentsPanel({
       if (onlyNoLogin && student.studentUser?.email) return false;
       if (!q) return true;
       return Boolean(
+        student.id.toLowerCase().includes(q) ||
+        student.admissionNo?.toLowerCase().includes(q) ||
         student.fullName?.toLowerCase().includes(q) ||
           student.rollNo?.toLowerCase().includes(q) ||
           student.guardianName?.toLowerCase().includes(q) ||
@@ -500,6 +503,11 @@ export function StudentsPanel({
           </span>
         </button>
       ),
+    },
+    {
+      key: "identity",
+      label: "Pupil ID",
+      render: (s) => <a className="block max-w-40 truncate text-xs text-purple-700 underline" href={`/pupils/${s.id}`} title={s.id} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a>,
     },
     {
       key: "classOrder",

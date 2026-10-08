@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { chromium } from "playwright";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
@@ -6,7 +7,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { enrollmentLabels } from "../../src/lib/students/labels";
 const url=new URL(process.env.DATABASE_URL||"postgresql://invalid");if(url.hostname!=="127.0.0.1"||url.port!=="55417"||url.pathname!=="/sko217")throw new Error("Dedicated local SKO-217 database required");
 const db=new PrismaClient(),base="http://localhost:3217";
-async function token(role:string){return new SignJWT({userId:`identity-${role}`,schoolId:"identity-school",role,accessVersion:0,onboardingComplete:true,schoolStatus:"ACTIVE"}).setProtectedHeader({alg:"HS256"}).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko217-fixture"));}
+async function token(role:string){const account=await db.user.findUniqueOrThrow({where:{id:`identity-${role}`}});const value = await new SignJWT({userId:`identity-${role}`,schoolId:"identity-school",role,mfaVerified:true,accessVersion:account.accessVersion,onboardingComplete:true,schoolStatus:"ACTIVE"}).setProtectedHeader({alg:"HS256"}).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko217-fixture"));await db.loginSession.create({data:{schoolId:"identity-school",userId:`identity-${role}`,tokenHash:createHash("sha256").update(value).digest("hex"),expiresAt:new Date(Date.now()+3600000)}});return value;}
 async function main(){
  const browser=await chromium.launch({headless:true});const results:string[]=[];await mkdir("/tmp/sko217-evidence",{recursive:true});
  try{

@@ -494,7 +494,7 @@ export async function POST(req: NextRequest) {
         }
 
         const admissionYear = new Date().getFullYear();
-        // admissionNo is globally unique, so the sequence must be derived from
+        // admissionNo is unique within the institution, so derive its sequence from
         // the whole school — not just this campus. Counting per-campus made
         // every campus's first student collide on ADM-YYYY-0001.
         const admissionCount = await tx.student.count({});
@@ -508,7 +508,7 @@ export async function POST(req: NextRequest) {
         let siblingGroupId: string | null = student.siblingGroupId ?? null;
         if (!siblingGroupId && parentUserId) {
           const existingChildren = await tx.student.findMany({
-            where: { parentUserId, campusId: targetClass.campusId },
+            where: { parentUserId, campusId: targetClass.campusId, consolidatedIntoId: null },
             select: { id: true, siblingGroupId: true },
             orderBy: { enrollmentDate: "asc" },
           });
@@ -527,6 +527,7 @@ export async function POST(req: NextRequest) {
           const siblingRef = await tx.student.findFirst({
             where: {
               id: student.siblingStudentId,
+              consolidatedIntoId: null,
               campusId: targetClass.campusId,
               campus: { schoolId: user.schoolId },
             },
@@ -841,7 +842,7 @@ export async function PATCH(req: NextRequest) {
     // given, otherwise set/clear siblingGroupId directly.
     if (updates.siblingStudentId) {
       const ref = await prisma.student.findFirst({
-        where: { id: updates.siblingStudentId, campusId: existing.campusId },
+        where: { id: updates.siblingStudentId, campusId: existing.campusId, consolidatedIntoId: null },
         select: { id: true, siblingGroupId: true },
       });
       if (!ref) throw new ApiError("Sibling student not found", 404);

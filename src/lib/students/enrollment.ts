@@ -48,7 +48,7 @@ export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: 
   ]);
   if (downstream.some(Boolean)) throw new ApiError("Reports or invoices already exist after this date. Choose a later boundary.", 409);
   return { pupil, from, target, preserved: { attendance, reports, invoices }, targetOccupancy: target._count.students,
-    guardianAccess: "Existing explicit guardian links remain unchanged; no new guardian is linked by name.",
+    guardianAccess: "Existing explicit guardian links remain unchanged. The pupil login follows a campus transfer and must sign in again; no guardian is linked by name.",
     capacity: "Capacity must be checked separately before confirmation.", policy: "ONE_ENROLLMENT_PER_PUPIL; end date is exclusive" };
 }
 export async function applyEnrollment(tx: TxClient, input: { studentId: string; fromId: string; targetClassId: string; effectiveDate: Date; rollNo: string; actorId: string; reason: string }) {
@@ -64,6 +64,12 @@ export async function applyEnrollment(tx: TxClient, input: { studentId: string; 
   await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${pupil.id}, true)`;
   await tx.student.update({ where: { id: pupil.id }, data: { classId: target.id, campusId: target.campusId, rollNo: input.rollNo.trim(),
     ...(pupil.campusId !== target.campusId ? { categoryId: null, groupId: null, transportRouteId: null, dormRoomId: null } : {}) } });
+  if (pupil.studentUserId && pupil.campusId !== target.campusId) {
+    // A pupil login follows the reviewed placement; a guardian may have other
+    // children at the former campus and must not be moved implicitly.
+    await tx.user.update({ where: { id: pupil.studentUserId, role: "STUDENT" }, data: { campusId: target.campusId, accessVersion: { increment: 1 } } });
+    await tx.loginSession.updateMany({ where: { userId: pupil.studentUserId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
+  }
   await tx.studentTimelineEvent.create({ data: { studentId: pupil.id, kind: "ENROLLMENT_TRANSITION", title: `Enrollment: ${enrollment.className}`,
     detail: JSON.stringify({ fromEnrollmentId: from.id, enrollmentId: enrollment.id, effectiveDate: input.effectiveDate.toISOString().slice(0,10), reason: input.reason, preserved: impact.preserved }), actorId: input.actorId } });
   await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: enrollment.id, userId: input.actorId,

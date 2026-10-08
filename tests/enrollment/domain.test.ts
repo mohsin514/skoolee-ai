@@ -12,6 +12,7 @@ test("permanent identity, historic sources, original currency, boundaries, no-ov
  assert.throws(()=>dateOnly("2026-02-30")); assert.throws(()=>dateOnly("01/02/2026"));
  await assert.rejects(()=>db.student.update({where:{id:"pupil-main"},data:{id:"new-id"}}),/immutable/);
  await assert.rejects(()=>db.student.update({where:{id:"pupil-main"},data:{rollNo:"changed"}}),/review/);
+ const published = await db.reportVersion.findUniqueOrThrow({where:{id:"identity-version"}});
  const prior=await Promise.all([db.attendance.findUnique({where:{id:"identity-attendance"}}),db.reportCard.findUnique({where:{id:"identity-report"}}),db.invoice.findUnique({where:{id:"identity-invoice"}})]);
  await runWithTenantContext({schoolId:"identity-school",role:"SUPER_ADMIN",userId:"identity-SUPER_ADMIN"},async()=>{
   await assert.rejects(()=>prisma.$transaction(tx=>applyEnrollment(tx,{studentId:"pupil-main",fromId:"initial-pupil-main",targetClassId:"identity-school-b-2027",effectiveDate:dateOnly("2026-08-01"),rollNo:"NEW-001",actorId:"identity-SUPER_ADMIN",reason:"conflicting source"})),/Attendance/);
@@ -19,8 +20,8 @@ test("permanent identity, historic sources, original currency, boundaries, no-ov
   assert.deepEqual(result.preserved,{attendance:1,reports:1,invoices:1});
   assert.deepEqual(await prisma.studentEnrollment.findMany({where:{studentId:"foreign-pupil"}}),[]);
  });
- const pupil=await db.student.findUniqueOrThrow({where:{id:"pupil-main"}});assert.equal(pupil.id,"pupil-main");assert.equal(pupil.admissionNo,"pupil-main");assert.equal(pupil.campusId,"identity-school-b");
- const after=await Promise.all([db.attendance.findUnique({where:{id:"identity-attendance"}}),db.reportCard.findUnique({where:{id:"identity-report"}}),db.invoice.findUnique({where:{id:"identity-invoice"}})]);assert.deepEqual(after,prior);
+ const pupil=await db.student.findUniqueOrThrow({where:{id:"pupil-main"}});assert.equal(pupil.id,"pupil-main");assert.equal(pupil.admissionNo,"pupil-main");assert.equal(pupil.campusId,"identity-school-b");const login=await db.user.findUniqueOrThrow({where:{id:"identity-STUDENT"}});assert.equal(login.campusId,"identity-school-b");assert.equal(login.accessVersion,1);
+ const after=await Promise.all([db.attendance.findUnique({where:{id:"identity-attendance"}}),db.reportCard.findUnique({where:{id:"identity-report"}}),db.invoice.findUnique({where:{id:"identity-invoice"}})]);assert.deepEqual(after,prior);assert.deepEqual(await db.reportVersion.findUniqueOrThrow({where:{id:"identity-version"}}),published);
  await assert.rejects(()=>db.attendance.create({data:{schoolId:"identity-school",campusId:"identity-school-a",classId:"identity-school-a-2026",studentId:"pupil-main",date:dateOnly("2026-09-01"),status:"PRESENT"}}),/No enrollment/);
  await db.attendance.create({data:{schoolId:"identity-school",campusId:"identity-school-b",classId:"identity-school-b-2027",studentId:"pupil-main",date:dateOnly("2026-09-01"),status:"PRESENT"}});
  const period=await db.studentEnrollment.findFirstOrThrow({where:{studentId:"pupil-main",status:"ACTIVE"}});

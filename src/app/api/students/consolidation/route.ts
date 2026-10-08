@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       const report = await preview(tx, sourceId, targetId);
       if (report.blockers.length) throw new ApiError(report.blockers.join(" "), 409);
       if (body.token !== report.token) throw new ApiError("Dependencies changed. Preview consolidation again.", 409);
+      await tx.studentEnrollment.updateMany({ where: { studentId: sourceId, status: "ACTIVE", endDate: null }, data: { status: "CONSOLIDATED" } });
       await tx.student.update({ where: { id: sourceId }, data: { status: "consolidated", consolidatedIntoId: targetId } });
       for (const id of [sourceId, targetId]) await tx.studentTimelineEvent.create({ data: { studentId: id, kind: "IDENTITY_CONSOLIDATED", title: "Duplicate identity reviewed", detail: JSON.stringify({ sourceId, targetId, reason: String(body.reason), counts: report.counts }), actorId: user.userId } });
       await tx.auditLog.create({ data: { tableName: "students", recordId: sourceId, userId: user.userId, oldValue: { consolidatedIntoId: null }, newValue: { targetId, reason: String(body.reason), counts: report.counts } } });

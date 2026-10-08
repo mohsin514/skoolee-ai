@@ -16,3 +16,7 @@ END $$;
 CREATE TRIGGER attendance_active_identity BEFORE INSERT ON attendance FOR EACH ROW EXECUTE FUNCTION source_active_identity_guard();
 CREATE TRIGGER invoice_active_identity BEFORE INSERT ON invoices FOR EACH ROW EXECUTE FUNCTION source_active_identity_guard();
 CREATE TRIGGER report_active_identity BEFORE INSERT ON report_cards FOR EACH ROW EXECUTE FUNCTION source_active_identity_guard();
+-- Roll number belongs to the enrollment snapshot. Changing the current roll
+-- cannot invalidate or withdraw a published report from a previous period.
+DROP TRIGGER IF EXISTS report_student_edit ON students;
+CREATE TRIGGER report_student_edit AFTER UPDATE OF full_name ON students FOR EACH ROW EXECUTE FUNCTION report_source_edit();

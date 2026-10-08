@@ -11,9 +11,11 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("studentId") || "";
     const pupil = await readPupil(user, id);
     const family = isFamily(user);
+    let canManage = false;
+    if (!family) { try { await assertRegistrar(user); canManage = true; } catch { /* Read access does not grant transition authority. */ } }
     const documentId = req.nextUrl.searchParams.get("documentId");
     if (documentId) {
-      if (family) throw new ApiError("Confidential admission documents are restricted to staff", 403);
+      if (!canManage) throw new ApiError("Confidential admission documents are restricted to registrars", 403);
       const document = await prisma.studentDocument.findFirst({ where: { id: documentId, studentId: id }, select: { fileKey: true } });
       if (!document) throw new ApiError("Document not found", 404);
       return Response.redirect(await getDownloadUrl(document.fileKey));
@@ -28,13 +30,13 @@ export async function GET(req: NextRequest) {
       ]);
       return Response.json({ attendance, invoices, reports, limit: 100 });
     }
-    const [proposals, classes, documents] = family ? [[], [], []] : await Promise.all([
+    const [proposals, classes, documents] = !canManage ? [[], [], []] : await Promise.all([
       prisma.enrollmentProposal.findMany({ where: { studentId: id }, orderBy: { createdAt: "desc" } }),
       prisma.class.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, campus: { select: { name: true } } } }),
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
     const events = family ? [] : await prisma.studentTimelineEvent.findMany({ where: { studentId: id, kind: { in: ["ENROLLMENT_TRANSITION", "IDENTITY_CONSOLIDATED", "ADMITTED", "PROMOTED"] } }, select: { id: true, kind: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" } });
-    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage: !family && ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(user.role) });
+    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage });
   } catch (error) { return errorResponse(error, "Unable to load enrollment history"); }
 }
 export async function POST(req: NextRequest) {
