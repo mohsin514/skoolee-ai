@@ -1,5 +1,7 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+["Rank","الترتيب","درجہ"],
+["Grade","التقدير","گریڈ"],
 ["Final Grades", "الدرجات النهائية", "حتمی نمبر"],
 ["Authorized signature", "التوقيع المعتمد", "مجاز دستخط"],
 ["Student sections", "أقسام الطالب", "طالب علم کے حصے"],

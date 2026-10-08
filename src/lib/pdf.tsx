@@ -232,7 +232,7 @@ export async function generateClassGradesPdf(classId: string) {
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Status")}</Text>
           </View>
           {results.map((r, i) => {
-            const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : styles.row;
+            const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : [styles.row];
             return (
               <View key={r.studentId} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>#{number(r.rank)}</Text>
