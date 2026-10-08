@@ -1,4 +1,7 @@
 "use client";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { FormErrorSummary } from "@/components/ui/form-field";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -227,6 +230,12 @@ function SchoolDialog({
   school, onClose, onSaved,
 }: { school: SchoolForm; onClose: () => void; onSaved: () => Promise<void> }) {
   const [form, setForm] = useState<SchoolForm>(school);
+  const draft = useFormDraft({ record: "settings:school", schema: 1, values: form, baseline: school,
+    fields: ["name", "tagline", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
+      const latest = await getInstitutionSettings();
+      if (!latest.canEditSchool) throw new Error("Access revoked");
+      return latest.school;
+    } });
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -265,6 +274,7 @@ function SchoolDialog({
         timezone: form.timezone,
       });
       toast.success("School details updated.");
+      draft.markSaved();
       await onSaved();
       onClose();
     } catch (error) {
@@ -294,6 +304,8 @@ function SchoolDialog({
         />
       }
     >
+      <DraftRecovery draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker
           value={form.logoUrl}
@@ -354,6 +366,13 @@ function CampusDialog({
   campus, onClose, onSaved,
 }: { campus: CampusForm; onClose: () => void; onSaved: () => Promise<void> }) {
   const [form, setForm] = useState<CampusForm>(campus);
+  const draft = useFormDraft({ record: `settings:campus:${campus.id}`, schema: 1, values: form, baseline: campus,
+    fields: ["name", "city", "address", "phone", "email", "website", "principalName", "board"], apply: setForm, current: async () => {
+      const latest = await getInstitutionSettings();
+      const row = latest.campuses.find(c => c.id === campus.id);
+      if (!row || !latest.editableCampusIds.includes(campus.id)) throw new Error("Access revoked");
+      return row;
+    } });
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -389,6 +408,7 @@ function CampusDialog({
         logoUrl: form.logoUrl,
       });
       toast.success(`${form.name.trim()} updated.`);
+      draft.markSaved();
       await onSaved();
       onClose();
     } catch (error) {
@@ -418,6 +438,8 @@ function CampusDialog({
         />
       }
     >
+      <DraftRecovery draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker
           value={form.logoUrl}

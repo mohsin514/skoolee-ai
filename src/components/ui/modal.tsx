@@ -589,7 +589,7 @@ export function ModalSurface({
           transition: dragging ? "none" : undefined,
         }}
         className={cn(
-          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden border border-[#cfc2d6]/20 bg-white",
+          "relative flex min-w-0 max-h-[92dvh] w-full max-w-full flex-col overflow-hidden border border-[#cfc2d6]/20 bg-white",
           "rounded-t-[32px] shadow-[0_-8px_60px_rgba(31,26,35,0.28)]",
           "sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
           width,
@@ -906,6 +906,7 @@ export function ModalActions({
   /** An extra low-emphasis action pinned to the left, e.g. "Save draft". */
   secondary?: ReactNode;
 }) {
+  const surface = useContext(ModalSurfaceContext);
   const blocked = Boolean(blockedReason);
   const toneClass =
     tone === "rose"
@@ -926,7 +927,7 @@ export function ModalActions({
         {secondary ? <div className="sm:mr-auto">{secondary}</div> : null}
         <button
           type="button"
-          onClick={onCancel}
+          onClick={surface?.requestClose ?? onCancel}
           disabled={busy}
           className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >

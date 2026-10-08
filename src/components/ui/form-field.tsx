@@ -42,13 +42,29 @@ export function FormField({
   className,
   children,
 }: FormFieldProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const control = React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(children) ? children : null;
   const fieldId = control?.props.id ?? `field-${name}`;
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
+  // Compound InputGroup/Urdu controls need the label and errors on the actual
+  // input, not on their decorative wrapper. Resolve that shared contract here.
+  React.useEffect(() => {
+    const input = containerRef.current?.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select,[role=combobox]");
+    if (!input) return;
+    if (containerRef.current?.querySelector(`[id="${CSS.escape(fieldId)}"]`) !== input) {
+      containerRef.current?.querySelector(`[id="${CSS.escape(fieldId)}"]`)?.removeAttribute("id");
+    }
+    input.id = fieldId;
+    if (error) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+    if (required) input.setAttribute("aria-required", "true");
+    const described = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
+    if (described) input.setAttribute("aria-describedby", described);
+    else input.removeAttribute("aria-describedby");
+  }, [fieldId, errorId, hintId, error, hint, required]);
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div ref={containerRef} className={cn("flex flex-col gap-1.5", className)}>
       {label ? (
         <Label htmlFor={fieldId} className="mb-1">
           {label}

@@ -22,6 +22,7 @@ export interface WizardStep {
  * One shell means a change to the flow lands in all three at once.
  */
 interface WizardShellProps {
+  dirty?: boolean;
   eyebrow: string;
   icon: LucideIcon;
   steps: WizardStep[];
@@ -48,7 +49,7 @@ export function WizardShell(props: WizardShellProps) {
    * that had been copy-pasted from ModalFrame and then diverged.
    */
   return (
-    <ModalSurface onClose={props.onClose} size="md">
+    <ModalSurface onClose={props.onClose} size="md" dirty={props.dirty}>
       <WizardChrome {...props} />
     </ModalSurface>
   );
@@ -85,19 +86,19 @@ function WizardChrome({
         {/* ── Pinned header ── */}
         <div
           {...dragHandleProps}
-          className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 pb-4 pt-5 sm:touch-auto sm:px-7"
+          className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
         >
           <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3.5">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+              <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
                 <Icon className="h-6 w-6" />
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
                   {eyebrow} · Step {step + 1} of {steps.length}
                 </p>
-                <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">
+                <h3 id={titleId} className="break-words text-xl sm:text-2xl font-black tracking-tight text-[#1f1a23]">
                   {current.label}
                 </h3>
                 <p className="mt-0.5 text-xs font-semibold leading-snug text-ink-muted">{current.blurb}</p>
@@ -293,6 +294,7 @@ export function ReviewHero({
   meta,
 }: {
   icon: LucideIcon;
+  dirty?: boolean;
   eyebrow: string;
   title: string;
   meta: string;
@@ -300,7 +302,7 @@ export function ReviewHero({
   return (
     <div className="rounded-[24px] border border-[#8127cf]/20 bg-gradient-to-br from-white via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.18)]">
       <div className="flex items-start gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+        <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
           <Icon className="h-6 w-6" />
         </span>
         <div className="min-w-0">

@@ -1,8 +1,11 @@
 "use client";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { FormField, FormErrorSummary } from "@/components/ui/form-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -300,6 +303,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     ...(initialPrefill || {}),
     classId: (initialClassId && classes.some((cls) => cls.id === initialClassId) ? initialClassId : classes[0]?.id) || "",
   }));
+  const [baseline, setBaseline] = useState(form);
+  const draft = useFormDraft({ record: `admission:new:${initialClassId || "default"}`, schema: 1,
+    values: form, baseline,
+    fields: ["fullName", "nameUr", "dateOfBirth", "gender", "nationality", "phone", "classId", "rollNo", "previousSchool", "guardianName", "guardianNameUr", "guardianRelationship", "guardianPhone", "guardianWhatsapp", "guardianOccupation", "address", "city", "province", "postalCode", "categoryId", "groupId", "siblingStudentId"],
+    section: String(step), apply: (next, savedStep) => { setForm(next); setStep(Math.min(3, Math.max(0, Number(savedStep) || 0))); },
+  });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
@@ -351,6 +360,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       const data = await res.json();
       if (!controller.signal.aborted && !rollNoManuallyEdited.current) {
         setForm((prev) => ({ ...prev, rollNo: data.rollNo }));
+        setBaseline((prev) => ({ ...prev, rollNo: data.rollNo }));
       }
     } catch {
     } finally {
@@ -492,6 +502,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
       if (!res.ok) throw new Error(data.error || "Could not add student");
 
+      draft.markSaved();
       toast.success(data.message || "Student added successfully");
 
       if (data.guardianInviteFailures?.length) {
@@ -518,6 +529,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       step={step}
       onStepChange={setStep}
       onClose={onClose}
+      dirty={draft.dirty}
       onBack={goBack}
       onNext={goNext}
       onSubmit={handleSubmit}
@@ -525,6 +537,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       submitting={isSubmitting}
       submittingLabel="Creating…"
     >
+          <DraftRecovery draft={draft} saving={isSubmitting} excluded="Health notes, allergies, medications, special needs and login emails are never stored in a device draft." />
+          <FormErrorSummary errors={errors} onFocusField={(field) => {
+            const targetStep = ["guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
+            setStep(targetStep);
+            requestAnimationFrame(() => document.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
+          }} />
           {step === 0 && (
             <StepPersonalInfo
               form={form}
@@ -1283,14 +1301,6 @@ function FieldGroup({
   hint?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</Label>
-      {children}
-      {error && <p className="text-xs font-semibold text-rose-500">{error}</p>}
-      {hint && !error && <p className="text-xs font-medium text-ink-muted">{hint}</p>}
-    </div>
-  );
+  const name = useId();
+  return <FormField name={name} label={label} error={error} hint={hint}>{children}</FormField>;
 }
-
-
