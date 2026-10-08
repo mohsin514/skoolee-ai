@@ -58,7 +58,7 @@ export function ManagementCard({
             </div>
           </div>
           <div>
-            <h3 className="text-lg font-black text-[#1f1a23] tracking-wider">{title}</h3>
+            <h3 dir="auto" className="text-lg font-black text-[#1f1a23]">{title}</h3>
             <p className="text-[10px] font-semibold text-ink-subtle leading-relaxed italic mt-0.5">{description}</p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function ManagementCard({
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider truncate mt-0.5">{user.email}</p>
+                  <p className="mt-0.5 truncate text-xs font-medium text-ink-muted"><bdi dir="ltr">{user.email}</bdi></p>
                   {isPendingInvite && inviteExpiry ? (
                     <p className="mt-1.5 flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
                       <Clock className="w-2.5 h-2.5" />

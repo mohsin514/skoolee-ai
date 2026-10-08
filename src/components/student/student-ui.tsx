@@ -179,13 +179,13 @@ export function StatCard({
       />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+          <p dir="auto" className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 truncate text-xs font-semibold uppercase leading-tight tracking-wide text-ink-muted">
+          <p dir="auto" className="mt-1.5 truncate text-xs font-semibold leading-tight text-ink-muted">
             {label}
           </p>
-          {sub && <p className="mt-0.5 truncate text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
+          {sub && <p dir="auto" className="mt-0.5 truncate text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
           <ProgressRing value={ring} tone={tone} size={46} stroke={5} />

@@ -103,11 +103,11 @@ export function StatCard({
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold text-ink-muted uppercase tracking-wide mb-2">
+          <p dir="auto" className="mb-2 text-xs font-semibold text-ink-muted">
             {label}
           </p>
-          <p className="text-3xl font-black text-foreground leading-none">{displayValue}</p>
-          {sub && <p className="text-xs font-semibold text-ink-muted mt-2">{sub}</p>}
+          <p dir="auto" className="text-3xl font-black leading-none text-foreground">{displayValue}</p>
+          {sub && <p dir="auto" className="mt-2 text-xs font-semibold text-ink-muted">{sub}</p>}
         </div>
         <div className="relative shrink-0">
           {onClick && <div className={cn("absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500", toneGlowClass[tone])} />}
