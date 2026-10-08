@@ -69,25 +69,42 @@ project. `NEXT_PUBLIC_APP_URL` also differs (each Vercel project has its own URL
 Values that legitimately stay the same across envs: `OPENAI_API_KEY`, SMTP, and
 (optionally) `AUTH_SECRET` — though a distinct `AUTH_SECRET` per env is safer.
 
-## Gated deployment automation
+## Development deployment
 
-`.github/workflows/deploy.yml` verifies synthetic recovery before touching the
-selected environment. The protected environment then requires a reviewed exact SHA,
-evidence link and forward-recovery decision, applies versioned migrations, checks
-migration status/schema drift, builds that exact checkout and promotes its prebuilt
-Vercel artifact. A failed gate prevents this workflow from deploying.
+Push or merge into `dev` to deploy through the existing Vercel Git integration.
+`vercel.json` enables Git deployment for `dev` only; all other branches retain
+controlled deployment. No GitHub Vercel CLI secrets or per-release approval
+variables are needed for development. The `skoolee-ai-dev` project must remain
+connected to this repository with Production Branch `dev` and its existing runtime
+variables. If Git integration was disabled in the dashboard, re-enable it for that
+project. A manual GitHub workflow rerun only verifies; to deploy an already merged
+commit, use Vercel's deployment UI for the latest `dev` commit.
 
-`vercel.json` disables automatic Git deployments. Confirm each managed project's
-provider settings and cancel old queued deployments during rollout; an independent
-Git integration can otherwise bypass GitHub gates. Missing approval variables or
-secrets deliberately block deployment. This change has not configured remote
-GitHub/Vercel settings or certified production recovery.
+Recovery CI still runs on development pushes, independently of the Vercel build;
+a green GitHub development job is not proof of a successful Vercel deployment.
+Check the Vercel deployment status. Other connected projects may create previews
+for `dev`; their production branch must never be changed to `dev`.
 
-Follow [the recovery runbook](recovery/RUNBOOK.md) for required secrets, per-release
-approval variables, baseline adoption, weekly evidence review, provider setup and
-incident authorization. Manual workflow dispatch must select the branch matching
-the requested environment. Existing `setup-vercel-envs.sh` provisions variables but
-does not replace this reviewed recovery/gating setup.
+This workflow does **not** automatically modify the development database. For a
+schema-dependent change, provision an isolated dev database or complete reviewed
+baseline adoption, then apply its versioned migrations to the confirmed dev
+connection before deploying that change. Do not use `db push`, reset, or mark a
+baseline applied merely to bypass a migration error. Code-only fixes can deploy
+without the release approval setup introduced in SKO-212.
+
+## Controlled deployment: staging, QA, production and demo
+
+`.github/workflows/deploy.yml` verifies synthetic recovery before touching these
+environments. It requires a reviewed exact SHA, evidence link and forward-recovery
+decision, applies versioned migrations, checks migration status/schema drift,
+builds that exact checkout and promotes its prebuilt Vercel artifact. Missing
+configuration now produces named error messages rather than an unexplained exit 1.
+
+Keep Git-triggered deployments for these branches disabled. Confirm provider
+settings and cancel old queued deployments during rollout. Follow [the recovery
+runbook](recovery/RUNBOOK.md) for required secrets, per-release approvals, baseline
+adoption and incident authorization. Manual dispatch must select the branch
+matching the requested environment. Remote settings are not configured by this PR.
 
 ## Deploy flow
 

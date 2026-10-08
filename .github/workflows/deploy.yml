@@ -15,9 +15,33 @@ concurrency:
   group: migrate-${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
   cancel-in-progress: false
 jobs:
+  validate-target:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+    steps:
+      - name: Validate selected branch
+        run: |
+          if [ "$TARGET_ENVIRONMENT" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Select the $TARGET_ENVIRONMENT branch when dispatching this environment."
+            exit 1
+          fi
+  development:
+    needs: validate-target
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Development uses Vercel Git integration
+        run: |
+          echo 'Development deploys through the existing Vercel Git integration.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No release approval variables or Vercel CLI secrets are needed in GitHub for dev.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Recovery CI runs independently; it does not gate the Vercel Git build.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This job does not migrate the dev database. Apply required versioned migrations before deploying schema-dependent changes; see docs/ENVIRONMENTS.md.' >> "$GITHUB_STEP_SUMMARY"
   recovery:
+    needs: validate-target
     uses: ./.github/workflows/recovery.yml
   migrate-and-promote:
+    if: github.ref_name != 'dev'
     needs: recovery
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -35,15 +59,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Require destination, reviewed workflow evidence and forward-recovery decision
         run: |
-          test "$TARGET_ENVIRONMENT" = "$GITHUB_REF_NAME"
-          test "$APPROVED_SHA" = "$GITHUB_SHA"
-          test "$AUTO_DEPLOY_DISABLED" = true
-          test -n "$VERCEL_TOKEN"
-          test -n "$VERCEL_ORG_ID"
-          test -n "$VERCEL_PROJECT_ID"
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$TARGET_ENVIRONMENT" = "$GITHUB_REF_NAME" ] || fail "Selected environment must match the branch."
+          [ "$APPROVED_SHA" = "$GITHUB_SHA" ] || fail "Set RELEASE_APPROVED_SHA to this reviewed commit in the GitHub environment."
+          [ "$AUTO_DEPLOY_DISABLED" = true ] || fail "Verify automatic Git deployments are disabled, then set VERCEL_AUTO_DEPLOY_DISABLED=true."
+          [ -n "$VERCEL_TOKEN" ] || fail "Missing VERCEL_TOKEN environment secret."
+          [ -n "$VERCEL_ORG_ID" ] || fail "Missing VERCEL_ORG_ID environment secret."
+          [ -n "$VERCEL_PROJECT_ID" ] || fail "Missing VERCEL_PROJECT_ID environment secret."
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git ls-remote origin "refs/heads/$TARGET_ENVIRONMENT" | cut -f1)" = "$GITHUB_SHA"
-          test "$FORWARD_RECOVERY" = 'approved-forward-repair-or-isolated-restore'
+          [ "$FORWARD_RECOVERY" = 'approved-forward-repair-or-isolated-restore' ] || fail "Missing reviewed FORWARD_RECOVERY_DECISION; see docs/recovery/RUNBOOK.md."
           case "$EVIDENCE_URL" in https://*) ;; *) echo 'Missing operator evidence link'; exit 1;; esac
           mkdir -p release-evidence
           python3 - <<'PY'

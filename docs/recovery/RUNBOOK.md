@@ -142,9 +142,12 @@ approval authority, not an arbitrary string supplied to this local helper.
 
 ## Deployment and forward-recovery gates
 
-Disable Vercel automatic Git deployments **in every managed project** first.
-The checked-in `vercel.json` disables Git-triggered deployments, including legacy
-main/preview projects once they consume this commit. Independently confirm the
+These gates apply to **staging, QA, production and demo**. Development uses the
+existing Vercel Git integration without per-release approval variables; see
+[development deployment](../ENVIRONMENTS.md#development-deployment). Recovery CI
+runs independently for dev and does not gate its Vercel build or migrate its DB.
+The checked-in `vercel.json` enables only the `dev` branch and disables other
+Git-triggered deployments, including legacy main/preview branches. Independently confirm the
 provider settings and cancel queued deployments from older commits during rollout.
 `Migrate & Deploy` builds the exact reviewed checkout with pinned Vercel CLI and
 deploys that prebuilt artifact only after synthetic recovery, approval, versioned
@@ -153,7 +156,7 @@ heads before migration and before promotion; even a push during promotion cannot
 substitute newer source into the immutable local artifact. Dispatch environment must match the selected branch, and
 concurrency is keyed by destination. No continue-on-error promotion path exists.
 
-Configure each GitHub Environment with required reviewers (mandatory production),
+Configure each controlled GitHub Environment with required reviewers (mandatory production),
 branch restrictions, `DATABASE_URL`, `DIRECT_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`
 and environment-specific `VERCEL_PROJECT_ID` secrets and:
 
