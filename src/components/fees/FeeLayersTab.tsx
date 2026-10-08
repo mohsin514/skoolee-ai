@@ -1,4 +1,6 @@
 "use client";
+import { getFinancialLocale } from "@/app/actions/locale";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Check, Layers, Loader2, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
@@ -446,6 +448,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({
           ...(editing ? { id: editing.id } : { campusId: campusId || undefined, feeGroupId: selectedGroupId }),
           feeTypeId,
+          currency: selectedGroup?.currency,
           amount: rupeesToPaisa(amount, selectedGroup?.currency),
           dueDate: dueDate || null,
         }),
@@ -735,6 +738,8 @@ function AssignPanel({ campusId }: { campusId?: string }) {
 /* ── Discounts ─────────────────────────────────────────── */
 
 function DiscountsPanel({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("PKR");
+  useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [discounts, setDiscounts] = useState<FeeDiscountRow[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -779,7 +784,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
     setType(row?.type ?? "PERCENT");
-    setValue(row ? String(row.value) : "");
+    setValue(row ? String(row.type === "FLAT" ? paisaToRupees(row.value, row.currency) : row.value) : "");
+    if (row) setCurrency(row.currency);
     setCategoryId(row?.categoryId ?? "");
     setShowModal(true);
   };
@@ -799,7 +805,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
           name: name.trim(),
           code: code.trim(),
           type,
-          value: Math.round(parseFloat(value) * (type === "FLAT" ? 100 : 1)),
+          currency,
+          value: type === "FLAT" ? rupeesToPaisa(value, currency) : Number(value),
           categoryId: categoryId || null,
         }),
       });
@@ -965,7 +972,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                 <option value="PERCENT">Percent (%)</option>
                 <option value="FLAT">Flat (PKR)</option>
               </FormSelect>
-              <FormInput
+              <p className="text-sm">{editing?.currency || currency}</p><FormInput
                 label={type === "PERCENT" ? "Percent (max 100)" : "Amount (PKR)"}
                 type="number"
                 value={value}
@@ -1062,6 +1069,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
 /* ── Carry Forward ─────────────────────────────────────── */
 
 function CarryPanel({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("PKR");
+  useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [forwards, setForwards] = useState<CarryForwardRow[]>([]);
   const [students, setStudents] = useState<StudentLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1110,7 +1119,8 @@ function CarryPanel({ campusId }: { campusId?: string }) {
           studentId,
           fromAcademicYear: Number(fromYear),
           toAcademicYear: Number(toYear),
-          balance: rupeesToPaisa(parseFloat(balance)),
+          currency,
+          balance: rupeesToPaisa(balance, currency),
           note: note || null,
         }),
       });
@@ -1206,7 +1216,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       {showModal && (
         <ModalFrame title="New Carry-Forward" eyebrow="Fee Layers · Carry Forward" onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormSelect label="Student" value={studentId} onChange={setStudentId}>
+            <CurrencySelect value={currency} onChange={setCurrency} /><FormSelect label="Student" value={studentId} onChange={setStudentId}>
               <option value="">Select student...</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>{s.fullName} ({s.rollNo ?? ""})</option>

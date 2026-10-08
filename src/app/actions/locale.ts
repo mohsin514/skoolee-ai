@@ -55,7 +55,7 @@ async function revision(schoolId: string, db: Pick<typeof prisma, "localePolicy"
 }
 export async function previewLocaleChange(input: unknown) {
   const change = changeSchema.parse(input);
-  if (change.settings.country) change.settings.currency = currencyForCountry(change.settings.country);
+  if (change.settings.country && !change.settings.currency) change.settings.currency = currencyForCountry(change.settings.country);
   const user = await session();
   return runWithTenantContext(user, async () => {
     const { campuses, scopeCount } = await context(user);
@@ -128,4 +128,15 @@ export async function getEffectiveDisplayLocale() {
   const personal = user.preferredLanguage === "en" || user.preferredLanguage === "ar" ? user.preferredLanguage : null;
   if (user.role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
   return runWithTenantContext(user, () => getLocalePackage(user.schoolId, user.campusId, new Date(), personal));
+}
+
+/** Currency entry must use the selected campus policy, not the viewer's home campus. */
+export async function getFinancialLocale(campusId?: string) {
+ const user = await session();
+ return runWithTenantContext(user, async () => {
+  const { campuses } = await context(user);
+  const id = campusId || user.campusId;
+  if (!id || !campuses.some((campus) => campus.id === id)) throw new Error("permission");
+  return getLocalePackage(user.schoolId, id);
+ });
 }

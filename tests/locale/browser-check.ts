@@ -1,3 +1,4 @@
+import { messages } from "../../src/lib/locale/messages";
 import { chromium } from "playwright";
 import { SignJWT } from "jose";
 import assert from "node:assert/strict";
@@ -16,13 +17,16 @@ try {
   for (const width of [1440, 768, 390]) {
    await page.setViewportSize({ width, height: 1000 });
    const panel = page.locator("section[aria-labelledby='locale-heading']"); await panel.waitFor();
-   if (role === "APP_OWNER") { await panel.getByRole("alert").waitFor(); assert.match(await panel.getByRole("alert").innerText(), /permission|access/i); }
-   else { await panel.locator("select").first().selectOption("ar"); await page.waitForFunction(() => document.querySelector("section[lang='ar']"));
-     assert.equal(await panel.getAttribute("dir"), "rtl");
-     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `${role} overflow at ${width}`);
-     const permitted = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"].includes(role); assert.equal(await page.getByRole("button", { name: "معاينة التغييرات", exact: true }).count(), permitted ? 1 : 0);
+   for (const language of ["en", "ar", "ur"] as const) {
+     await panel.locator("select").first().selectOption(language);
+     await page.waitForFunction((lang) => document.querySelector(`section[lang='${lang}']`), language);
+     await page.waitForFunction(() => !document.querySelector("section[aria-labelledby='locale-heading'] select")?.hasAttribute("disabled"));
+     assert.equal(await panel.getAttribute("dir"), language === "en" ? "ltr" : "rtl");
+     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `${role}/${language} overflow at ${width}`);
+     const permitted = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"].includes(role);
+     assert.equal(await panel.getByRole("button", { name: messages(language).preview, exact: true }).count(), permitted ? 1 : 0);
+     await page.screenshot({ path: `/tmp/sko201-evidence/${role}-${language}-${width}.png`, fullPage: true }); results.push(`${role}/${language}/${width}: pass`);
    }
-   await page.screenshot({ path: `/tmp/sko201-evidence/${role}-${width}.png`, fullPage: true }); results.push(`${role}/${width}: pass`);
   }
   await context.close();
  }

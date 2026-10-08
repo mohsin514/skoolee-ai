@@ -53,8 +53,10 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.feeDiscount.findUnique({ where: { campusId_code: { campusId, code } } });
     if (existing) throw new ApiError("A discount with this code already exists", 409);
 
+    const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
+    if ((body.currency || "PKR") !== currency) throw new ApiError("Currency changed. Reload discount form.", 409);
     const discount = await prisma.feeDiscount.create({
-      data: { campusId, currency: (await getLocalePackage(user.schoolId, campusId)).currency, name, code, type, value, categoryId: body.categoryId ?? null },
+      data: { campusId, currency, name, code, type, value, categoryId: body.categoryId ?? null },
       include: { category: { select: { id: true, name: true } } },
     });
     return Response.json({ success: true, data: discount }, { status: 201 });

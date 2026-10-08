@@ -140,6 +140,7 @@ export interface RecentPayment {
 }
 
 export interface FeeStructure {
+  currency: string;
   id: string;
   classId: string;
   campusId: string;

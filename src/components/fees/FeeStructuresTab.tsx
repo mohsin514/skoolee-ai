@@ -1,4 +1,5 @@
 "use client";
+import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -20,7 +21,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure } from "./fee-types";
-import { API, classLabel, formatPKR } from "./fee-utils";
+import { API, classLabel, formatPKR, paisaToRupees, rupeesToPaisa } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
@@ -223,7 +224,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
-                    {formatPKR(fs.monthlyFee)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
+                    {formatPKR(fs.monthlyFee, fs.currency)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
                 <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100">
@@ -304,12 +305,12 @@ function StructureCard({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
           <p className="text-[9px] font-black uppercase text-ink-subtle">Monthly</p>
-          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee)}</p>
+          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
         {oneTimeTotal > 0 && (
           <div className="rounded-xl bg-blue-50/50 px-3 py-2">
             <p className="text-[9px] font-black uppercase text-ink-subtle">One-Time</p>
-            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal)}</p>
+            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal, fs.currency)}</p>
           </div>
         )}
         <div className="rounded-xl bg-amber-50/50 px-3 py-2">
@@ -331,7 +332,7 @@ function StructureCard({
           {Object.entries(oneTimeFees).map(([name, amount]) => (
             <div key={name} className="flex items-center justify-between text-[10px] font-bold text-ink-muted px-1">
               <span>{name}</span>
-              <span>{formatPKR(amount)}</span>
+              <span>{formatPKR(amount, fs.currency)}</span>
             </div>
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
@@ -359,8 +360,10 @@ function StructureModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [currency, setCurrency] = useState(editing?.currency || "");
+  useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => toast.error("Currency could not be loaded")); }, [campusId, editing]);
   const [classId, setClassId] = useState(editing?.classId ?? "");
-  const [monthlyFee, setMonthlyFee] = useState(editing ? String(editing.monthlyFee / 100) : "");
+  const [monthlyFee, setMonthlyFee] = useState(editing ? String(paisaToRupees(editing.monthlyFee, editing.currency)) : "");
   const [installmentType, setInstallmentType] = useState(editing?.installmentType ?? "11-month");
   const [lateFeePct, setLateFeePct] = useState(String(editing?.lateFeePercentage ?? 2.0));
   const [compoundLateFee, setCompoundLateFee] = useState(editing?.compoundLateFee ?? true);
@@ -369,7 +372,7 @@ function StructureModal({
     editing?.oneTimeFeesJson
       ? Object.entries(editing.oneTimeFeesJson).map(([name, amount]) => ({
           name,
-          amount: String(amount / 100),
+          amount: String(paisaToRupees(amount, editing.currency)),
         }))
       : []
   );
@@ -384,7 +387,7 @@ function StructureModal({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!classId || !monthlyFee) {
+    if (!classId || !monthlyFee || !currency) {
       toast.error("Class and monthly fee required");
       return;
     }
@@ -392,7 +395,7 @@ function StructureModal({
 
     const otfObj: Record<string, number> = {};
     for (const row of oneTimeFees) {
-      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = Math.round(parseFloat(row.amount) * 100);
+      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = rupeesToPaisa(row.amount, currency);
     }
     const drObj: Record<string, number> = {};
     for (const row of discountRules) {
@@ -400,9 +403,10 @@ function StructureModal({
     }
 
     const payload = {
+      currency,
       campusId: campusId || "",
       classId,
-      monthlyFee: Math.round(parseFloat(monthlyFee) * 100),
+      monthlyFee: rupeesToPaisa(monthlyFee, currency),
       installmentType,
       lateFeePercentage: parseFloat(lateFeePct),
       compoundLateFee,
@@ -411,7 +415,7 @@ function StructureModal({
       discountRulesJson: Object.keys(drObj).length > 0 ? JSON.stringify(drObj) : undefined,
       activeFrom: editing
         ? new Date(editing.activeFrom).toISOString().split("T")[0]
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+        : new Date().toISOString().split("T")[0],
     };
 
     try {

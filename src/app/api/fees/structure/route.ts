@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     } else {
       data.createdBy = user.userId;
       data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
+      if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
       structure = await prisma.feeStructure.create({
         data,
         include: {
