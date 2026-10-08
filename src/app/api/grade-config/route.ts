@@ -37,6 +37,10 @@ const DEFAULTS = {
   gradeB: 70,
   gradeC: 60,
   gradeD: 50,
+  missingMarkPolicy: "COUNT_AS_ZERO" as const,
+  absentMarkPolicy: "COUNT_AS_ZERO" as const,
+  exemptMarkPolicy: "EXCLUDE" as const,
+  roundingRule: "WHOLE" as const,
 };
 
 type ConfigShape = typeof DEFAULTS;
@@ -62,13 +66,19 @@ function shapeOf(config: Record<string, unknown> | null): ConfigShape {
     if (Number.isFinite(v)) (out[key] as number) = v;
   }
   out.weightMode = normalizeWeightMode(config.weightMode as string) as "NORMALIZED";
+  out.missingMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.missingMarkPolicy)) ? config.missingMarkPolicy as ConfigShape["missingMarkPolicy"] : DEFAULTS.missingMarkPolicy;
+  out.absentMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.absentMarkPolicy)) ? config.absentMarkPolicy as ConfigShape["absentMarkPolicy"] : DEFAULTS.absentMarkPolicy;
+  out.exemptMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.exemptMarkPolicy)) ? config.exemptMarkPolicy as ConfigShape["exemptMarkPolicy"] : DEFAULTS.exemptMarkPolicy;
+  out.roundingRule = ["WHOLE", "ONE_DECIMAL", "TWO_DECIMALS"].includes(String(config.roundingRule)) ? config.roundingRule as ConfigShape["roundingRule"] : DEFAULTS.roundingRule;
   return out;
 }
 
 /** Do these sections' rules actually agree? */
 function configsMatch(a: ConfigShape, b: ConfigShape) {
   return (
-    NUMERIC_KEYS.every((k) => a[k] === b[k]) && a.weightMode === b.weightMode
+    NUMERIC_KEYS.every((k) => a[k] === b[k]) && a.weightMode === b.weightMode &&
+    a.missingMarkPolicy === b.missingMarkPolicy && a.absentMarkPolicy === b.absentMarkPolicy &&
+    a.exemptMarkPolicy === b.exemptMarkPolicy && a.roundingRule === b.roundingRule
   );
 }
 
@@ -294,6 +304,10 @@ export async function POST(request: NextRequest) {
       finalWeight: incoming.finalWeight,
       passingPercentage: incoming.passingPercentage,
       weightMode: normalizeWeightMode(incoming.weightMode),
+      missingMarkPolicy: incoming.missingMarkPolicy,
+      absentMarkPolicy: incoming.absentMarkPolicy,
+      exemptMarkPolicy: incoming.exemptMarkPolicy,
+      roundingRule: incoming.roundingRule,
       gradeAplus: incoming.gradeAplus,
       gradeA: incoming.gradeA,
       gradeB: incoming.gradeB,

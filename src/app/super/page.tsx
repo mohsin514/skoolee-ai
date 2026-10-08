@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   AlertCircle,
   Building2,
+  BookOpen,
   ChevronRight,
   CheckCircle2,
   ClipboardList,
@@ -55,6 +56,7 @@ import {
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { getPlanLimits } from "@/config/plans";
 import { NetworkOverview } from "@/components/insights";
@@ -97,7 +99,7 @@ function hasActiveSlot(slot: any) {
 
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-type SuperView = "schools" | "billing" | "fees" | "settings";
+type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates";
 export default function SuperAdminDashboard() {
   const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
@@ -156,6 +158,10 @@ export default function SuperAdminDashboard() {
     }
     if (params.get("view") === "settings") {
       setActiveView("settings");
+      setSelectedCampus(null);
+    }
+    if (params.get("view") === "curriculum-templates") {
+      setActiveView("curriculum-templates");
       setSelectedCampus(null);
     }
   }, []);
@@ -335,11 +341,18 @@ export default function SuperAdminDashboard() {
     window.history.replaceState(null, "", "/super?view=settings");
   }, []);
 
+  const openCurriculumTemplates = useCallback(() => {
+    setSelectedCampus(null);
+    setActiveView("curriculum-templates");
+    window.history.replaceState(null, "", "/super?view=curriculum-templates");
+  }, []);
+
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
+    { icon: BookOpen, label: "Curriculum Templates", active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
@@ -407,6 +420,10 @@ const bottomItems: RoleNavItem[] = [];
             <div className="p-6">
               <PlansPanel />
             </div>
+          </div>
+        ) : activeView === "curriculum-templates" ? (
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+            <AcademicModelPanel templatesOnly />
           </div>
         ) : activeView === "settings" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">

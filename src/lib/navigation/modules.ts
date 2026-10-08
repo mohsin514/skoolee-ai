@@ -18,7 +18,7 @@ export function moduleForHref(href?: string): PermissionModule | null {
 export function moduleForView(view: string): PermissionModule | null {
   const modules: Record<string, PermissionModule> = {
     students: 'students', 'student-setup': 'students', 'promote-archive': 'students', 'year-cycle': 'students',
-    'admission-queries': 'admissions', 'academic-hub': 'timetable', 'year-setup': 'timetable', classes: 'timetable',
+    'admission-queries': 'admissions', 'academic-hub': 'timetable', 'year-setup': 'timetable', 'academic-model': 'exams', classes: 'timetable',
     'school-calendar': 'timetable', timetable: 'timetable', 'period-setup': 'timetable', 'class-rooms': 'timetable',
     'exam-cycles': 'exams', 'grading-rules': 'exams', 'report-cards': 'reports', teachers: 'staff',
     'staff-hierarchy': 'staff', 'teacher-performance': 'staff', permissions: 'staff', leadership: 'staff',

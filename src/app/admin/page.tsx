@@ -68,6 +68,7 @@ import { StudentSubnav, STUDENT_VIEWS, STUDENT_VIEW_MODULE } from "@/components/
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
 import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
+import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { YearEndPanel } from "@/components/academic/YearEndPanel";
@@ -140,6 +141,7 @@ type AdminView =
   | "library"
   | "academic-hub"
   | "year-setup"
+  | "academic-model"
   | "institution"
   ;
 
@@ -155,7 +157,7 @@ const ADMIN_VIEWS: readonly AdminView[] = [
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
-  "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup",
+  "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup", "academic-model",
   "institution",
 ];
 
@@ -881,6 +883,7 @@ export default function CampusAdminDashboard() {
       icon: BookOpen, label: "Academics", children: [
         { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", module: moduleForView("academic-hub"), onClick: () => setActiveView("academic-hub") },
         { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", module: moduleForView("year-setup"), onClick: () => setActiveView("year-setup") },
+        { icon: BookOpen, label: "Curriculum & Terms", active: activeView === "academic-model", module: moduleForView("academic-model"), onClick: () => setActiveView("academic-model") },
         { icon: School, label: "Classes & Subjects", active: activeView === "classes", module: moduleForView("classes"), onClick: () => setActiveView("classes") },
         { icon: History, label: "Academic Years", active: activeView === "year-cycle", module: moduleForView("year-cycle"), onClick: () => setActiveView("year-cycle") },
         { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", module: moduleForView("school-calendar"), onClick: () => setActiveView("school-calendar") },
@@ -1193,6 +1196,8 @@ export default function CampusAdminDashboard() {
           {activeView === "year-setup" ? (
             <YearSetupWizard campusId={data.campusId} onComplete={() => setActiveView("academic-hub")} />
           ) : null}
+
+          {activeView === "academic-model" ? <AcademicModelPanel campusId={data.campusId} /> : null}
 
           {activeView === "timetable" ? (
             <TimetableStudio campusId={data.campusId} />
