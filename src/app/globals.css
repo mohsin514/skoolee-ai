@@ -810,14 +810,14 @@ button:disabled,
 .sk-field:focus {
   border-color: #aa8bc4;
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 3px rgb(170 139 196 / 18%);
 }
 
 /* A compound field has one focus boundary, in restrained violet. */
 .sk-input-group:focus-within {
   border-color: #aa8bc4;
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 3px rgb(170 139 196 / 18%);
 }
 .sk-input-group > input:focus,
 .sk-input-group > select:focus,
@@ -826,4 +826,10 @@ button:disabled,
   border: 0;
   outline: none;
   box-shadow: none;
+}
+
+.sk-input-group:focus-within > [data-field-affix],
+.sk-input-group:focus-within > [data-field-affix] svg,
+[data-date-field]:focus-within > button {
+  color: #8127cf;
 }

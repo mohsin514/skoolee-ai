@@ -220,7 +220,7 @@ export default function ForgotPasswordPage() {
                       <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                         Email Identity
                       </Label>
-                      <InputGroup surfaceClassName="bg-rose-50" className="group relative flex items-center">
+                      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
                         <Mail data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                         <Input
                           id="recover-email"
@@ -313,7 +313,7 @@ export default function ForgotPasswordPage() {
                     <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       New Password
                     </Label>
-                    <InputGroup surfaceClassName="bg-rose-50" className="group relative flex items-center">
+                    <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
                       <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="new-password"
@@ -337,7 +337,7 @@ export default function ForgotPasswordPage() {
                     <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       Confirm Password
                     </Label>
-                    <InputGroup surfaceClassName="bg-rose-50" className="group relative flex items-center">
+                    <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
                       <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="confirm-password"
