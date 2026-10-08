@@ -105,7 +105,10 @@ def main():
         before = snapshot(upgrade)
         migrate(upgrade, 'resolve', '--applied', BASELINE)
         migrate(upgrade, 'deploy')
-        check('populated-schema-push-adoption-and-upgrade', before == snapshot(upgrade))
+        after = snapshot(upgrade)
+        check('populated-schema-push-adoption-and-upgrade', all(after.get(name) == value for name, value in before.items()))
+        check('additive-migration-tables-initially-empty', all(value['rows'] == 0 for name, value in after.items() if name not in before))
+        sql(upgrade, (ROOT / 'scripts/recovery/outbox-fixtures.sql').read_text())
         migrate(upgrade, 'diff', '--from-schema-datasource', schema, '--to-schema-datamodel', schema, '--exit-code')
         report['supportedUpgradePaths'] = ['dev-9c5193d-schema-push-to-versioned-baseline', 'verified-baseline-to-head']
         # Quiesced synthetic source. Marker is written immediately before dump and recovered
