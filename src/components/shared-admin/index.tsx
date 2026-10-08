@@ -1,4 +1,6 @@
 "use client";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -2671,6 +2673,36 @@ const STUDENT_STATUS_CHANGES = {
 
 type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
 
+function studentDraftValues(record: any): Record<string, string> {
+  return {
+      fullName: record.fullName || "",
+      nameUr: record.nameUr || "",
+      rollNo: record.rollNo || "",
+      dateOfBirth: record.dateOfBirth ? new Date(record.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: record.gender || "",
+      bloodType: record.bloodType || "",
+      nationality: record.nationality || "",
+      phone: record.phone || "",
+      guardianName: record.guardianName || "",
+      guardianNameUr: record.guardianNameUr || "",
+      guardianPhone: record.guardianPhone || "",
+      guardianEmail: record.guardianEmail || "",
+      guardianRelationship: record.guardianRelationship || "",
+      guardianOccupation: record.guardianOccupation || "",
+      city: record.city || "",
+      province: record.province || "",
+      postalCode: record.postalCode || "",
+      address: record.address || "",
+      medicalNotes: record.medicalNotes || "",
+      specialNeeds: record.specialNeeds || "",
+      allergies: record.allergies || "",
+      medications: record.medications || "",
+      previousSchool: record.previousSchool || "",
+      categoryId: record.category?.id || "",
+      groupId: record.group?.id || "",
+  };
+}
+
 export function StudentDetailModal({
   student: summary,
   busy,
@@ -2786,38 +2818,19 @@ export function StudentDetailModal({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  useEffect(() => {
-    setEdits({
-      fullName: student.fullName || "",
-      nameUr: student.nameUr || "",
-      rollNo: student.rollNo || "",
-      dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
-      gender: student.gender || "",
-      bloodType: student.bloodType || "",
-      nationality: student.nationality || "",
-      phone: student.phone || "",
-      guardianName: student.guardianName || "",
-      guardianNameUr: student.guardianNameUr || "",
-      guardianPhone: student.guardianPhone || "",
-      guardianEmail: student.guardianEmail || "",
-      guardianRelationship: student.guardianRelationship || "",
-      guardianOccupation: student.guardianOccupation || "",
-      city: student.city || "",
-      province: student.province || "",
-      postalCode: student.postalCode || "",
-      address: student.address || "",
-      medicalNotes: student.medicalNotes || "",
-      specialNeeds: student.specialNeeds || "",
-      allergies: student.allergies || "",
-      medications: student.medications || "",
-      previousSchool: student.previousSchool || "",
-      categoryId: student.category?.id || "",
-      groupId: student.group?.id || "",
-    });
-    // Reseeds when the full record lands. saveEdits writes every string field
-    // as `edits[f] || null`, so seeding once from the summary and saving would
-    // erase address, medical notes, allergies and medications outright.
-  }, [student.id, full]);
+  const baseline = studentDraftValues(student);
+  const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
+    values: edits, baseline,
+    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
+    apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
+    current: async () => {
+      const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
+      return studentDraftValues(result.data);
+    },
+  });
+  useEffect(() => { setEdits(studentDraftValues(student)); }, [student.id, full]);
 
   const ed = (field: string) => edits[field] || "";
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
@@ -2837,8 +2850,18 @@ export function StudentDetailModal({
     if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
     updates.categoryId = edits.categoryId || null;
     updates.groupId = edits.groupId || null;
-    await onUpdate(student.id, updates);
-    setEditing(false);
+    updates.expectedValues = pupilDraft.baseline;
+    try {
+      await onUpdate(student.id, updates);
+      // Some legacy callers catch their own request failure. Verify durability
+      // before deleting the only recoverable copy of the input.
+      const response = await fetch(`/api/students/${student.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
+      const saved = studentDraftValues(result.data);
+      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
+      pupilDraft.markSaved(); setFull(result.data); setEditing(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed. Your draft is retained."); }
   };
 
   const formatDob = (d: any) => {
@@ -2883,6 +2906,7 @@ export function StudentDetailModal({
       }
       tone={isActive ? "violet" : "amber"}
       onClose={onClose}
+      dirty={pupilDraft.dirty}
       headerActions={
         sequence && onNavigate ? (
           <ModalPager
@@ -2965,6 +2989,7 @@ export function StudentDetailModal({
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
+      <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
       {detailError ? (
         <p
           role="alert"

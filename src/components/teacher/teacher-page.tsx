@@ -95,7 +95,7 @@ export function TeacherPage({
 }) {
   const t = toneOf(tone);
   return (
-    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
+    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex min-h-0 flex-1 flex-col overflow-y-auto")} >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden
@@ -137,7 +137,7 @@ export function TeacherPage({
 
       <div
         className={cn(
-          "custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5",
+          "min-w-0 flex-none bg-[#fbf0fe]/20 p-4 sm:p-5",
           contentClassName,
         )}
       >

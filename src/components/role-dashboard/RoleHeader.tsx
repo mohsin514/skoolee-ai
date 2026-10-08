@@ -1,4 +1,6 @@
 "use client";
+
+import { clearDeviceDrafts } from "@/lib/drafts/store";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -193,6 +195,7 @@ export function RoleHeader({
   }, [menuOpen, notifOpen]);
 
   const handleLogout = async () => {
+    clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   };
