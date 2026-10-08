@@ -338,7 +338,7 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
         aria-label={label}
-        className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+        className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
       />
       {value ? (
         <button data-field-affix="end"
@@ -372,7 +372,7 @@ export function ToolbarSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+        className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition-all hover:border-[#8127cf]/30"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -743,7 +743,7 @@ export function Pagination({
           <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
-            className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40"
+            className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all"
           >
             {perPageOptions.map((n) => (
               <option key={n} value={n}>

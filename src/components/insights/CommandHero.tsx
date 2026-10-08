@@ -126,7 +126,7 @@ export function CommandHero({
                         type="button"
                         onClick={pill.onClick}
                         className={cn(
-                          "flex cursor-pointer items-center gap-2 rounded-2xl px-3.5 py-2 backdrop-blur transition-all hover:bg-white/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/30",
+                          "flex cursor-pointer items-center gap-2 rounded-2xl px-3.5 py-2 backdrop-blur transition-all hover:bg-white/15",
                           toneRing,
                         )}
                       >

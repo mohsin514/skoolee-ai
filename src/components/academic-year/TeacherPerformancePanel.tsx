@@ -249,7 +249,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               aria-label="Academic year"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors focus:border-[#8127cf]/30"
+              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors"
             >
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -320,7 +320,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               aria-label="Sort teachers"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors focus:border-[#8127cf]/30"
+              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors"
             >
               <option value="avgPercentage">Sort: Avg Score</option>
               <option value="passRate">Sort: Pass Rate</option>
@@ -345,7 +345,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teachers..."
             aria-label="Search teachers"
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle"
           />
         </InputGroup>
         {lens !== "all" ? (

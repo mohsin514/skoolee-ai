@@ -233,7 +233,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       const full = campuses.find((c: any) => c.id === campus.id);
                       if (full) onSelectCampus(full);
                     }}
-                    className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/45 via-white to-white px-4 py-3 text-left transition-all hover:border-[#8127cf]/25 hover:from-[#fbf0fe] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/15"
+                    className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/45 via-white to-white px-4 py-3 text-left transition-all hover:border-[#8127cf]/25 hover:from-[#fbf0fe]"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-xs font-black text-[#1f1a23]">{campus.name}</p>

@@ -21,7 +21,7 @@ import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees } from "./fee-
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
-const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
+const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white";
 const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
 
 export function FeeLayersTab({ campusId }: { campusId?: string }) {

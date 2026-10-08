@@ -223,7 +223,7 @@ export default function ReportsPage() {
                   it. Once locked it appears here, ready for remarks and report cards.
                 </p>
                 <button type="button" onClick={() => router.push("/teacher/marks")}
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97]">
                   Go to Marks &amp; Tests
                 </button>
               </div>
@@ -249,7 +249,7 @@ export default function ReportsPage() {
                     onChange={(e) => setCardQuery(e.target.value)}
                     placeholder="Student, roll no or exam…"
                     aria-label="Search report cards"
-                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
                   />
                   {cardQuery ? (
                     <button data-field-affix="end" type="button" onClick={() => setCardQuery("")} aria-label="Clear report card search"
@@ -268,7 +268,6 @@ export default function ReportsPage() {
                         aria-pressed={statusFilter === st}
                         className={cn(
                           "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                          "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                           statusFilter === st
                             ? "border-[#8127cf] bg-[#8127cf] text-white"
                             : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
@@ -287,7 +286,7 @@ export default function ReportsPage() {
               <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className={cn(
                   "sk-panel sk-rise group relative w-full cursor-pointer p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99]",
-                  "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5",
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 )}
                 style={{ animationDelay: `${index * 60}ms` }}>
@@ -308,7 +307,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setShowAllCards((v) => !v)}
-                className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe] px-4 py-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe] px-4 py-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.99]"
               >
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllCards && "rotate-180")} />
                 {showAllCards ? "Show fewer" : `Show all ${visibleCards.length} report cards`}

@@ -159,7 +159,7 @@ export function AiActionPanel({
                   type="button"
                   onClick={copyOutput}
                   title="Copy this draft to the clipboard"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100"
                 >
                   {copied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   {copied ? "Copied" : "Copy"}
@@ -169,7 +169,7 @@ export function AiActionPanel({
                   onClick={runAI}
                   disabled={busy}
                   title="Draft this again with the same context"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40"
                 >
                   <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
                   Redo

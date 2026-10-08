@@ -189,7 +189,6 @@ export default function TeacherStudentsPage() {
               title={`Show ${label.toLowerCase()}`}
               className={cn(
                 "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                 todayFilter === key
                   ? "border-[#8127cf] bg-[#8127cf] text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.7)]"
                   : `${tone} hover:brightness-95`,
@@ -306,7 +305,7 @@ export default function TeacherStudentsPage() {
                     type="button"
                     onClick={() => setSelectedStudent(student)}
                     title={`Open ${student.fullName}'s profile`}
-                    className="cursor-pointer text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25 rounded-2xl"
+                    className="cursor-pointer text-left rounded-2xl"
                   >
                     <div className="mb-4 flex items-start gap-4">
                       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
@@ -367,7 +366,7 @@ export default function TeacherStudentsPage() {
                       <a
                         href={`tel:${phone}`}
                         title={`Call ${student.guardianName || "guardian"}`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
                       >
                         <Phone className="h-3.5 w-3.5" />
                         Call
@@ -384,7 +383,7 @@ export default function TeacherStudentsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         Chat
@@ -403,7 +402,7 @@ export default function TeacherStudentsPage() {
                         )
                       }
                       title={`Open ${student.fullName}'s report card`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Report
@@ -414,7 +413,7 @@ export default function TeacherStudentsPage() {
                         router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
                       }
                       title={`Mark attendance for ${classLabel(student.class)}`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
                     >
                       <CalendarCheck className="h-3.5 w-3.5" />
                       Attend
@@ -437,7 +436,7 @@ export default function TeacherStudentsPage() {
                 clear it leaves them to hunt for the two controls themselves. */}
             {search || classFilter || todayFilter ? (
               <button type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}
-                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97]">
                 <X className="h-3.5 w-3.5" /> Clear filters
               </button>
             ) : null}

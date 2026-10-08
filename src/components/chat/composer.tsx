@@ -315,7 +315,7 @@ export function Composer({
             }
           }}
           placeholder={editing ? "Edit your message…" : "Write a message…"}
-          className="max-h-[150px] min-h-[40px] flex-1 resize-none border-0 bg-transparent px-1.5 py-2.5 text-[13px] font-semibold text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0"
+          className="max-h-[150px] min-h-[40px] flex-1 resize-none border-0 bg-transparent px-1.5 py-2.5 text-[13px] font-semibold text-ink placeholder:text-ink-faint"
         />
 
         <motion.button

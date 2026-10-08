@@ -59,7 +59,7 @@ import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 /* ─── tiny helpers ─── */
 const inputCls =
-  "h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:bg-red-50/60";
+  "h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:bg-red-50/60";
 const labelCls =
   "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle";
 const cardCls =

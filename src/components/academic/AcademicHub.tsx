@@ -264,7 +264,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
               <SystemSelect
                 value={stats.academicYear}
                 onChange={(e) => setYear(Number(e.target.value))}
-                className="rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2 text-xs font-bold text-[#1f1a23] shadow-sm focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                className="rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2 text-xs font-bold text-[#1f1a23] shadow-sm"
               >
                 {stats.availableYears.map((y) => (
                   <option key={y} value={y}>

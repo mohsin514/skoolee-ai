@@ -117,7 +117,7 @@ export default function FirstLoginPage() {
                   autoFocus
                   autoComplete="new-password"
                   placeholder="Choose a strong password"
-                  className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none"
+                  className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:bg-white transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none"
                 />
                 <button data-field-affix="end"
                   type="button"
@@ -174,10 +174,10 @@ export default function FirstLoginPage() {
                   onChange={(e) => setConfirm(e.target.value)}
                   autoComplete="new-password"
                   placeholder="Type it again"
-                  className={`w-full h-12 pl-10 pr-4 border-0 rounded-2xl focus:ring-2 transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none ${
+                  className={`w-full h-12 pl-10 pr-4 border-0 rounded-2xl transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none ${
                     confirm.length > 0 && !matches
-                      ? "bg-rose-50 focus:ring-rose-200 focus:bg-rose-50"
-                      : "bg-[#fbf0fe] focus:ring-[#8127cf]/20 focus:bg-white"
+                      ? "bg-rose-50 focus:bg-rose-50"
+                      : "bg-[#fbf0fe] focus:bg-white"
                   }`}
                 />
               </InputGroup>

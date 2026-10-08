@@ -284,19 +284,19 @@ function PeriodConfigModal({
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none"
               />
               <span className="text-[10px] font-bold text-ink-subtle">to</span>
               <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none"
               />
               <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 cursor-pointer"
+                className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none cursor-pointer"
               >
                 <option value="CLASS">Class</option>
                 <option value="BREAK">Break</option>
@@ -458,7 +458,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
                 >
                   <option value="">— No subject —</option>
                   {subjects.map((s) => (
@@ -474,7 +474,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
                 >
                   <option value="">— No teacher —</option>
                   {freeTeachers.map((t) => (
@@ -493,7 +493,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
                 >
                   <option value="">— No room —</option>
                   {freeRooms.map((r) => (
@@ -984,7 +984,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => setSelectedClassId(e.target.value || null)}
-              className="h-11 min-w-[180px] rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
+              className="h-11 min-w-[180px] rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none appearance-none cursor-pointer"
             >
               <option value="">— Select class —</option>
               {classes.map((cls) => {

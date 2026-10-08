@@ -115,7 +115,7 @@ export default function ParentResultsPage() {
                           onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
                           aria-expanded={isExpanded}
                           aria-controls={`exam-marks-${exam.examId}`}
-                          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-[#fbf0fe]/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-[#fbf0fe]/20"
                         >
                           <div className="text-left">
                             <p className="text-[10px] font-bold text-ink-subtle uppercase">{exam.term}</p>

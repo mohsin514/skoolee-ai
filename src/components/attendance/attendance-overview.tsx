@@ -735,7 +735,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                     placeholder="Search class..."
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
-                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all"
                   />
                 </InputGroup>
               </div>
@@ -1003,7 +1003,7 @@ function ClassDetailView({
                 placeholder="Search student..."
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
-                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all"
               />
             </InputGroup>
           </div>

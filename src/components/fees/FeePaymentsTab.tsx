@@ -129,7 +129,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         <SystemSelect
           value={methodFilter}
           onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none focus:border-[#8127cf]/30"
+          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none"
         >
           {METHODS.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
@@ -140,14 +140,14 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none focus:border-[#8127cf]/30"
+          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
           placeholder="From"
         />
         <SystemInput
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none focus:border-[#8127cf]/30"
+          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
           placeholder="To"
         />
 
@@ -158,7 +158,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
           />
           <button onClick={handleSearch} className="h-9 w-9 rounded-xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer">
             <Search className="w-3.5 h-3.5" />
@@ -411,7 +411,7 @@ function PaymentModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
+  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
 
   return (
     <Modal
@@ -504,7 +504,7 @@ function PaymentModal({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && searchStudents()}
                   placeholder="Search by name or roll no..."
-                  className="flex-1 h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors"
+                  className="flex-1 h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors"
                 />
                 <button onClick={searchStudents} disabled={searching} className="h-11 w-11 rounded-2xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50">
                   {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -691,16 +691,16 @@ function BankImportModal({
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Account Name</label>
-            <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+            <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">From</label>
-              <SystemInput type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+              <SystemInput type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">To</label>
-              <SystemInput type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+              <SystemInput type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
             </div>
           </div>
           <div>

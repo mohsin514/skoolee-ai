@@ -560,7 +560,7 @@ export function ReportCardsPanel({
                         }
                         onBlur={() => saveRemark(c)}
                         className={cn(
-                          "h-9 w-full rounded-lg border px-2.5 text-[12px] font-semibold text-[#1f1a23] outline-none transition-colors focus:border-[#8127cf]/50 focus:ring-4 focus:ring-[#8127cf]/12 disabled:bg-[#f6f2fa] disabled:text-ink-subtle",
+                          "h-9 w-full rounded-lg border px-2.5 text-[12px] font-semibold text-[#1f1a23] outline-none transition-colors disabled:bg-[#f6f2fa] disabled:text-ink-subtle",
                           c.remarksApproved
                             ? "border-emerald-200 bg-emerald-50/40"
                             : "border-[#cfc2d6]/30 bg-white",

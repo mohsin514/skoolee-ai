@@ -108,7 +108,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search conversations"
               aria-label="Search conversations"
-              className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white/80 py-2.5 pl-9 pr-3 text-xs font-semibold text-ink shadow-[inset_0_1px_2px_rgba(31,26,35,0.05)] transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
+              className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white/80 py-2.5 pl-9 pr-3 text-xs font-semibold text-ink shadow-[inset_0_1px_2px_rgba(31,26,35,0.05)] transition-all placeholder:text-ink-faint focus:bg-white"
             />
           </InputGroup>
 

@@ -160,7 +160,7 @@ export function ExamDateSheet({
             <SystemSelect
               value={classFilter}
               onChange={(e) => { setClassFilter(e.target.value); setSelectedExamId(""); }}
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
             >
               <option value="">All classes</option>
               {classOptions.map((c) => (
@@ -171,7 +171,7 @@ export function ExamDateSheet({
           <SystemSelect
             value={selectedExamId}
             onChange={(e) => setSelectedExamId(e.target.value)}
-            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
           >
             <option value="">— Select exam cycle —</option>
             {visibleExams.map((e) => (

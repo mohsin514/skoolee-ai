@@ -880,7 +880,7 @@ function StudentCard({
         }
       }}
       className={cn(
-        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-12px_rgba(31,26,35,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
+        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-12px_rgba(31,26,35,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]",
         selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/25 hover:border-[#8127cf]/30",
       )}
       style={{ animationDelay: `${index * 60}ms` }}
@@ -1088,7 +1088,7 @@ function BulkTagModal({
         <SystemSelect
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+          className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none"
         >
           <option value="">— None (clear it) —</option>
           {options.map((o) => (
@@ -1154,7 +1154,7 @@ function BulkMoveModal({
               setGroupKey(e.target.value);
               setClassId("");
             }}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none"
           >
             <option value="">Select class</option>
             {groups.map((g) => (
@@ -1170,7 +1170,7 @@ function BulkMoveModal({
             value={classId}
             onChange={(e) => setClassId(e.target.value)}
             disabled={!groupKey}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 disabled:opacity-50"
+            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none disabled:opacity-50"
           >
             <option value="">Select section</option>
             {sections.map((c) => (

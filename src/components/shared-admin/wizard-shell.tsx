@@ -263,7 +263,7 @@ export function Field({
           "aria-describedby": errorId,
           className: cn(
             (children.props as { className?: string }).className,
-            "!border-rose-400 focus:!border-rose-500"
+            "!border-rose-400"
           ),
         })
       : children;

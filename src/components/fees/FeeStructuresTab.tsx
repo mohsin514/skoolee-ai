@@ -436,7 +436,7 @@ function StructureModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
+  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
   const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
 
   return (
@@ -527,7 +527,7 @@ function StructureModal({
                       copy[i] = { ...copy[i], name: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
                   />
                   <SystemInput
                     type="number"
@@ -538,7 +538,7 @@ function StructureModal({
                       copy[i] = { ...copy[i], amount: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="w-28 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="w-28 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
                   />
                   <button
                     type="button"
@@ -582,7 +582,7 @@ function StructureModal({
                       copy[i] = { ...copy[i], name: e.target.value };
                       setDiscountRules(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
                   />
                   <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative w-24">
                     <SystemInput
@@ -595,7 +595,7 @@ function StructureModal({
                         copy[i] = { ...copy[i], pct: e.target.value };
                         setDiscountRules(copy);
                       }}
-                      className="w-full h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 pr-7 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                      className="w-full h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 pr-7 text-xs font-bold outline-none"
                     />
                     <Percent data-field-affix="end" className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
                   </InputGroup>

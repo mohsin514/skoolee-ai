@@ -341,13 +341,13 @@ export default function TeacherInsightsPage() {
                           <button type="button"
                             onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}
                             title={`Mark attendance for ${cls.label}`}
-                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96]">
                             Attendance
                           </button>
                           <button type="button"
                             onClick={() => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`)}
                             title={`Enter marks for ${cls.label}`}
-                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96]">
                             Marks
                           </button>
                         </div>

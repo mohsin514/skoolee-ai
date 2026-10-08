@@ -729,7 +729,7 @@ export default function OnboardingWizard() {
                               <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
-                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
+                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                               >
                                 {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
                               </SystemSelect>
@@ -763,7 +763,7 @@ export default function OnboardingWizard() {
                               readOnly={newCampus.autoId}
                               onChange={e => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })}
                               placeholder="BR-XXXX"
-                              className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center focus:ring-2 focus:ring-[#8127cf]/10 transition-all text-sm"
+                              className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center transition-all text-sm"
                             />
                           </div>
                           <div className="flex gap-2">
@@ -906,7 +906,7 @@ export default function OnboardingWizard() {
                                 onChange={e => setAcademicYear(e.target.value)}
                                 placeholder={String(thisYear)}
                                 inputMode="numeric"
-                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
+                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
                             </InputGroup>
                           </div>
@@ -920,7 +920,7 @@ export default function OnboardingWizard() {
                                 value={schoolData.sessionLabel}
                                 onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
                                 placeholder={sessionLabelFor(thisYear)}
-                                className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
+                                className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
                               <button data-field-affix="end"
                                 type="button"
@@ -961,7 +961,7 @@ export default function OnboardingWizard() {
                             <SystemSelect
                               value={schoolData.timezone}
                               onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
-                              className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
+                              className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                             >
                               {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </SystemSelect>
@@ -1223,7 +1223,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
+            className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
           />
         ) : (
           <Input
@@ -1233,7 +1233,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             placeholder={placeholder}
             readOnly={readonly}
             inputMode={inputMode}
-            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
+            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
       </InputGroup>

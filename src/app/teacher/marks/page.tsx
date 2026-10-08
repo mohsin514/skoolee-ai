@@ -335,7 +335,7 @@ export default function MarksPage() {
               onChange={(e) => setExamQuery(e.target.value)}
               placeholder="Find an assessment or class…"
               aria-label="Filter assessments"
-              className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+              className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
             />
             {examQuery ? (
               <button data-field-affix="end" type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
@@ -351,7 +351,7 @@ export default function MarksPage() {
               no way to know the other six existed. */}
           {visibleExams.length > EXAM_PAGE && (
             <button type="button" onClick={() => setShowAllExams((v) => !v)}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe] px-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe] px-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllExams && "rotate-180")} />
               {showAllExams ? "Show fewer" : `Show all ${visibleExams.length}`}
             </button>
@@ -374,7 +374,7 @@ export default function MarksPage() {
             return (
               <button key={exam.id} type="button" onClick={() => setSelectedExamId(exam.id)} title={`Select ${exam.title}`}
                 className={cn(
-                  "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98]",
                   isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" : "border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"
                 )}
                 style={{ animationDelay: `${index * 80}ms` }}>
@@ -542,7 +542,7 @@ export default function MarksPage() {
                                 aria-label={`${subject.name} marks for ${student.fullName}, out of ${max}`}
                                 className={cn(
                                   "h-11 w-full rounded-xl border px-3 text-center text-sm font-bold outline-none transition-all",
-                                  "focus:border-[#8127cf]/35 focus:bg-white focus:ring-4 focus:ring-[#8127cf]/20",
+                                  "focus:bg-white",
                                   isLocked ? "bg-[#f3f4f9]/40 text-ink-muted cursor-not-allowed" : "bg-[#fbf0fe]/40",
                                   isDirty && !isOverLimit && "border-amber-300 bg-amber-50/70",
                                   isOverLimit ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#cfc2d6]/20"
@@ -596,7 +596,7 @@ export default function MarksPage() {
               <button type="button" onClick={() => setShortcutsOpen((v) => !v)} aria-pressed={shortcutsOpen}
                 title="Show the keyboard shortcuts for entering a mark sheet quickly"
                 className={cn(
-                  "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-xs font-black uppercase tracking-wider transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-xs font-black uppercase tracking-wider transition-all active:scale-[0.97]",
                   shortcutsOpen
                     ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
                     : "border-[#8127cf]/10 bg-[#fbf0fe] text-[#8127cf] hover:bg-white",

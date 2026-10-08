@@ -210,7 +210,7 @@ export default function AcceptInvitePage() {
                         setValidationError("");
                       }}
                       placeholder="Create a secure password"
-                      className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-12 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
+                      className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-12 font-medium tracking-normal shadow-none focus:bg-white"
                     />
                     <button data-field-affix="end"
                       type="button"
@@ -238,7 +238,7 @@ export default function AcceptInvitePage() {
                         setValidationError("");
                       }}
                       placeholder="Repeat password"
-                      className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
+                      className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium tracking-normal shadow-none focus:bg-white"
                     />
                   </InputGroup>
                 </div>

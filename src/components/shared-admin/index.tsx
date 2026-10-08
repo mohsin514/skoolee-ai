@@ -4391,14 +4391,14 @@ function AmountRowsEditor({
               value={row.name}
               placeholder="Label"
               onChange={(e) => update(index, "name", e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40 focus:bg-white"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:bg-white"
             />
             <SystemInput
               value={row.amount}
               type="number"
               placeholder="Rs"
               onChange={(e) => update(index, "amount", e.target.value)}
-              className="h-10 w-24 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40 focus:bg-white"
+              className="h-10 w-24 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:bg-white"
             />
             <button
               type="button"
@@ -4566,7 +4566,7 @@ export function FormInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:bg-white hover:border-[#cfc2d6]/40"
       />
     </label>
   );
@@ -4589,7 +4589,7 @@ export function FormSelect({
       <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
+        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white hover:border-[#cfc2d6]/40"
       >
         {children}
       </SystemSelect>
@@ -4680,7 +4680,7 @@ export function ClassGroupCard({
           }
         }}
         className={cn(
-          "group/classrow flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
+          "group/classrow flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
@@ -4717,7 +4717,7 @@ export function ClassGroupCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
               aria-label={`Delete ${group.name}`}
-              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-ink-subtle opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
+              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-ink-subtle opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
             >
               <Trash2 className="h-3 w-3" />
               Delete
@@ -5158,7 +5158,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
             type="button"
             onClick={onRemove}
             aria-label={`Revoke access for ${teacher.fullName}`}
-            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
+            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Revoke
@@ -5609,7 +5609,7 @@ export function SpecialtyEditor({
                 }
               }}
               placeholder="e.g. Mathematics"
-              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40"
+              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
             />
             <button
               type="button"
@@ -6020,7 +6020,7 @@ function TagFormModal({
             onChange={(e) => setDescription(e.target.value)}
             placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
             rows={3}
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
           />
         </label>
         {kind === "category" ? (
@@ -6737,7 +6737,7 @@ function NewQueryModal({
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="What is this enquiry about?"
-            className="min-h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="min-h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:bg-white"
           />
         </label>
       </div>
@@ -6973,7 +6973,7 @@ function QueryDetailModal({
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What happened on this call / visit?"
-              className="min-h-20 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+              className="min-h-20 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle"
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
@@ -6982,7 +6982,7 @@ function QueryDetailModal({
                   type="date"
                   value={nextDate}
                   onChange={(e) => setNextDate(e.target.value)}
-                  className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40"
+                  className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250"
                 />
               </div>
               <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={addFollowUp} disabled={busy} className="ml-auto">
@@ -7608,7 +7608,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 type="number"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
-                className="h-9 w-24 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-black text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                className="h-9 w-24 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-black text-[#1f1a23] outline-none"
               />
             </label>
             <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
@@ -7737,7 +7737,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <SystemSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold text-[#1f1a23] outline-none"
             >
               <option value="">All statuses</option>
               <option value="PENDING">Pending</option>
@@ -7789,7 +7789,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
                       placeholder="Review note"
                       aria-label={`Review note for ${r.user?.fullName || "this request"}`}
-                      className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40"
+                      className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none"
                     />
                     <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
                       <SystemCheckbox
@@ -7843,7 +7843,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       onBlur={(e) => {
                         if (Number(e.target.value) !== t.defaultDaysDisplay) updateTypeDays(t.id, e.target.value);
                       }}
-                      className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-black outline-none focus:border-[#8127cf]/40"
+                      className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-black outline-none"
                     />
                     days
                   </label>
@@ -8182,7 +8182,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={String(month)}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
@@ -8193,7 +8193,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={String(year)}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
           >
             {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
               <option key={y} value={y}>
@@ -8204,7 +8204,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="h-10 w-40 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="h-10 w-40 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
           >
             {PAYROLL_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -8387,7 +8387,7 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   return (
     <td className="py-1 px-3 text-right">
       <SystemInput
-        className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink focus:border-[#8127cf] focus:outline-none"
+        className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -8723,7 +8723,7 @@ export function RolePermissionsPanel() {
             onChange={(e) => setCopyFrom(e.target.value)}
             aria-label="Copy permissions from another role"
             disabled={Boolean(bulkBusy)}
-            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 disabled:opacity-50"
+            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none disabled:opacity-50"
           >
             <option value="">Copy from role…</option>
             {PERM_ROLES.filter((r) => r.id !== activeRole).map((r) => (
@@ -9058,7 +9058,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <SystemInput
               type="number"
               min={1}
-              className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+              className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
               value={form.periodNumber}
               onChange={(e) => setForm((f) => ({ ...f, periodNumber: e.target.value }))}
             />
@@ -9067,7 +9067,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
               value={form.startTime}
               onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
             />
@@ -9076,7 +9076,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
               value={form.endTime}
               onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
             />
@@ -9158,7 +9158,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} start time`}
-                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none"
                 value={draft.startTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: e.target.value } }))
@@ -9178,7 +9178,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} end time`}
-                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none"
                 value={draft.endTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: e.target.value } }))

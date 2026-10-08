@@ -519,7 +519,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Enter current password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
             />
           </div>
 
@@ -533,7 +533,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
               />
               <button data-field-affix="end"
                 type="button"
@@ -575,7 +575,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter new password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">

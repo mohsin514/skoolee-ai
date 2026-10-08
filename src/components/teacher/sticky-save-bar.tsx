@@ -116,7 +116,6 @@ export function StickySaveBar({
             title="Discard every change made since this sheet was loaded"
             className={cn(
               "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-40",
-              "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/40",
               blocked
                 ? "bg-white text-rose-600 hover:bg-rose-100"
                 : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white",
@@ -134,7 +133,7 @@ export function StickySaveBar({
           title={blocked ? blockedReason : `${saveLabel} (⌘S)`}
           className={cn(
             "inline-flex h-10 min-w-[132px] cursor-pointer items-center justify-center gap-2 rounded-xl px-5 text-[12px] font-black uppercase tracking-wider transition-all active:scale-[0.97]",
-            "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/40",
+            "focus-on-dark",
             "disabled:cursor-not-allowed disabled:opacity-45",
             blocked
               ? "bg-rose-500 text-white"
