@@ -1,4 +1,7 @@
 "use client";
+import { cn } from "@/lib/utils";
+
+import { pageCardSurface } from "@/components/ui/page-card";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -57,6 +60,8 @@ import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dash
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -215,7 +220,7 @@ export default function SuperAdminDashboard() {
     if (!newCampusData.name.trim() || !newCampusData.city.trim()) {
       return toast.error("Campus name and city are required.");
     }
-    
+
     // Validate email format if provided
     if (newCampusData.email && newCampusData.email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -223,7 +228,7 @@ export default function SuperAdminDashboard() {
         return toast.error("Please enter a valid email address.");
       }
     }
-    
+
     // Validate phone number format if provided
     if (newCampusData.phone && newCampusData.phone.trim()) {
       // Remove all non-digit characters to count actual digits
@@ -235,7 +240,7 @@ export default function SuperAdminDashboard() {
         return toast.error("Phone number is too long to be valid.");
       }
     }
-    
+
     // Validate admin email format if provided
     if (newCampusData.adminEmail && newCampusData.adminEmail.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -243,7 +248,7 @@ export default function SuperAdminDashboard() {
         return toast.error("Please enter a valid admin email address.");
       }
     }
-    
+
     setAddingCampus(true);
     try {
       await addCampus({
@@ -385,7 +390,7 @@ const bottomItems: RoleNavItem[] = [];
         </div>
       }
     >
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
+      <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
         {activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
@@ -677,7 +682,7 @@ const bottomItems: RoleNavItem[] = [];
             <div className="space-y-6 mb-8">
               <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-4">
                 <Mail className="w-6 h-6 text-[#8127cf]" />
-                <input
+                <SystemInput
                   type="email"
                   placeholder="Enter official email..."
                   className="bg-transparent border-none outline-none font-bold text-sm w-full"
@@ -764,13 +769,13 @@ const bottomItems: RoleNavItem[] = [];
               <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">Board</label>
               <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
                 <GraduationCap className="w-5 h-5 text-ink-subtle shrink-0" />
-                <select
+                <SystemSelect
                   value={newCampusData.board}
                   onChange={(event) => setNewCampusData({ ...newCampusData, board: event.target.value })}
                   className="w-full cursor-pointer border-none bg-transparent text-sm font-bold outline-none"
                 >
                   {EXAM_BOARDS.map((board) => <option key={board} value={board}>{board}</option>)}
-                </select>
+                </SystemSelect>
               </div>
             </div>
             <CampusInput
@@ -797,7 +802,7 @@ const bottomItems: RoleNavItem[] = [];
                   {newCampusData.autoId ? "Auto" : "Manual"}
                 </button>
               </div>
-              <input
+              <SystemInput
                 type="text"
                 placeholder={newCampusData.autoId ? "KEY-AUTO" : "BR-XXXX"}
                 readOnly={newCampusData.autoId}
@@ -1032,7 +1037,7 @@ function FormInput({
   return (
     <label className="block">
       <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
-      <input
+      <SystemInput
         type={type}
         value={value}
         placeholder={placeholder}
@@ -1057,13 +1062,13 @@ function FormSelect({
   return (
     <label className="block">
       <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
-      <select
+      <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
       >
         {children}
-      </select>
+      </SystemSelect>
     </label>
   );
 }
@@ -1092,7 +1097,7 @@ function CampusInput({
       </label>
       <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
         <Icon className="w-5 h-5 text-ink-subtle shrink-0" />
-        <input
+        <SystemInput
           type="text"
           placeholder={placeholder}
           className="bg-transparent border-none outline-none font-bold text-sm w-full"

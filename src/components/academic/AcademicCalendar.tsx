@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -643,16 +644,16 @@ function DayPopover({
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">From</span>
-              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
+              <SystemInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
             </label>
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">To</span>
               {/* The picker itself now refuses a date before the start. */}
-              <input type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
+              <SystemInput type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
                 className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/30 focus:border-[#8127cf]/60"}`} />
             </label>
           </div>
-          <input
+          <SystemInput
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}

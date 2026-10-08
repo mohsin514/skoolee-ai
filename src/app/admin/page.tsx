@@ -1,4 +1,7 @@
 "use client";
+import { cn } from "@/lib/utils";
+
+import { pageCardSurface } from "@/components/ui/page-card";
 
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
@@ -995,7 +998,7 @@ export default function CampusAdminDashboard() {
       dashboardHref="/admin"
       headerActions={null}
     >
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 relative overflow-hidden flex flex-col">
+      <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 relative overflow-hidden flex flex-col")} >
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 bg-[#fbf0fe]/20">
           {/* Academics is ten screens deep. This keeps them one click from each
               other instead of one sidebar expansion away. */}

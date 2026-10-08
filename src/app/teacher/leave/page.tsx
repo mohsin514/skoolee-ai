@@ -9,6 +9,9 @@ import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ModalActions, ModalFrame } from "@/components/teacher/teacher-components";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -402,7 +405,7 @@ export default function LeavePage() {
           >
             <label className="block">
               <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Leave Type</span>
-              <select
+              <SystemSelect
                 value={applyForm.leaveTypeId}
                 onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
                 className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
@@ -416,13 +419,13 @@ export default function LeavePage() {
                     </option>
                   );
                 })}
-              </select>
+              </SystemSelect>
             </label>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">From Date</span>
-                <input
+                <SystemInput
                   type="date"
                   value={applyForm.fromDate}
                   onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
@@ -431,7 +434,7 @@ export default function LeavePage() {
               </label>
               <label className="block">
                 <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">To Date</span>
-                <input
+                <SystemInput
                   type="date"
                   value={applyForm.toDate}
                   /* The picker itself now refuses a date before the start, so
@@ -474,7 +477,7 @@ export default function LeavePage() {
 
             <label className="block">
               <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
-              <textarea
+              <SystemTextarea
                 value={applyForm.reason}
                 onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
                 rows={3}

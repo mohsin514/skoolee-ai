@@ -40,6 +40,7 @@ import { EditableProfileCard, type EditableProfile } from "@/components/profile/
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -199,10 +200,10 @@ export function RoleHeader({
     if (!notification.isRead) {
       markAsRead([notification.id]);
     }
-    
+
     // Close the dropdown
     setNotifOpen(false);
-    
+
     // Navigate to the link if available
     if (notification.link) {
       router.push(notification.link);
@@ -511,7 +512,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Current Password
             </label>
-            <input
+            <SystemInput
               type={showPasswords ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -525,7 +526,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               New Password
             </label>
             <div className="relative">
-              <input
+              <SystemInput
                 type={showPasswords ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -567,7 +568,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Confirm New Password
             </label>
-            <input
+            <SystemInput
               type={showPasswords ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

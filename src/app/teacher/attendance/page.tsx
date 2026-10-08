@@ -19,6 +19,7 @@ import { shiftDateOnly } from "@/lib/date-only";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { NavGuardPrompt } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
@@ -310,7 +311,7 @@ export default function AttendancePage() {
               <button type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronLeft className="w-4 h-4 text-ink" />
               </button>
-              <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
+              <SystemInput type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
                 className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
               <button type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronRight className="w-4 h-4 text-ink" />
@@ -391,7 +392,7 @@ export default function AttendancePage() {
                   to find one child in. */}
               <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                <input
+                <SystemInput
                   value={rosterQuery}
                   onChange={(e) => setRosterQuery(e.target.value)}
                   placeholder="Find a student…"

@@ -12,6 +12,7 @@ import { AiActionPanel } from "@/components/role-dashboard";
 import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { cn } from "@/lib/utils";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * The teacher's AI workspace.
@@ -207,7 +208,7 @@ export default function AIPage() {
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[180px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                  <input
+                  <SystemInput
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search drafts…"

@@ -1,19 +1,20 @@
 // ===========================================
-// shadcn/ui - Textarea Component
+// shadcn/ui - Input Component
 // ===========================================
 
 import * as React from "react";
 import { fieldAppearance } from "./field-appearance";
 import { cn } from "@/lib/utils";
 
-const Textarea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(({ className, ...props }, ref) => {
+const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, type, ...props }, ref) => {
   return (
-    <textarea
+    <input
+      type={type}
       className={cn(
-        "flex min-h-[104px] w-full resize-y px-4 py-3 leading-relaxed",
+        "flex min-h-12 w-full px-4 py-2.5",
         className,
         fieldAppearance
       )}
@@ -22,6 +23,6 @@ const Textarea = React.forwardRef<
     />
   );
 });
-Textarea.displayName = "Textarea";
+Input.displayName = "Input";
 
-export { Textarea };
+export { Input };

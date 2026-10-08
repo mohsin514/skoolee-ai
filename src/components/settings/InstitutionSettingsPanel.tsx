@@ -32,6 +32,7 @@ import {
   updateSchoolDetails,
   type InstitutionSettings,
 } from "@/app/actions/settings";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
 const TIMEZONES = [
@@ -314,14 +315,14 @@ function SchoolDialog({
           <Label htmlFor="s-tz" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">Time Zone</Label>
           <div className="group relative flex items-center">
             <Clock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
-            <select
+            <SystemSelect
               id="s-tz"
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
               className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
             >
               {zones.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            </SystemSelect>
           </div>
           {form.timezone !== school.timezone ? (
             <p className="px-1 text-[11px] font-bold leading-snug text-amber-700">
@@ -438,14 +439,14 @@ function CampusDialog({
           <Label htmlFor="c-board" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">Board</Label>
           <div className="relative flex items-center">
             <GraduationCap className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
-            <select
+            <SystemSelect
               id="c-board"
               value={form.board}
               onChange={(e) => set("board", e.target.value)}
               className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
             >
               {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            </SystemSelect>
           </div>
         </div>
 

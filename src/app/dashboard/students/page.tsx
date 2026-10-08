@@ -36,6 +36,7 @@ import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { localToday } from "@/lib/date-only";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -452,8 +453,8 @@ export default function StudentsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8">
-                        <input
-                          type="checkbox"
+                        <SystemCheckbox
+
                           checked={allOnPageSelected}
                           onChange={() =>
                             setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
@@ -476,8 +477,8 @@ export default function StudentsPage() {
                     {students.map((student) => (
                       <TableRow key={student.id}>
                         <TableCell>
-                          <input
-                            type="checkbox"
+                          <SystemCheckbox
+
                             checked={selected.has(student.id)}
                             onChange={() => toggleRow(student.id)}
                             aria-label={`Select ${student.fullName}`}

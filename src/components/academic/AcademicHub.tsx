@@ -17,6 +17,7 @@ import {
   PieChart,
   Users,
 } from "lucide-react";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 type Tone = "rose" | "amber" | "teal" | "emerald";
 
@@ -260,7 +261,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
 
           <div className="flex items-center gap-3">
             {stats && stats.availableYears.length > 1 ? (
-              <select
+              <SystemSelect
                 value={stats.academicYear}
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2 text-xs font-bold text-[#1f1a23] shadow-sm focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
@@ -270,7 +271,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                     Year {y}
                   </option>
                 ))}
-              </select>
+              </SystemSelect>
             ) : null}
             <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
               {doneCount} of {steps.length} steps done

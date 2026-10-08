@@ -20,6 +20,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
 
@@ -277,7 +278,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                     Type <span className="font-black text-rose-600">{activeCycle?.label}</span> to confirm
                   </span>
-                  <input
+                  <SystemInput
                     value={archiveConfirm}
                     onChange={(e) => setArchiveConfirm(e.target.value)}
                     placeholder={activeCycle?.label}

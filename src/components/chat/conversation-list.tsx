@@ -7,6 +7,7 @@ import { roleLabel } from "@/lib/roles";
 import { useChat, type ConversationFilter } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import type { ConversationView } from "@/lib/chat/types";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const FILTERS: { value: ConversationFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -99,7 +100,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
               aria-hidden
             />
-            <input
+            <SystemInput
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

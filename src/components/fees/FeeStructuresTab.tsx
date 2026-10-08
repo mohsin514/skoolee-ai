@@ -19,6 +19,8 @@ import { Modal } from "@/components/ui/modal";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure } from "./fee-types";
 import { API, classLabel, formatPKR } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
 
@@ -453,34 +455,34 @@ function StructureModal({
         <div className="space-y-4">
           <div>
             <label className={labelClass}>Class</label>
-            <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
+            <SystemSelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
               <option value="">Select class...</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
-            </select>
+            </SystemSelect>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Monthly Fee (PKR)</label>
-              <input type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
+              <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Installment Plan</label>
-              <select value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
+              <SystemSelect value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
                 <option value="11-month">11 Months (Jul-May)</option>
                 <option value="6-month">6 Months</option>
                 <option value="quarterly">Quarterly</option>
                 <option value="one-time">One Time</option>
-              </select>
+              </SystemSelect>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelClass}>Late Fee %</label>
-              <input type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
+              <SystemInput type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Compound</label>
@@ -494,7 +496,7 @@ function StructureModal({
             </div>
             <div>
               <label className={labelClass}>Tax %</label>
-              <input type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
+              <SystemInput type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
             </div>
           </div>
 
@@ -514,7 +516,7 @@ function StructureModal({
             <div className="space-y-2">
               {oneTimeFees.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <input
+                  <SystemInput
                     type="text"
                     placeholder="Fee name"
                     value={row.name}
@@ -525,7 +527,7 @@ function StructureModal({
                     }}
                     className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
                   />
-                  <input
+                  <SystemInput
                     type="number"
                     placeholder="Amount"
                     value={row.amount}
@@ -569,7 +571,7 @@ function StructureModal({
             <div className="space-y-2">
               {discountRules.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <input
+                  <SystemInput
                     type="text"
                     placeholder="Discount name"
                     value={row.name}
@@ -581,7 +583,7 @@ function StructureModal({
                     className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
                   />
                   <div className="relative w-24">
-                    <input
+                    <SystemInput
                       type="number"
                       step="0.5"
                       placeholder="%"

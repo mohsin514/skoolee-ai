@@ -19,6 +19,8 @@ import {
   type DataColumn,
   type WorkspaceView,
 } from "@/components/shared-admin/workspace";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 interface TeacherPerf {
   teacherId: string;
@@ -241,7 +243,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
         }
         actions={
           <>
-            <select
+            <SystemSelect
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               aria-label="Academic year"
@@ -250,7 +252,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
-            </select>
+            </SystemSelect>
             <BrandButton
               variant="soft"
               icon={<Download className="h-4 w-4" />}
@@ -312,7 +314,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
       <WorkspaceToolbar
         trailing={
           <>
-            <select
+            <SystemSelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               aria-label="Sort teachers"
@@ -322,7 +324,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               <option value="passRate">Sort: Pass Rate</option>
               <option value="teacherAttendanceRate">Sort: Own Attendance</option>
               <option value="marksCompletionRate">Sort: Marks Entry</option>
-            </select>
+            </SystemSelect>
             <ViewSwitch
               value={view}
               onChange={setView}
@@ -336,7 +338,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
       >
         <div className="relative min-w-[220px] flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <input
+          <SystemInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teachers..."

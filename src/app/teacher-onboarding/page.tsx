@@ -26,6 +26,7 @@ import { getTeacherOnboardingSession, completeTeacherOnboarding } from '@/app/ac
 import { dashboardPathForRole } from '@/lib/roles';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select as SystemSelect } from "@/components/ui/select";
 
 const STEPS = ["Personal Info", "Professional", "Address & Emergency"] as const;
 
@@ -702,14 +703,14 @@ function SelectField({ label, id, value, onChange, children }: {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">{label}</Label>
-      <select
+      <SystemSelect
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] px-4 text-sm font-bold text-[#1f1a23] shadow-none outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
       >
         {children}
-      </select>
+      </SystemSelect>
     </div>
   );
 }

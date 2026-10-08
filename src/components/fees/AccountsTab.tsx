@@ -20,6 +20,8 @@ import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
 import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/components/fees/fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const API = "/api";
 const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
@@ -221,13 +223,13 @@ function ChartPanel({ campusId }: { campusId?: string }) {
             <FormInput label="Account Name" value={name} placeholder="e.g. Library Fee" onChange={setName} />
             <div>
               <label className={labelClass}>Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
+              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
                 <option value="INCOME">Income</option>
                 <option value="EXPENSE">Expense</option>
                 <option value="ASSET">Asset</option>
                 <option value="LIABILITY">Liability</option>
                 <option value="EQUITY">Equity</option>
-              </select>
+              </SystemSelect>
             </div>
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -797,12 +799,12 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
             </div>
             <div>
               <label className={labelClass}>Bank Account (optional)</label>
-              <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
+              <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
                 <option value="">— None —</option>
                 {banks.filter((b) => b.isActive).map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
-              </select>
+              </SystemSelect>
             </div>
             <FormInput label="Note (optional)" value={note} placeholder="Extra detail" onChange={setNote} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={kind === "INCOME" ? "Record Income" : "Record Expense"} onClose={() => setShowModal(false)} onSave={handleSave} />
@@ -865,11 +867,11 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-end gap-3 flex-wrap">
         <div>
           <label className={labelClass}>From</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
+          <SystemInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>To</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
+          <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
         </div>
         <BrandButton icon={<Percent className="w-4 h-4" />} onClick={run} disabled={loading}>
           {loading ? <Loader className="w-4 h-4 animate-spin" /> : "Run Report"}

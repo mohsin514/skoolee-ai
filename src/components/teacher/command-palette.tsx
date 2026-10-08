@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { TEACHER_NAV } from "@/components/teacher/teacher-page";
 import { classLabel } from "@/components/teacher/teacher-components";
 import { TEACHER_PALETTE_EVENT } from "@/components/teacher/palette-bus";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * ⌘K / Ctrl+K quick switcher for the teacher console.
@@ -155,7 +156,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
       >
         <div className="flex items-center gap-3 border-b border-[#cfc2d6]/15 px-4">
           <Search className="h-4 w-4 shrink-0 text-[#8127cf]" />
-          <input
+          <SystemInput
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}

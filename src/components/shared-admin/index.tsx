@@ -71,6 +71,10 @@ import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
 // The roster grew its own file once it gained table view, multi-select and
 // bulk actions; the import path is unchanged.
@@ -2973,7 +2977,7 @@ export function StudentDetailModal({
       {parentLink && (
         <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">
           <ExternalLink className="h-4 w-4 text-emerald-600 shrink-0" />
-          <input type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
+          <SystemInput type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
           <button type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
             {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {linkCopied ? "Copied!" : "Copy"}
@@ -4382,13 +4386,13 @@ function AmountRowsEditor({
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div key={index} className="flex items-center gap-2">
-            <input
+            <SystemInput
               value={row.name}
               placeholder="Label"
               onChange={(e) => update(index, "name", e.target.value)}
               className="h-10 min-w-0 flex-1 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40 focus:bg-white"
             />
-            <input
+            <SystemInput
               value={row.amount}
               type="number"
               placeholder="Rs"
@@ -4556,7 +4560,7 @@ export function FormInput({
   return (
     <label className="block group/input">
       <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/input:text-[#8127cf]">{label}</span>
-      <input
+      <SystemInput
         type={type}
         value={value}
         placeholder={placeholder}
@@ -4581,13 +4585,13 @@ export function FormSelect({
   return (
     <label className="block group/select">
       <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/select:text-[#8127cf]">{label}</span>
-      <select
+      <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
       >
         {children}
-      </select>
+      </SystemSelect>
     </label>
   );
 }
@@ -4756,7 +4760,7 @@ export function ClassGroupCard({
           <div className="pt-2">
             {addingSection ? (
               <div className="flex items-center gap-2">
-                <input
+                <SystemInput
                   type="text"
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
@@ -5593,7 +5597,7 @@ export function SpecialtyEditor({
             ) : null}
           </div>
           <div className="flex gap-2">
-            <input
+            <SystemInput
               type="text"
               value={draft}
               onChange={(e) => onDraftChange(e.target.value)}
@@ -6010,7 +6014,7 @@ function TagFormModal({
         {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
           <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Description</span>
-          <textarea
+          <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
@@ -6728,7 +6732,7 @@ function NewQueryModal({
         </div>
         <label className="block">
           <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</span>
-          <textarea
+          <SystemTextarea
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="What is this enquiry about?"
@@ -6964,7 +6968,7 @@ function QueryDetailModal({
           </div>
           <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
             <p className="mb-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
-            <textarea
+            <SystemTextarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What happened on this call / visit?"
@@ -6973,7 +6977,7 @@ function QueryDetailModal({
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
                 <span className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Next follow-up</span>
-                <input
+                <SystemInput
                   type="date"
                   value={nextDate}
                   onChange={(e) => setNextDate(e.target.value)}
@@ -7201,8 +7205,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4 transition-all duration-300 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <input
-                type="checkbox"
+              <SystemCheckbox
+
                 checked={selected.has(s.id)}
                 onChange={() =>
                   setSelected((prev) => {
@@ -7599,7 +7603,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
               Year
-              <input
+              <SystemInput
                 type="number"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
@@ -7729,7 +7733,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       ) : tab === "requests" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SystemSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -7739,7 +7743,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
               <option value="CANCELLED">Cancelled</option>
-            </select>
+            </SystemSelect>
             <SearchField
               value={requestSearch}
               onChange={setRequestSearch}
@@ -7778,7 +7782,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 </span>
                 {r.status === "PENDING" ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <input
+                    <SystemInput
                       type="text"
                       value={reviewNotes[r.id] || ""}
                       onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
@@ -7787,8 +7791,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40"
                     />
                     <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <SystemCheckbox
+
                         checked={Boolean(overrides[r.id])}
                         onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
                         className="h-3.5 w-3.5 accent-[#8127cf]"
@@ -7832,7 +7836,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
                     Default
-                    <input
+                    <SystemInput
                       type="number"
                       defaultValue={t.defaultDaysDisplay}
                       onBlur={(e) => {
@@ -8174,7 +8178,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Banknote} title="Payroll" />
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <SystemSelect
             value={String(month)}
             onChange={(e) => setMonth(Number(e.target.value))}
             className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8184,8 +8188,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {new Date(0, i).toLocaleString("default", { month: "short" })}
               </option>
             ))}
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={String(year)}
             onChange={(e) => setYear(Number(e.target.value))}
             className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8195,8 +8199,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {y}
               </option>
             ))}
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={role}
             onChange={(e) => setRole(e.target.value)}
             className="h-10 w-40 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8206,7 +8210,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {r ? r.replace("_", " ") : "All roles"}
               </option>
             ))}
-          </select>
+          </SystemSelect>
           <BrandButton variant="dark" icon={<Sparkles className="h-4 w-4" />} onClick={generate} disabled={generating}>
             {generating ? "Generating…" : run ? "Regenerate" : "Generate Payroll"}
           </BrandButton>
@@ -8381,7 +8385,7 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   }
   return (
     <td className="py-1 px-3 text-right">
-      <input
+      <SystemInput
         className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink focus:border-[#8127cf] focus:outline-none"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -8713,7 +8717,7 @@ export function RolePermissionsPanel() {
           />
           {/* Setting a role up from scratch is seventeen rows of clicking. Most
               new roles are "like the accountant, minus payroll". */}
-          <select
+          <SystemSelect
             value={copyFrom}
             onChange={(e) => setCopyFrom(e.target.value)}
             aria-label="Copy permissions from another role"
@@ -8724,7 +8728,7 @@ export function RolePermissionsPanel() {
             {PERM_ROLES.filter((r) => r.id !== activeRole).map((r) => (
               <option key={r.id} value={r.id}>{r.label}</option>
             ))}
-          </select>
+          </SystemSelect>
           <BrandButton
             variant="soft"
             icon={<Copy className="h-4 w-4" />}
@@ -9050,7 +9054,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Period #</label>
-            <input
+            <SystemInput
               type="number"
               min={1}
               className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9060,7 +9064,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           </div>
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
-            <input
+            <SystemInput
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.startTime}
@@ -9069,7 +9073,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           </div>
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
-            <input
+            <SystemInput
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.endTime}
@@ -9150,7 +9154,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 {p.periodNumber}
               </span>
               <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
-              <input
+              <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} start time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9170,7 +9174,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 }}
               />
               <span className="text-xs font-bold text-ink-subtle">to</span>
-              <input
+              <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} end time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"

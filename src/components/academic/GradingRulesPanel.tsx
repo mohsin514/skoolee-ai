@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { Field, Panel, StepEmpty, inputClass } from "@/components/academic/exams/shared";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Grading rules, set per class and applied to every section of it (§80).
@@ -395,7 +396,7 @@ function RulesEditor({
                 onChange={(e) => set("passingPercentage", Number(e.target.value))}
                 className="h-1.5 w-40 cursor-pointer appearance-none rounded-full bg-[#e8e0ec] accent-[#8127cf]"
               />
-              <input
+              <SystemInput
                 type="number"
                 min={0}
                 max={100}
@@ -473,7 +474,7 @@ function RulesEditor({
                   Created by {w.who}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  <input
+                  <SystemInput
                     type="number"
                     min={0}
                     max={100}
@@ -567,7 +568,7 @@ function RulesEditor({
                       g.tone,
                     )}
                   />
-                  <input
+                  <SystemInput
                     type="number"
                     min={0}
                     max={100}

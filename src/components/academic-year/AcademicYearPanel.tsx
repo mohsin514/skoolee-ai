@@ -10,6 +10,8 @@ import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 interface ClassSummary {
   id: string;
@@ -634,7 +636,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                             <thead>
                               <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
                                 <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
-                                  <input type="checkbox"
+                                  <SystemCheckbox
                                     checked={gradeResults.length > 0 && gradeResults.every((g) => studentDecisions.get(g.studentId) === "promote")}
                                     onChange={(e) => {
                                       const next = new Map(studentDecisions);
@@ -665,7 +667,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                     !g.passed && !gradeError ? "bg-rose-50/30" : decision === "retain" ? "bg-amber-50/20" : "hover:bg-[#fbf0fe]/20"
                                   )}>
                                     <td className="px-4 py-3">
-                                      <input type="checkbox" checked={decision === "promote"}
+                                      <SystemCheckbox  checked={decision === "promote"}
                                         onChange={(e) => {
                                           const next = new Map(studentDecisions);
                                           next.set(g.studentId, e.target.checked ? "promote" : "retain");
@@ -696,7 +698,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                       </>
                                     )}
                                     <td className="px-4 py-3 text-center">
-                                      <select value={decision}
+                                      <SystemSelect value={decision}
                                         onChange={(e) => {
                                           const next = new Map(studentDecisions);
                                           next.set(g.studentId, e.target.value as StudentDecision);
@@ -707,7 +709,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                         )}>
                                         <option value="promote">Promote</option>
                                         <option value="retain">Retain</option>
-                                      </select>
+                                      </SystemSelect>
                                     </td>
                                   </tr>
                                 );
@@ -744,7 +746,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   <div>
                     <label className="block mb-4">
                       <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
-                      <select value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
+                      <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer">
                         <option value="">Select target class</option>
                         {activeClasses
@@ -752,7 +754,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           .map((c) => (
                             <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {c._count.students} existing</option>
                           ))}
-                      </select>
+                      </SystemSelect>
                     </label>
 
                     {!activeClasses.some((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1) ? (

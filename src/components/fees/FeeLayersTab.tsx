@@ -18,6 +18,8 @@ import type {
   StudentLite,
 } from "./fee-types";
 import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
 const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
@@ -490,12 +492,12 @@ function MasterPanel({ campusId }: { campusId?: string }) {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="w-full sm:max-w-xs">
           <label className={labelClass}>Fee Group</label>
-          <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className={inputClass}>
+          <SystemSelect value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className={inputClass}>
             <option value="">Select a group...</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
-          </select>
+          </SystemSelect>
         </div>
         {selectedGroup && (
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)} disabled={types.length === 0}>
@@ -987,7 +989,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
           <div className="space-y-5">
             <div>
               <label className={labelClass}>Find student</label>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type name or roll no..." className={inputClass} />
+              <SystemInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type name or roll no..." className={inputClass} />
             </div>
 
             <div>
@@ -1431,20 +1433,20 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Type</label>
-                <select value={type} onChange={(e) => setType(e.target.value as any)} className={inputClass}>
+                <SystemSelect value={type} onChange={(e) => setType(e.target.value as any)} className={inputClass}>
                   <option value="PERCENT">Percent of balance</option>
                   <option value="FLAT">Flat amount</option>
                   <option value="PER_DAY">Per day</option>
-                </select>
+                </SystemSelect>
               </div>
               <div>
                 <label className={labelClass}>Value (PKR or %)</label>
-                <input type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? "e.g. 5" : "e.g. 200"} className={inputClass} />
+                <SystemInput type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? "e.g. 5" : "e.g. 200"} className={inputClass} />
               </div>
             </div>
             <div>
               <label className={labelClass}>Grace Days (0 = none)</label>
-              <input type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className={inputClass} />
+              <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className={inputClass} />
             </div>
             <FormInput label="Description (optional)" value={description} placeholder="Shown in reports" onChange={setDescription} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Rule"} onClose={() => setShowModal(false)} onSave={handleSave} />

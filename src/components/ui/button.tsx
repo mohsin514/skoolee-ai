@@ -12,6 +12,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border border-[#6d22b4] bg-primary bg-gradient-to-b from-[#8c36d5] to-[#7423ba] text-primary-foreground shadow-[0_7px_15px_-7px_rgba(106,31,176,0.6),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(56,12,99,0.15)] enabled:hover:border-[#5d149f] enabled:hover:from-[#812aca] enabled:hover:to-[#6820aa] enabled:hover:shadow-[0_9px_20px_-7px_rgba(106,31,176,0.55),inset_0_1px_0_rgba(255,255,255,0.3)] enabled:active:shadow-[0_2px_6px_-2px_rgba(106,31,176,0.45),inset_0_1px_3px_rgba(56,12,99,0.2)] disabled:bg-none",
+        dark: "border border-[#1f1a23] bg-[#1f1a23] text-white shadow-md enabled:hover:bg-black",
         destructive: "border border-destructive bg-destructive text-destructive-foreground shadow-[0_4px_10px_-6px_rgba(153,27,27,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] enabled:hover:bg-red-900",
         outline: "border border-[#d8cfe5] bg-white text-ink shadow-[0_2px_3px_-2px_rgba(55,27,77,0.16),inset_0_1px_0_white] enabled:hover:border-[#b59bce] enabled:hover:bg-[#faf5ff] enabled:hover:text-primary enabled:hover:shadow-[0_5px_12px_-8px_rgba(90,42,128,0.35)]",
         secondary: "border border-[#e3d5f0] bg-[#f1e7fb] text-[#7020b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] enabled:hover:border-[#cdb2e6] enabled:hover:bg-[#eaddf6]",

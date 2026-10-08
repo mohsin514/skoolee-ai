@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -326,7 +329,7 @@ export function SearchField({
   return (
     <div className={cn("relative min-w-[190px] flex-1", className)}>
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
-      <input
+      <SystemInput
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -362,7 +365,7 @@ export function ToolbarSelect({
 }) {
   return (
     <div className="relative">
-      <select
+      <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
@@ -373,7 +376,7 @@ export function ToolbarSelect({
             {l}
           </option>
         ))}
-      </select>
+      </SystemSelect>
       <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-[#8127cf]" />
     </div>
   );
@@ -598,8 +601,8 @@ export function DataTable<T>({
           <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
             {selectable ? (
               <th className={cn("w-10", pad)}>
-                <input
-                  type="checkbox"
+                <SystemCheckbox
+
                   checked={allSelected}
                   onChange={onToggleAll}
                   aria-label="Select everything in this list"
@@ -658,8 +661,8 @@ export function DataTable<T>({
               >
                 {selectable ? (
                   <td className={pad}>
-                    <input
-                      type="checkbox"
+                    <SystemCheckbox
+
                       checked={Boolean(isSelected)}
                       onChange={() => onToggleSelect?.(id)}
                       aria-label="Select row"
@@ -733,7 +736,7 @@ export function Pagination({
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
           Per page
-          <select
+          <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
             className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40"
@@ -743,7 +746,7 @@ export function Pagination({
                 {n}
               </option>
             ))}
-          </select>
+          </SystemSelect>
         </label>
         {totalPages > 1 ? (
           <div className="flex items-center gap-1.5">

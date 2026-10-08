@@ -33,6 +33,8 @@ import { SubjectPalette } from "./SubjectPalette";
 import { TeacherView } from "./TeacherView";
 import { TimetableGrid, type GridDensity } from "./TimetableGrid";
 import { Modal, ModalActions } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
 
@@ -277,20 +279,20 @@ function PeriodConfigModal({
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-3">
               <span className="w-6 text-center text-[10px] font-black text-[#8127cf]">P{p.period}</span>
-              <input
+              <SystemInput
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
               <span className="text-[10px] font-bold text-ink-subtle">to</span>
-              <input
+              <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
-              <select
+              <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
                 className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 cursor-pointer"
@@ -300,7 +302,7 @@ function PeriodConfigModal({
                 <option value="PRAYER">Prayer</option>
                 <option value="ASSEMBLY">Assembly</option>
                 <option value="ACTIVITY">Activity</option>
-              </select>
+              </SystemSelect>
               <button
                 type="button"
                 onClick={() => removePeriod(i)}
@@ -452,7 +454,7 @@ function SlotEditorModal({
             <>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
-                <select
+                <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -461,14 +463,14 @@ function SlotEditorModal({
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
-                </select>
+                </SystemSelect>
               </div>
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Teacher {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
-                <select
+                <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -477,7 +479,7 @@ function SlotEditorModal({
                   {freeTeachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
-                </select>
+                </SystemSelect>
                 {!loadingAvail && freeTeachers.length === 0 && (
                   <p className="mt-1 text-[10px] font-semibold text-amber-600">No free teachers for this slot.</p>
                 )}
@@ -487,7 +489,7 @@ function SlotEditorModal({
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Room (Optional) {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
-                <select
+                <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -498,7 +500,7 @@ function SlotEditorModal({
                       {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
                 {!loadingAvail && freeRooms.length === 0 && (
                   <p className="mt-1 text-[10px] font-semibold text-amber-600">No free rooms for this slot.</p>
                 )}
@@ -978,7 +980,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <select
+            <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => setSelectedClassId(e.target.value || null)}
               className="h-11 min-w-[180px] rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
@@ -997,7 +999,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   </option>
                 );
               })}
-            </select>
+            </SystemSelect>
             <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/50 pointer-events-none" />
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
           </div>

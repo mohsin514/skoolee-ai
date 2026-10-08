@@ -37,6 +37,7 @@ import { AvatarImage, initialsOf } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
 import { DEPARTMENT_KIND_LABELS, DEPARTMENT_ROLE_LABELS } from "@/lib/staff/hierarchy-presets";
 import type { OrgNode } from "@/lib/staff/hierarchy";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 interface Member {
   id: string;
@@ -559,7 +560,7 @@ function MemberPicker({
 
         {role === "HEAD" ? (
           <label className="flex cursor-pointer items-start gap-2.5">
-            <input type="checkbox" checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
+            <SystemCheckbox  checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
             <span>
               <span className="block text-xs font-black text-ink">Acting charge</span>
               <span className="block text-[10px] font-semibold text-ink-muted">
@@ -569,7 +570,7 @@ function MemberPicker({
           </label>
         ) : (
           <label className="flex cursor-pointer items-start gap-2.5">
-            <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
+            <SystemCheckbox  checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
             <span>
               <span className="block text-xs font-black text-ink">Make this their home department</span>
               <span className="block text-[10px] font-semibold text-ink-muted">

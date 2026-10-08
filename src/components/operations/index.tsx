@@ -51,6 +51,9 @@ import {
   VEHICLE_MODELS,
   visitorFormSchema,
 } from "@/lib/validators/operations";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 /* ─── tiny helpers ─── */
 const inputCls =
@@ -223,15 +226,15 @@ function RoutesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Route Name" error={form.errors.title}>
-            <input className={`${inputCls} w-44`} {...form.field("title")} placeholder="Route A" />
+            <SystemInput className={`${inputCls} w-44`} {...form.field("title")} placeholder="Route A" />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="Stops, timings…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="Stops, timings…" />
           </OpField>
           {/* The stored value is paisa (the schema multiplies by 100 on save),
               so the unit has to be on the label — otherwise "500" is ambiguous. */}
           <OpField label="Fare (Rs)" error={form.errors.fare}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -305,25 +308,25 @@ function VehiclesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Number" error={form.errors.number}>
-            <input className={`${inputCls} w-32`} {...form.field("number")} placeholder="BUS-01" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("number")} placeholder="BUS-01" />
           </OpField>
           <OpField label="Type" error={form.errors.model}>
-            <select className={`${inputCls} w-28`} {...form.field("model")}>
+            <SystemSelect className={`${inputCls} w-28`} {...form.field("model")}>
               {VEHICLE_MODELS.map((value) => (
                 <option key={value} value={value}>
                   {value.charAt(0) + value.slice(1).toLowerCase()}
                 </option>
               ))}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Capacity" error={form.errors.capacity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} max={200} {...form.field("capacity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={200} {...form.field("capacity")} />
           </OpField>
           <OpField label="Driver Name" error={form.errors.driverName}>
-            <input className={`${inputCls} w-36`} {...form.field("driverName")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("driverName")} />
           </OpField>
           <OpField label="Driver Phone" error={form.errors.driverPhone}>
-            <input className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
+            <SystemInput className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -411,13 +414,13 @@ function DormRoomTypesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} placeholder="Single" />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} placeholder="Single" />
           </OpField>
           <OpField label="Cost/Term (Rs)" error={form.errors.costPerTerm}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("costPerTerm")} placeholder="0" />
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("costPerTerm")} placeholder="0" />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="Occupancy, facilities…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="Occupancy, facilities…" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -487,16 +490,16 @@ function DormRoomsTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Room #" error={form.errors.number}>
-            <input className={`${inputCls} w-28`} {...form.field("number")} placeholder="D-101" />
+            <SystemInput className={`${inputCls} w-28`} {...form.field("number")} placeholder="D-101" />
           </OpField>
           <OpField label="Type" error={form.errors.roomTypeId}>
-            <select className={`${inputCls} w-32`} {...form.field("roomTypeId")}>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("roomTypeId")}>
               <option value="">Select…</option>
               {types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Capacity" error={form.errors.capacity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -582,7 +585,7 @@ function BookCategoriesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} placeholder="Fiction" />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder="Fiction" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -650,29 +653,29 @@ function BooksTab() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <input className={`${inputCls} w-64 pl-9`} placeholder="Search books…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <SystemInput className={`${inputCls} w-64 pl-9`} placeholder="Search books…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Book</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Title" error={form.errors.title}>
-            <input className={`${inputCls} w-48`} {...form.field("title")} />
+            <SystemInput className={`${inputCls} w-48`} {...form.field("title")} />
           </OpField>
           <OpField label="Author" error={form.errors.author}>
-            <input className={`${inputCls} w-36`} {...form.field("author")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("author")} />
           </OpField>
           <OpField label="ISBN" error={form.errors.isbn}>
-            <input className={`${inputCls} w-32`} {...form.field("isbn")} placeholder="978…" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("isbn")} placeholder="978…" />
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
-            <select className={`${inputCls} w-32`} {...form.field("categoryId")}>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}>
               <option value="">None</option>
               {cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Copies" error={form.errors.copiesTotal}>
-            <input className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -737,10 +740,10 @@ function MembersTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="User ID" error={form.errors.userId}>
-            <input className={`${inputCls} w-64`} {...form.field("userId")} placeholder="Paste user ID" />
+            <SystemInput className={`${inputCls} w-64`} {...form.field("userId")} placeholder="Paste user ID" />
           </OpField>
           <OpField label="Member No" error={form.errors.memberNo}>
-            <input className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -811,22 +814,22 @@ function IssuesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Book" error={form.errors.bookId}>
-            <select className={`${inputCls} w-48`} {...form.field("bookId")}>
+            <SystemSelect className={`${inputCls} w-48`} {...form.field("bookId")}>
               <option value="">Select…</option>
               {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable} avail)</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Member" error={form.errors.memberId}>
             {/* Previously filtered on `m.isActive`, which LibraryMember does not
                 have — the list was therefore always empty and no member could
                 be picked. */}
-            <select className={`${inputCls} w-48`} {...form.field("memberId")}>
+            <SystemSelect className={`${inputCls} w-48`} {...form.field("memberId")}>
               <option value="">Select…</option>
               {members.map((m: any) => <option key={m.id} value={m.id}>{m.user?.fullName || m.memberNo || m.userId}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Due Date" error={form.errors.dueAt}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Issuing…" : "Issue"}</BrandButton>
         </div>
@@ -906,7 +909,7 @@ function ItemCategoriesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -959,7 +962,7 @@ function StoresTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("name")} placeholder="Main Store" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder="Main Store" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1012,16 +1015,16 @@ function SuppliersTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
           </OpField>
           <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
+            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
           </OpField>
           <OpField label="Email" error={form.errors.email}>
-            <input className={`${inputCls} w-36`} type="email" {...form.field("email")} />
+            <SystemInput className={`${inputCls} w-36`} type="email" {...form.field("email")} />
           </OpField>
           <OpField label="Address" error={form.errors.address} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("address")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("address")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1081,19 +1084,19 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><input className={`${inputCls} w-64 pl-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 pl-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Item</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
-            <select className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">None</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">None</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Unit" error={form.errors.unit}>
-            <input className={`${inputCls} w-24`} {...form.field("unit")} placeholder="pcs" />
+            <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder="pcs" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1157,27 +1160,27 @@ function TransactionsTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Kind" error={form.errors.kind}>
-            <select className={`${inputCls} w-28`} {...form.field("kind")}>
+            <SystemSelect className={`${inputCls} w-28`} {...form.field("kind")}>
               {ITEM_TRANSACTION_KINDS.map((k) => <option key={k} value={k}>{k.charAt(0) + k.slice(1).toLowerCase()}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Item" error={form.errors.itemId}>
-            <select className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">Select…</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">Select…</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Store" error={form.errors.storeId}>
-            <select className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">Select…</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">Select…</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Qty" error={form.errors.quantity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} {...form.field("quantity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} {...form.field("quantity")} />
           </OpField>
           <OpField label="Unit Price (Rs)" error={form.errors.unitPrice}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("unitPrice")} placeholder="0" />
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("unitPrice")} placeholder="0" />
           </OpField>
           <OpField label="Supplier" error={form.errors.supplierId}>
-            <select className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">None</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">None</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1249,16 +1252,16 @@ export function VisitorsPanel() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
           </OpField>
           <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
+            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
           </OpField>
           <OpField label="Purpose" error={form.errors.purpose}>
-            <input className={`${inputCls} w-36`} {...form.field("purpose")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("purpose")} />
           </OpField>
           <OpField label="Person to Meet" error={form.errors.toMeet}>
-            <input className={`${inputCls} w-36`} {...form.field("toMeet")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("toMeet")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1330,19 +1333,19 @@ export function ComplaintsPanel() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.complainantName}>
-            <input className={`${inputCls} w-36`} {...form.field("complainantName")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("complainantName")} />
           </OpField>
           <OpField label="Type" error={form.errors.type}>
-            <input className={`${inputCls} w-28`} {...form.field("type")} placeholder="General" />
+            <SystemInput className={`${inputCls} w-28`} {...form.field("type")} placeholder="General" />
           </OpField>
           <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
+            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
           </OpField>
           <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="What happened?" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="What happened?" />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1410,25 +1413,25 @@ export function PostalPanel() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Type" error={form.errors.direction}>
-            <select className={`${inputCls} w-32`} {...form.field("direction")}>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("direction")}>
               <option value="RECEIVE">Received</option>
               <option value="DISPATCH">Dispatched</option>
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Sender" error={form.errors.fromName}>
-            <input className={`${inputCls} w-32`} {...form.field("fromName")} />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("fromName")} />
           </OpField>
           <OpField label="Receiver" error={form.errors.toName}>
-            <input className={`${inputCls} w-32`} {...form.field("toName")} />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("toName")} />
           </OpField>
           <OpField label="Ref #" error={form.errors.referenceNo}>
-            <input className={`${inputCls} w-28`} {...form.field("referenceNo")} />
+            <SystemInput className={`${inputCls} w-28`} {...form.field("referenceNo")} />
           </OpField>
           <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
           </OpField>
           <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1495,25 +1498,25 @@ export function PhoneCallsPanel() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Caller" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
           </OpField>
           <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
+            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
           </OpField>
           <OpField label="Direction" error={form.errors.direction}>
-            <select className={`${inputCls} w-28`} {...form.field("direction")}>
+            <SystemSelect className={`${inputCls} w-28`} {...form.field("direction")}>
               <option value="IN">Incoming</option>
               <option value="OUT">Outgoing</option>
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
           </OpField>
           <OpField label="Follow-up" error={form.errors.followUpDate}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("followUpDate")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("followUpDate")} />
           </OpField>
           <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>
@@ -1580,22 +1583,22 @@ export function CertificatesPanel() {
         <div className={`${addBoxCls} flex-col`}>
           <div className="flex flex-wrap gap-3">
             <OpField label="Name" error={form.errors.name}>
-              <input className={`${inputCls} w-48`} {...form.field("name")} placeholder="Transfer Certificate" />
+              <SystemInput className={`${inputCls} w-48`} {...form.field("name")} placeholder="Transfer Certificate" />
             </OpField>
             <OpField label="Type" error={form.errors.kind}>
-              <select className={`${inputCls} w-48`} {...form.field("kind")}>
+              <SystemSelect className={`${inputCls} w-48`} {...form.field("kind")}>
                 <option value="STUDENT_CERTIFICATE">Student Certificate</option>
                 <option value="ID_CARD">ID Card</option>
-              </select>
+              </SystemSelect>
             </OpField>
             <OpField label="Page Size" error={form.errors.pageSize}>
-              <select className={`${inputCls} w-32`} {...form.field("pageSize")}>
+              <SystemSelect className={`${inputCls} w-32`} {...form.field("pageSize")}>
                 {PAGE_SIZES.map((size) => <option key={size} value={size}>{size.replace("_", " ")}</option>)}
-              </select>
+              </SystemSelect>
             </OpField>
             </div>
           <OpField label="Body Template" error={form.errors.bodyTemplate} width="w-full">
-            <textarea className={`${inputCls} w-full min-h-[80px] resize-y py-2`} {...form.field("bodyTemplate")} placeholder="Use {{studentName}}, {{className}}, etc." />
+            <SystemTextarea className={`${inputCls} w-full min-h-[80px] resize-y py-2`} {...form.field("bodyTemplate")} placeholder="Use {{studentName}}, {{className}}, etc." />
           </OpField>
           <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
         </div>

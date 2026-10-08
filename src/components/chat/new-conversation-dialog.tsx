@@ -10,6 +10,7 @@ import { useChat } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import { ChatPortal } from "./chat-portal";
 import type { DirectoryContact } from "@/lib/chat/types";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Grouping order — leadership first, families last, which is roughly how often
@@ -288,7 +289,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       <label className="sr-only" htmlFor="group-title">
                         Group name
                       </label>
-                      <input
+                      <SystemInput
                         id="group-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
@@ -331,7 +332,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   <label className="sr-only" htmlFor="directory-search">
                     Search people
                   </label>
-                  <input
+                  <SystemInput
                     id="directory-search"
                     type="search"
                     value={query}

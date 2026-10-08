@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
+import { Input as SystemInput } from "@/components/ui/input";
 
 function SafePayForm() {
   const router = useRouter();
@@ -131,7 +132,7 @@ function SafePayForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Cardholder Name</label>
-            <input
+            <SystemInput
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
               placeholder="John Doe"
@@ -141,7 +142,7 @@ function SafePayForm() {
           </div>
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Card Number</label>
-            <input
+            <SystemInput
               value={cardNumber}
               onChange={(e) => setCardNumber(formatCard(e.target.value))}
               placeholder="4242 4242 4242 4242"
@@ -152,7 +153,7 @@ function SafePayForm() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Expiry</label>
-              <input
+              <SystemInput
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                 placeholder="MM/YY"
@@ -162,7 +163,7 @@ function SafePayForm() {
             </div>
             <div className="flex-1">
               <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">CVV</label>
-              <input
+              <SystemInput
                 value={cvv}
                 onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
                 placeholder="123"

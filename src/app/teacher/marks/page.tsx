@@ -21,6 +21,7 @@ import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { NavGuardPrompt } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
@@ -327,7 +328,7 @@ export default function MarksPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-            <input
+            <SystemInput
               value={examQuery}
               onChange={(e) => setExamQuery(e.target.value)}
               placeholder="Find an assessment or class…"
@@ -514,7 +515,7 @@ export default function MarksPage() {
                           const isDirty = dirtyKeys.has(key);
                           return (
                             <td key={subject.id} className="px-3 py-3">
-                              <input type="number" min={0} max={max} value={value} disabled={isLocked}
+                              <SystemInput type="number" min={0} max={max} value={value} disabled={isLocked}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}

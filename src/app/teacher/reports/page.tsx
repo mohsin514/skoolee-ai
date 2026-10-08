@@ -13,6 +13,7 @@ import {
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { Input as SystemInput } from "@/components/ui/input";
 
 export default function ReportsPage() {
   const { data, loading, error, loadData } = useTeacherData();
@@ -241,7 +242,7 @@ export default function ReportsPage() {
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[190px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                  <input
+                  <SystemInput
                     value={cardQuery}
                     onChange={(e) => setCardQuery(e.target.value)}
                     placeholder="Student, roll no or exam…"

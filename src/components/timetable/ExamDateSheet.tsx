@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { toast } from "sonner";
 import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 const WEEKDAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -156,7 +157,7 @@ export function ExamDateSheet({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!classId && classOptions.length > 1 && (
-            <select
+            <SystemSelect
               value={classFilter}
               onChange={(e) => { setClassFilter(e.target.value); setSelectedExamId(""); }}
               className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -165,9 +166,9 @@ export function ExamDateSheet({
               {classOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.label}</option>
               ))}
-            </select>
+            </SystemSelect>
           )}
-          <select
+          <SystemSelect
             value={selectedExamId}
             onChange={(e) => setSelectedExamId(e.target.value)}
             className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -179,7 +180,7 @@ export function ExamDateSheet({
                 {e.class ? ` (${e.class.name}${e.class.section ? ` ${e.class.section}` : ""})` : ""}
               </option>
             ))}
-          </select>
+          </SystemSelect>
           {hasSheets && (
             <button
               type="button"

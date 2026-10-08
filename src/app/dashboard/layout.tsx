@@ -1,3 +1,4 @@
+import { PageCard } from "@/components/ui/page-card";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -45,7 +46,7 @@ export default async function DashboardLayout({
               Subscription suspended. Billing is still available so an administrator can restore access.
             </div>
           )}
-          {children}
+          <div className="p-3 sm:p-5"><PageCard className="p-0 sm:p-0">{children}</PageCard></div>
         </main>
         <ChatDock />
       </div>

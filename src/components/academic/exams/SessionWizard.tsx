@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Field, inputClass, selectClass } from "@/components/academic/exams/shared";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Create one exam for every class in a single pass (§80).
@@ -274,16 +276,16 @@ export function SessionWizard({
         {/* ── When ──────────────────────────────────────────────────────── */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Term">
-            <select className={selectClass} value={term} onChange={(e) => setTerm(e.target.value)}>
+            <SystemSelect className={selectClass} value={term} onChange={(e) => setTerm(e.target.value)}>
               {TERMS.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
-            </select>
+            </SystemSelect>
           </Field>
           <Field label="Title" className="sm:col-span-1 lg:col-span-1">
-            <input
+            <SystemInput
               className={inputClass}
               value={title}
               onChange={(e) => {
@@ -294,7 +296,7 @@ export function SessionWizard({
             />
           </Field>
           <Field label="Starts" hint="Optional — it just frames the planner">
-            <input
+            <SystemInput
               type="date"
               className={inputClass}
               value={startDate}
@@ -302,7 +304,7 @@ export function SessionWizard({
             />
           </Field>
           <Field label="Ends" hint="Optional">
-            <input
+            <SystemInput
               type="date"
               className={inputClass}
               value={endDate}

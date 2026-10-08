@@ -42,6 +42,9 @@ import {
   layoutTree,
   type Placed,
 } from "@/lib/staff/org-layout";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /** Every id from `startIds` up to the root, so a search hit can be revealed. */
 function ancestorsOf(nodes: Map<string, OrgNode>, startIds: string[]) {
@@ -229,7 +232,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <input
+          <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -251,7 +254,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           ) : null}
         </div>
 
-        <select
+        <SystemSelect
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
           className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
@@ -263,9 +266,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               {d.name}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <select
+        <SystemSelect
           value={track}
           onChange={(e) => setTrack(e.target.value)}
           className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
@@ -276,7 +279,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               {tone.label}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
         <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
           <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
@@ -300,7 +303,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           </span>
         ))}
         <label className="flex cursor-pointer items-center gap-1.5 normal-case">
-          <input type="checkbox" checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
+          <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
           <span className="font-black uppercase tracking-wide">Show secondary lines</span>
         </label>
         {query ? <span className="normal-case text-[#8127cf]">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}

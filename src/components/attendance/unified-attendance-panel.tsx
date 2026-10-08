@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Input as SystemInput } from "@/components/ui/input";
 
 export function UnifiedAttendancePanel() {
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
@@ -159,7 +160,7 @@ export function UnifiedAttendancePanel() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
-              <input type="text" placeholder="Search teachers..." value={teacherSearch}
+              <SystemInput type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
                 className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
             </div>
