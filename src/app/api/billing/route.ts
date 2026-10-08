@@ -6,7 +6,7 @@ import { feeStructureSchema, generateInvoicesSchema, paymentSchema } from "@/lib
 import {
   ApiError,
   canManageBilling,
-  canPurchaseSubscription,
+  canManageSubscription,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
     const canReadTuition = canManageBilling(user) || user.role === "ACCOUNTANT";
-    if (!canReadTuition && !canPurchaseSubscription(user)) throw new ApiError("Billing is not delegated to this membership", 403);
+    const canManagePlan = canManageSubscription(user);
+    if (!canReadTuition && !canManagePlan) throw new ApiError("Billing is not delegated to this membership", 403);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
       : await resolveCampusId(user, requestedCampusId);
 
     const [billing, feeStructures] = await Promise.all([
-      getBillingSnapshot(user.schoolId),
+      canManagePlan ? getBillingSnapshot(user.schoolId) : Promise.resolve(null),
       canReadTuition ? prisma.feeStructure.findMany({
       where: {
         ...scopedCampusWhere(user, campusId),
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
       }) : Promise.resolve([]),
     ]);
 
-    return Response.json({ success: true, billing: { ...billing, canPurchaseSubscription: canPurchaseSubscription(user) }, feeStructures });
+    return Response.json({ success: true, billing: billing ? { ...billing, canPurchaseSubscription: canManagePlan } : null, feeStructures });
   } catch (error) {
     return errorResponse(error, "[billing] GET failed");
   }

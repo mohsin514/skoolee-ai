@@ -64,7 +64,7 @@ export function stripeStatusToSchoolStatus(status: string | null | undefined) {
 export async function assertSchoolOperational(schoolId: string, client: DbClient = prisma) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { status: true },
+    select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
@@ -79,7 +79,16 @@ export async function assertSchoolOperational(schoolId: string, client: DbClient
     throw new BillingAccessError("School not found", 404);
   }
 
-  if (!isSchoolOperational(school.status)) {
+  const graceExpired = school.subscriptionLifecycleState === "PAST_DUE_GRACE" &&
+    Boolean(school.graceEndsAt && school.graceEndsAt <= new Date());
+  if (graceExpired) {
+    await client.school.updateMany({
+      where: { id: schoolId, subscriptionLifecycleState: "PAST_DUE_GRACE", graceEndsAt: { lte: new Date() } },
+      data: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE" },
+    });
+  }
+
+  if (!isSchoolOperational(school.status) || graceExpired) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
@@ -99,11 +108,11 @@ export async function assertPlanCapacity({
 }) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true, status: true, commercialContract: true },
+    select: { plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
-  if (!isSchoolOperational(school.status)) {
+  if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
@@ -127,11 +136,11 @@ export async function assertPlanCapacity({
 export async function assertFeatureEnabled(schoolId: string, feature: PlanFeature, client: DbClient = prisma) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true, status: true, commercialContract: true },
+    select: { plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
-  if (!isSchoolOperational(school.status)) {
+  if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
@@ -152,6 +161,9 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       name: true,
       plan: true,
       status: true,
+      subscriptionLifecycleState: true,
+      cancellationEffectiveAt: true,
+      graceEndsAt: true,
       planStartedAt: true,
       planEndsAt: true,
       lastPaymentAt: true,
@@ -237,7 +249,10 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       aiCredits: school.aiCreditsUsed,
     },
     plans,
-    isOperational: isSchoolOperational(school.status),
+    isOperational: isSchoolOperational(school.status) && !(
+      school.subscriptionLifecycleState === "PAST_DUE_GRACE" &&
+      Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())
+    ),
     planEndsAt: school.planEndsAt?.toISOString() ?? null,
     planStartedAt: school.planStartedAt?.toISOString() ?? null,
     lastPaymentAt: school.lastPaymentAt?.toISOString() ?? null,
@@ -266,6 +281,8 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
     data: {
       plan,
       status,
+      subscriptionLifecycleState: status === "TRIAL" ? "TRIAL" : status === "ACTIVE" ? "ACTIVE" : status === "SUSPENDED" ? "PAST_DUE" : status,
+      ...(status === "ACTIVE" || status === "TRIAL" ? { graceEndsAt: null } : {}),
       aiCreditsLimit: contract?.aiCredits ?? limits.aiCredits,
       commercialContract: contract ?? createPlanContract(plan),
       ...(stripeSubscriptionId !== undefined ? { stripeSubscriptionId } : {}),
@@ -299,6 +316,9 @@ export async function activatePlan(schoolId: string, plan: PlanType, client: DbC
     data: {
       plan,
       status: "ACTIVE",
+      subscriptionLifecycleState: "ACTIVE",
+      cancellationEffectiveAt: null,
+      graceEndsAt: null,
       planStartedAt: school.planStartedAt ?? now,
       planEndsAt,
       lastPaymentAt: now,

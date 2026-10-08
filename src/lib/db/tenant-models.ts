@@ -116,6 +116,7 @@ export const TENANT_MODELS = new Set<string>([
   "studentGroup",
   "studentTimelineEvent",
   "subject",
+  "subscriptionRequest",
   "supplier",
   "supportAction",
   "supportGrant",
@@ -140,5 +141,6 @@ export const GLOBAL_MODELS = new Set<string>([
   "pendingRegistration",
   "platformConfig",
   "school",
+  "stripeWebhookReceipt",
   "superAdminAuditLog",
 ]);

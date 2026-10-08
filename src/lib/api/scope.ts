@@ -204,6 +204,13 @@ export function canPurchaseSubscription(user: AuthUser) {
   return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
 }
 
+export function canManageSubscription(user: AuthUser) {
+  // Tuition-finance roles are deliberately not subscription owners. Only the
+  // verified institutional owner or an owner-approved subscription delegate
+  // can change the institution-wide software contract.
+  return canPurchaseSubscription(user);
+}
+
 export function canManageBilling(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role);
 }

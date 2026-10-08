@@ -6,13 +6,14 @@ import { getPlanLimits, normalizePlan } from "@/config/plans";
 import { createPlanContract, decodePlanContractMetadata } from "@/config/commercial-contract";
 import { stripe } from "@/lib/stripe/server";
 import {
-  applySchoolPlan,
   planFromStripePriceId,
   stripeStatusToSchoolStatus,
+  GRACE_PERIOD_DAYS,
 } from "@/lib/billing/entitlements";
 import type { PlanType } from "@/types";
 import { settleVerifiedCheckoutIntent } from "@/lib/billing/checkout-intents";
 import { getPriceId, verifyStripePrice } from "@/lib/stripe/server";
+import { restorePlanChangeApproval } from "@/lib/billing/lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ async function findSchoolForSubscription(subscription: Stripe.Subscription) {
   return school?.id || null;
 }
 
-async function syncSubscription(subscription: Stripe.Subscription) {
+async function syncSubscription(subscription: Stripe.Subscription, eventCreated: number) {
   const schoolId = await findSchoolForSubscription(subscription);
   if (!schoolId) return;
   const checkoutIntentId = subscription.metadata?.checkoutIntentId;
@@ -75,31 +76,131 @@ async function syncSubscription(subscription: Stripe.Subscription) {
   const pricePlan = planFromStripePriceId(subscriptionPriceId(subscription));
   const plan = pricePlan || metadataPlan || "FREE";
   const customerId = stringId(subscription.customer);
-  const status = stripeStatusToSchoolStatus(subscription.status);
+  const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true, lastStripeEventCreated: true, graceEndsAt: true, stripeSubscriptionId: true } });
+  if (current?.stripeSubscriptionId && current.stripeSubscriptionId !== subscription.id) return;
+  if (current?.lastStripeEventCreated != null && eventCreated < current.lastStripeEventCreated) return;
+  const paymentPastDue = subscription.status === "past_due" || subscription.status === "unpaid";
+  const graceEndsAt = paymentPastDue
+    ? current?.graceEndsAt || new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+  const inGrace = Boolean(graceEndsAt && graceEndsAt > new Date());
+  const status = paymentPastDue ? (inGrace ? "ACTIVE" : "SUSPENDED") : stripeStatusToSchoolStatus(subscription.status);
   const limits = getPlanLimits(plan);
-  const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true } });
   const termsChanged = !current || normalizePlan(current.plan) !== plan || !current.commercialContract;
   const encodedContract = subscription.metadata?.commercialContract;
   const quotedContract = decodePlanContractMetadata(encodedContract, plan);
   if (termsChanged && encodedContract && !quotedContract) throw new Error("Invalid commercial contract in Stripe subscription metadata");
 
-  await prisma.school.update({
-    where: { id: schoolId },
+  const applied = await prisma.school.updateMany({
+    where: { id: schoolId, OR: [
+      { lastStripeEventCreated: null },
+      { lastStripeEventCreated: { lte: eventCreated } },
+    ] },
     data: {
       plan,
       status,
+      subscriptionLifecycleState: subscription.cancel_at_period_end ? "CANCELLATION_SCHEDULED" :
+        paymentPastDue ? (inGrace ? "PAST_DUE_GRACE" : "PAST_DUE") :
+          subscription.status === "canceled" ? "ENDED" : subscription.status === "trialing" ? "TRIAL" :
+            subscription.status === "active" ? "ACTIVE" : "PENDING_PAYMENT",
+      cancellationEffectiveAt: subscription.cancel_at_period_end && subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+      graceEndsAt,
+      lastStripeEventCreated: eventCreated,
       ...(termsChanged ? { aiCreditsLimit: quotedContract?.aiCredits ?? limits.aiCredits, commercialContract: quotedContract ?? createPlanContract(plan) } : {}),
       stripeSubscriptionId: subscription.id,
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
   });
+  if (applied.count === 1) await markVerifiedPlanChange(subscription, eventCreated);
 }
 
-async function suspendByCustomer(customerId: string | null) {
+async function markVerifiedPlanChange(subscription: Stripe.Subscription, eventCreated: number) {
+  if (subscription.status !== "active") return;
+  const requestId = subscription.metadata?.subscriptionChangeRequestId;
+  const schoolId = await findSchoolForSubscription(subscription);
+  if (!requestId || !schoolId) return;
+  const school = await prisma.school.findUnique({ where: { id: schoolId }, select: { stripeSubscriptionId: true, lastStripeEventCreated: true } });
+  if (school?.stripeSubscriptionId !== subscription.id || (school.lastStripeEventCreated != null && school.lastStripeEventCreated > eventCreated)) return;
+  const request = await prisma.subscriptionRequest.findFirst({ where: { id: requestId, schoolId, state: "CHECKOUT_STARTED" }, select: { id: true, kind: true, state: true, requestedPlan: true, details: true } });
+  if (!request || request.kind !== "PLAN_CHANGE" || request.requestedPlan !== subscription.metadata?.plan) return;
+  const details = request.details && typeof request.details === "object" && !Array.isArray(request.details)
+    ? request.details as Record<string, unknown>
+    : {};
+  const changed = await prisma.subscriptionRequest.updateMany({
+    where: { id: requestId, schoolId, state: "CHECKOUT_STARTED", requestedPlan: subscription.metadata?.plan },
+    data: { state: "VERIFIED_ACTIVE", details: { ...details, providerOutcome: { status: "active", subscriptionId: subscription.id, verifiedAt: new Date().toISOString(), eventCreated } } as any },
+  });
+  if (changed.count === 1) {
+    await prisma.auditLog.create({ data: { schoolId, userId: "stripe-webhook", tableName: "subscription_request",
+      recordId: requestId, oldValue: { state: "CHECKOUT_STARTED" }, newValue: { state: "VERIFIED_ACTIVE", eventCreated } } });
+  }
+}
+
+async function suspendByCustomer(customerId: string | null, eventCreated: number) {
   if (!customerId) return;
-  await prisma.school.updateMany({
-    where: { stripeCustomerId: customerId },
-    data: { status: "SUSPENDED" },
+  const schools = await prisma.school.findMany({
+    where: { stripeCustomerId: customerId, OR: [
+      { lastStripeEventCreated: null },
+      { lastStripeEventCreated: { lte: eventCreated } },
+    ] },
+    select: { id: true, graceEndsAt: true },
+  });
+  for (const school of schools) {
+    const graceEndsAt = school.graceEndsAt || new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+    const inGrace = graceEndsAt > new Date();
+    await prisma.school.updateMany({
+      where: { id: school.id, OR: [
+        { lastStripeEventCreated: null },
+        { lastStripeEventCreated: { lte: eventCreated } },
+      ] },
+      data: {
+        status: inGrace ? "ACTIVE" : "SUSPENDED",
+        subscriptionLifecycleState: inGrace ? "PAST_DUE_GRACE" : "PAST_DUE",
+        graceEndsAt,
+        lastStripeEventCreated: eventCreated,
+      },
+    });
+  }
+}
+
+async function claimWebhookReceipt(event: Stripe.Event) {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - 2 * 60 * 1000);
+  const existing = await prisma.stripeWebhookReceipt.findUnique({ where: { eventId: event.id } });
+  if (existing?.state === "PROCESSED") return "duplicate" as const;
+  if (existing?.state === "PROCESSING" && existing.receivedAt > staleBefore) return "in_progress" as const;
+
+  if (existing) {
+    const claimed = await prisma.stripeWebhookReceipt.updateMany({
+      where: { eventId: event.id, OR: [
+        { state: "FAILED" },
+        { state: "PROCESSING", receivedAt: { lte: staleBefore } },
+      ] },
+      data: { state: "PROCESSING", eventType: event.type, eventCreated: event.created,
+        receivedAt: now, processedAt: null, error: null, attemptCount: { increment: 1 } },
+    });
+    return claimed.count === 1 ? "claimed" as const : "in_progress" as const;
+  }
+
+  try {
+    await prisma.stripeWebhookReceipt.create({
+      data: { eventId: event.id, eventType: event.type, eventCreated: event.created, state: "PROCESSING" },
+    });
+    return "claimed" as const;
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "P2002")) throw error;
+    return "in_progress" as const;
+  }
+}
+
+async function finishWebhookReceipt(eventId: string, state: "PROCESSED" | "FAILED", error?: unknown) {
+  await prisma.stripeWebhookReceipt.update({
+    where: { eventId },
+    data: {
+      state,
+      processedAt: state === "PROCESSED" ? new Date() : null,
+      error: state === "FAILED" ? (error instanceof Error ? error.message : "Unknown webhook failure").slice(0, 4000) : null,
+    },
   });
 }
 
@@ -135,6 +236,15 @@ async function handleWebhook(req: NextRequest) {
   }
 
   try {
+    const receiptClaim = await claimWebhookReceipt(event);
+    if (receiptClaim === "duplicate") return Response.json({ received: true, duplicate: true });
+    if (receiptClaim === "in_progress") return Response.json({ received: true, pending: true }, { status: 202 });
+  } catch (error) {
+    console.error("[stripe/webhook] receipt claim failed", error);
+    return Response.json({ error: "Webhook receipt could not be recorded" }, { status: 503 });
+  }
+
+  try {
     if (
       event.type === "checkout.session.completed" ||
       event.type === "checkout.session.async_payment_succeeded" ||
@@ -161,6 +271,12 @@ async function handleWebhook(req: NextRequest) {
             data: { status: event.type === "checkout.session.expired" ? "CANCELLED" : "FAILED",
               failureReason: event.type === "checkout.session.expired" ? null : "Stripe reported a failed payment." },
           });
+          if (session.metadata?.subscriptionChangeRequestId) await restorePlanChangeApproval(
+            session.metadata.schoolId || intent.schoolId,
+            session.metadata.subscriptionChangeRequestId,
+            intent.userId,
+          );
+          await finishWebhookReceipt(event.id, "PROCESSED");
           return Response.json({ received: true });
         }
         if (session.payment_status !== "paid" || session.mode !== "subscription") {
@@ -168,6 +284,7 @@ async function handleWebhook(req: NextRequest) {
             where: { id: intent.id, schoolId, status: "CHECKOUT_PENDING" },
             data: { status: "PENDING_SETTLEMENT" },
           });
+          await finishWebhookReceipt(event.id, "PROCESSED");
           return Response.json({ received: true, pending: true });
         }
         const subscriptionId = stringId(session.subscription);
@@ -189,6 +306,7 @@ async function handleWebhook(req: NextRequest) {
             where: { id: intent.id, schoolId, status: "CHECKOUT_PENDING" },
             data: { status: "PENDING_SETTLEMENT" },
           });
+          await finishWebhookReceipt(event.id, "PROCESSED");
           return Response.json({ received: true, pending: true });
         }
         await verifyStripePrice(priceId, plan as PlanType, billingPeriod as "monthly" | "annual", savedContract.price);
@@ -202,11 +320,23 @@ async function handleWebhook(req: NextRequest) {
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: stringId(session.customer),
         });
+        await finishWebhookReceipt(event.id, "PROCESSED");
         return Response.json({ received: true });
       }
     }
 
-    if (event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const requestId = session.metadata?.subscriptionChangeRequestId;
+      if (requestId && session.metadata?.schoolId) {
+        const request = await prisma.subscriptionRequest.findFirst({ where: { id: requestId, schoolId: session.metadata.schoolId, state: "CHECKOUT_STARTED" }, select: { requestedById: true } });
+        if (request) await restorePlanChangeApproval(session.metadata.schoolId, requestId, request.requestedById);
+      }
+      await finishWebhookReceipt(event.id, "PROCESSED");
+      return Response.json({ received: true });
+    }
+
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object as Stripe.Checkout.Session;
       const schoolId = session.metadata?.schoolId || session.client_reference_id;
       const subscriptionId = stringId(session.subscription);
@@ -217,44 +347,72 @@ async function handleWebhook(req: NextRequest) {
       if (encodedContract && !quotedContract) throw new Error("Invalid commercial contract in Stripe checkout metadata");
 
       if (schoolId && subscriptionId) {
+        if (session.mode !== "subscription" || session.payment_status !== "paid") {
+          await finishWebhookReceipt(event.id, "PROCESSED");
+          return Response.json({ received: true, pending: true });
+        }
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const pricePlan = planFromStripePriceId(subscriptionPriceId(subscription));
         const plan = (pricePlan || requestedPlan) as PlanType;
-        const matchingContract = plan === requestedPlan ? quotedContract : null;
-        await applySchoolPlan(schoolId, plan, stripeStatusToSchoolStatus(subscription.status), subscription.id, matchingContract);
-        if (customerId) {
-          await prisma.school.update({ where: { id: schoolId }, data: { stripeCustomerId: customerId } });
+        if (plan !== requestedPlan && quotedContract) throw new Error("Stripe checkout price does not match the requested plan");
+        if (subscription.status !== "active" || subscription.metadata?.schoolId !== schoolId ||
+            subscription.metadata?.plan !== requestedPlan || (session.metadata?.subscriptionChangeRequestId &&
+              subscription.metadata?.subscriptionChangeRequestId !== session.metadata.subscriptionChangeRequestId)) {
+          await finishWebhookReceipt(event.id, "PROCESSED");
+          return Response.json({ received: true, pending: true });
         }
+        await syncSubscription(subscription, event.created);
+        if (customerId) await prisma.school.updateMany({ where: { id: schoolId,
+          OR: [{ lastStripeEventCreated: null }, { lastStripeEventCreated: { lte: event.created } }] },
+          data: { stripeCustomerId: customerId, lastStripeEventCreated: event.created } });
       }
     }
 
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
-      await syncSubscription(event.data.object as Stripe.Subscription);
+      const incoming = event.data.object as Stripe.Subscription;
+      await syncSubscription(await stripe.subscriptions.retrieve(incoming.id), event.created);
     }
 
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       const schoolId = await findSchoolForSubscription(subscription);
       if (schoolId) {
-        await applySchoolPlan(schoolId, "FREE", "SUSPENDED", null);
+        const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { stripeSubscriptionId: true } });
+        if (current?.stripeSubscriptionId && current.stripeSubscriptionId !== subscription.id) {
+          await finishWebhookReceipt(event.id, "PROCESSED");
+          return Response.json({ received: true, stale_subscription: true });
+        }
+        await prisma.school.updateMany({
+          where: { id: schoolId, OR: [
+            { lastStripeEventCreated: null },
+            { lastStripeEventCreated: { lte: event.created } },
+          ] },
+          data: { plan: "FREE", status: "SUSPENDED", subscriptionLifecycleState: "ENDED",
+            cancellationEffectiveAt: null, graceEndsAt: null, stripeSubscriptionId: null,
+            lastStripeEventCreated: event.created },
+        });
       }
     }
 
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
-      await suspendByCustomer(stringId(invoice.customer));
+      const subscriptionId = invoiceSubscriptionId(invoice);
+      if (subscriptionId) await syncSubscription(await stripe.subscriptions.retrieve(subscriptionId), event.created);
+      else await suspendByCustomer(stringId(invoice.customer), event.created);
     }
 
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = invoiceSubscriptionId(invoice);
       if (subscriptionId) {
-        await syncSubscription(await stripe.subscriptions.retrieve(subscriptionId));
+        await syncSubscription(await stripe.subscriptions.retrieve(subscriptionId), event.created);
       }
     }
 
+    await finishWebhookReceipt(event.id, "PROCESSED");
     return Response.json({ received: true });
   } catch (error) {
+    await finishWebhookReceipt(event.id, "FAILED", error).catch(receiptError => console.error("[stripe/webhook] receipt failure update failed", receiptError));
     console.error("[stripe/webhook]", error);
     return Response.json({ error: "Webhook handler failed" }, { status: 500 });
   }

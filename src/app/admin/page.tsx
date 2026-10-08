@@ -53,6 +53,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { PlansPanel } from "@/components/billing/PlansPanel";
+import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
@@ -1263,7 +1264,7 @@ export default function CampusAdminDashboard() {
               plan buying only — the two never mix. */}
           {activeView === "billing"
             ? canManagePlans
-              ? <PlansPanel />
+              ? <><SubscriptionLifecyclePanel /><PlansPanel /></>
               : <RestrictedView onBack={() => setActiveView(DEFAULT_VIEW)} />
             : null}
         </div>
