@@ -1,6 +1,7 @@
 'use server'
+import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
 
-import { studentScope, publishedMarksWhere, publishedReportsWhere } from "@/lib/auth/policy";
+import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
@@ -1343,21 +1344,6 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       // Marks and report cards reach the family only once the office has
       // published them — never while an exam is in DRAFT/MARKS_ENTRY or a card
       // is still GENERATED/REVIEWED.
-      marks: {
-        where: publishedMarksWhere,
-        include: {
-          subject: {
-            select: {
-              id: true,
-              name: true,
-              totalMarks: true,
-              teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-            },
-          },
-          exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } },
-          enterer: { select: { fullName: true } },
-        },
-      },
       attendance: {
         include: {
           marker: { select: { fullName: true } },
@@ -1384,6 +1370,8 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     where: studentScope(session), include: studentInclude,
     orderBy: [{ rollNo: "asc" }, { id: "asc" }],
   });
+
+  const released = await Promise.all((student?.reportCards || []).map(async r => familyVersion(await getPublishedVersion(r.id))));
 
   // Only the current year's days belong on the student's own dashboard;
   // previous years stay available as history elsewhere.
@@ -1427,9 +1415,9 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         : "Unassigned",
       classTeacher: student?.class?.classTeacher || null,
       subjects: student?.class?.subjects || [],
-      marks: student?.marks || [],
+      marks: released.flatMap(r => r.marks.map(m => ({ ...m, id: `${r.versionId}:${m.subjectId}`, marksObtained: m.obtained, subject: { id: m.subjectId, name: m.subject, totalMarks: m.total }, exam: { id: r.examId, title: r.examTitle, status: "PUBLISHED", term: r.term, academicYear: r.academicYear } }))),
       attendance: currentYearAttendance,
-      reportCards: student?.reportCards.map((report) => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&redirect=1` })) || [],
+      reportCards: released.map(report => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&versionId=${report.versionId}&redirect=1` })),
       invoices: student?.invoices || [],
       attendanceRate,
       balanceDue,

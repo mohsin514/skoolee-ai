@@ -1,3 +1,4 @@
+import { reviewQueue, approveVersions, publishExam } from "../../src/lib/academic/report-versions";
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
@@ -50,10 +51,15 @@ before(async () => {
   ]) await raw.student.create({data:{id:id!,campusId:campusId!,classId:classId!,schoolId:schoolId!,fullName:'Same pupil name',rollNo:id!,gender:'MALE',parentUserId,studentUserId,guardianEmail:actors.get('PARENT')!.email}});
   const subject=await raw.subject.create({data:{schoolId:schoolA,campusId:campusA,classId:classA,name:'Synthetic math'}});
   for(const [id,status] of [[published,'PUBLISHED'],[draft,'DRAFT']]) {
-    await raw.exam.create({data:{id,schoolId:schoolA,campusId:campusA,classId:classA,title:status,term:'Term 1',academicYear:2026,status}});
+    await raw.exam.create({data:{id,schoolId:schoolA,campusId:campusA,classId:classA,title:status,term:'Term 1',academicYear:2026,status,isLocked:status==="PUBLISHED"}});
     await raw.mark.create({data:{schoolId:schoolA,campusId:campusA,examId:id,studentId:own,subjectId:subject.id,marksObtained:status==='DRAFT'?99:80}});
-    await raw.reportCard.create({data:{id:status==='DRAFT'?draftReport:publishedReport,schoolId:schoolA,campusId:campusA,examId:id,studentId:own,status:status==='DRAFT'?'GENERATED':'PUBLISHED'}});
+    await raw.reportCard.create({data:{id:status==='DRAFT'?draftReport:publishedReport,schoolId:schoolA,campusId:campusA,examId:id,studentId:own,status:status==='DRAFT'?'GENERATED':'PUBLISHED',remarksEn:status==='DRAFT'?null:'Synthetic approved report'}});
   }
+  await runWithTenantContext(ctx(actors.get('PRINCIPAL')!), async () => {
+    const [version] = await reviewQueue([publishedReport]);
+    await approveVersions([{reportCardId:publishedReport,versionId:version.id}],actors.get('PRINCIPAL')!.userId);
+    await publishExam(published,actors.get('PRINCIPAL')!.userId);
+  });
 });
 after(async()=>{ await rm("public/generated/reports/sko207-synthetic.pdf",{force:true}); await rm("public/sko207-control.txt",{force:true}); await raw.school.deleteMany({where:{id:{in:[schoolA,schoolB]}}}); await raw.$disconnect(); await prisma.$disconnect(); });
 

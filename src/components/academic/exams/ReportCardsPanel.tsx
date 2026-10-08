@@ -1,4 +1,5 @@
 "use client";
+import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -58,7 +59,7 @@ interface ReportCard {
 type StepKey = "lock" | "review" | "pdf" | "publish" | "send";
 type StepState = "done" | "ready" | "blocked";
 
-export function ReportCardsPanel({
+function LegacyReportCardsPanel({
   exam,
   campusId,
   onChanged,
@@ -614,4 +615,9 @@ export function ReportCardsPanel({
       </Panel>
     </div>
   );
+}
+
+export function ReportCardsPanel(props: { exam: ExamItem; campusId?: string; onChanged?: () => void }) {
+ return props.exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(props.exam.status || "")
+  ? <ReportCardPipeline {...props} /> : <LegacyReportCardsPanel {...props} />;
 }

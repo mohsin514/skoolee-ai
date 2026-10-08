@@ -1,3 +1,5 @@
+import { familyVersion, getPublishedVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { appendEvent } from "@/lib/queue/outbox";
 import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -222,6 +224,15 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
   await assertCommunicationTarget(input.target, input.channel);
   if (input.key === "REPORT_CARD_PUBLISHED") {
     await assertPublishedCommunicationReport(input.relatedId || "", input.target.studentId);
+    const version = await getPublishedVersion(input.relatedId || "");
+    const report = familyVersion(version);
+    if (!input.createdById) throw new Error("Report delivery requires an authorized actor");
+    // Callers cannot replace approved facts, document identity, approval or logical delivery identity.
+    input = { ...input, approvedData: true, attachmentUrl: null,
+      idempotencyKey: `report-version:${version.id}:${input.channel}`,
+      context: { ...input.context, examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
+      metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
+    };
   }
   const existing = await findExistingByIdempotency(input.idempotencyKey);
   if (existing?.status === "SENT") return existing;
@@ -279,6 +290,26 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     metadata: input.metadata ? jsonValue(input.metadata) : undefined,
     sentAt: null,
   };
+
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    return versionTransaction(async tx => {
+      const prior = await tx.parentCommunication.findUnique({ where: { idempotencyKey: input.idempotencyKey! } });
+      if (prior) return prior;
+      const communication = await tx.parentCommunication.create({ data: communicationData });
+      if (!blockedReason && !noRecipientReason) await appendEvent(tx, {
+        schoolId: input.target.schoolId, actorId: input.createdById!, referenceId: communication.id,
+        kind: "REPORT_DELIVERY", version: 1, identity: `report-delivery:${input.idempotencyKey}`,
+      });
+      return communication;
+    }).catch(async error => {
+      // Concurrent requests converge on the one unique logical delivery.
+      if ((error as { code?: string }).code === "P2002" || (error as { status?: number }).status === 409) {
+        const prior = await prisma.parentCommunication.findUnique({ where: { idempotencyKey: input.idempotencyKey! } });
+        if (prior) return prior;
+      }
+      throw error;
+    });
+  }
 
   const communication = existing
     ? await prisma.parentCommunication.update({
@@ -383,51 +414,15 @@ export async function sendStudentTemplatedCommunication({
   return results;
 }
 
-export async function sendReportCardPublishedNotifications({
-  reportCardId,
-  channels = ["WHATSAPP", "EMAIL"],
-  createdById,
-  approvedData,
-}: {
-  reportCardId: string;
-  channels?: NotificationChannel[];
-  createdById?: string | null;
-  approvedData?: boolean;
+export async function sendReportCardPublishedNotifications({ reportCardId, channels = ["WHATSAPP", "EMAIL"], createdById }: {
+  reportCardId: string; channels?: NotificationChannel[]; createdById?: string | null;
 }) {
-  const reportCard = await prisma.reportCard.findUnique({
-    where: { id: reportCardId },
-    include: {
-      exam: { select: { title: true, status: true, publishedAt: true } },
-      student: { select: { id: true } },
-    },
-  });
-
-  if (!reportCard) throw new Error("Report card not found");
-
-  const dataApproved =
-    approvedData !== false &&
-    (reportCard.remarksApproved &&
-      (reportCard.status === "PUBLISHED" || reportCard.status === "SENT") &&
-      reportCard.exam.status === "PUBLISHED" &&
-      Boolean(reportCard.exam.publishedAt));
-
-  return sendStudentTemplatedCommunication({
-    studentId: reportCard.student.id,
-    key: "REPORT_CARD_PUBLISHED",
-    channels,
-    context: {
-      examTitle: reportCard.exam.title,
-      grade: reportCard.grade || "-",
-      percentage: reportCard.percentage.toFixed(1),
-      viewInstruction: reportCard.pdfUrl ? "The PDF report card is attached." : "Please log in to the portal to view the report card.",
-    },
-    createdById,
-    attachmentUrl: absoluteUrl(reportCard.pdfUrl),
-    relatedType: "REPORT_CARD",
-    relatedId: reportCard.id,
-    approvedData: dataApproved,
-    idempotencyBase: `report-card-published:${reportCard.id}`,
-    metadata: { examStatus: reportCard.exam.status, reportCardStatus: reportCard.status },
+  const version = await getPublishedVersion(reportCardId);
+  const report = familyVersion(version);
+  return sendStudentTemplatedCommunication({ studentId: report.studentId, key: "REPORT_CARD_PUBLISHED", channels,
+    context: { examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
+    createdById, relatedType: "REPORT_CARD", relatedId: reportCardId, approvedData: true,
+    idempotencyBase: `report-version:${version.id}`, metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
   });
 }
 

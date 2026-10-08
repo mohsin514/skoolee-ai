@@ -586,6 +586,13 @@ CREATE POLICY tenant_isolation ON "report_cards"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 
+ALTER TABLE "report_versions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "report_versions" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "report_versions";
+CREATE POLICY tenant_isolation ON "report_versions"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "role_permissions" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "role_permissions" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "role_permissions";

@@ -1,0 +1,46 @@
+name: Report version invariants
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-report-only
+          POSTGRES_DB: sko210
+        ports: ['55410:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
+      DIRECT_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
+      AUTH_SECRET: synthetic-sko210-local-validation-only
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3210
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm exec next build
+      - name: Start isolated app and verify exact-version invariants
+        run: |
+          pnpm exec next start --hostname 127.0.0.1 --port 3210 > /tmp/report-app.log 2>&1 &
+          for i in $(seq 1 40); do curl -s http://127.0.0.1:3210/login >/dev/null && break; sleep 1; done
+          node --import tsx --test tests/report-versions/version.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-version-verification
+          path: /tmp/report-app.log

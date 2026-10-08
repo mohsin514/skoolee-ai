@@ -102,6 +102,7 @@ model School {
   holidays                Holiday[]
   gradeWeightConfigs      GradeWeightConfig[]
   marks                   Mark[]
+  reportVersions          ReportVersion[]
   reportCards             ReportCard[]
   attendances             Attendance[]
   attendanceEditHistories AttendanceEditHistory[]
@@ -1432,6 +1433,32 @@ model Mark {
 }
 
 // ─── 9. REPORT_CARDS ──────────────────────────────────────
+model ReportVersion {
+  id String @id @default(uuid())
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reportCardId String @map("report_card_id")
+  reportCard ReportCard @relation(fields: [reportCardId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  number Int
+  contentHash String @map("content_hash")
+  documentIdentity String @unique @map("document_identity")
+  documentBytes Bytes? @map("document_bytes")
+  language String @default("en")
+  snapshot Json
+  blockers Json
+  changedSections Json @map("changed_sections")
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  publishedAt DateTime? @map("published_at")
+  predecessorId String? @map("predecessor_id")
+  correctionReason String? @map("correction_reason")
+  reviewerNote String? @map("reviewer_note")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([reportCardId, number])
+  @@index([schoolId])
+  @@map("report_versions")
+}
+
 model ReportCard {
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
@@ -1451,6 +1478,12 @@ model ReportCard {
   attendanceTotal   Int       @default(0) @map("attendance_total")
   remarksEn         String?   @map("remarks_en") @db.Text
   remarksUr         String?   @map("remarks_ur") @db.Text
+  versions          ReportVersion[]
+  sourceRevision    Int @default(0) @map("source_revision")
+  currentVersionId  String? @map("current_version_id")
+  publishedVersionId String? @map("published_version_id")
+  reportLanguage    String @default("en") @map("report_language")
+  remarksAr         String? @map("remarks_ar") @db.Text
   remarksApproved   Boolean   @default(false) @map("remarks_approved")
   approvedBy        String?   @map("approved_by")
   approvedAt        DateTime? @map("approved_at")
@@ -1463,6 +1496,7 @@ model ReportCard {
   deliveryError     String?   @map("delivery_error") @db.Text
   generatedAt       DateTime  @default(now()) @map("generated_at")
 
+  @@unique([id, schoolId])
   @@unique([studentId, examId])
   @@index([schoolId])
   @@map("report_cards")

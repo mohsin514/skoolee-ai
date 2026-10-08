@@ -344,10 +344,19 @@ export const aiFeatureRequestSchema = z.object({
 
 export const reportActionSchema = z.object({
   examId: z.string().min(1),
-  action: z.enum(["generate", "pdf", "review", "publish", "send"]),
+  action: z.enum(["generate", "pdf", "approve", "review", "publish", "send"]),
+  versions: z.array(z.object({ reportCardId: z.string().min(1), versionId: z.string().min(1) })).max(500).optional(),
+  reviewerNote: z.string().max(4000).optional(),
+  correctionReason: z.string().max(1000).optional(),
 });
 
 export const reportRemarkSchema = z.object({
+  versionId: z.string().optional(),
+  requestCorrection: z.boolean().optional(),
+  correctionReason: z.string().max(1000).optional(),
+  reviewerNote: z.string().max(4000).optional(),
+  reportLanguage: z.enum(["en", "ar", "ur"]).optional(),
+  remarksAr: z.string().optional().nullable(),
   remarksEn: z.string().optional().nullable(),
   remarksUr: z.string().optional().nullable(),
   approve: z.boolean().optional(),
