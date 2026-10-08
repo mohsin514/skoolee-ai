@@ -665,6 +665,7 @@ function BankImportModal({
       const res = await fetch(`${API}/bank-import`, { method: "POST", body: form });
       const json = await res.json();
       if (json.success) {
+        if (json.jobId) { window.location.assign(`/jobs?id=${json.jobId}`); return; }
         toast.success(tr("Matched {0} of {1} transactions", [json.data.matched, json.data.totalTransactions]));
         onImported();
       } else {

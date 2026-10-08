@@ -124,11 +124,11 @@ export default function ReportsPage() {
       const text = await res.text();
       const result = JSON.parse(text);
       if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to send"));
-      toast.success("Report card sent");
+      if (result.jobId) { router.push(`/jobs?id=${result.jobId}`); return; }
       await loadData();
     } catch (error: any) { toast.error(error.message); }
     finally { setSendingReport(null); }
-  }, [loadData]);
+  }, [loadData, router]);
 
   const openReportCard = useCallback(async (report: any) => {
     setSelectedReportCard(report);

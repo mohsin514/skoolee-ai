@@ -389,7 +389,7 @@ export default function PrincipalDashboard() {
 
   const runReportAction = async (examId: string, action: ReportAction, successMessage: string) => {
     setBusyAction(`${action}-${examId}`);
-    try { const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ examId, action }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Report action failed"); toast.success(successMessage); await refetch(); }
+    try { const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ examId, action }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Report action failed"); if (result.jobId) { window.location.assign(`/jobs?id=${result.jobId}`); return; } toast.success(successMessage); await refetch(); }
     catch (error) { toast.error(error instanceof Error ? error.message : "Report action failed"); } finally { setBusyAction(null); }
   };
 

@@ -1,3 +1,4 @@
+import { verifiedMetaSignature, recordMetaReceipts } from "@/lib/jobs/receipts";
 import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
@@ -27,7 +28,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const raw = await req.text();
+    if (!verifiedMetaSignature(raw, req.headers.get("x-hub-signature-256"), process.env.WHATSAPP_APP_SECRET)) return Response.json({ error: "Invalid signature" }, { status: 401 });
+    const body = JSON.parse(raw);
+    await recordMetaReceipts(body);
     const entries = body?.entry;
     if (!Array.isArray(entries)) return Response.json({ status: "ok" });
 
@@ -53,7 +57,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ status: "ok" });
   } catch {
-    return Response.json({ status: "ok" });
+    // Do not acknowledge verified receipt events that were not durably stored.
+    return Response.json({ error: "Webhook processing unavailable" }, { status: 500 });
   }
 }
 

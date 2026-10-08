@@ -142,6 +142,7 @@ function LegacyReportCardsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${label} failed`);
+      if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return; }
       toast.success(tr(label));
       await load();
       onChanged?.();

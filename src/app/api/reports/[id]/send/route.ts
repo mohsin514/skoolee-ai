@@ -1,3 +1,4 @@
+import { trackDeliveries } from "@/lib/jobs/service";
 import { assertPermission, errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -31,7 +32,7 @@ export async function POST(
     const reportCard = await prisma.reportCard.findFirst({
       where: { id, campus: { schoolId: user.schoolId }, ...(user.role === "TEACHER" ? { exam: { class: { OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } } } : {}) },
       include: {
-        exam: { select: { campusId: true, status: true, publishedAt: true } },
+        exam: { select: { id: true, classId: true, title: true, campusId: true, status: true, publishedAt: true } },
         student: { select: { id: true } },
       },
     });
@@ -50,7 +51,8 @@ export async function POST(
       createdById: user.userId,
     });
 
-    return Response.json({ success: true, queued: communications.filter(c => c.status === "PENDING").length, communications });
+    const jobId = await trackDeliveries(user, reportCard.exam, communications);
+    return Response.json({ success: true, jobId, queued: communications.filter(c => c.status === "PENDING").length, communications });
   } catch (error) {
     console.error("[reports/[id]/send] POST failed", error);
     return errorResponse(error, "Delivery unavailable");
