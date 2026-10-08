@@ -74,15 +74,21 @@ def main():
     def migrate(database, *arguments):
         return run([prisma, 'migrate', *arguments, '--schema', schema], database=database) if arguments[0] != 'diff' else run([prisma, 'migrate', *arguments], database=database)
 
-    def snapshot(database):
-        # Reconcile every application table, including empty tables and all columns.
+    def snapshot(database, predecessor=None):
+        # Restore compares every column. Upgrade compares every predecessor column;
+        # adding a column must not masquerade as changing an existing record.
         names = sql(database, "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations' ORDER BY tablename;").splitlines()
         result = {}
         for name in names:
             if not name.replace('_', '').isalnum():
                 raise RuntimeError('Unexpected table identifier')
-            rows = sql(database, f'SELECT row_to_json(t)::text FROM public."{name}" t ORDER BY row_to_json(t)::text;')
-            result[name] = {'rows': len(rows.splitlines()), 'sha256': hashlib.sha256(rows.encode()).hexdigest()}
+            columns = predecessor[name]['columns'] if predecessor and name in predecessor else sql(database,
+                f"SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='{name}' ORDER BY ordinal_position;").splitlines()
+            if any(not column.replace('_', '').isalnum() for column in columns):
+                raise RuntimeError('Unexpected column identifier')
+            projection = ', '.join(f'"{column}"' for column in columns)
+            rows = sql(database, f'SELECT row_to_json(t)::text FROM (SELECT {projection} FROM public."{name}") t ORDER BY row_to_json(t)::text;')
+            result[name] = {'rows': len(rows.splitlines()), 'sha256': hashlib.sha256(rows.encode()).hexdigest(), 'columns': columns}
         return result
 
     def check(name, condition):
@@ -106,7 +112,8 @@ def main():
         migrate(upgrade, 'resolve', '--applied', BASELINE)
         migrate(upgrade, 'deploy')
         after = snapshot(upgrade)
-        check('populated-schema-push-adoption-and-upgrade', all(after.get(name) == value for name, value in before.items()))
+        preserved = snapshot(upgrade, predecessor=before)
+        check('populated-schema-push-adoption-and-upgrade', all(preserved.get(name) == value for name, value in before.items()))
         check('additive-migration-tables-initially-empty', all(value['rows'] == 0 for name, value in after.items() if name not in before))
         sql(upgrade, (ROOT / 'scripts/recovery/outbox-fixtures.sql').read_text())
         migrate(upgrade, 'diff', '--from-schema-datasource', schema, '--to-schema-datamodel', schema, '--exit-code')

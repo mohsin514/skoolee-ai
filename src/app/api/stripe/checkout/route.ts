@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageBilling, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canPurchaseSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
@@ -34,7 +34,7 @@ function periodLabel(price: number | null | undefined, billingPeriod: BillingPer
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageBilling(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canPurchaseSubscription(user)) throw new ApiError("Insufficient permissions", 403);
 
     const parsed = checkoutSchema.safeParse(await req.json());
     if (!parsed.success) {

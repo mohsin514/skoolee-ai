@@ -35,6 +35,7 @@ interface PlanDetails {
 }
 
 interface BillingSnapshot {
+  canPurchaseSubscription?: boolean;
   school: {
     plan: PlanType;
     status: string;
@@ -177,6 +178,8 @@ export function PlansPanel() {
       "Thank you.",
     ].join("\n")
   );
+
+  if (billing && !billing.canPurchaseSubscription) return <p className="rounded-xl border p-4">Subscription purchasing is managed by your institution owner. Tuition permissions do not grant purchasing authority.</p>;
 
   return (
     <div className="space-y-6">

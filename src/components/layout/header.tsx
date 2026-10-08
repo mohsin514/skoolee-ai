@@ -352,6 +352,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                     label="Account settings"
                     onClick={() => setMenuOpen(false)}
                   />
+                  <AccountLink href="/memberships" icon={UserCheck} label="Memberships" onClick={() => setMenuOpen(false)} />
                   <AccountLink
                     href={billingHref}
                     icon={CreditCard}

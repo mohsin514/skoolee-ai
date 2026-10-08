@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       () =>
         prisma.staffInvitation.findUnique({
           where: { token },
-          select: { status: true, expiresAt: true },
+          select: { status: true, expiresAt: true, role: true, invitedBy: true, canPurchaseSubscription: true, canManageMemberships: true, campus: { select: { name: true, school: { select: { name: true } } } } },
         })
     );
 
@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       success: true,
       status,
       expiresAt: invite.expiresAt?.toISOString(),
+      ...(status === "pending" ? { role: invite.role, invitedBy: invite.invitedBy, campusName: invite.campus.name, institutionName: invite.campus.school.name, canPurchaseSubscription: invite.canPurchaseSubscription, canManageMemberships: invite.canManageMemberships } : {}),
     });
   } catch (error) {
     console.error("[invite/status] GET failed", error);
