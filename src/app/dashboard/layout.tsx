@@ -1,3 +1,4 @@
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { PageCard } from "@/components/ui/page-card";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -37,7 +38,7 @@ export default async function DashboardLayout({
   return (
     // This console predates RoleShell, so the messenger is mounted here too —
     // otherwise the school-group workspace would be the one dashboard without it.
-    <ChatProvider>
+    <LocaleProvider><ChatProvider>
       <div className="flex min-h-screen bg-background font-sans text-[#1f1a23]">
         <Sidebar />
         <main className="skoolee-dashboard-main min-h-screen min-w-0 flex-1 pb-24 md:ms-64 md:pb-0">
@@ -50,6 +51,6 @@ export default async function DashboardLayout({
         </main>
         <ChatDock />
       </div>
-    </ChatProvider>
+    </ChatProvider></LocaleProvider>
   );
 }

@@ -51,8 +51,8 @@ ALTER TABLE report_cards ADD CONSTRAINT report_card_language CHECK (report_langu
 ALTER TABLE report_cards ADD COLUMN source_revision INTEGER NOT NULL DEFAULT 0;
 CREATE FUNCTION report_material_edit() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
- IF ROW(NEW.remarks_en,NEW.remarks_ur,NEW.remarks_ar,NEW.report_language,NEW.total_marks,NEW.obtained_marks,NEW.percentage,NEW.grade,NEW.rank,NEW.attendance_present,NEW.attendance_total)
- IS DISTINCT FROM ROW(OLD.remarks_en,OLD.remarks_ur,OLD.remarks_ar,OLD.report_language,OLD.total_marks,OLD.obtained_marks,OLD.percentage,OLD.grade,OLD.rank,OLD.attendance_present,OLD.attendance_total) THEN
+ IF ROW(NEW.remarks_en,NEW.remarks_ur,NEW.remarks_ar,NEW.report_language,NEW.locale_snapshot,NEW.total_marks,NEW.obtained_marks,NEW.percentage,NEW.grade,NEW.rank,NEW.attendance_present,NEW.attendance_total)
+ IS DISTINCT FROM ROW(OLD.remarks_en,OLD.remarks_ur,OLD.remarks_ar,OLD.report_language,OLD.locale_snapshot,OLD.total_marks,OLD.obtained_marks,OLD.percentage,OLD.grade,OLD.rank,OLD.attendance_present,OLD.attendance_total) THEN
   NEW.source_revision := OLD.source_revision + 1;
   NEW.remarks_approved := false; NEW.approved_by := NULL; NEW.approved_at := NULL; NEW.pdf_url := NULL;
  END IF;

@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 
@@ -155,8 +156,8 @@ export function ReportCardPipeline({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
-  const [locale, setLocale] = useState<keyof typeof copy>("en"),
-    [canReview, setCanReview] = useState(false),
+  const locale = useLocale().language;
+  const [canReview, setCanReview] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
     [filter, setFilter] = useState("all");
   const [active, setActive] = useState<string | null>(null),
@@ -188,8 +189,6 @@ export function ReportCardPipeline({
     }
   }, [exam.id, campusId]);
   useEffect(() => {
-    const lang = document.documentElement.lang;
-    if (lang === "ar" || lang === "ur") setLocale(lang);
     void load();
   }, [load]);
   async function action(action: string) {

@@ -45,13 +45,15 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'defaultValue
   label?: string;
   /** Display locale only; the submitted value remains an ISO Gregorian date. */
   locale?: string;
+  /** Campus calendar day; preserves date-only selection across user/browser zones. */
+  todayDate?: string;
   /** School-configured first day: Sunday = 0, Saturday = 6. */
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   messages?: Partial<DatePickerMessages>;
 };
 
 /** Editable native date field with a branded, keyboard-accessible calendar. */
-export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicker({ value: suppliedValue, defaultValue, onValueChange, onChange, min, max, label = 'Effective date', locale = 'en-US', weekStartsOn = 0, messages, dir, className, disabled, readOnly, ...props }, ref) {
+export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicker({ value: suppliedValue, defaultValue, onValueChange, onChange, min, max, label = 'Effective date', locale = 'en-US', todayDate, weekStartsOn = 0, messages, dir, className, disabled, readOnly, ...props }, ref) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [localValue, setLocalValue] = useState(defaultValue ?? '');
   const value = suppliedValue ?? localValue;
@@ -65,7 +67,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
   const grid = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<string | null>(null);
   const selectedDate = parse(value);
-  const today = iso(new Date());
+  const today = todayDate || iso(new Date());
   const year = cursor.getFullYear(), month = cursor.getMonth();
   const count = new Date(year, month + 1, 0).getDate();
   const offset = (new Date(year, month, 1).getDay() - weekStartsOn + 7) % 7;

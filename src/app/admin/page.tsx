@@ -106,6 +106,7 @@ import {
   TeacherDetailModal,
   classLabel,
 } from "@/components/shared-admin";
+import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 
 type AdminView =
@@ -1047,6 +1048,7 @@ export default function CampusAdminDashboard() {
               {/* scope="editable" keeps a branch admin's view to their own campus
                   rather than listing every sibling campus in the group. */}
               <InstitutionSettingsPanel scope="editable" onSaved={loadData} />
+              <div className="mt-6"><LocaleSettingsPanel /></div>
             </div>
           ) : null}
 

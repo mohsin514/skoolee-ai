@@ -99,6 +99,7 @@ export async function GET(req: NextRequest) {
         fees: student.invoices.map((inv) => ({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
+          currency: inv.currency,
           totalAmount: inv.totalAmount,
           paid: inv.totalAmountPaid,
           balance: inv.balanceDue,

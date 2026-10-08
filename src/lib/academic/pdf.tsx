@@ -1,5 +1,5 @@
 import { reportMessages } from "@/lib/locale/report-messages";
-const localeTag = (locale: { language: string; calendar: string; numberingSystem: string }) => `${locale.language}-u-ca-${locale.calendar}-nu-${locale.numberingSystem}`;
+import { formatInstant, localeTag } from "@/lib/locale/package";
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";

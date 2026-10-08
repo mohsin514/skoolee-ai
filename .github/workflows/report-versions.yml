@@ -33,6 +33,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate
       - run: pnpm exec prisma migrate deploy
+      - run: node --import tsx --test tests/locale/package.test.ts tests/locale/country.test.ts tests/locale/events.test.ts tests/locale/ui-coverage.test.ts tests/locale/database.test.ts tests/locale/money-database.test.ts
       - run: pnpm exec next build
       - name: Start isolated app and verify exact-version invariants
         run: |

@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       prisma.feeType.findFirst({ where: { id: body.feeTypeId, campusId } }),
     ]);
     if (!group) throw new ApiError("Fee group not found", 404);
+    if ((body.currency || "PKR") !== group.currency) throw new ApiError("Currency does not match fee group", 409);
     if (!type) throw new ApiError("Fee type not found", 404);
 
     const existing = await prisma.feesMasterLine.findUnique({

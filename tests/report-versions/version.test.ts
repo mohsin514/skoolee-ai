@@ -1,3 +1,4 @@
+import { defaultLocale } from "../../src/lib/locale/package";
 import { consume } from "../../src/lib/queue/outbox";
 import { reportDeliveryWorkflow } from "../../src/lib/queue/report-delivery";
 import { SignJWT } from "jose";
@@ -524,6 +525,7 @@ test("approved en/ar/ur PDF bytes are stable across repeated rendering and langu
           where: { id: reportId },
           data: {
             reportLanguage: language,
+            localeSnapshot: { ...defaultLocale, language: "en", timezone: "Asia/Riyadh", numberingSystem: "arab", currency: "SAR" },
             remarksEn: `English approved remark ${pass}`,
             remarksAr: `تقدم جيد في التعلم ${pass}`,
             remarksUr: `تعلیم میں اچھی پیشرفت ${pass}`,
@@ -549,7 +551,9 @@ test("approved en/ar/ur PDF bytes are stable across repeated rendering and langu
         assert.equal(first.buffer.subarray(0, 4).toString(), "%PDF");
         const snapshot = approved.snapshot as any;
         assert.equal(snapshot.locale.language, language);
-        assert.equal(snapshot.locale.timezone, "UTC");
+        assert.equal(snapshot.locale.timezone, "Asia/Riyadh");
+        assert.equal(snapshot.locale.numberingSystem, "arab");
+        assert.equal(snapshot.locale.currency, "SAR");
         if (process.env.SKO210_KEEP)
           writeFileSync(`/private/tmp/sko210-${language}.pdf`, first.buffer);
       }

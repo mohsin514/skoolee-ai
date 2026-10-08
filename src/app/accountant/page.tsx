@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -84,6 +85,7 @@ const FEE_TAB_TO_VIEW: Record<FeeTab, AccountantView> = {
 };
 
 export default function AccountantPage() {
+  const tr = useUiText();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -143,12 +145,12 @@ export default function AccountantPage() {
           navLabel="Finance sections"
           icon={current.icon}
           tone={current.tone}
-          eyebrow={current.eyebrow ?? "Finance Console"}
-          title={activeView === "dashboard" ? data.userName : current.label}
+          eyebrow={tr(current.eyebrow ?? "Finance Console")}
+          title={activeView === "dashboard" ? data.userName : tr(current.label)}
           summary={
             activeView === "dashboard"
               ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""} · ${data.schoolName}`
-              : current.summary
+              : tr(current.summary ?? "")
           }
         >
           {activeView === "dashboard" ? (

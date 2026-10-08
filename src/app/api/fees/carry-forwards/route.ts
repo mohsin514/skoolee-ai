@@ -1,3 +1,4 @@
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
     const fromAcademicYear = Number(body.fromAcademicYear ?? new Date().getFullYear());
     const toAcademicYear = Number(body.toAcademicYear ?? fromAcademicYear + 1);
     const balance = Number(body.balance);
+    const currency = body.currency || "PKR";
+    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
 
     if (!Number.isInteger(fromAcademicYear) || !Number.isInteger(toAcademicYear) || toAcademicYear <= fromAcademicYear) {
       throw new ApiError("invalid academic years", 400);
@@ -56,6 +59,7 @@ export async function POST(req: NextRequest) {
 
     const forward = await prisma.feeCarryForward.create({
       data: {
+        currency,
         campusId: student.campusId,
         studentId: body.studentId,
         fromAcademicYear,
