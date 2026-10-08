@@ -982,6 +982,8 @@ model Student {
   enrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   consolidatedIntoId String? @map("consolidated_into_id")
+  consolidatedInto Student? @relation("ConsolidatedIdentity", fields: [consolidatedIntoId], references: [id], onDelete: Restrict)
+  identityAliases Student[] @relation("ConsolidatedIdentity")
   id                   String    @id @default(uuid())
   schoolId             String    @default("") @map("school_id")
   school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)

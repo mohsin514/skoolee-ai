@@ -195,11 +195,13 @@ export async function GET(req: NextRequest) {
       ...teacherScope,
       ...(classId ? { classId } : {}),
       ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
+        ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
+        : { status: { notIn: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }),
       ...(search
         ? {
             OR: [
+              { id: { contains: search, mode: "insensitive" as const } },
+              { admissionNo: { contains: search, mode: "insensitive" as const } },
               { fullName: { contains: search, mode: "insensitive" as const } },
               { rollNo: { contains: search, mode: "insensitive" as const } },
               { guardianName: { contains: search, mode: "insensitive" as const } },

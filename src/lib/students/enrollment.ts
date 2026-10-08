@@ -20,12 +20,12 @@ export async function readPupil(user: AuthUser, id: string) {
     id: true, admissionNo: true, fullName: true, campusId: true, classId: true, rollNo: true, status: true,
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
     consolidatedIntoId: true,
-    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: true, invoices: true, reports: true } } } },
+    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: true, invoices: true, reports: isFamily(user) ? { where: { status: { in: ["PUBLISHED", "SENT"] } } } : true } } } },
   } });
   if (!pupil) throw new ApiError("Pupil not found", 404);
   return pupil;
 }
-export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: string, targetClassId: string, effectiveDate: Date) {
+export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: string, targetClassId: string, effectiveDate: Date, allowFuture = false) {
   const [pupil, from, target] = await Promise.all([
     tx.student.findFirst({ where: { id: studentId } }),
     tx.studentEnrollment.findFirst({ where: { id: fromId, studentId, endDate: null, status: "ACTIVE" } }),
@@ -34,7 +34,7 @@ export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: 
   if (!pupil || !from || !target || pupil.consolidatedIntoId) throw new ApiError("Placement changed or is unavailable. Reload the pupil record.", 409);
   if (from.classId !== pupil.classId || from.campusId !== pupil.campusId) throw new ApiError("Current placement needs reconciliation", 409);
   if (effectiveDate <= from.startDate) throw new ApiError("Effective date overlaps the current enrollment start", 409);
-  if (effectiveDate > new Date()) throw new ApiError("Future transitions may be saved as proposals; confirm on their effective date", 409);
+  if (!allowFuture && effectiveDate > new Date()) throw new ApiError("Future transitions may be saved as proposals; confirm on their effective date", 409);
   const [attendance, reports, invoices, conflicts] = await Promise.all([
     tx.attendance.count({ where: { studentId, enrollmentId: fromId } }),
     tx.reportCard.count({ where: { studentId, enrollmentId: fromId } }),

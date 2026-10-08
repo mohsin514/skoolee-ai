@@ -1,3 +1,4 @@
+import { getDownloadUrl } from "@/lib/storage/s3";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
@@ -10,12 +11,30 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("studentId") || "";
     const pupil = await readPupil(user, id);
     const family = isFamily(user);
+    const documentId = req.nextUrl.searchParams.get("documentId");
+    if (documentId) {
+      if (family) throw new ApiError("Confidential admission documents are restricted to staff", 403);
+      const document = await prisma.studentDocument.findFirst({ where: { id: documentId, studentId: id }, select: { fileKey: true } });
+      if (!document) throw new ApiError("Document not found", 404);
+      return Response.redirect(await getDownloadUrl(document.fileKey));
+    }
+    const enrollmentId = req.nextUrl.searchParams.get("enrollmentId");
+    if (enrollmentId) {
+      if (!pupil.enrollments.some(e => e.id === enrollmentId)) throw new ApiError("Enrollment not found", 404);
+      const [attendance, invoices, reports] = await Promise.all([
+        prisma.attendance.findMany({ where: { studentId: id, enrollmentId }, select: { id: true, date: true, status: true }, orderBy: { date: "desc" }, take: 100 }),
+        prisma.invoice.findMany({ where: { studentId: id, enrollmentId }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: { invoiceDate: "desc" }, take: 100 }),
+        prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...(family ? { status: { in: ["PUBLISHED", "SENT"] } } : {}) }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, take: 100 }),
+      ]);
+      return Response.json({ attendance, invoices, reports, limit: 100 });
+    }
     const [proposals, classes, documents] = family ? [[], [], []] : await Promise.all([
       prisma.enrollmentProposal.findMany({ where: { studentId: id }, orderBy: { createdAt: "desc" } }),
       prisma.class.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, campus: { select: { name: true } } } }),
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
-    return Response.json({ pupil, proposals, classes, documents, canManage: !family && ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(user.role) });
+    const events = family ? [] : await prisma.studentTimelineEvent.findMany({ where: { studentId: id, kind: { in: ["ENROLLMENT_TRANSITION", "IDENTITY_CONSOLIDATED", "ADMITTED", "PROMOTED"] } }, select: { id: true, kind: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" } });
+    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage: !family && ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(user.role) });
   } catch (error) { return errorResponse(error, "Unable to load enrollment history"); }
 }
 export async function POST(req: NextRequest) {
@@ -44,7 +63,7 @@ export async function POST(req: NextRequest) {
     const rollNo = String(body.rollNo || "").trim();
     const reason = String(body.reason || "").trim();
     if (!rollNo || !reason || reason.length > 1000) throw new ApiError("Roll number and a reason (up to 1000 characters) are required", 400);
-    const impact = await enrollmentImpact(prisma, id, fromId, targetClassId, effectiveDate);
+    const impact = await enrollmentImpact(prisma, id, fromId, targetClassId, effectiveDate, true);
     if (body.action === "preview") return Response.json({ preserved: impact.preserved, guardianAccess: impact.guardianAccess, capacity: impact.capacity, targetOccupancy: impact.targetOccupancy, policy: impact.policy });
     if (body.action !== "propose") throw new ApiError("Unknown action", 400);
     const proposal = await prisma.enrollmentProposal.create({ data: { studentId: id, campusId: impact.pupil.campusId, fromEnrollmentId: fromId, targetClassId, effectiveDate, rollNo, reason, createdBy: user.userId } });

@@ -12,10 +12,11 @@ async function preview(tx: TxClient, sourceId: string, targetId: string) {
   const source = pupils.find(p => p.id === sourceId), target = pupils.find(p => p.id === targetId);
   if (!source || !target || sourceId === targetId) throw new ApiError("Choose two distinct pupils in this institution", 404);
   const counts: Record<string, number> = {};
-  for (const model of Prisma.dmmf.datamodel.models.filter(m => m.fields.some(f => f.name === "studentId"))) {
+  for (const model of Prisma.dmmf.datamodel.models.filter(m => m.fields.some(f => f.kind === "object" && f.type === "Student" && f.relationFromFields?.length))) {
     const delegate = model.name[0].toLowerCase() + model.name.slice(1);
     const client = tx as unknown as Record<string, { count(args: unknown): Promise<number> }>;
-    counts[delegate] = await client[delegate].count({ where: { studentId: sourceId } });
+    const fields = model.fields.filter(f => f.kind === "object" && f.type === "Student").flatMap(f => f.relationFromFields || []);
+    counts[delegate] = await client[delegate].count({ where: { OR: fields.map(field => ({ [field]: sourceId })) } });
   }
   const blockers: string[] = [];
   if (source.consolidatedIntoId || target.consolidatedIntoId) blockers.push("An identity is already consolidated; chains are forbidden.");

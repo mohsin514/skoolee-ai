@@ -128,6 +128,7 @@ CREATE FUNCTION enrollment_period_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  PERFORM 1 FROM students WHERE id=NEW.student_id AND school_id=NEW.school_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Pupil outside institution'; END IF;
+ IF NOT EXISTS (SELECT 1 FROM classes c WHERE c.id=NEW.class_id AND c.campus_id=NEW.campus_id AND c.school_id=NEW.school_id) THEN RAISE EXCEPTION 'Enrollment class and campus must belong to institution'; END IF;
  IF TG_OP='UPDATE' THEN
   IF (to_jsonb(NEW)-'end_date'-'status') IS DISTINCT FROM (to_jsonb(OLD)-'end_date'-'status') OR OLD.end_date IS NOT NULL THEN
    RAISE EXCEPTION 'Historical enrollment context is immutable';
@@ -145,12 +146,14 @@ BEGIN
  IF TG_OP='UPDATE' THEN
   IF (NEW.student_id,NEW.school_id,NEW.campus_id,NEW.enrollment_id) IS DISTINCT FROM (OLD.student_id,OLD.school_id,OLD.campus_id,OLD.enrollment_id) THEN RAISE EXCEPTION 'Source enrollment context is immutable'; END IF;
   IF TG_TABLE_NAME='attendance' AND (to_jsonb(NEW)->>'date',to_jsonb(NEW)->>'class_id') IS DISTINCT FROM (to_jsonb(OLD)->>'date',to_jsonb(OLD)->>'class_id') THEN RAISE EXCEPTION 'Attendance date and placement are immutable'; END IF;
+  IF TG_TABLE_NAME='report_cards' AND to_jsonb(NEW)->>'exam_id' IS DISTINCT FROM to_jsonb(OLD)->>'exam_id' THEN RAISE EXCEPTION 'Report exam context is immutable'; END IF;
+  IF TG_TABLE_NAME='invoices' AND to_jsonb(NEW)->>'invoice_date' IS DISTINCT FROM to_jsonb(OLD)->>'invoice_date' THEN RAISE EXCEPTION 'Invoice date context is immutable'; END IF;
   RETURN NEW;
  END IF;
  source_date := CASE TG_TABLE_NAME WHEN 'attendance' THEN (to_jsonb(NEW)->>'date')::date WHEN 'invoices' THEN (to_jsonb(NEW)->>'invoice_date')::date ELSE (to_jsonb(NEW)->>'generated_at')::date END;
  IF TG_TABLE_NAME='attendance' THEN source_class:=to_jsonb(NEW)->>'class_id'; END IF;
  IF TG_TABLE_NAME='report_cards' THEN SELECT class_id INTO source_class FROM exams WHERE id=to_jsonb(NEW)->>'exam_id'; END IF;
- SELECT * INTO period FROM student_enrollments e WHERE e.student_id=NEW.student_id AND e.school_id=NEW.school_id AND e.campus_id=NEW.campus_id AND e.origin NOT LIKE 'LEGACY%' AND e.start_date<=source_date AND (e.end_date IS NULL OR e.end_date>source_date) AND (source_class IS NULL OR e.class_id=source_class);
+ SELECT * INTO period FROM student_enrollments e WHERE e.student_id=NEW.student_id AND e.school_id=NEW.school_id AND e.campus_id=NEW.campus_id AND e.origin NOT LIKE 'LEGACY%' AND (TG_TABLE_NAME='report_cards' OR (e.start_date<=source_date AND (e.end_date IS NULL OR e.end_date>source_date))) AND (source_class IS NULL OR e.class_id=source_class) ORDER BY e.start_date DESC LIMIT 1;
  IF NOT FOUND THEN RAISE EXCEPTION 'No enrollment for source date and placement'; END IF;
  IF NEW.enrollment_id IS NOT NULL AND NEW.enrollment_id<>period.id THEN RAISE EXCEPTION 'Source enrollment mismatch'; END IF;
  NEW.enrollment_id:=period.id;
