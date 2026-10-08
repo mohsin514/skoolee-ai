@@ -5077,6 +5077,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
     ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : null;
   const inviteName = invite.profile?.fullName || null;
+  const deliveryFailed = invite.deliveryStatus === "failed";
 
   return (
     <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
@@ -5093,9 +5094,10 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
-              <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
+              <StatusPill status={deliveryFailed ? "Delivery failed" : expired ? "Expired" : formatStatus(invite.role)} />
             </div>
             <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            {deliveryFailed && <p role="status" className="mt-2 text-xs text-rose-700">Email could not be delivered. Resend to try again.</p>}
             {expiryLabel ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />

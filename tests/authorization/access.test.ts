@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { hashSessionToken } from '../../src/lib/auth/session-cookie';
 import { SignJWT } from 'jose';
 import { prisma } from '../../src/lib/db/prisma';
 import { runWithTenantContext } from '../../src/lib/db/tenant-context';
@@ -37,10 +38,11 @@ before(async () => {
   for (const [id, schoolId] of [[campusA,schoolA],[campusB,schoolA],[foreignCampus,schoolB]]) await raw.campus.create({data:{id,schoolId,name:'Synthetic campus',city:'Synthetic',regId:id}});
   for (const role of USER_ROLES) {
     const userId=randomUUID();
-    const user: AuthUser={userId,schoolId:schoolA,campusId:campusA,role,email:`${userId}@example.invalid`,fullName:'Same pupil name',onboardingComplete:true};
-    await raw.user.create({data:{id:userId,schoolId:schoolA,campusId:campusA,role,email:user.email,fullName:user.fullName!,onboardingComplete:true}});
+    const user: AuthUser={mfaVerified:true,userId,schoolId:schoolA,campusId:campusA,role,email:`${userId}@example.invalid`,fullName:'Same pupil name',onboardingComplete:true};
+    await raw.user.create({data:{mfaEnabled:true,id:userId,schoolId:schoolA,campusId:campusA,role,email:user.email,fullName:user.fullName!,onboardingComplete:true}});
     actors.set(role,user);
     const token=await new SignJWT({...user}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+    await raw.loginSession.create({data:{schoolId:schoolA,userId,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
     cookies.set(role,`skoolee_token=${token}`);
   }
   for(const [id,campusId,schoolId] of [[classA,campusA,schoolA],[classB,campusB,schoolA],[foreignClass,foreignCampus,schoolB]]) await raw.class.create({data:{id,campusId,schoolId,name:'Synthetic class',academicYear:2026}});

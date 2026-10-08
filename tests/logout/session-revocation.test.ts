@@ -36,12 +36,9 @@ describe("decideRevocation", () => {
     assert.equal(decideRevocation([{ isActive: false }]), true);
   });
 
-  it("treats no row as NOT revoked", () => {
-    // The single most consequential line in this file. Three flows re-mint a
-    // cookie without recording a row, and recordLoginSession is fire-and-forget,
-    // so "no row" is a normal state for a legitimate session. Answering
-    // "revoked" here would lock out everyone holding one.
-    assert.equal(decideRevocation([]), false);
+  it("treats no row as revoked", () => {
+    // All issuing flows now await server-side session recording.
+    assert.equal(decideRevocation([]), true);
   });
 
   it("is not revoked while ANY row for the hash is still open", () => {
@@ -85,28 +82,17 @@ describe("checkRevocation", () => {
     assert.equal(await checkRevocation(hash, lookup), false);
   });
 
-  it("reports not revoked when there is no row", async () => {
+  it("reports revoked when there is no row", async () => {
     const lookup: SessionLookup = async () => [];
-    assert.equal(await checkRevocation(hash, lookup), false);
+    assert.equal(await checkRevocation(hash, lookup), true);
   });
 
-  it("fails OPEN when the database throws", async () => {
-    const lookup: SessionLookup = async () => {
-      throw new Error("connection terminated unexpectedly");
-    };
-
-    const revoked = await withSilencedWarnings(() => checkRevocation(hash, lookup));
-
-    assert.equal(
-      revoked,
-      false,
-      "a database failure must not be reported as revocation — this check is on " +
-        "the path of nearly every authenticated request, so failing closed would " +
-        "sign out the entire platform during an outage"
-    );
+  it("fails closed when the database throws", async () => {
+    const revoked = await withSilencedWarnings(() => checkRevocation(hash, async () => { throw new Error("database unavailable"); }));
+    assert.equal(revoked, true, "Unavailable revocation state must not authorize a protected request");
   });
 
-  it("warns when it fails open, rather than degrading silently", async () => {
+  it("warns when it fails closed, rather than degrading silently", async () => {
     const messages: unknown[] = [];
     const original = console.warn;
     console.warn = (...args: unknown[]) => messages.push(args[0]);
@@ -122,7 +108,7 @@ describe("checkRevocation", () => {
     assert.equal(messages.length, 1, "exactly one warning is emitted");
     assert.match(
       String(messages[0]),
-      /revoked/i,
+      /session verification/i,
       "the warning says what could not be determined"
     );
   });

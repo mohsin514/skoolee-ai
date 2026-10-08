@@ -124,7 +124,7 @@ export async function resolveTenantFromRequest(): Promise<TenantContext | null> 
 
     if (!userId) return null;
     const { resolveCurrentPrincipal } = await import("@/lib/auth/principal");
-    const principal = await resolveCurrentPrincipal({ userId, schoolId, role: payload.role, accessVersion: payload.accessVersion });
+    const principal = await resolveCurrentPrincipal({ userId, schoolId, role: payload.role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
     if (!principal) return null;
     if (principal.role === "APP_OWNER") {
       return { schoolId, userId, unscoped: true, reason: "current platform operator" };

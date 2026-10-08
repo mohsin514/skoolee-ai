@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { hashSessionToken } from "../../src/lib/auth/session-cookie";
+import { randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import { appendEvent, consume } from "../../src/lib/queue/outbox";
@@ -10,8 +12,11 @@ const db = new PrismaClient();
 const base = "http://127.0.0.1:3220/api/owner/workflows";
 const schoolId = "rehearsal-school";
 async function token(role: string) {
-  return new SignJWT({ userId: `role-${role}`, schoolId, role, email: `${role.toLowerCase()}@example.invalid`, campusId: "rehearsal-campus", onboardingComplete: true, schoolStatus: "ACTIVE" })
-    .setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(new TextEncoder().encode("sko220-local-synthetic-test-secret"));
+  await db.user.update({ where: { id: `role-${role}` }, data: { mfaEnabled: true } });
+  const token = await new SignJWT({ mfaVerified: true, userId: `role-${role}`, schoolId, role, email: `${role.toLowerCase()}@example.invalid`, campusId: "rehearsal-campus", onboardingComplete: true, schoolStatus: "ACTIVE" })
+    .setJti(randomUUID()).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(new TextEncoder().encode("sko220-local-synthetic-test-secret"));
+  await db.loginSession.create({ data: { schoolId, userId: `role-${role}`, tokenHash: hashSessionToken(token), expiresAt: new Date(Date.now() + 600_000) } });
+  return token;
 }
 async function get(role: string, school = schoolId) { return fetch(`${base}?schoolId=${school}`, { headers: { Cookie: `skoolee_token=${await token(role)}` }, redirect: "manual" }); }
 after(async () => db.$disconnect());

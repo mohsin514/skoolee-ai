@@ -368,6 +368,7 @@ export function RoleHeader({
               </div>
 
               <div className="p-1.5">
+                <MenuLink href="/account/security" icon={KeyRound} label="Active sessions" onClick={() => setMenuOpen(false)} />
                 <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
                 <button
                   type="button"
