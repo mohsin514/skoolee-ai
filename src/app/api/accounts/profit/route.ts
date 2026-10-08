@@ -1,3 +1,5 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -21,6 +23,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new ApiError("Invalid currency", 400);
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
     if (!fromParam || !toParam) throw new ApiError("from and to are required", 400);
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
     if (from.getTime() > to.getTime()) throw new ApiError("from must be before to", 400);
 
     const baseWhere: any = scopedCampusWhere(user, campusId ?? undefined) as any;
-    const rangeWhere = { ...baseWhere, date: { gte: from, lte: to } };
+    const rangeWhere = { ...baseWhere, currency, date: { gte: from, lte: to } };
 
     const [incomeAgg, expenseAgg, entries] = await Promise.all([
       prisma.ledgerEntry.aggregate({
@@ -77,6 +81,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data: {
+        currency,
         from: fromParam,
         to: toParam,
         income,

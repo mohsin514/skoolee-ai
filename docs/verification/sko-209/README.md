@@ -45,3 +45,9 @@ Set `MFA_ENCRYPTION_KEY` to stable, independently generated secret material and 
 Set a trusted `NEXT_PUBLIC_APP_URL` before production invitation delivery. Production never derives invitation links from an arbitrary request Origin. Configure SMTP separately. Actual mail provider delivery and a physical authenticator app were not exercised; local success mode and unconfigured-provider failure were verified. TOTP was checked with a published vector and real browser challenge flow. Losing both authenticator and all recovery codes has no automated identity-bypass path.
 
 The database-outage denial decision is unit-tested with an injected failing lookup; no production outage was induced. A restore rehearsal verifies synthetic recovery, not production readiness or operator sign-off. No merge or deployment is part of this PR.
+
+## PR 18 integration — 2026-10-08
+
+Merged `origin/dev` at `7f0a052` into this branch. The schema preserves MFA enrollment/recovery fields and shared authentication counters alongside preferred language and locale policies. The security menu now translates Active sessions in Arabic and Urdu.
+
+Revalidated on isolated localhost PostgreSQL 55409/app 3209: 45 lifecycle, revocation and locale checks; 37 browser/delivery checks (all eleven roles, three viewport widths, en/ar/ur and keyboard flows); production build; and the merged eight-migration recovery rehearsal. All passed. The rehearsal report is `merge-recovery-report.json`. No remote database or outbound delivery was used.

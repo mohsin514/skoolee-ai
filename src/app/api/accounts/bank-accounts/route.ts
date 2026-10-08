@@ -1,9 +1,11 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  assertPermission,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -37,21 +39,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
     const name = String(body.name ?? "").trim();
     if (!name) throw new ApiError("name is required", 400);
 
-    const openingBalance = Math.round(Number(body.openingBalance ?? 0));
-    if (!Number.isInteger(openingBalance)) throw new ApiError("openingBalance must be an integer (paisa)", 400);
+    const currency = body.currency || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
+    const openingBalance = Number(body.openingBalance ?? 0);
+    if (!Number.isSafeInteger(openingBalance)) throw new ApiError("Opening balance must be an integer in minor units", 400);
 
     const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("A bank account with this name already exists", 409);
 
     const bank = await prisma.bankAccount.create({
       data: {
+        schoolId: user.schoolId,
+        currency,
         campusId,
         name,
         bankName: body.bankName ? String(body.bankName).trim() : null,
@@ -70,7 +76,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "edit");
 
     const body = await req.json();
     if (!body.id) throw new ApiError("id is required", 400);
@@ -79,6 +85,9 @@ export async function PATCH(req: NextRequest) {
       where: { id: body.id, campus: { schoolId: user.schoolId } },
     });
     if (!bank) throw new ApiError("Bank account not found", 404);
+    await resolveCampusId(user, bank.campusId);
+
+    if (body.currency !== undefined && body.currency !== bank.currency) throw new ApiError("Existing monetary currency cannot be changed", 400);
 
     if (body.name && String(body.name).trim() !== bank.name) {
       const dup = await prisma.bankAccount.findFirst({
@@ -95,8 +104,8 @@ export async function PATCH(req: NextRequest) {
         accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
         openingBalance: body.openingBalance !== undefined
           ? (() => {
-              const v = Math.round(Number(body.openingBalance));
-              if (!Number.isInteger(v)) throw new ApiError("openingBalance must be an integer (paisa)", 400);
+              const v = Number(body.openingBalance);
+              if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
               return v;
             })()
           : undefined,
@@ -113,7 +122,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "delete");
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

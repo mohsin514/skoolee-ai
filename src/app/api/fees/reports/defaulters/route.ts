@@ -1,3 +1,5 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -19,6 +21,8 @@ export async function GET(req: NextRequest) {
         ? null
         : await resolveCampusId(user, requestedCampusId);
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
     const minDaysOverdue = parseInt(searchParams.get("minDays") ?? "1", 10);
 
     const campusWhere = {
@@ -33,6 +37,7 @@ export async function GET(req: NextRequest) {
 
     const overdueInvoices = await prisma.invoice.findMany({
       where: {
+        currency,
         campusId: { in: campusIds },
         status: { in: ["PENDING", "OVERDUE"] },
         balanceDue: { gt: 0 },
@@ -101,7 +106,7 @@ export async function GET(req: NextRequest) {
 
     const defaulters = Array.from(studentMap.values())
       .sort((a, b) => b.totalOverdue - a.totalOverdue)
-      .map((d) => ({ ...d, daysOverdue: d.maxDaysOverdue }));
+      .map((d) => ({ ...d, currency, daysOverdue: d.maxDaysOverdue }));
 
     return Response.json({
       success: true,

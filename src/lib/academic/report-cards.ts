@@ -1,3 +1,5 @@
+import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
+import { localePackageSchema } from "@/lib/locale/package";
 import { prisma } from "@/lib/db/prisma";
 import {
   buildSubjectDistribution,
@@ -123,7 +125,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
     }),
     prisma.reportCard.findMany({
       where: { examId },
-      select: { studentId: true, status: true, isSent: true, deliveryStatus: true },
+      select: { studentId: true, status: true, isSent: true, deliveryStatus: true, localeSnapshot: true, generatedAt: true },
     }),
   ]);
 
@@ -182,11 +184,14 @@ export async function generateReportCardsForLockedExam(examId: string) {
 
   const resultByStudent = new Map(results.map((result) => [result.student.id, result]));
   const now = new Date();
+  const localeAt = await loadLocaleTimeline(exam.schoolId, exam.campusId);
+  const localeSnapshot = localeAt(now);
 
   const reportCards = await prisma.$transaction(
     students.map((student) => {
       const result = resultByStudent.get(student.id)!;
       const existing = existingByStudent.get(student.id);
+      const previousLocale = localePackageSchema.safeParse(existing?.localeSnapshot);
       const status = existing?.isSent
         ? "SENT"
         : existing?.status === "PUBLISHED"
@@ -196,6 +201,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
       return prisma.reportCard.upsert({
         where: { studentId_examId: { studentId: student.id, examId } },
         update: {
+          localeSnapshot: previousLocale.success ? previousLocale.data : localeAt(existing?.generatedAt || now),
           totalMarks: result.totalMarks,
           obtainedMarks: result.obtainedMarks,
           percentage: result.percentage,
@@ -207,6 +213,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
           generatedAt: now,
         },
         create: {
+          localeSnapshot,
           campusId: exam.campusId,
           studentId: student.id,
           examId,
@@ -387,7 +394,10 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     } catch {}
   }
 
+  const storedLocale = localePackageSchema.safeParse(reportCard.localeSnapshot);
+  const locale = storedLocale.success ? storedLocale.data : await getLocalePackage(reportCard.schoolId, reportCard.campusId, reportCard.generatedAt);
   return {
+    locale,
     reportCard,
     weightConfig,
     subjectDistribution,
