@@ -169,29 +169,29 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]"
+      className="sk-rise relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {/* A tinted edge carries the tone without a coloured card. */}
       <span
         aria-hidden
-        className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.solid}`}
+        className={`absolute inset-y-0 start-0 w-[3px] opacity-40 ${t.solid}`}
       />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
+          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+          <p className="mt-1.5 truncate text-xs font-semibold uppercase leading-tight tracking-wide text-ink-muted">
             {label}
           </p>
-          {sub && <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>}
+          {sub && <p className="mt-0.5 truncate text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
           <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
         ) : (
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.soft} ${t.text}`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.soft} ${t.text}`}
           >
             <Icon className="h-4 w-4" />
           </div>
