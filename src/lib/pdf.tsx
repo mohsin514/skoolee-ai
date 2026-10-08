@@ -1,3 +1,4 @@
+import { renderLocaleInvoice } from "@/lib/locale/invoice-pdf";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/db/prisma";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
@@ -257,84 +258,7 @@ export async function generateInvoicePdf(invoiceId: string) {
   });
   if (!invoice) throw new Error("Invoice not found");
 
-  const cls = invoice.student.class;
-  const money = (n: number) => `Rs. ${n.toLocaleString()}`;
-
-  return renderToBuffer(
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <Header campus={invoice.campus} />
-        <Text style={styles.title}>Fee Invoice</Text>
-        <View style={[styles.grid, { marginTop: 8 }]}>
-          <View style={styles.panel}>
-            <Text style={styles.label}>Student</Text>
-            <Text style={styles.value}>{invoice.student.fullName}</Text>
-            <Text style={styles.label}>Roll No</Text>
-            <Text style={styles.value}>{invoice.student.rollNo}</Text>
-            <Text style={styles.label}>Class</Text>
-            <Text style={styles.value}>{[cls?.name, cls?.section].filter(Boolean).join(" ")}</Text>
-          </View>
-          <View style={styles.panelLast}>
-            <Text style={styles.label}>Invoice No</Text>
-            <Text style={styles.value}>{invoice.invoiceNumber || "-"}</Text>
-            <Text style={styles.label}>Invoice Date</Text>
-            <Text style={styles.value}>{invoice.invoiceDate.toLocaleDateString()}</Text>
-            <Text style={styles.label}>Due Date</Text>
-            <Text style={styles.value}>{invoice.dueDate.toLocaleDateString()}</Text>
-            <Text style={styles.label}>Status</Text>
-            <Text style={[styles.value, { textTransform: "uppercase" }]}>{invoice.status}</Text>
-          </View>
-        </View>
-
-        <View style={styles.table}>
-          <View style={[styles.row, styles.th]}>
-            <Text style={[styles.cell, styles.flex2]}>Description</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>Amount</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Monthly Fee</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.monthlyFee)}</Text>
-          </View>
-          {invoice.oneTimeFees > 0 ? (
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.flex2]}>One-time Fees</Text>
-              <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.oneTimeFees)}</Text>
-            </View>
-          ) : null}
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Subtotal</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.subtotal)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Discount</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.discountAmount)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Late Fee</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.lateFeeAmount)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Tax</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.taxAmount)}</Text>
-          </View>
-          <View style={[styles.row, styles.lastRow]}>
-            <Text style={[styles.cell, styles.flex2]}>Total</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.totalAmount)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.line}>
-          <Text style={styles.muted}>Total Paid</Text>
-          <Text>{money(invoice.totalAmountPaid)}</Text>
-        </View>
-        <View style={[styles.lineBold, styles.lineTotal]}>
-          <Text>Balance Due</Text>
-          <Text>{money(invoice.balanceDue)}</Text>
-        </View>
-        <Footer />
-      </Page>
-    </Document>
-  );
+  return renderLocaleInvoice(invoice);
 }
 
 export async function generatePaymentPdf(paymentId: string) {

@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema, generateInvoicesSchema, paymentSchema } from "@/lib/validators/schemas";
@@ -155,6 +156,7 @@ export async function POST(req: NextRequest) {
       const subtotal = feeStructure.monthlyFee + oneTimeTotal;
       const totalAmount = subtotal;
 
+      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
       const created = await prisma.$transaction(
         students
           .filter((s) => !alreadyGenerated.has(s.id))
@@ -163,6 +165,8 @@ export async function POST(req: NextRequest) {
               data: {
                 campusId,
                 studentId: student.id,
+                currency: "PKR",
+                localeSnapshot,
                 monthlyFee: feeStructure.monthlyFee,
                 oneTimeFees: oneTimeTotal,
                 subtotal,

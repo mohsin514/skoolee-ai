@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
@@ -199,10 +200,13 @@ export async function POST(req: NextRequest) {
 
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
 
+      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
       const invoice = await prisma.invoice.create({
         data: {
           campusId,
           studentId: student.id,
+          currency: "PKR",
+          localeSnapshot,
           invoiceNumber: generateInvoiceNumber(campusId, year, sequence++),
           invoiceDate,
           dueDate,

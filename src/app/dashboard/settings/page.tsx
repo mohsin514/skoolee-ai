@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { EditableProfileCard } from "@/components/profile/editable-profile-card";
+import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 
 /** Roles for whom the institution record is administrative context worth showing. */
@@ -51,6 +52,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <InstitutionSettingsPanel />
+            <div className="mt-6"><LocaleSettingsPanel /></div>
           </div>
         ) : null}
       </div>

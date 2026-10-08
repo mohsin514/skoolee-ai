@@ -29,6 +29,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  localePolicies LocalePolicy[]
   id                   String    @id @default(uuid())
   name                 String
   slug                 String    @unique // subdomain routing
@@ -195,6 +196,8 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
+  localePolicies LocalePolicy[]
   id            String   @id @default(uuid())
   schoolId      String   @default("") @map("school_id")
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -285,6 +288,7 @@ model Campus {
 
 // ─── 3. USERS ─────────────────────────────────────────────
 model User {
+  preferredLanguage String? @map("preferred_language")
   id                            String                   @id @default(uuid())
   campusId                      String?                  @map("campus_id")
   campus                        Campus?                  @relation(fields: [campusId], references: [id])
@@ -1602,6 +1606,8 @@ model FeeCarryForward {
 
 // ─── 12. INVOICES ─────────────────────────────────────────
 model Invoice {
+  currency String @default("PKR")
+  localeSnapshot Json? @map("locale_snapshot")
   id              String        @id @default(uuid())
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1994,6 +2000,7 @@ model ConsentLog {
 }
 
 model NotificationTemplate {
+  language String @default("en")
   id                   String   @id @default(uuid())
   schoolId             String?  @map("school_id")
   school               School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3060,4 +3067,23 @@ model ChatSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("chat_settings")
+}
+
+// Append-only effective-dated locale policies. Campus rows contain only overrides.
+model LocalePolicy {
+  status String @default("ACTIVE")
+  id String @id @default(uuid())
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String? @map("campus_id")
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  scopeKey String @map("scope_key")
+  settings Json
+  effectiveAt DateTime @map("effective_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String @map("created_by")
+  financeReviewedBy String? @map("finance_reviewed_by")
+  @@unique([schoolId, scopeKey, effectiveAt])
+  @@index([schoolId, campusId, effectiveAt])
+  @@map("locale_policies")
 }

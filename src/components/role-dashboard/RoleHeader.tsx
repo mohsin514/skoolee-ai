@@ -1,4 +1,6 @@
 "use client";
+
+import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -412,7 +414,7 @@ export function RoleHeader({
           eyebrow="Your account"
           subtitle="Manage your profile details"
           avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
-          size="md"
+          size="xl"
           onClose={() => setSettingsOpen(false)}
         >
           <EditableProfileCard
@@ -423,6 +425,7 @@ export function RoleHeader({
             }}
             onSaved={setHeaderProfile}
           />
+          <div className="mt-6"><LocaleSettingsPanel /></div>
         </Modal>
       )}
 

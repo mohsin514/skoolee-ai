@@ -1,3 +1,6 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { formatDateOnly, formatMoney, localePackageSchema, type Language } from "@/lib/locale/package";
+import { notificationHtml } from "@/lib/locale/notification-catalog";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { canUseFeature } from "@/config/plans";
@@ -123,7 +126,9 @@ export async function getApprovedNotificationTemplate({
   channel,
   schoolId,
   campusId,
+  language = "en",
 }: {
+  language?: Language;
   key: NotificationTemplateKey;
   channel: NotificationChannel;
   schoolId: string;
@@ -144,6 +149,7 @@ export async function getApprovedNotificationTemplate({
     where: {
       key,
       channel,
+      language,
       isActive: true,
       status: "APPROVED",
       OR: scopes,
@@ -155,7 +161,7 @@ export async function getApprovedNotificationTemplate({
 
   if (template) return normalizeTemplate(template);
 
-  const fallback = defaultTemplateFor(key, channel);
+  const fallback = defaultTemplateFor(key, channel, language);
   if (!fallback) throw new Error(`Template ${key} is not configured for ${channel}`);
   return fallback;
 }
@@ -221,13 +227,33 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
   const existing = await findExistingByIdempotency(input.idempotencyKey);
   if (existing?.status === "SENT") return existing;
 
+  const parent = input.target.parentUserId ? await prisma.user.findFirst({ where: { id: input.target.parentUserId, schoolId: input.target.schoolId }, select: { preferredLanguage: true } }) : null;
+  let locale = await getLocalePackage(input.target.schoolId, input.target.campusId || null);
+  const context = { ...input.context };
+  if (input.relatedType === "INVOICE" && input.relatedId) {
+    const invoice = await prisma.invoice.findFirst({ where: { id: input.relatedId, schoolId: input.target.schoolId } });
+    if (invoice) {
+      const snapshot = localePackageSchema.safeParse(invoice.localeSnapshot);
+      if (snapshot.success) locale = snapshot.data;
+      if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
+      context.balanceDue = formatMoney({ minor: invoice.balanceDue, currency: invoice.currency }, locale);
+      context.dueDate = formatDateOnly(invoice.dueDate.toISOString().slice(0, 10), locale);
+      context.term = formatDateOnly(invoice.invoiceDate.toISOString().slice(0, 10), locale);
+    }
+  }
+  if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
+  for (const key of ["date", "dueDate", "meetingDate", "deadlineDate"]) {
+    const value = context[key];
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) context[key] = formatDateOnly(value, locale);
+  }
   const template = await getApprovedNotificationTemplate({
+    language: locale.language,
     key: input.key,
     channel: input.channel,
     schoolId: input.target.schoolId,
     campusId: input.target.campusId,
   });
-  const rendered = renderNotificationTemplate(template, input.context);
+  const rendered = renderNotificationTemplate(template, context);
   const recipient = input.target.recipient || "UNAVAILABLE";
   const school =
     input.channel === "WHATSAPP"
@@ -271,7 +297,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     failedReason: blockedReason || noRecipientReason,
     approvedData: input.approvedData,
     idempotencyKey: input.idempotencyKey,
-    metadata: input.metadata ? jsonValue(input.metadata) : undefined,
+    metadata: jsonValue({ ...input.metadata, localeSnapshot: locale }),
     sentAt: null,
   };
 
@@ -307,6 +333,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
           to: recipient,
           subject: rendered.subject,
           text: rendered.body,
+          html: notificationHtml(rendered.body, locale.language),
         });
 
   return prisma.parentCommunication.update({
