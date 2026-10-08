@@ -269,7 +269,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         <BankImportModal
           campusId={campusId}
           onClose={() => setShowBankImport(false)}
-          onImported={() => { setShowBankImport(false); loadPayments(); }}
+          onImported={() => { loadPayments(); }}
         />
       )}
     </div>
@@ -639,96 +639,127 @@ function BankImportModal({
   onImported: () => void;
 }) {
   const tr = useUiText();
+  const { money } = useLocaleFormat();
   const [currency, setCurrency] = useState("USD");
   useEffect(() => { void getFinancialLocale(campusId).then((locale) => setCurrency(locale.currency)).catch(() => {}); }, [campusId]);
   const [file, setFile] = useState<File | null>(null);
   const [accountName, setAccountName] = useState("");
   const [statementFrom, setStatementFrom] = useState("");
   const [statementTo, setStatementTo] = useState("");
-  const [importing, setImporting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [batch, setBatch] = useState<any>(null);
+  const [reversal, setReversal] = useState<any>(null);
+  const [confirmReverse, setConfirmReverse] = useState(false);
 
-  const handleImport = async () => {
-    if (!file || !accountName || !statementFrom || !statementTo) {
-      toast.error(tr("All fields required"));
-      return;
-    }
-    setImporting(true);
+  const batchUrl = () => "/api/import-batches/" + batch.id + (campusId ? "?campusId=" + encodeURIComponent(campusId) : "");
+
+  const stage = async () => {
+    if (!file || !accountName || !statementFrom || !statementTo) { toast.error(tr("All fields required")); return; }
+    if (!file.name.toLowerCase().endsWith(".csv") || file.size > 5 * 1024 * 1024) { toast.error(tr("Choose a CSV file under 5MB")); return; }
+    setBusy(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("accountName", accountName);
-      form.append("currency", currency);
-      form.append("statementFrom", statementFrom);
-      form.append("statementTo", statementTo);
-      if (campusId) form.append("campusId", campusId);
-
-      const res = await fetch(`${API}/bank-import`, { method: "POST", body: form });
-      const json = await res.json();
-      if (json.success) {
-        if (json.jobId) { window.location.assign(`/jobs?id=${json.jobId}`); return; }
-        toast.success(tr("Matched {0} of {1} transactions", [json.data.matched, json.data.totalTransactions]));
-        onImported();
-      } else {
-        toast.error(tr(json.error || "Import failed"));
-      }
-    } catch {
-      toast.error(tr("Import failed"));
-    } finally {
-      setImporting(false);
-    }
+      const response = await fetch("/api/import-batches", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "BANK_STATEMENT", sourceName: file.name, csvText: await file.text(), accountName, currency, statementFrom, statementTo, campusId }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || tr("Could not validate this statement"));
+      setBatch(result.data); toast.success(tr("File validated. Review every row before commit."));
+    } catch (error) { toast.error(error instanceof Error ? error.message : tr("Import failed")); }
+    finally { setBusy(false); }
   };
 
+  const updateRow = async (row: any, change: Record<string, unknown>) => {
+    if (!batch) return;
+    setBusy(true);
+    try {
+      const response = await fetch(batchUrl(), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: [{ rowNumber: row.rowNumber, ...change }] }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || tr("Could not save row decision"));
+      setBatch(result.data);
+    } catch (error) { toast.error(error instanceof Error ? error.message : tr("Could not save row decision")); }
+    finally { setBusy(false); }
+  };
+
+  const commit = async () => {
+    if (!batch || batch.summary.accepted < 1) return;
+    setBusy(true);
+    try {
+      const response = await fetch(batchUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "commit" }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || tr("Import failed"));
+      setBatch(result.data); setReversal(null);
+      const summary = result.receipt?.summary || {};
+      toast.success(tr("Reconciliation saved. {0} transactions matched and {1} remain unmatched.", [summary.matched || 0, summary.unmatched || 0]));
+      onImported();
+    } catch (error) { toast.error(error instanceof Error ? error.message : tr("Import failed")); }
+    finally { setBusy(false); }
+  };
+
+  const checkReversal = async () => {
+    try {
+      const response = await fetch(batchUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reversal-check" }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || tr("Could not check reversal dependencies"));
+      setReversal(result.data);
+    } catch (error) { toast.error(error instanceof Error ? error.message : tr("Could not check reversal dependencies")); }
+  };
+
+  const reverse = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch(batchUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reverse" }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || tr("Reversal failed"));
+      setBatch(result.data); setReversal(null); setConfirmReverse(false);
+      toast.success(tr("Batch reversed. The reversal receipt is retained.")); onImported();
+    } catch (error) { toast.error(error instanceof Error ? error.message : tr("Reversal failed")); }
+    finally { setBusy(false); }
+  };
+
+  const committed = batch && ["COMMITTED", "PARTIAL", "REVERSED"].includes(batch.state);
+
   return (
-    <Modal
-      title={tr("Import Bank Statement")}
-      eyebrow={tr("Fees")}
-      subtitle={tr("Uploads a CSV and matches its transactions against open invoices.")}
-      icon={Landmark}
-      size="xs"
-      onClose={onClose}
-      footer={
-        <BrandButton className="w-full h-12" onClick={handleImport} disabled={importing || !file}>
-          {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
-          {importing ? tr("Importing...") : tr("Import & Auto-Match")}
-        </BrandButton>
-      }
-    >
-        <div className="space-y-4">
+    <Modal title={tr("Import Bank Statement")} eyebrow={tr("Fees")}
+      subtitle={tr("Upload and validate first. Only reviewed rows are saved to the reconciliation receipt.")}
+      icon={Landmark} size="md" onClose={onClose}
+      footer={committed ? <div className="flex w-full gap-2">
+        {batch.state !== "REVERSED" && <BrandButton variant="soft" className="h-12 flex-1" onClick={() => void checkReversal()}>{tr("Check reversal")}</BrandButton>}
+        {reversal?.eligible && !confirmReverse && <BrandButton className="h-12 flex-1" onClick={() => setConfirmReverse(true)}>{tr("Reverse batch")}</BrandButton>}
+      </div> : batch?.state === "STAGED" ? <BrandButton className="w-full h-12" onClick={() => void commit()} disabled={busy || batch.summary.accepted < 1}>
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
+        {busy ? tr("Committing...") : tr("Commit {0} selected transactions", [batch.summary.accepted])}
+      </BrandButton> : <BrandButton className="w-full h-12" onClick={() => void stage()} disabled={busy || !file}>
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
+        {busy ? tr("Validating...") : tr("Validate statement")}
+      </BrandButton>}>
+      <div className="max-h-[70vh] space-y-4 overflow-y-auto" dir="auto">
+        {committed ? <section aria-live="polite" className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+          <p className="font-bold">{batch.state === "REVERSED" ? tr("Batch reversed") : tr("Batch receipt")}</p>
+          <p>{tr("{0} transactions committed; {1} matched; {2} unmatched.", [batch.receipt?.summary?.committed || 0, batch.receipt?.summary?.matched || 0, batch.receipt?.summary?.unmatched || 0])}</p>
+          <p className="font-mono text-xs" dir="ltr">{batch.id}</p>
+          {reversal && <div className="rounded-xl bg-white p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-rose-700">{item}</p>)}</div>}
+          {confirmReverse && reversal?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><p>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</p><div className="mt-3 flex gap-2"><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><BrandButton onClick={() => void reverse()} disabled={busy}>{tr("Reverse batch")}</BrandButton></div></div>}
+        </section> : <>
           <label className="block text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border p-2" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Account Name"}</UiText></label>
-            <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder={tr("School Savings Account")} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
-          </div>
+          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</label><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" /></div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"From"}</UiText></label>
-              <SystemInput type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"To"}</UiText></label>
-              <SystemInput type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" />
-            </div>
+            <label className="text-sm">{tr("From")}<SystemInput type="date" value={statementFrom} onChange={(event) => setStatementFrom(event.target.value)} className="mt-1 w-full h-11 rounded-xl border p-2" /></label>
+            <label className="text-sm">{tr("To")}<SystemInput type="date" value={statementTo} onChange={(event) => setStatementTo(event.target.value)} className="mt-1 w-full h-11 rounded-xl border p-2" /></label>
           </div>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"CSV File"}</UiText></label>
-            <label className="flex flex-col items-center justify-center h-28 rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20 cursor-pointer hover:bg-[#fbf0fe]/40 hover:border-[#8127cf]/30 transition-all">
-              <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="hidden" />
-              {file ? (
-                <div className="text-center">
-                  <FileText className="w-6 h-6 text-[#8127cf] mx-auto mb-1" />
-                  <p className="text-xs font-bold text-[#1f1a23]">{file.name}</p>
-                  <p className="text-[9px] text-ink-subtle">{(file.size / 1024).toFixed(1)}<UiText>{"KB"}</UiText></p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <Upload className="w-6 h-6 text-[#8127cf] mx-auto mb-1" />
-                  <p className="text-xs font-bold text-ink-muted"><UiText>{"Click to upload CSV"}</UiText></p>
-                  <p className="text-[9px] text-ink-subtle"><UiText>{"transaction_date,amount,description"}</UiText></p>
-                </div>
-              )}
-            </label>
-          </div>
-        </div>
+          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2">
+            <input aria-label={tr("Choose CSV File")} type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
+            {file ? <div className="text-center"><FileText className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{file.name}</p><p className="text-[9px]">{(file.size / 1024).toFixed(1)} KB</p></div> : <div className="text-center"><Upload className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{tr("Click to upload CSV")}</p><p className="text-[9px]">{tr("transaction_date,amount,description")}</p></div>}
+          </label></div>
+          {batch?.state === "STAGED" && <>
+            <div className="flex flex-wrap gap-2 text-xs font-bold"><span>{tr("{0} selected", [batch.summary.accepted])}</span><span>{tr("{0} rejected", [batch.summary.rejected])}</span><span>{tr("{0} skipped", [batch.summary.skipped])}</span><span>{tr("{0} unresolved", [batch.summary.unresolved])}</span><span>{tr("{0} total rows", [batch.summary.total])}</span></div>
+            <p className="text-xs text-ink-subtle">{tr("Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.")}</p>
+            <div className="overflow-x-auto rounded-xl border"><table className="w-full text-xs"><thead><tr><th>{tr("Include")}</th><th dir="ltr">{tr("Row")}</th><th>{tr("Date")}</th><th>{tr("Amount")}</th><th>{tr("Description")}</th><th>{tr("Invoice match")}</th><th>{tr("Status")}</th></tr></thead><tbody>
+              {batch.rows?.map((row: any) => <tr key={row.rowNumber} className="border-t"><td>{row.state === "ACCEPTED" && <input type="checkbox" aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</td><td dir="ltr">{row.rowNumber}</td><td dir="ltr">{String(row.proposal?.date || "")}</td><td dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</td><td>{String(row.proposal?.description || "")}</td><td><select aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52 rounded border p-1" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, { matchedInvoiceId: event.target.value || null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</select>{row.state === "UNRESOLVED" && <button type="button" className="mt-1 rounded px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</button>}</td><td>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</td></tr>)}
+            </tbody></table></div>
+          </>}
+        </>}
+      </div>
     </Modal>
   );
 }

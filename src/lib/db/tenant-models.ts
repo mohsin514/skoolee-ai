@@ -63,6 +63,7 @@ export const TENANT_MODELS = new Set<string>([
   "guardianRelationship",
   "guardianReviewQueue",
   "holiday",
+  "importBatch",
   "interventionPlan",
   "invoice",
   "item",

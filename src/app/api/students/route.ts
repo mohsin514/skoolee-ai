@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { studentSchema, bulkStudentSchema } from "@/lib/validators/schemas";
 import { sendInviteEmail } from "@/lib/email";
@@ -244,7 +245,26 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     let students: StudentInput[];
-    if (body.students) {
+    let importBatch: Awaited<ReturnType<typeof prisma.importBatch.findFirst>> = null;
+    let importRows: Array<{ rowNumber: number; state: string; selected: boolean; proposal?: unknown; errors?: string[]; matchKey?: string | null; matchLabel?: string | null }> = [];
+    if (typeof body?._importBatchId === "string") {
+      const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+      importBatch = await prisma.importBatch.findFirst({ where: { id: body._importBatchId, schoolId: user.schoolId, campusId } });
+      if (!importBatch || importBatch.kind !== "STUDENT_ROSTER") throw new ApiError("Student import batch not found", 404);
+      if (importBatch.state === "COMMITTED" || importBatch.state === "PARTIAL" || importBatch.state === "REVERSED") {
+        const receipt = importBatch.receipt as Prisma.JsonObject | null;
+        return Response.json({ success: true, data: [], message: `Batch ${importBatch.id} was already committed`, importBatchId: importBatch.id, importBatchState: importBatch.state, receipt, idempotent: true });
+      }
+      if (importBatch.state !== "STAGED" || importBatch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
+      const batchData = importBatch.data as Prisma.JsonObject;
+      importRows = Array.isArray(batchData.rows) ? batchData.rows as unknown as typeof importRows : [];
+      const selected = importRows.filter((row) => row.state === "ACCEPTED" && row.selected);
+      if (!selected.length) throw new ApiError("Select at least one validated row before committing", 400);
+      const parsed = bulkStudentSchema.safeParse({ students: selected.map((row) => row.proposal) });
+      if (!parsed.success) return validationErrorResponse(parsed.error);
+      students = parsed.data.students as StudentInput[];
+      importRows = importRows.map((row) => ({ ...row, _committing: row.state === "ACCEPTED" && row.selected } as typeof row));
+    } else if (body.students) {
       const parsed = bulkStudentSchema.safeParse(body);
       if (!parsed.success) {
         return validationErrorResponse(parsed.error);
@@ -320,7 +340,11 @@ export async function POST(req: NextRequest) {
 
     const created = await prisma.$transaction(
       async (tx) => {
-      const createdStudents = [];
+      const createdStudents: Awaited<ReturnType<typeof tx.student.create>>[] = [];
+      if (importBatch) {
+        const claimed = await tx.importBatch.updateMany({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId, state: "STAGED", expiresAt: { gt: new Date() } }, data: { state: "COMMITTING" } });
+        if (claimed.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
+      }
 
       for (const student of students) {
         const targetClass = classesById.get(student.classId)!;
@@ -623,6 +647,50 @@ export async function POST(req: NextRequest) {
         createdStudents.push(createdStudent);
       }
 
+      if (importBatch) {
+        let committedIndex = 0;
+        const receiptRows = importRows.map((row) => {
+          const isCommitted = row.state === "ACCEPTED" && row.selected;
+          const student = isCommitted ? createdStudents[committedIndex++] : null;
+          return {
+            rowNumber: row.rowNumber,
+            state: isCommitted ? "COMMITTED" : row.state === "ACCEPTED" ? "SKIPPED" : row.state,
+            selected: Boolean(isCommitted),
+            matchKey: row.matchKey || null,
+            matchLabel: row.matchLabel || null,
+            errors: row.errors || [],
+            result: student ? { studentId: student.id, fullName: student.fullName, rollNo: student.rollNo } : undefined,
+          };
+        });
+        const committedCount = createdStudents.length;
+        const skippedCount = receiptRows.filter((row) => row.state === "SKIPPED").length;
+        const rejectedCount = receiptRows.filter((row) => row.state === "REJECTED").length;
+        const unresolvedCount = receiptRows.filter((row) => row.state === "UNRESOLVED").length;
+        const partial = skippedCount + rejectedCount + unresolvedCount > 0;
+        const receipt = {
+          batchId: importBatch.id,
+          kind: importBatch.kind,
+          committedAt: new Date().toISOString(),
+          summary: { total: receiptRows.length, committed: committedCount, created: committedCount, updated: 0, skipped: skippedCount, rejected: rejectedCount, unresolved: unresolvedCount },
+          rows: receiptRows,
+          reversal: { state: "CHECK_REQUIRED", message: "Check later pupil, grade, enrollment and invoice dependencies before reversing this batch." },
+          externalEffects: { invitations: "PENDING", note: "Invitation messages run after the roster transaction; inspect delivery in the staff invitation list." },
+        };
+        await tx.importBatch.update({ where: { id: importBatch.id }, data: {
+          state: partial ? "PARTIAL" : "COMMITTED",
+          committedAt: new Date(),
+          data: { rows: [], metadata: {}, summary: { total: receiptRows.length, accepted: committedCount, rejected: rejectedCount, skipped: skippedCount, unresolved: unresolvedCount } },
+          receipt: receipt as Prisma.InputJsonValue,
+        } });
+        await tx.auditLog.create({ data: {
+          schoolId: user.schoolId,
+          tableName: "import_batch",
+          recordId: importBatch.id,
+          newValue: { action: "COMMITTED", kind: importBatch.kind, summary: receipt.summary } as Prisma.InputJsonValue,
+          userId: user.userId,
+        } });
+      }
+
       return createdStudents;
     },
       { timeout: 20000 }
@@ -673,16 +741,31 @@ export async function POST(req: NextRequest) {
 
     const inviteCount = guardianInvites.length + studentInvites.length;
     const inviteFailures = guardianInviteFailures.length + studentInviteFailures.length;
+    const committedBatch = importBatch ? await prisma.importBatch.findFirst({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId }, select: { receipt: true, state: true } }) : null;
+    if (importBatch && committedBatch?.receipt && typeof committedBatch.receipt === "object" && !Array.isArray(committedBatch.receipt)) {
+      const receipt = committedBatch.receipt as Prisma.JsonObject;
+      const previousEffects = receipt.externalEffects && typeof receipt.externalEffects === "object" && !Array.isArray(receipt.externalEffects) ? receipt.externalEffects as Prisma.JsonObject : {};
+      const delivery = { invitations: "ATTEMPTED", guardianSent: guardianInvites.length - guardianInviteFailures.length, guardianFailures: guardianInviteFailures.length, studentSent: studentInvites.length - studentInviteFailures.length, studentFailures: studentInviteFailures.length };
+      const updatedReceipt = { ...receipt, externalEffects: { ...previousEffects, ...delivery } };
+      await prisma.$transaction(async (tx) => {
+        await tx.importBatch.update({ where: { id: importBatch.id }, data: { receipt: updatedReceipt as Prisma.InputJsonValue, ...(inviteFailures > 0 ? { state: "PARTIAL" } : {}) } });
+        await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: importBatch.id, newValue: { action: "INVITATIONS_ATTEMPTED", ...delivery } as Prisma.InputJsonValue, userId: user.userId } });
+      });
+    }
+    const finalBatchReceipt = importBatch ? await prisma.importBatch.findFirst({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId }, select: { receipt: true } }) : null;
 
     return Response.json(
       {
         success: true,
-        data: body.students ? created : created[0],
+        data: body.students || importBatch ? created : created[0],
+        importBatchId: importBatch?.id,
+        importBatchState: importBatch ? inviteFailures > 0 || committedBatch?.state === "PARTIAL" ? "PARTIAL" : "COMMITTED" : undefined,
+        receipt: finalBatchReceipt?.receipt || committedBatch?.receipt,
         guardianInvitesSent: guardianInvites.length - guardianInviteFailures.length,
         guardianInviteFailures,
         studentInvitesSent: studentInvites.length - studentInviteFailures.length,
         studentInviteFailures,
-        message: body.students
+        message: body.students || importBatch
           ? `${created.length} students created${inviteCount ? `, ${inviteCount - inviteFailures} account invites sent` : ""}`
           : inviteCount
             ? inviteFailures
