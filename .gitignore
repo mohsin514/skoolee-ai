@@ -87,3 +87,6 @@ docs/qa/evidence/*.sql
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Synthetic recovery run artifacts (can contain SQL dumps)
+/recovery-evidence/
