@@ -173,7 +173,7 @@ export function Header({ title, description, actions }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/25 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="shrink-0 -rotate-2 md:hidden">
             <SkooleeLogo size="1.25rem" />
@@ -201,7 +201,7 @@ export function Header({ title, description, actions }: HeaderProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           <div ref={notifRef} className="relative">
             <Button
               type="button"
@@ -285,7 +285,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             )}
           </div>
 
-          {actions}
+          {actions && <div className="order-last w-full min-w-0 [&>div]:flex-wrap sm:order-none sm:w-auto">{actions}</div>}
 
           <div ref={menuRef} className="relative z-[80]">
             <button

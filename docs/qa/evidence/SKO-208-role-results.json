@@ -1,0 +1,127 @@
+{
+  "run": "277621d7-31bb-4da6-946c-038b6d40a328",
+  "results": [
+    {
+      "role": "APP_OWNER",
+      "route": "/owner",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "SUPER_ADMIN",
+      "route": "/super",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "CAMPUS_ADMIN",
+      "route": "/admin",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "ADMIN",
+      "route": "/admin",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "PRINCIPAL",
+      "route": "/principal",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "TEACHER",
+      "route": "/teacher",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "PARENT",
+      "route": "/parent",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "STUDENT",
+      "route": "/student",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "ACCOUNTANT",
+      "route": "/accountant",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "LIBRARIAN",
+      "route": "/librarian",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    },
+    {
+      "role": "RECEPTIONIST",
+      "route": "/receptionist",
+      "login": 200,
+      "desktop": 1280,
+      "tablet": 768,
+      "phone": 360,
+      "activeNavigation": true,
+      "keyboardDrawer": true,
+      "pageErrors": []
+    }
+  ],
+  "fixturesRemoved": true
+}
