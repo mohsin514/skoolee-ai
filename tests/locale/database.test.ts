@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { sendTemplatedCommunication } from "../../src/lib/notifications/service";
+import { reviewQueue, approveVersions, reviewExam, publishExam } from "../../src/lib/academic/report-versions";
 import { getLocalePackage } from "../../src/lib/locale/store";
 import { prisma } from "../../src/lib/db/prisma";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 const url = process.env.DATABASE_URL || "";
-if (!url.includes("127.0.0.1:55401/sko201")) throw new Error("Local SKO-201 database required");
+if (!url.includes("127.0.0.1:55401/sko201") && !url.includes("127.0.0.1:55410/sko210")) throw new Error("Local SKO-201 database required");
 const db = new PrismaClient();
 test("persisted policy resolves exact effective boundaries, inheritance, finance gate and tenant isolation", async () => {
  const schoolId = "locale-db-regression";
@@ -34,14 +35,22 @@ test("persisted policy resolves exact effective boundaries, inheritance, finance
    const message = await sendTemplatedCommunication({ key: "GENERAL_ANNOUNCEMENT", channel: "EMAIL", target: { schoolId }, context: { parentName: "أحمد", announcementTitle: "TEST-014", announcementBody: "اختبار محلي", schoolName: "مدرسة" }, approvedData: true });
    assert.equal(message.status, "NO_RECIPIENT"); assert.match(message.body, /عزيزي أحمد/); assert.match(message.subject || "", /TEST-014/); assert.equal((message.metadata as { localeSnapshot: { language: string } }).localeSnapshot.language, "ar");
  });
+ await db.user.create({data:{id:"synthetic-reviewer",schoolId,campusId:`${schoolId}-a`,fullName:"Synthetic reviewer",email:"reviewer@example.invalid",password:"synthetic",role:"PRINCIPAL"}});
  const cls=await db.class.create({data:{schoolId,campusId:`${schoolId}-a`,name:"Class",academicYear:2026}});
  const student=await db.student.create({data:{schoolId,campusId:`${schoolId}-a`,classId:cls.id,fullName:"طالب علم",rollNo:"TEST-014",gender:"MALE"}});
  const exam=await db.exam.create({data:{schoolId,campusId:`${schoolId}-a`,classId:cls.id,title:"EXAM-014",term:"Term-1",academicYear:2026,status:"PUBLISHED",publishedAt:new Date(),isLocked:true}});
+ const subject=await db.subject.create({data:{schoolId,campusId:`${schoolId}-a`,classId:cls.id,name:"Math",totalMarks:100}});
+ await db.mark.create({data:{schoolId,campusId:`${schoolId}-a`,studentId:student.id,examId:exam.id,subjectId:subject.id,marksObtained:86}});
  const report=await db.reportCard.create({data:{schoolId,campusId:`${schoolId}-a`,studentId:student.id,examId:exam.id,totalMarks:100,obtainedMarks:86,percentage:86,grade:"A",status:"PUBLISHED",remarksApproved:true}});
  for (const language of ["en", "ar", "ur"] as const) {
   await db.localePolicy.update({where:{id:`${schoolId}-notify`},data:{settings:{language}}});
+  await db.reportCard.update({where:{id:report.id},data:{reportLanguage:language,remarksEn:"Reviewed",remarksAr:"تمت المراجعة",remarksUr:"جائزہ مکمل"}});
   await runWithTenantContext({schoolId},async()=>{
-   const message=await sendTemplatedCommunication({key:"REPORT_CARD_PUBLISHED",channel:"EMAIL",relatedId:report.id,relatedType:"REPORT_CARD",target:{schoolId,studentId:student.id},context:{parentName:"Guardian-014",studentName:"طالب علم",schoolName:"Local",examTitle:"EXAM-014",grade:"A",percentage:"86",viewInstruction:"English placeholder"},approvedData:true});
+   const [version] = await reviewQueue([report.id]);
+   await approveVersions([{reportCardId:report.id,versionId:version.id}],"synthetic-reviewer",undefined,"Reviewed translation correction");
+   await reviewExam(exam.id,"synthetic-reviewer");
+   await publishExam(exam.id,"synthetic-reviewer");
+   const message=await sendTemplatedCommunication({key:"REPORT_CARD_PUBLISHED",createdById:"synthetic-reviewer",channel:"EMAIL",relatedId:report.id,relatedType:"REPORT_CARD",target:{schoolId,studentId:student.id},context:{parentName:"Guardian-014",studentName:"طالب علم",schoolName:"Local",examTitle:"EXAM-014",grade:"A",percentage:"86",viewInstruction:"English placeholder"},approvedData:true});
    assert.equal(message.status,"NO_RECIPIENT");assert.equal((message.metadata as {localeSnapshot:{language:string}}).localeSnapshot.language,language);
    assert.ok(message.body.includes(language==="ar"?"يرجى تسجيل الدخول":language==="ur"?"پورٹل میں لاگ ان":"Please log in"));assert.ok(message.body.includes("EXAM-014"));assert.ok(!message.body.includes("English placeholder"));
   });

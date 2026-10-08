@@ -323,19 +323,21 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   const { reportCard, subjectDistribution, overall, locale } = payload;
   const t = reportMessages[locale.language];
   const f = (n: number) => new Intl.NumberFormat(localeTag(locale)).format(n);
-  const state = (value: string) => t[value as keyof typeof t] || value;
+  const state = (value: string) => value === "APPROVED" ? (locale.language === "ar" ? "معتمد" : locale.language === "ur" ? "منظور شدہ" : "Approved") : t[value as keyof typeof t] || value;
   const student = reportCard.student;
   const exam = reportCard.exam;
   const campus = reportCard.campus as any;
   const school = campus?.school;
   const logo = campus?.logoUrl || school?.logoUrl || null;
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
-  const displayPercentage = overall ? overall.overallPercentage : Math.round(reportCard.percentage || 0);
-  const displayGrade = overall ? overall.overallGrade : reportCard.grade || "—";
+  const displayPercentage = reportCard.percentage || 0;
+  const displayGrade = reportCard.grade || "—";
 
   const remarkSections: { label: string; value: string; urdu?: boolean }[] = [];
-  if (reportCard.remarksEn) remarkSections.push({ label: t.english, value: reportCard.remarksEn });
-  if (reportCard.remarksUr) remarkSections.push({ label: t.urdu, value: reportCard.remarksUr, urdu: true });
+  if (locale.language === "en" && reportCard.remarksEn) remarkSections.push({ label: t.english, value: reportCard.remarksEn });
+  if (locale.language === "ur" && reportCard.remarksUr) remarkSections.push({ label: t.urdu, value: reportCard.remarksUr, urdu: true });
+
+  if (locale.language === "ar" && reportCard.remarksAr) remarkSections.push({ label: "العربية", value: reportCard.remarksAr, urdu: true });
 
   return (
     <Document language={locale.language}>
@@ -362,9 +364,12 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
             <Text style={styles.subline}>
               {student.rollNo ? `${t.roll}: ${student.rollNo} · ` : ""}{classLabel(payload)}
             </Text>
+            <Text style={styles.subline}>{locale.language === "ar" ? "النسخة" : locale.language === "ur" ? "نسخہ" : "Version"} {payload.versionInfo.number}</Text>
+            <Text style={[styles.subline, { direction: "ltr" }]}>{payload.versionInfo.documentIdentity}</Text>
+            {payload.versionInfo.correctionReason && <Text style={styles.subline}>{locale.language === "ar" ? "تصحيح:" : locale.language === "ur" ? "تصحیح:" : "Correction:"} {payload.versionInfo.correctionReason}</Text>}
             <Text style={styles.subline}>{t.generated}</Text>
-            <Text style={[styles.subline, { direction: "ltr" }]}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(reportCard.generatedAt)}</Text>
-            <Text style={styles.subline}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, dateStyle: "long" }).format(reportCard.generatedAt)}</Text>
+            <Text style={[styles.subline, { direction: "ltr" }]}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reportCard.generatedAt))}</Text>
+            <Text style={styles.subline}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, dateStyle: "long" }).format(new Date(reportCard.generatedAt))}</Text>
           </View>
           <View style={styles.headerStats}>
             <View style={styles.bigStat}>
@@ -414,46 +419,20 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   );
 }
 
-function isS3Configured(): boolean {
-  return !!(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+/** Capture bytes once, as part of approval. No family download reads mutable live data. */
+export async function renderApprovedSnapshot(payload: ReportPayload) {
+  return renderToBuffer(<ReportCardDocument payload={payload} />);
 }
 
-async function storeToS3(key: string, pdfBuffer: Buffer): Promise<string> {
-  const { uploadPdf, getDownloadUrl } = await import("@/lib/storage/s3");
-  await uploadPdf(key, pdfBuffer);
-  return getDownloadUrl(key, 86400);
+export async function renderReportCardPdfBuffer(reportCardId: string, versionId?: string): Promise<{ buffer: Buffer; filename: string }> {
+  const { getArtifactVersion } = await import("./report-versions");
+  const version = await getArtifactVersion(reportCardId, versionId);
+  if (!version.documentBytes) throw new Error("The approved PDF artifact is unavailable");
+  return { buffer: Buffer.from(version.documentBytes), filename: `${version.documentIdentity}-v${version.number}.pdf` };
 }
 
-/** The rendered bytes, with no attempt to store them anywhere. */
-export async function renderReportCardPdfBuffer(
-  reportCardId: string,
-): Promise<{ buffer: Buffer; filename: string }> {
-  const payload = await getReportCardPdfPayload(reportCardId);
-  const buffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
-  const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
-  return {
-    buffer,
-    filename: `${safeRollNo || payload.reportCard.studentId}-${payload.reportCard.id}.pdf`,
-  };
-}
-
-/**
- * Render and persist, returning a URL — or null when there is nowhere to put
- * it. A null result means "serve it on demand", not "generation failed".
- */
 export async function generateReportCardPdf(reportCardId: string): Promise<string | null> {
-  const payload = await getReportCardPdfPayload(reportCardId);
-  const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
-
-  if (isS3Configured()) {
-    const { reportCardKey } = await import("@/lib/storage/s3");
-    const key = reportCardKey(
-      payload.reportCard.campusId,
-      payload.reportCard.examId,
-      payload.reportCard.studentId
-    );
-    return storeToS3(key, pdfBuffer);
-  }
-
-  return `/api/reports/download?reportCardId=${reportCardId}&redirect=1`;
+  const { getArtifactVersion } = await import("./report-versions");
+  const v = await getArtifactVersion(reportCardId);
+  return `/api/reports/download?reportCardId=${reportCardId}&versionId=${v.id}&redirect=1`;
 }

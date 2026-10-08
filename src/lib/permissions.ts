@@ -72,7 +72,7 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, Perm
     // Teachers create their own quizzes and class tests. The exam-type check in
     // the exams API is what keeps them out of mid-term and final exams.
     exams: { canView: true, canAdd: true, canEdit: true, canDelete: false },
-    reports: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    reports: { canView: true, canAdd: false, canEdit: true, canDelete: false },
     staff: { canView: false, canAdd: false, canEdit: false, canDelete: false },
     admissions: { canView: false, canAdd: false, canEdit: false, canDelete: false },
     accounts: { canView: false, canAdd: false, canEdit: false, canDelete: false },

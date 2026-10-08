@@ -1,3 +1,4 @@
+import { reportDeliveryWorkflow } from "../lib/queue/report-delivery";
 import { PrismaClient } from "@prisma/client";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
@@ -9,7 +10,7 @@ const db = new PrismaClient();
 const connection = new IORedis(process.env.REDIS_URL || "redis://127.0.0.1:6379", { maxRetriesPerRequest: null });
 const producerConnection = new IORedis(process.env.REDIS_URL || "redis://127.0.0.1:6379", { maxRetriesPerRequest: 1, enableOfflineQueue: false });
 const queue = new Queue<Reference>("durable-workflows", { connection: producerConnection });
-const worker = new Worker<Reference>("durable-workflows", job => consume(db, job.data, ctx => reportWorkflow(ctx, async notices => {
+const worker = new Worker<Reference>("durable-workflows", job => consume(db, job.data, ctx => ctx.kind === "REPORT_DELIVERY" ? reportDeliveryWorkflow(ctx) : reportWorkflow(ctx, async notices => {
   await Promise.all(notices.map(notice => producerConnection.publish(`notif:${notice.userId}`, JSON.stringify(notice))));
 })), { connection, concurrency: 5 });
 worker.on("error", () => console.error(JSON.stringify({ component: "workflow-worker", reason: "TRANSPORT_FAILURE" })));

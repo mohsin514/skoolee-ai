@@ -1,7 +1,8 @@
+import { loadPermissionMap } from "@/lib/permissions";
+import { reviewQueue, approveVersions, reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertModuleRead, assertPermission } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
-import { prisma, tenantTransaction } from "@/lib/db/prisma";
-import { runWithTenantContext } from "@/lib/db/tenant-context";
+import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardPdf } from "@/lib/academic/pdf";
@@ -13,9 +14,7 @@ import {
 import { notifyReportCardsGenerated } from "@/lib/notifications/automation";
 import { sendReportCardPublishedNotifications } from "@/lib/notifications/service";
 import { reportActionSchema } from "@/lib/validators/schemas";
-import { notify } from "@/lib/notifications/in-app";
 import { assertFeatureEnabled, assertSchoolOperational } from "@/lib/billing/entitlements";
-import { appendEvent } from "@/lib/queue/outbox";
 
 export const runtime = "nodejs";
 
@@ -28,7 +27,7 @@ async function getScopedExam(examId: string, user: NonNullable<Awaited<ReturnTyp
     where: { id: examId },
     include: {
       campus: { select: { schoolId: true } },
-      class: { select: { id: true, name: true, section: true, academicYear: true } },
+      class: { select: { id: true, name: true, section: true, academicYear: true, classTeacherId: true, subjects: { select: { teacherId: true } } } },
       _count: { select: { reportCards: true } },
     },
   });
@@ -76,9 +75,6 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "reports");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
-    if (exam._count.reportCards === 0) {
-      await generateReportCardsForLockedExam(examId);
-    }
 
     const [reportCards, analytics] = await Promise.all([
       prisma.reportCard.findMany({
@@ -99,7 +95,9 @@ export async function GET(req: NextRequest) {
       getExamAnalytics(examId),
     ]);
 
-    return Response.json({ success: true, exam, reportCards, analytics });
+    const versions = await reviewQueue(reportCards.map(r => r.id));
+    const editable = Boolean((await loadPermissionMap(user.schoolId, user.role)).get("reports")?.canEdit);
+    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && (exam.class.classTeacherId === user.userId || exam.class.subjects.some(s => s.teacherId === user.userId))), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: canManageReports(user.role) && editable });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Failed to load reports" }, { status });
@@ -156,80 +154,19 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: true, generated: generated.length });
     }
 
+    if (action === "approve") {
+      const ids = parsed.data.versions ?? [];
+      const allowed = await prisma.reportCard.count({ where: { examId, id: { in: ids.map(v => v.reportCardId) } } });
+      if (allowed !== ids.length) return Response.json({ error: "Report is outside this exam" }, { status: 403 });
+      const versions = await approveVersions(ids, user.userId, parsed.data.reviewerNote, parsed.data.correctionReason);
+      return Response.json({ success: true, approved: versions.length });
+    }
     if (action === "review") {
-      const pending = await prisma.reportCard.count({
-        where: {
-          examId,
-          OR: [
-            { remarksApproved: false },
-            { remarksEn: null, remarksUr: null },
-          ],
-        },
-      });
-
-      if (pending > 0) {
-        return Response.json(
-          { error: `${pending} report cards still need approved remarks` },
-          { status: 409 }
-        );
-      }
-
-      await prisma.$transaction([
-        prisma.reportCard.updateMany({
-          where: { examId },
-          data: { status: "REVIEWED" },
-        }),
-        prisma.exam.update({
-          where: { id: examId },
-          data: { status: "PRINCIPAL_REVIEWED", reviewedBy: user.userId, reviewedAt: new Date() },
-        }),
-      ]);
-
-      notify("REPORT_CARDS_REVIEWED", {
-        schoolId: user.schoolId,
-        campusId: exam.campusId,
-        actorId: user.userId,
-        actorName: user.fullName,
-        examTitle: exam.title,
-        classId: exam.class?.id,
-      });
-
+      await reviewExam(examId, user.userId);
       return Response.json({ success: true });
     }
-
     if (action === "publish") {
-      if (exam.status !== "PRINCIPAL_REVIEWED") {
-        return Response.json({ error: "Principal review is required before publishing" }, { status: 409 });
-      }
-
-      // Publishing used to require every card to carry a stored pdfUrl. Where
-      // the host cannot write files that column is permanently null, so the
-      // gate could never be satisfied and publishing was impossible. What
-      // actually matters is that the cards exist — the PDF is rendered on
-      // demand from the same data either way.
-      const cardCount = await prisma.reportCard.count({ where: { examId } });
-      if (cardCount === 0) {
-        return Response.json(
-          { error: "There are no report cards to publish yet" },
-          { status: 409 },
-        );
-      }
-
-      const workflowId = await runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () => tenantTransaction(async tx => {
-        const changed = await tx.exam.updateMany({
-          where: { id: examId, status: "PRINCIPAL_REVIEWED" },
-          data: { status: "PUBLISHED", publishedAt: new Date() },
-        });
-        if (changed.count !== 1) throw new Error("Exam publication state changed; refresh and retry");
-        await tx.reportCard.updateMany({ where: { examId }, data: { status: "PUBLISHED" } });
-        return appendEvent(tx, {
-          schoolId: user.schoolId, actorId: user.userId, referenceId: examId,
-          kind: "REPORT_PUBLISHED", version: 1,
-          identity: `report-published:${examId}:${exam.reviewedAt?.toISOString() || "initial"}`,
-        });
-      }));
-
-      return Response.json({ success: true, workflowId, backgroundDelivery: "pending" });
+      return Response.json({ success: true, ...await publishExam(examId, user.userId, parsed.data.correctionReason) });
     }
 
     await ensureReportCards(examId);
@@ -242,82 +179,9 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Publish report cards before sending" }, { status: 409 });
     }
 
-    const unapproved = await prisma.reportCard.count({
-      where: {
-        examId,
-        OR: [
-          { remarksApproved: false },
-          { remarksEn: null, remarksUr: null },
-        ],
-      },
-    });
-    if (unapproved > 0) {
-      return Response.json(
-        { error: `${unapproved} report cards still need approved remarks` },
-        { status: 409 }
-      );
-    }
-
-    let sent = 0;
-    let failed = 0;
-
-    for (const reportCard of reportCards) {
-      const channels: string[] = [];
-      const errors: string[] = [];
-
-      const communications = await sendReportCardPublishedNotifications({
-        reportCardId: reportCard.id,
-        createdById: user.userId,
-      });
-
-      for (const communication of communications) {
-        if (communication.status === "SENT") {
-          channels.push(communication.channel);
-        } else if (communication.failedReason) {
-          errors.push(`${communication.channel}: ${communication.failedReason}`);
-        } else if (communication.status !== "PENDING") {
-          errors.push(`${communication.channel}: ${communication.status}`);
-        }
-      }
-
-      if (channels.length === 0 && communications.every((communication) => communication.status === "NO_RECIPIENT")) {
-        await prisma.reportCard.update({
-          where: { id: reportCard.id },
-          data: {
-            deliveryStatus: "NO_CONTACT",
-            deliveryError: "No parent WhatsApp or email on file",
-          },
-        });
-        failed += 1;
-        continue;
-      }
-
-      if (channels.length > 0) {
-        await prisma.reportCard.update({
-          where: { id: reportCard.id },
-          data: {
-            isSent: true,
-            status: "SENT",
-            sentVia: channels.length === 2 ? "BOTH" : channels[0],
-            sentAt: new Date(),
-            deliveryStatus: "SENT",
-            deliveryError: errors.length ? errors.join("; ") : null,
-          },
-        });
-        sent += 1;
-      } else {
-        await prisma.reportCard.update({
-          where: { id: reportCard.id },
-          data: {
-            deliveryStatus: communications.some((communication) => communication.status === "BLOCKED") ? "BLOCKED" : "FAILED",
-            deliveryError: errors.join("; ") || "Delivery failed",
-          },
-        });
-        failed += 1;
-      }
-    }
-
-    return Response.json({ success: true, sent, failed });
+    const communications = [];
+    for (const reportCard of reportCards) communications.push(...await sendReportCardPublishedNotifications({ reportCardId: reportCard.id, createdById: user.userId }));
+    return Response.json({ success: true, queued: communications.filter(c => c.status === "PENDING").length, communications });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Report action failed" }, { status });

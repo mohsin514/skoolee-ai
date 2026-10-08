@@ -1,0 +1,272 @@
+[
+  {
+    "surface": "principal review",
+    "viewport": "desktop",
+    "language": "en",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "desktop",
+    "language": "ar",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "desktop",
+    "language": "ur",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "tablet",
+    "language": "en",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "tablet",
+    "language": "ar",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "tablet",
+    "language": "ur",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "mobile",
+    "language": "en",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "mobile",
+    "language": "ar",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "principal review",
+    "viewport": "mobile",
+    "language": "ur",
+    "keyboardSelection": true,
+    "panelOverflow": false,
+    "errors": []
+  },
+  {
+    "surface": "APP_OWNER",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "APP_OWNER",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "APP_OWNER",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "SUPER_ADMIN",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ADMIN",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ADMIN",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ADMIN",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "CAMPUS_ADMIN",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "CAMPUS_ADMIN",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PRINCIPAL",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PRINCIPAL",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PRINCIPAL",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "TEACHER",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "TEACHER",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "TEACHER",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PARENT",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PARENT",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "PARENT",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "STUDENT",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "STUDENT",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "STUDENT",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ACCOUNTANT",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ACCOUNTANT",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "ACCOUNTANT",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "LIBRARIAN",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "LIBRARIAN",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "LIBRARIAN",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "RECEPTIONIST",
+    "viewport": "desktop",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "RECEPTIONIST",
+    "viewport": "tablet",
+    "status": 200,
+    "errors": []
+  },
+  {
+    "surface": "RECEPTIONIST",
+    "viewport": "mobile",
+    "status": 200,
+    "errors": []
+  }
+]
