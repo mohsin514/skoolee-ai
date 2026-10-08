@@ -353,6 +353,15 @@ model Campus {
 
 // ─── 3. USERS ─────────────────────────────────────────────
 model User {
+  mfaSecret String? @map("mfa_secret")
+  mfaEnabled Boolean @default(false) @map("mfa_enabled")
+  mfaLastStep Int @default(-1) @map("mfa_last_step")
+  recoveryCodeHashes String[] @default([]) @map("recovery_code_hashes")
+  mfaPendingSecret String? @map("mfa_pending_secret")
+  mfaPendingTicket String? @map("mfa_pending_ticket")
+  mfaPendingExpiresAt DateTime? @map("mfa_pending_expires_at")
+  mfaPendingVerified Boolean @default(false) @map("mfa_pending_verified")
+
   preferredLanguage String? @map("preferred_language")
   isInstitutionOwner Boolean @default(false) @map("is_institution_owner")
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
@@ -2303,6 +2312,8 @@ model StaffInvitation {
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
   canManageMemberships Boolean @default(false) @map("can_manage_memberships")
   invitedBy String? @map("invited_by")
+  deliveryStatus String @default("unknown") @map("delivery_status")
+  lastDeliveryAt DateTime? @map("last_delivery_at")
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3179,6 +3190,15 @@ model ChatSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("chat_settings")
+}
+
+// Shared authentication counters: keys are hashed and contain no plaintext identifiers.
+model AuthAttempt {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime @map("expires_at")
+  @@index([expiresAt])
+  @@map("auth_attempts")
 }
 
 // Append-only effective-dated locale policies. Campus rows contain only overrides.

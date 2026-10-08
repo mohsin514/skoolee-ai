@@ -115,6 +115,7 @@ export async function completeTeacherOnboarding(data: {
   });
 
   const newToken = await new SignJWT({
+    mfaVerified: payload.mfaVerified === true,
     userId: updatedUser.id,
       accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,

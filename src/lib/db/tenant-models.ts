@@ -116,6 +116,7 @@ export const TENANT_MODELS = new Set<string>([
 ]);
 
 export const GLOBAL_MODELS = new Set<string>([
+  "authAttempt",
   "passwordReset",
   "pendingRegistration",
   "platformConfig",

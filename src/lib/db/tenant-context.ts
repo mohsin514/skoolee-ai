@@ -97,19 +97,16 @@ export function enterTenantContext(context: TenantContext) {
  * Returns null outside a request (background jobs, build-time prerender), where
  * the caller is expected to have bound context itself.
  *
- * Intentionally does NOT check whether the session has been revoked. This
- * answers "whose data is this request about", which is a routing question, not
- * "is this request allowed", which is an authorisation question — getAuthUser()
- * and requireAuthUser() own that. Adding the check here would also be circular:
- * the revocation lookup is itself a Prisma query, and this function is what the
- * Prisma guard calls to scope one.
+ * A browser token must also have a live server-side session. The lookup runs
+ * explicitly unscoped by token hash, so it cannot recurse into this resolver.
+ * This covers server actions that rely on the tenant guard for data access.
  */
 export async function resolveTenantFromRequest(): Promise<TenantContext | null> {
   try {
     // Imported lazily so non-Next runtimes (BullMQ workers, scripts) never
     // pull in next/headers.
     const { cookies } = await import("next/headers");
-    const { SESSION_COOKIE_NAME } = await import("@/lib/auth/session-cookie");
+    const { SESSION_COOKIE_NAME, hashSessionToken } = await import("@/lib/auth/session-cookie");
     const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
 
@@ -123,8 +120,10 @@ export async function resolveTenantFromRequest(): Promise<TenantContext | null> 
     const userId = typeof payload.userId === "string" ? payload.userId : undefined;
 
     if (!userId) return null;
+    const { isSessionRevoked } = await import("@/lib/auth/session-revocation");
+    if (await isSessionRevoked(hashSessionToken(token))) return null;
     const { resolveCurrentPrincipal } = await import("@/lib/auth/principal");
-    const principal = await resolveCurrentPrincipal({ userId, schoolId, role: payload.role, accessVersion: payload.accessVersion });
+    const principal = await resolveCurrentPrincipal({ userId, schoolId, role: payload.role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
     if (!principal) return null;
     if (principal.role === "APP_OWNER") {
       return { schoolId, userId, unscoped: true, reason: "current platform operator" };

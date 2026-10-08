@@ -102,10 +102,8 @@ export async function recordLoginSession(params: {
  * live session is invisible there and unrevocable, because revocation works by
  * closing a row that in this case was never written.
  *
- * Deliberately swallows its own failures. Session bookkeeping must never be the
- * reason a password change or an onboarding completion fails; a missing row
- * degrades to an unrevocable session, which is the pre-existing behaviour, not
- * a regression.
+ * Recording is required before returning the new cookie. An unavailable store
+ * fails the request instead of creating a session that cannot be revoked.
  */
 export async function rotateLoginSession(params: {
   /** The token being replaced, if there is one. */
@@ -129,5 +127,6 @@ export async function rotateLoginSession(params: {
     });
   } catch (error) {
     console.warn("[audit] could not rotate the login session record", error);
+    throw error;
   }
 }

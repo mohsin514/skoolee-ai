@@ -42,12 +42,14 @@ function aiReviewSelect() {
   } as const;
 }
 
-function formatPendingInvite(invite: { id: string; email: string; status: string; expiresAt: Date; role?: unknown }) {
+function formatPendingInvite(invite: { id: string; email: string; status: string; expiresAt: Date; role?: unknown; deliveryStatus?: string; lastDeliveryAt?: Date | null }) {
   return {
     inviteId: invite.id,
     email: invite.email,
     role: invite.role,
-    status: new Date() > invite.expiresAt ? "Expired" : "Invited",
+    status: invite.deliveryStatus === "failed" ? "Delivery failed" : new Date() > invite.expiresAt ? "Expired" : "Invited",
+    deliveryStatus: invite.deliveryStatus,
+    lastDeliveryAt: invite.lastDeliveryAt,
     expiresAt: invite.expiresAt,
   };
 }
@@ -491,7 +493,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
+      select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.user.findMany({
@@ -1246,7 +1248,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
+      select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.user.findMany({

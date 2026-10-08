@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { redis } from '../../src/lib/queue/connection';
 import { PrismaClient } from '@prisma/client';
+import { hashSessionToken } from '../../src/lib/auth/session-cookie';
 import { SignJWT } from 'jose';
-import { acceptInvite } from '../../src/app/actions/invite';
+import { acceptInvite as acceptInviteAction } from '../../src/app/actions/invite';
+import { invitationContext } from '../../src/lib/auth/invitation-context';
 import { resolveCurrentPrincipal, assertInitialInstitutionSetup } from '../../src/lib/auth/principal';
 import { prisma } from '../../src/lib/db/prisma';
 import { INVITABLE_ROLES } from '../../src/lib/membership-access';
@@ -18,9 +20,12 @@ const school = randomUUID(), foreign = randomUUID(), campus = randomUUID(), seco
 const owner = randomUUID();
 const accepted = new Map<string, string>();
 const tokens = new Map<string, string>();
+async function acceptInvite(token: string, password: string, name?: string) { const invite=await raw.staffInvitation.findUnique({where:{token}}); return acceptInviteAction(token,password,name,invite ? invitationContext(invite) : undefined); }
 async function cookie(id: string) {
+ await raw.user.update({where:{id},data:{mfaEnabled:true}});
  const user = await raw.user.findUniqueOrThrow({ where: { id } });
- const token = await new SignJWT({userId:id,schoolId:user.schoolId,campusId:user.campusId,role:user.role,onboardingComplete:true,accessVersion:user.accessVersion}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+ const token = await new SignJWT({mfaVerified:true,userId:id,schoolId:user.schoolId,campusId:user.campusId,role:user.role,onboardingComplete:true,accessVersion:user.accessVersion}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+ await raw.loginSession.create({data:{schoolId:user.schoolId,userId:id,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
  return `skoolee_token=${token}`;
 }
 async function request(id:string,path:string,body?:unknown,method='POST') {
