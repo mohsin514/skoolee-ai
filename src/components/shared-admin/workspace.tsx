@@ -330,7 +330,7 @@ export function SearchField({
   }, [autoFocusKey]);
 
   return (
-    <InputGroup className={cn("relative min-w-[190px] flex-1", className)}>
+    <InputGroup surfaceClassName="bg-[#faf7fc]" className={cn("relative min-w-[190px] flex-1", className)}>
       <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
       <SystemInput
         ref={ref}

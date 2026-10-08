@@ -779,8 +779,7 @@ button:disabled,
 .sk-input-group > button[data-field-action="text"] { width: auto; padding-inline: 0.75rem; display: inline-flex; gap: 0.375rem; }
 
 /* The group paints the only background, including icon and action slots. */
-.sk-input-group { --field-fill: #fcfaff; background: var(--field-fill); background-image: none; }
-.sk-input-group:hover, .sk-input-group:focus-within { --field-fill: #fff; }
+.sk-input-group { background-image: none; }
 .sk-input-group > [data-field-affix],
 .sk-input-group > [data-field-affix]:hover,
 .sk-input-group > [data-field-affix]:focus-visible,
@@ -791,9 +790,9 @@ button:disabled,
   background: transparent;
   box-shadow: none;
 }
-.sk-input-group:has(input:disabled) { --field-fill: var(--color-muted); }
-.sk-input-group:has(input[aria-invalid="true"]) { --field-fill: #fff5f5; }
-.sk-input-group input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px var(--field-fill) inset; }
+.sk-input-group:has(input:disabled) { background-color: var(--color-muted); }
+.sk-input-group:has(input[aria-invalid="true"]) { background-color: #fff5f5; }
+.sk-input-group input:-webkit-autofill { background-clip: text; -webkit-text-fill-color: var(--color-foreground); }
 .sk-input-group > select {
   order: 1;
   flex: 1 1 0%;
@@ -805,4 +804,26 @@ button:disabled,
   padding-inline-start: 0.875rem;
   outline: none;
 }
-.sk-input-group:has(> select:disabled) { --field-fill: var(--color-muted); opacity: 0.7; }
+.sk-input-group:has(> select:disabled) { background-color: var(--color-muted); opacity: 0.7; }
+
+/* Standalone fields use the same single muted-purple focus boundary. */
+.sk-field:focus {
+  border-color: #aa8bc4;
+  outline: none;
+  box-shadow: none;
+}
+
+/* A compound field has one focus boundary, in restrained violet. */
+.sk-input-group:focus-within {
+  border-color: #aa8bc4;
+  outline: none;
+  box-shadow: none;
+}
+.sk-input-group > input:focus,
+.sk-input-group > select:focus,
+.sk-input-group > textarea:focus,
+.sk-input-group > [data-date-field] > input:focus {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}

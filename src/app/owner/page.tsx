@@ -397,7 +397,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
 
       <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <InputGroup className="flex-1 min-w-[200px] max-w-sm relative">
+          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
             <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
             <SystemInput
               type="text"
@@ -666,7 +666,7 @@ function UsersView() {
 
       <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <InputGroup className="flex-1 min-w-[200px] max-w-sm relative">
+          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
             <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
             <SystemInput
               type="text"
@@ -1429,7 +1429,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
                 {planLabel(plan)}
               </span>
-              <InputGroup className="relative flex-1 max-w-[200px]">
+              <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
                 <span data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
                 <SystemInput
                   type="number"
@@ -1487,7 +1487,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
                   {planLabel(plan)}
                 </span>
-                <InputGroup className="relative flex-1 max-w-[200px]">
+                <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
                   <span data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
                   <SystemInput
                     type="number"
@@ -2014,7 +2014,7 @@ function ChangePasswordModal({
             <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
               New Password
             </label>
-            <InputGroup className="relative">
+            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
               <SystemInput
                 type={showPassword ? "text" : "password"}
                 value={newPassword}

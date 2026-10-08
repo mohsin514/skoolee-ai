@@ -681,7 +681,7 @@ const bottomItems: RoleNavItem[] = [];
             </div>
           ) : (
             <div className="space-y-6 mb-8">
-              <InputGroup className="my-2">
+              <InputGroup surfaceClassName="bg-indigo-50" className="my-2">
                 <Mail data-field-affix="start" className="w-6 h-6 text-[#8127cf]" />
                 <SystemInput
                   type="email"
@@ -768,7 +768,7 @@ const bottomItems: RoleNavItem[] = [];
             />
             <div>
               <label htmlFor="campus-board" className="sk-field-label">Board</label>
-              <InputGroup className="min-w-0">
+              <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
                 <GraduationCap data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
                 <SystemSelect
                   id="campus-board"
@@ -1097,7 +1097,7 @@ function CampusInput({
       <label className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </label>
-      <InputGroup className="my-2">
+      <InputGroup surfaceClassName="bg-[#f3f4f9]" className="my-2">
         <Icon data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
         <SystemInput
           type="text"

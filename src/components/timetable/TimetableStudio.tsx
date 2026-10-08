@@ -980,7 +980,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
         <div className="flex items-center gap-3">
-          <InputGroup className="min-w-0">
+          <InputGroup surfaceClassName="bg-white" className="min-w-0">
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => setSelectedClassId(e.target.value || null)}

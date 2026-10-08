@@ -1041,7 +1041,7 @@ export function ExamCycleManager({
 
       {/* ── Toolbar ── */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <InputGroup className="relative min-w-[190px] flex-1">
+        <InputGroup surfaceClassName="bg-[#faf7fc]" className="relative min-w-[190px] flex-1">
           <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
           <SystemInput
             ref={searchRef}

@@ -25,10 +25,10 @@ export function ApplicationPatternsReference() {
       <WorkspaceToolbar><SearchField value={search} onChange={setSearch} label="Search students" placeholder="Search students" /><ToolbarSelect label="Record status" value="all" onChange={() => {}} options={[["all", "All records"], ["draft", "Draft"]]} /></WorkspaceToolbar>
       <DataTable rows={rows} rowKey={row => row.id} minWidth={280} columns={[{ key: "name", label: "Student", render: row => row.name }, { key: "status", label: "Status", render: row => row.status }]} />
       <div className="grid gap-6 sm:grid-cols-2">
-        <div><Label htmlFor="example-password" className="sk-field-label">Password with an action</Label><InputGroup><Lock data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="example-password" type={show ? "text" : "password"} defaultValue="Example only" /><button data-field-affix="end" type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)}>{show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></InputGroup></div>
+        <div><Label htmlFor="example-password" className="sk-field-label">Password with an action</Label><InputGroup surfaceClassName="bg-[#eef2ff]"><Lock data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="example-password" type={show ? "text" : "password"} defaultValue="Example only" /><button data-field-affix="end" type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)}>{show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></InputGroup></div>
         <div><Label htmlFor="example-date" className="sk-field-label">Date field</Label><Input id="example-date" type="date" defaultValue="2026-10-08" /></div>
       </div>
-      <div><Label htmlFor="example-board" className="sk-field-label">Board with icon</Label><InputGroup><BookOpen data-field-affix="start" className="size-4" /><Select id="example-board"><option>Example board</option></Select></InputGroup></div>
+      <div><Label htmlFor="example-board" className="sk-field-label">Board with icon</Label><InputGroup surfaceClassName="bg-[#f3f4f9]"><BookOpen data-field-affix="start" className="size-4" /><Select id="example-board"><option>Example board</option></Select></InputGroup></div>
       <ManagementCard title="Class leadership" description="A real management card with synthetic data." icon={Users} onAdd={() => {}} emptyLabel="Assign a leader" />
     </PageCard>
   </main>;

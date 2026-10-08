@@ -14,7 +14,7 @@ const Input = React.forwardRef<
     <input
       type={type}
       className={cn(
-        "flex min-h-12 w-full px-4 py-2.5",
+        "sk-field flex min-h-12 w-full px-4 py-2.5",
         className,
         fieldAppearance
       )}

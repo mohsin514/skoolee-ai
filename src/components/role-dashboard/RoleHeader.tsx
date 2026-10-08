@@ -527,7 +527,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               New Password
             </label>
-            <InputGroup className="relative">
+            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
               <SystemInput
                 type={showPasswords ? "text" : "password"}
                 value={newPassword}

@@ -208,7 +208,7 @@ export default function AIPage() {
 
             {insights.length > 0 ? (
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <InputGroup className="relative min-w-[180px]">
+                <InputGroup surfaceClassName="bg-white" className="relative min-w-[180px]">
                   <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
                   <SystemInput
                     value={query}

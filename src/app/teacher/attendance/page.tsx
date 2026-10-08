@@ -392,7 +392,7 @@ export default function AttendancePage() {
 
               {/* Roster search — a forty-name list is not something you scroll
                   to find one child in. */}
-              <InputGroup className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
+              <InputGroup surfaceClassName="bg-white" className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
                 <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
                 <SystemInput
                   value={rosterQuery}

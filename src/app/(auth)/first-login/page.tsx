@@ -105,7 +105,7 @@ export default function FirstLoginPage() {
               <Label htmlFor="password" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 New Password
               </Label>
-              <InputGroup className="relative flex items-center group">
+              <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center group">
                 <div data-field-affix="start" className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <Lock className="h-4 w-4" />
                 </div>
@@ -162,7 +162,7 @@ export default function FirstLoginPage() {
               <Label htmlFor="confirm" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 Confirm Password
               </Label>
-              <InputGroup className="relative flex items-center group">
+              <InputGroup surfaceClassName="bg-rose-50" className="relative flex items-center group">
                 <div data-field-affix="start" className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <ShieldCheck className="h-4 w-4" />
                 </div>

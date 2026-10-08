@@ -15,7 +15,7 @@ const Select = React.forwardRef<
   return (
     <select
       className={cn(
-        "sk-select flex min-h-12 w-full cursor-pointer px-4 py-2.5",
+        "sk-field sk-select flex min-h-12 w-full cursor-pointer px-4 py-2.5",
         className,
         fieldAppearance
       )}

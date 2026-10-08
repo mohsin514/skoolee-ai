@@ -338,7 +338,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
           </>
         }
       >
-        <InputGroup className="relative min-w-[220px] flex-1 max-w-xs">
+        <InputGroup surfaceClassName="bg-white" className="relative min-w-[220px] flex-1 max-w-xs">
           <Search data-field-affix="start" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <SystemInput
             value={search}

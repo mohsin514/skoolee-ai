@@ -584,7 +584,7 @@ function StructureModal({
                     }}
                     className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
                   />
-                  <InputGroup className="relative w-24">
+                  <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative w-24">
                     <SystemInput
                       type="number"
                       step="0.5"

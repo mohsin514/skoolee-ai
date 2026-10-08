@@ -13,7 +13,7 @@ const Textarea = React.forwardRef<
   return (
     <textarea
       className={cn(
-        "flex min-h-[104px] w-full resize-y px-4 py-3 leading-relaxed",
+        "sk-field flex min-h-[104px] w-full resize-y px-4 py-3 leading-relaxed",
         className,
         fieldAppearance
       )}

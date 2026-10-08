@@ -315,7 +315,7 @@ function SchoolDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="s-tz" className="sk-field-label">Time Zone</Label>
-          <InputGroup className="min-w-0">
+          <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
             <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
@@ -439,7 +439,7 @@ function CampusDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="c-board" className="sk-field-label">Board</Label>
-          <InputGroup className="min-w-0">
+          <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
             <GraduationCap data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="c-board"
@@ -532,7 +532,7 @@ function Field({
       <Label htmlFor={id} className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </Label>
-      <InputGroup className="group relative flex items-center">
+      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
         <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-[#8127cf]" />
         <Input
           id={id}

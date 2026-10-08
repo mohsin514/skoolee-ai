@@ -728,7 +728,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                   Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
                 </p>
-                <InputGroup className="relative">
+                <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
                   <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
                   <SystemInput
                     type="text"
@@ -996,7 +996,7 @@ function ClassDetailView({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Student Attendance &mdash; {formatMonthLabel(month)}
             </p>
-            <InputGroup className="relative">
+            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
               <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
               <SystemInput
                 type="text"

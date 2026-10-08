@@ -724,7 +724,7 @@ export default function OnboardingWizard() {
                           <InputField label="Head of Campus" value={newCampus.principalName ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
-                            <InputGroup className="min-w-0">
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
                               <GraduationCap data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
@@ -899,7 +899,7 @@ export default function OnboardingWizard() {
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Academic Year <span className="text-rose-500">*</span>
                             </Label>
-                            <InputGroup className="relative group flex items-center">
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
                               <CalendarDays data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.academicYear}
@@ -914,7 +914,7 @@ export default function OnboardingWizard() {
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Session Name <span className="text-rose-500">*</span>
                             </Label>
-                            <InputGroup className="relative group flex items-center">
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
                               <Tag data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.sessionLabel}
@@ -956,7 +956,7 @@ export default function OnboardingWizard() {
 
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Time Zone</Label>
-                          <InputGroup className="min-w-0">
+                          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
                             <Clock data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                             <SystemSelect
                               value={schoolData.timezone}

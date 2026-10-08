@@ -2976,7 +2976,7 @@ export function StudentDetailModal({
       ) : null}
 
       {parentLink && (
-        <InputGroup className="my-2">
+        <InputGroup surfaceClassName="bg-emerald-50" className="my-2">
           <ExternalLink data-field-affix="start" className="h-4 w-4 text-emerald-600 shrink-0" />
           <SystemInput type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
           <button data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">

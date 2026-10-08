@@ -97,7 +97,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
             </button>
           </div>
 
-          <InputGroup className="relative">
+          <InputGroup surfaceClassName="bg-white/80" className="relative">
             <Search data-field-affix="start"
               className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
               aria-hidden

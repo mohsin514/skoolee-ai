@@ -19,6 +19,14 @@ test('real workspace components preserve icon spacing, clear actions and RTL at 
     expect(groups.every(Boolean)).toBe(true);
   }
   await assertAffixes();
+  const password = page.getByLabel('Password with an action');
+  await password.focus();
+  const appearance = await password.evaluate(input => {
+    const group = input.closest('.sk-input-group')!;
+    const style = getComputedStyle(group);
+    return { background: style.backgroundColor, border: style.borderColor, outline: style.outlineStyle, shadow: style.boxShadow };
+  });
+  expect(appearance).toEqual({ background: 'rgb(238, 242, 255)', border: 'rgb(170, 139, 196)', outline: 'none', shadow: 'none' });
   const backgrounds = await page.locator('.sk-input-group').evaluateAll(groups => groups.flatMap(group =>
     Array.from(group.querySelectorAll(':scope > input, :scope > select, :scope > [data-field-affix]')).map(child => getComputedStyle(child).backgroundColor)
   ));

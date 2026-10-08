@@ -199,7 +199,7 @@ export default function AcceptInvitePage() {
                   <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Password
                   </Label>
-                  <InputGroup className="relative flex items-center">
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
                     <Lock data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="password"
@@ -227,7 +227,7 @@ export default function AcceptInvitePage() {
                   <Label htmlFor="confirmPassword" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Confirm Password
                   </Label>
-                  <InputGroup className="relative flex items-center">
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
                     <ShieldCheck data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="confirmPassword"
