@@ -730,6 +730,12 @@ export async function PATCH(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
+    if ((updates.classId && updates.classId !== existing.classId) || updates.rollNo !== undefined) {
+      const current = await prisma.student.findFirst({ where: { id }, select: { rollNo: true } });
+      if (updates.classId !== undefined && updates.classId !== existing.classId || updates.rollNo !== undefined && updates.rollNo !== current?.rollNo) {
+        throw new ApiError("Placement and roll changes require review in the pupil enrollment history", 409);
+      }
+    }
     const data: any = {};
     for (const key of [
       "fullName",
