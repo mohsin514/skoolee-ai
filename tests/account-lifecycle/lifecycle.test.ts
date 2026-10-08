@@ -86,3 +86,14 @@ test('lost authenticator replacement requires password plus unused second factor
  assert.ok(cookie(response, 'skoolee-mfa')); assert.equal((await sessionCheck(ownerSession)).status, 401);
  const user=await raw.user.findUniqueOrThrow({where:{id:accounts.get('SUPER_ADMIN')!.id}}); assert.equal(user.mfaEnabled,false); assert.equal(user.mfaSecret,null); assert.deepEqual(user.recoveryCodeHashes,[]);
 });
+test('password change revokes previous sessions on the next request', async () => {
+ const session = cookie(await login('LIBRARIAN'), 'skoolee_token');
+ const response = await fetch(base + '/api/auth/change-password', { method: 'PUT', headers: { cookie: session, 'content-type': 'application/json' }, body: JSON.stringify({ currentPassword: password, newPassword: 'UpdatedSynthetic209!' }) });
+ assert.equal(response.status, 200, await response.text()); assert.equal((await sessionCheck(session)).status, 401);
+});
+test('forced password change rotates to a recorded session and revokes the prior token', async () => {
+ await raw.user.update({ where: { id: accounts.get('RECEPTIONIST')!.id }, data: { mustChangePassword: true } });
+ const session = cookie(await login('RECEPTIONIST'), 'skoolee_token');
+ const response = await fetch(base + '/api/auth/first-password', { method: 'PUT', headers: { cookie: session, 'content-type': 'application/json' }, body: JSON.stringify({ newPassword: 'UpdatedSynthetic209!' }) });
+ assert.equal(response.status, 200, await response.clone().text()); assert.equal((await sessionCheck(session)).status, 401); assert.equal((await sessionCheck(cookie(response, 'skoolee_token'))).status, 200);
+});

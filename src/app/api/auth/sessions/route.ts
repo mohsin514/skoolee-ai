@@ -1,3 +1,4 @@
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
@@ -19,7 +20,7 @@ export async function DELETE(req: Request) {
     if (typeof id !== "string") throw new ApiError("Choose a session", 400);
     const closed = await prisma.loginSession.updateMany({ where: { id, userId: user.userId, schoolId: user.schoolId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
     if (closed.count !== 1) throw new ApiError("Session is unavailable", 404);
-    await prisma.auditLog.create({ data: { userId: user.userId, tableName: "login_sessions", recordId: id, newValue: { action: "session.revoked" } } });
+    await runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () => prisma.auditLog.create({ data: { userId: user.userId, tableName: "login_sessions", recordId: id, newValue: { action: "session.revoked" } } }));
     return Response.json({ success: true, endedAt: new Date().toISOString() });
   } catch (error) { return errorResponse(error, "[auth/sessions]"); }
 }

@@ -18,7 +18,7 @@ Only synthetic `example.invalid` accounts on loopback PostgreSQL port **55409** 
 
 | Validation | Result |
 | --- | --- |
-| Lifecycle/API + revocation unit suite | 31 passed |
+| Lifecycle/API + revocation unit suite | 33 passed |
 | Chromium roles × widths 1440 / 768 / 390 | 33 passed |
 | Browser MFA challenge/acknowledgement and password-reset server action | 2 passed |
 | Unconfigured invitation delivery/resend and generic password recovery | 2 passed |
