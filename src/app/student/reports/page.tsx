@@ -82,7 +82,7 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   const scoreLabel = pct >= 80 ? "Excellent" : pct >= 60 ? "Good" : "Needs improvement";
 
   return (
-    <div className="sk-rise group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
+    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
       <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe]/60 via-white to-white p-4 pb-3 border-b border-[#cfc2d6]/8">
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative flex items-start justify-between gap-4">

@@ -1,4 +1,7 @@
 "use client";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { securityUiCopy } from "@/lib/auth/security-ui-copy";
@@ -43,18 +46,18 @@ export default function AccountSecurity() {
     } catch { setMessage(t.error); } finally { setBusy(""); }
   }
   return <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto max-w-3xl space-y-5 p-4 sm:p-8">
-    <select aria-label="Language" value={language} onChange={e => setLanguage(e.target.value as keyof typeof securityUiCopy)} className="min-h-11 rounded border p-2"><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></select>
+    <Select aria-label="Language" value={language} onChange={e => setLanguage(e.target.value as keyof typeof securityUiCopy)} className="min-h-11"><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select>
     <h1 className="text-2xl font-bold">{t.title}</h1><p>{t.guidance}</p><p role="status">{message}</p>
-    {sessions.map(session => <article key={session.id} className="space-y-3 rounded-xl border p-4">
+    {sessions.map(session => <article key={session.id} className="sk-panel space-y-3 p-4">
       <h2 className="font-semibold">{session.current ? t.this : t.other}</h2><p dir="ltr" className="break-all text-sm">{session.userAgent || t.unknown}</p>
       <p>{t.signed}: {new Date(session.loginAt).toLocaleString(language)}</p><p>{t.expires}: {new Date(session.expiresAt).toLocaleString(language)}</p>
-      <button disabled={Boolean(busy)} onClick={() => revoke(session)} className="min-h-11 rounded border border-red-700 px-4 text-red-700">{t.end}</button>
+      <Button variant="outline" disabled={Boolean(busy)} onClick={() => revoke(session)} className="min-h-11 px-4">{t.end}</Button>
     </article>)}
-    {mfaEnabled && <form onSubmit={replaceAuthenticator} className="space-y-3 rounded-xl border p-4">
+    {mfaEnabled && <form onSubmit={replaceAuthenticator} className="sk-panel space-y-3 p-4">
       <h2 className="font-semibold">{t.replace}</h2><p>{t.warning}</p><label htmlFor="current-password" className="block">{t.password}</label>
-      <input id="current-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="min-h-11 w-full rounded border p-2"/>
-      <label htmlFor="replacement-code" className="block">{t.code}</label><input id="replacement-code" dir="ltr" autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} required className="min-h-11 w-full rounded border p-2"/>
-      <button disabled={Boolean(busy)} className="min-h-11 rounded border px-4">{t.submit}</button>
+      <Input id="current-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="min-h-11 w-full"/>
+      <label htmlFor="replacement-code" className="block">{t.code}</label><Input id="replacement-code" dir="ltr" autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} required className="min-h-11 w-full"/>
+      <Button variant="outline" disabled={Boolean(busy)} className="min-h-11 px-4">{t.submit}</Button>
     </form>}
     <Link href="/login" className="underline">{t.back}</Link>
   </main>;

@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -295,14 +296,14 @@ export function MasterDatesheet({
               Complete
             </span>
           ) : null}
-          <button
+          <Button variant="outline" size="icon"
             type="button"
             onClick={() => load(true)}
             aria-label="Refresh"
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/25 bg-white text-ink-muted transition-colors hover:border-[#8127cf]/35 hover:text-[#8127cf]"
+            className="flex items-center justify-center"
           >
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-          </button>
+          </Button>
           <BrandButton
             variant="dark"
             icon={<Download className="h-4 w-4" />}
@@ -318,13 +319,13 @@ export function MasterDatesheet({
       {showConflicts ? (
         <ConflictPanel conflicts={data.conflicts} onDismiss={() => setShowConflicts(false)} />
       ) : (
-        <button
+        <Button variant="link"
           type="button"
           onClick={() => setShowConflicts(true)}
-          className="cursor-pointer text-[11px] font-black uppercase tracking-wider text-[#8127cf] hover:underline"
+          className="hover:underline"
         >
           Show conflicts ({data.conflicts.length})
-        </button>
+        </Button>
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
@@ -397,27 +398,25 @@ export function MasterDatesheet({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <button
+                    <Button variant="default"
                       type="button"
                       onClick={() => setEditing(subject)}
                       className={cn(
-                        "h-9 cursor-pointer rounded-xl px-3 text-[11px] font-black uppercase tracking-wider transition-all",
-                        subject.date
-                          ? "bg-[#f3eeff] text-[#8127cf] hover:bg-[#e9dcfb]"
-                          : "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_8px_20px_-10px_rgba(129,39,207,0.6)] hover:scale-[1.03]",
+                        "px-3",
+                        "",
                       )}
                     >
                       {subject.date ? "Change" : "Set date"}
-                    </button>
+                    </Button>
                     {subject.placed > 0 ? (
-                      <button
+                      <Button variant="secondary" size="icon"
                         type="button"
                         onClick={() => setRemoving(subject)}
                         aria-label={`Remove ${subject.name} from the date sheet`}
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle opacity-0 transition-all hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 group-hover:opacity-100"
+                        className="flex items-center justify-center"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 </li>

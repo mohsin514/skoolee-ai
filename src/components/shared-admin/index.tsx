@@ -1,4 +1,5 @@
 "use client";
+import { Button as SystemButton } from "@/components/ui/button";
 import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
@@ -510,11 +511,11 @@ export function LeadershipPanel({
                     </span>
                   </div>
                 </div>
-                <button type="button" onClick={() => onRemove(data.principal.id, "Principal")}
-                  className="shrink-0 h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 cursor-pointer">
+                <SystemButton variant="destructive" type="button" onClick={() => onRemove(data.principal.id, "Principal")}
+                  className="shrink-0 px-4 flex items-center gap-1.5 justify-center">
                   <Trash2 className="w-3.5 h-3.5" />
                   Revoke
-                </button>
+                </SystemButton>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-4">
@@ -564,10 +565,10 @@ export function LeadershipPanel({
                   <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-600">
                     {staff.role}
                   </span>
-                  <button type="button" onClick={() => onRemove(staff.id, staff.role)}
-                    className="shrink-0 h-8 rounded-lg bg-rose-50 px-3 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white cursor-pointer">
+                  <SystemButton variant="destructive" type="button" onClick={() => onRemove(staff.id, staff.role)}
+                    className="shrink-0 px-3 flex items-center gap-1 justify-center">
                     <Trash2 className="w-3 h-3" />
-                  </button>
+                  </SystemButton>
                 </div>
               ))}
               {data.pendingOperationsInvitations?.map((invite: any) => (
@@ -741,16 +742,16 @@ export function AcademicPanel({
                 onClick={() => setOnlyGaps((v) => !v)}
               />
               {classSearch || onlyGaps ? (
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => {
                     setClassSearch("");
                     setOnlyGaps(false);
                   }}
-                  className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+                  className="flex items-center gap-1.5 px-3 justify-start"
                 >
                   <X className="h-3 w-3" /> Clear
-                </button>
+                </SystemButton>
               ) : null}
             </div>
           ) : null}
@@ -883,22 +884,22 @@ export function ExamDetailModal({
       headerActions={
         <>
           {canLock && (
-            <button type="button" onClick={handleLock} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 rounded-2xl bg-amber-50 border border-amber-200/40 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer disabled:opacity-50">
+            <SystemButton variant="ghost" type="button" onClick={handleLock} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
               {actionBusy === "lock" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />} Lock Exam
-            </button>
+            </SystemButton>
           )}
           {canReview && (
-            <button type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/20 px-4 py-2.5 text-xs font-bold text-[#8127cf] hover:bg-[#f0d6fa] transition-all cursor-pointer disabled:opacity-50">
+            <SystemButton variant="ghost" type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
               {actionBusy === "PRINCIPAL_REVIEWED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mark Reviewed
-            </button>
+            </SystemButton>
           )}
           {canPublish && (
-            <button type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200/40 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer disabled:opacity-50">
+            <SystemButton variant="ghost" type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
+              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
               {actionBusy === "PUBLISHED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />} Publish
-            </button>
+            </SystemButton>
           )}
         </>
       }
@@ -906,12 +907,12 @@ export function ExamDetailModal({
 
         <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1 mb-6">
           {(["marks", "reports", "analytics"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={cn("rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
+            <SystemButton variant="ghost" key={t} onClick={() => setTab(t)}
+              className={cn("px-5 py-2.5",
                 tab === t ? "bg-white text-[#8127cf] shadow-md" : "text-ink-muted hover:text-[#8127cf]"
               )}>
               {t === "marks" ? "Marks Sheet" : t === "reports" ? `Report Cards (${reportCards.length})` : "Analytics"}
-            </button>
+            </SystemButton>
           ))}
         </div>
 
@@ -1007,8 +1008,8 @@ export function ExamDetailModal({
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {reportCards.map((rc: any) => (
-                      <button key={rc.id} type="button" onClick={() => { onClose(); onViewReportCard(rc); }}
-                        className="text-left rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/20 p-4 hover:bg-[#fbf0fe]/50 hover:shadow-md transition-all cursor-pointer">
+                      <SystemButton variant="ghost" key={rc.id} type="button" onClick={() => { onClose(); onViewReportCard(rc); }}
+                        className="text-left p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-[#1f1a23] truncate">{rc.student?.fullName}</p>
@@ -1021,7 +1022,7 @@ export function ExamDetailModal({
                           <span className="text-sm font-bold text-ink-muted">{Math.round(rc.percentage || 0)}%</span>
                           <span className="ml-auto text-[10px] font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
                         </div>
-                      </button>
+                      </SystemButton>
                     ))}
                   </div>
                 )}
@@ -1428,13 +1429,13 @@ export function ReportCardsPanel({
           ]}
         />
         {filtersActive ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={resetFilters}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="flex items-center gap-1.5 px-3 justify-start"
           >
             <X className="h-3 w-3" /> Clear
-          </button>
+          </SystemButton>
         ) : null}
       </WorkspaceToolbar>
 
@@ -1774,13 +1775,13 @@ export function FacultyPanel({
           />
           <StatusPill status={`${filtered.length} of ${teachers.length} shown`} />
           {filtersActive ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
-              className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+              className="flex items-center gap-1.5 px-3 justify-start"
             >
               <X className="h-3 w-3" /> Clear
-            </button>
+            </SystemButton>
           ) : null}
           <div className="ml-auto">
             <ViewSwitch
@@ -1860,21 +1861,21 @@ export function FacultyPanel({
                   align: "right",
                   render: (t: any) => (
                     <div className="flex items-center justify-end gap-1.5">
-                      <button
+                      <SystemButton variant="default"
                         type="button"
                         onClick={() => onViewTeacher(t, filtered)}
-                        className="cursor-pointer rounded-xl bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"
+                        className="px-3 py-1.5"
                       >
                         Open
-                      </button>
-                      <button
+                      </SystemButton>
+                      <SystemButton variant="ghost"
                         type="button"
                         onClick={() => onRemove(t.id)}
                         aria-label={`Remove ${t.fullName}`}
-                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500"
+                        className="flex items-center justify-center"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </SystemButton>
                     </div>
                   ),
                 },
@@ -2027,13 +2028,13 @@ export function AIPanel({
           icon={FileText}
           title="AI Insights"
           after={insights?.length > 5 ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() => setShowAllInsights(!showAllInsights)}
-              className="text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer"
+              className="hover:underline"
             >
               {showAllInsights ? "Show Less" : `View All (${insights.length})`}
-            </button>
+            </SystemButton>
           ) : null}
         >
           {displayInsights?.length ? (
@@ -2275,12 +2276,12 @@ export function ClassDetailModal({
           const Icon = t.icon;
           const active = tab === t.key;
           return (
-            <button
+            <SystemButton variant="ghost"
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
               className={cn(
-                "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-wider transition-all",
+                "flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5",
                 active ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
@@ -2291,7 +2292,7 @@ export function ClassDetailModal({
                   {t.badge}
                 </span>
               ) : null}
-            </button>
+            </SystemButton>
           );
         })}
       </div>
@@ -2316,13 +2317,13 @@ export function ClassDetailModal({
               ]).map((option) => {
                 const active = teachingMode === option.mode;
                 return (
-                  <button
+                  <SystemButton variant="ghost"
                     key={option.mode}
                     type="button"
                     disabled={teachingModeBusy}
                     onClick={() => { if (!active) onChangeTeachingMode(cls.id, option.mode); }}
                     className={cn(
-                      "rounded-2xl border-2 p-4 text-left transition-all cursor-pointer disabled:cursor-wait disabled:opacity-60",
+                      "p-4 text-left",
                       active
                         ? "border-[#8127cf] bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
                         : "border-transparent bg-white/60 hover:border-[#8127cf]/25 hover:bg-white"
@@ -2333,7 +2334,7 @@ export function ClassDetailModal({
                       {active ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
                     </div>
                     <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">{option.copy}</p>
-                  </button>
+                  </SystemButton>
                 );
               })}
             </div>
@@ -2397,19 +2398,19 @@ export function ClassDetailModal({
           </div>
 
           {/* Class identity + destructive actions, kept together at the bottom. */}
-          <div className="rounded-3xl border border-[#cfc2d6]/25 bg-white p-5">
+          <div className="sk-panel p-5">
             <div className="flex items-center justify-between gap-3">
               <PanelTitle icon={School} title="Class details" />
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setEditingClass(!editingClass)}
                 className={cn(
-                  "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+                  "flex items-center gap-1.5 px-3 justify-start",
                   editingClass ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
                 )}
               >
                 {editingClass ? "Cancel" : "Edit"}
-              </button>
+              </SystemButton>
             </div>
             {editingClass ? (
               <div className="mt-4 space-y-4">
@@ -2429,14 +2430,14 @@ export function ClassDetailModal({
                 <p className="text-xs font-bold text-ink-muted">
                   {cls.name}{cls.section ? ` · Section ${cls.section}` : ""} · {cls.academicYear}
                 </p>
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => onDeleteClass(cls)}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all duration-200 hover:bg-rose-100 active:scale-95 cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 px-3 justify-start"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete Class
-                </button>
+                </SystemButton>
               </div>
             )}
           </div>
@@ -2484,13 +2485,13 @@ export function ClassDetailModal({
                         >
                           {subjectUpdateBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                         </BrandButton>
-                        <button
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
-                          className="h-11 rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] cursor-pointer"
+                          className="h-11 px-4"
                         >
                           Cancel
-                        </button>
+                        </SystemButton>
                       </div>
                     </div>
                   ) : (
@@ -2503,22 +2504,22 @@ export function ClassDetailModal({
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() => startEditingSubject(subject)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-[#8127cf] cursor-pointer"
+                            className="flex items-center justify-center"
                             title="Edit subject"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
+                          </SystemButton>
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() => onDeleteSubject(subject)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+                            className="flex items-center justify-center"
                             title="Delete subject"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </SystemButton>
                         </div>
                       </div>
                       {teachingMode === "SUBJECT" ? (
@@ -2553,7 +2554,7 @@ export function ClassDetailModal({
             {!subjectCount ? <EmptyInline text="No subjects are attached to this class yet." /> : null}
           </div>
 
-          <div className="rounded-3xl border border-[#cfc2d6]/25 bg-white p-4">
+          <div className="sk-panel p-4">
             <PanelTitle icon={Plus} title="Add Subject" />
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <FormInput label="Subject Name" value={subjectName} placeholder="e.g. Mathematics" onChange={setSubjectName} />
@@ -2565,10 +2566,10 @@ export function ClassDetailModal({
               </div>
             ) : null}
             {siblingSections.length > 1 ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setApplyToAllSections((v) => !v)}
-                className="mt-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 p-3 text-left transition-all hover:bg-[#fbf0fe]"
+                className="mt-3 flex w-full items-center gap-3 p-3 text-left justify-start"
               >
                 <span
                   className={cn(
@@ -2586,7 +2587,7 @@ export function ClassDetailModal({
                     Sections that already have this subject are skipped.
                   </span>
                 </span>
-              </button>
+              </SystemButton>
             ) : null}
             <div className="mt-3 flex justify-end">
               <BrandButton variant="dark" className="h-12" onClick={createSubject} disabled={creatingSubject}>
@@ -2607,11 +2608,11 @@ export function ClassDetailModal({
           </div>
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
             {students.map((student) => (
-              <button
+              <SystemButton variant="ghost"
                 key={student.id}
                 type="button"
                 onClick={() => onViewStudent(student)}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/55 px-4 py-3 text-left transition-all hover:bg-white hover:shadow-md"
+                className="flex w-full items-center gap-3 px-4 py-3 text-left justify-start"
               >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <img
@@ -2626,7 +2627,7 @@ export function ClassDetailModal({
                     Roll {student.rollNo} - Guardian {student.guardianName || "N/A"}
                   </p>
                 </div>
-              </button>
+              </SystemButton>
             ))}
             {students.length === 0 ? <EmptyInline text="No students are enrolled in this class yet." /> : null}
           </div>
@@ -2926,13 +2927,13 @@ export function StudentDetailModal({
       <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[#cfc2d6]/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <button type="button" onClick={onMove} className="flex h-9 items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95 cursor-pointer">
+          <SystemButton variant="default" type="button" onClick={onMove} className="flex items-center gap-1.5 px-3 justify-start">
             <ArrowRightLeft className="h-3.5 w-3.5" />Move Class
-          </button>
-          <button type="button" onClick={generateParentLink} disabled={generatingLink} className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-wider text-emerald-600 transition-all duration-200 hover:bg-emerald-100 active:scale-95 cursor-pointer disabled:opacity-50">
+          </SystemButton>
+          <SystemButton variant="ghost" type="button" onClick={generateParentLink} disabled={generatingLink} className="flex items-center gap-1.5 px-3 justify-start">
             {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
             Parent Portal Link
-          </button>
+          </SystemButton>
           {/*
             Leaving the roll is the common case and archiving is reversible, so
             it leads. Delete is destructive and irreversible, so it is last and
@@ -2945,12 +2946,12 @@ export function StudentDetailModal({
             const action = STUDENT_STATUS_CHANGES[key];
             const Icon = action.icon;
             return (
-              <button
+              <SystemButton variant="ghost"
                 key={key}
                 type="button"
                 onClick={() => setStatusChange(key)}
                 className={cn(
-                  "flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+                  "flex items-center gap-1.5 px-3 justify-start",
                   key === "active"
                     ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                     : "bg-amber-50 text-amber-700 hover:bg-amber-100",
@@ -2958,18 +2959,18 @@ export function StudentDetailModal({
               >
                 <Icon className="h-3.5 w-3.5" />
                 {action.label}
-              </button>
+              </SystemButton>
             );
           })}
-          <button type="button" onClick={() => onDelete(student)} className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 active:scale-95 cursor-pointer">
+          <SystemButton variant="ghost" type="button" onClick={() => onDelete(student)} className="flex items-center gap-1.5 px-3 justify-start">
             <Trash2 className="h-3.5 w-3.5" />Delete
-          </button>
+          </SystemButton>
         </div>
         {/* ml-auto, not just justify-between: once the row wraps, a
             justify-between child starts at the left edge of the new line, so
             Edit Details lost its separation and the whole strip read as one
             undifferentiated wall of buttons. */}
-        <button
+        <SystemButton variant="ghost"
           type="button"
           // Editing is held back until the full record is in hand. A save
           // writes every field it holds, so editing a half-loaded profile
@@ -2984,12 +2985,12 @@ export function StudentDetailModal({
             setEditing(!editing);
           }}
           className={cn(
-            "ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+            "ml-auto flex shrink-0 items-center gap-1.5 px-3 justify-start",
             editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
           )}
         >
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
-        </button>
+        </SystemButton>
       </div>
       <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
       {detailError ? (
@@ -3005,11 +3006,11 @@ export function StudentDetailModal({
       {parentLink && (
         <InputGroup surfaceClassName="bg-emerald-50" className="my-2">
           <ExternalLink data-field-affix="start" className="h-4 w-4 text-emerald-600 shrink-0" />
-          <SystemInput type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
-          <button data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
+          <SystemInput type="text" readOnly value={parentLink} className="flex-1 text-emerald-800 truncate" />
+          <SystemButton variant="secondary" data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex items-center gap-1 px-2.5 shrink-0 justify-start">
             {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {linkCopied ? "Copied!" : "Copy"}
-          </button>
+          </SystemButton>
         </InputGroup>
       )}
 
@@ -3020,12 +3021,12 @@ export function StudentDetailModal({
           ["documents", "Documents", FileText],
           ["timeline", "Timeline", History],
         ] as const).map(([key, label, Icon]) => (
-          <button
+          <SystemButton variant="ghost"
             key={key}
             type="button"
             onClick={() => setProfileTab(key)}
             className={cn(
-              "flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+              "flex items-center gap-1.5 px-3.5 justify-start",
               profileTab === key
                 ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
                 : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]"
@@ -3033,7 +3034,7 @@ export function StudentDetailModal({
           >
             <Icon className="h-3.5 w-3.5" />
             {label}
-          </button>
+          </SystemButton>
         ))}
       </div>
       </div>
@@ -3083,7 +3084,7 @@ export function StudentDetailModal({
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={User} title="Personal Info" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3146,7 +3147,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Guardian Details */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={Users} title="Guardian" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3175,7 +3176,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Address */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={MapPin} title="Address" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3197,7 +3198,7 @@ export function StudentDetailModal({
         </div>
 
         {/* Medical & Report */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={Heart} title="Medical & Health" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -3218,7 +3219,7 @@ export function StudentDetailModal({
       </div>
 
       {/* Report Card */}
-      <div className="mt-5 rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+      <div className="sk-panel mt-5 p-5">
         <PanelTitle icon={FileText} title="Report Card" />
         {report ? (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -3441,7 +3442,7 @@ export function StudentAdmissionsPanel({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
           <div className="mt-4 space-y-2">
             {[0, 1, 2].map((i) => (
@@ -3455,7 +3456,7 @@ export function StudentAdmissionsPanel({
             ))}
           </div>
         </div>
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
           <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-[#8127cf]/10 animate-pulse" />
         </div>
@@ -3466,7 +3467,7 @@ export function StudentAdmissionsPanel({
   if (tab === "siblings") {
     return (
       <div className="space-y-4">
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={Users} title="Siblings" />
           {siblings.length === 0 ? (
             <div className="mt-4">
@@ -3495,7 +3496,7 @@ export function StudentAdmissionsPanel({
           )}
         </div>
 
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={UserCheck} title="Link a sibling" />
           <div className="mt-4 space-y-3">
             <FormInput
@@ -3541,7 +3542,7 @@ export function StudentAdmissionsPanel({
   if (tab === "documents") {
     return (
       <div className="space-y-4">
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={FileText} title="Admission Documents" />
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="w-48">
@@ -3596,13 +3597,13 @@ export function StudentAdmissionsPanel({
                       <Download className="h-3 w-3" />View
                     </a>
                   ) : null}
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => deleteDocument(doc)}
-                    className="flex h-8 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100 transition-all"
+                    className="flex items-center gap-1.5 px-3 justify-start"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </SystemButton>
                 </div>
               </div>
             ))}
@@ -3614,7 +3615,7 @@ export function StudentAdmissionsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+      <div className="sk-panel p-5">
         <PanelTitle icon={History} title="Timeline" />
         <div className="mt-4 flex items-end gap-3">
           <div className="flex-1">
@@ -3972,12 +3973,12 @@ export function TeacherDetailModal({
               ...(isStaffAdmin ? ([["record", "Staff Record", Wallet]] as const) : []),
             ] as const
           ).map(([key, label, Icon]) => (
-            <button
+            <SystemButton variant="ghost"
               key={key}
               type="button"
               onClick={() => setTeacherTab(key)}
               className={cn(
-                "flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+                "flex items-center gap-1.5 px-3.5 justify-start",
                 teacherTab === key
                   ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
                   : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]",
@@ -3985,21 +3986,21 @@ export function TeacherDetailModal({
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
-            </button>
+            </SystemButton>
           ))}
         </div>
         {onUpdate && teacherTab === "overview" ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={() => setEditing(!editing)}
             className={cn(
-              "flex h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+              "flex items-center gap-1.5 px-3 justify-start",
               editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
             )}
           >
             <Pencil className="h-3 w-3" />
             {editing ? "Cancel" : "Edit Details"}
-          </button>
+          </SystemButton>
         ) : null}
       </div>
       </div>
@@ -4025,7 +4026,7 @@ export function TeacherDetailModal({
       <>
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={User} title="Personal Info" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -4068,7 +4069,7 @@ export function TeacherDetailModal({
         </div>
 
         {/* Professional Details */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={Briefcase} title="Professional" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -4117,7 +4118,7 @@ export function TeacherDetailModal({
         </div>
 
         {/* Address */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={MapPin} title="Address" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -4148,7 +4149,7 @@ export function TeacherDetailModal({
         </div>
 
         {/* Emergency Contact */}
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+        <div className="sk-panel p-5">
           <PanelTitle icon={Shield} title="Emergency Contact" />
           {editing ? (
             <div className="mt-4 space-y-3">
@@ -4241,7 +4242,7 @@ export function TeacherDetailModal({
 
           {editStaff ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+              <div className="sk-panel p-5">
                 <PanelTitle icon={Banknote} title="Payroll" />
                 <div className="mt-4 space-y-3">
                   <FormInput label="Designation" value={staffForm.designation || ""} placeholder="e.g. Senior Maths Teacher" onChange={(v) => setStaffForm((p) => ({ ...p, designation: v }))} />
@@ -4256,7 +4257,7 @@ export function TeacherDetailModal({
                   <AmountRowsEditor title="Deductions" rows={deductions} onChange={setDeductions} />
                 </div>
               </div>
-              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+              <div className="sk-panel p-5">
                 <PanelTitle icon={Landmark} title="Bank Details" />
                 <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
@@ -4268,7 +4269,7 @@ export function TeacherDetailModal({
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+              <div className="sk-panel p-5">
                 <PanelTitle icon={Banknote} title="Payroll" />
                 <div className="mt-4 space-y-3">
                   <DetailRow label="Designation" value={staff?.staffProfile?.designation || "Not set"} />
@@ -4296,7 +4297,7 @@ export function TeacherDetailModal({
                   />
                 </div>
               </div>
-              <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+              <div className="sk-panel p-5">
                 <PanelTitle icon={Landmark} title="Bank Details" />
                 <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
@@ -4317,7 +4318,7 @@ export function TeacherDetailModal({
           ) : null}
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+            <div className="sk-panel p-5">
               <PanelTitle icon={FileText} title="Documents" />
               <div className="mt-4 space-y-2">
                 {staffDocs.length === 0 ? (
@@ -4337,9 +4338,9 @@ export function TeacherDetailModal({
                       <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-[#8127cf]">
                         <Download className="h-4 w-4" />
                       </a>
-                      <button type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-rose-500 cursor-pointer">
+                      <SystemButton variant="ghost" type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex items-center justify-center">
                         {docBusy === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </button>
+                      </SystemButton>
                     </div>
                   ))
                 )}
@@ -4369,7 +4370,7 @@ export function TeacherDetailModal({
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm">
+            <div className="sk-panel p-5">
               <PanelTitle icon={History} title="Timeline" />
               <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                 {staffTimeline.length === 0 ? (
@@ -4419,31 +4420,31 @@ function AmountRowsEditor({
               value={row.name}
               placeholder="Label"
               onChange={(e) => update(index, "name", e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:bg-white"
+              className="h-10 min-w-0 flex-1 px-3"
             />
             <SystemInput
               value={row.amount}
               type="number"
               placeholder="Rs"
               onChange={(e) => update(index, "amount", e.target.value)}
-              className="h-10 w-24 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:bg-white"
+              className="h-10 w-24 px-3"
             />
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() => onChange(rows.filter((_, i) => i !== index))}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-rose-500 cursor-pointer"
+              className="flex shrink-0 items-center justify-center"
             >
               <X className="h-4 w-4" />
-            </button>
+            </SystemButton>
           </div>
         ))}
-        <button
+        <SystemButton variant="ghost"
           type="button"
           onClick={() => onChange([...rows, { name: "", amount: "" }])}
-          className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#fbf0fe] cursor-pointer"
+          className="flex items-center gap-1.5 px-3 justify-start"
         >
           <Plus className="h-3.5 w-3.5" /> Add {title.toLowerCase()}
-        </button>
+        </SystemButton>
       </div>
     </div>
   );
@@ -4594,7 +4595,7 @@ export function FormInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:bg-white hover:border-[#cfc2d6]/40"
+        className="h-14 w-full px-4 transition-all duration-250"
       />
     </label>
   );
@@ -4617,7 +4618,7 @@ export function FormSelect({
       <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white hover:border-[#cfc2d6]/40"
+        className="h-14 w-full cursor-pointer px-4 transition-all duration-250"
       >
         {children}
       </SystemSelect>
@@ -4741,15 +4742,15 @@ export function ClassGroupCard({
             on hover, and on keyboard focus so it stays reachable.
           */}
           {onDeleteClass ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
               aria-label={`Delete ${group.name}`}
-              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[8px] font-black uppercase tracking-wider text-ink-subtle opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 active:scale-95 cursor-pointer group-hover/classrow:opacity-100"
+              className="flex items-center gap-1 px-2 justify-start"
             >
               <Trash2 className="h-3 w-3" />
               Delete
-            </button>
+            </SystemButton>
           ) : null}
           <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
             {group.sections.length} section{group.sections.length === 1 ? "" : "s"}
@@ -4794,35 +4795,35 @@ export function ClassGroupCard({
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                   placeholder={sectionless ? "First section name (e.g. A)" : "Section name (e.g. C)"}
-                  className="h-10 flex-1 rounded-xl bg-white border border-[#8127cf]/20 px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
+                  className="h-10 flex-1 px-3"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
                 />
-                <button
+                <SystemButton variant="default"
                   type="button"
                   onClick={handleAddSection}
                   disabled={addingSectionBusy || !newSectionName.trim()}
-                  className="flex h-10 items-center gap-1 rounded-xl bg-[#8127cf] px-4 text-[9px] font-black uppercase tracking-wider text-white transition-all duration-200 hover:bg-[#6a1fad] active:scale-95 cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 px-4 justify-start"
                 >
                   {addingSectionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
-                </button>
-                <button
+                </SystemButton>
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => { setAddingSection(false); setNewSectionName(""); }}
-                  className="flex h-10 items-center gap-1 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] cursor-pointer"
+                  className="flex items-center gap-1 px-4 justify-start"
                 >
                   Cancel
-                </button>
+                </SystemButton>
               </div>
             ) : (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setAddingSection(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle transition-all duration-200 hover:border-[#8127cf]/30 hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 cursor-pointer"
+                className="flex w-full items-center justify-center gap-2 py-3"
               >
                 <Plus className="w-4 h-4" />
                 {sectionless ? "Split into sections" : "Add Section"}
-              </button>
+              </SystemButton>
             )}
             {sectionless && addingSection ? (
               <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-ink-muted">
@@ -4902,43 +4903,43 @@ export function SectionCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
+          <SystemButton variant="default"
             type="button"
             onClick={(e) => { e.stopPropagation(); onViewClass(cls); }}
-            className="flex h-8 items-center gap-1 rounded-lg bg-[#8127cf]/10 px-2.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95 cursor-pointer"
+            className="flex items-center gap-1 px-2.5 justify-start"
             title="Manage section: teachers, subjects, syllabus"
           >
             <Settings className="h-3 w-3" />
             Manage
-          </button>
+          </SystemButton>
           {onDeleteClass ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+              className="flex items-center justify-center"
               title="Delete section"
             >
               <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            </SystemButton>
           ) : null}
           {onAddStudent ? (
-            <button
+            <SystemButton variant="default"
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }}
-              className="h-8 cursor-pointer rounded-lg bg-white px-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all duration-200 hover:bg-[#8127cf] hover:text-white active:scale-95"
+              className="px-2"
               title="Add a single student"
             >
               + Student
-            </button>
+            </SystemButton>
           ) : null}
 
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={() => setDetailsOpen((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8127cf] transition-all hover:bg-white cursor-pointer"
+            className="flex items-center justify-center"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", detailsOpen && "rotate-180")} />
-          </button>
+          </SystemButton>
         </div>
       </div>
 
@@ -4987,13 +4988,13 @@ export function SectionCard({
                 Students ({studentCount})
               </p>
               {students.length > 6 ? (
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => setShowAllStudents(!showAllStudents)}
-                  className="text-[8px] font-black uppercase tracking-wider text-[#8127cf] hover:underline cursor-pointer"
+                  className="hover:underline"
                 >
                   {showAllStudents ? "Show Less" : `View All ${students.length}`}
-                </button>
+                </SystemButton>
               ) : null}
             </div>
             {students.length > 0 ? (
@@ -5060,14 +5061,14 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
           </div>
         </div>
         {!isCurrentUser && onRemove && (
-          <button
+          <SystemButton variant="destructive"
             type="button"
             onClick={onRemove}
-            className="shrink-0 h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20 cursor-pointer"
+            className="shrink-0 px-4 flex items-center gap-1.5 justify-center"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Revoke
-          </button>
+          </SystemButton>
         )}
       </div>
     </div>
@@ -5112,14 +5113,14 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-          <button type="button" onClick={onResend} className="h-10 rounded-xl bg-white px-4 text-[9px] font-black uppercase tracking-wider text-[#8127cf] flex items-center gap-1.5 justify-center border border-[#8127cf]/10 shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md hover:shadow-[#8127cf]/20 cursor-pointer">
+          <SystemButton variant="default" type="button" onClick={onResend} className="px-4 flex items-center gap-1.5 justify-center">
             <Send className="w-3.5 h-3.5" />
             Resend
-          </button>
-          <button type="button" onClick={onCancel} className="h-10 rounded-xl bg-rose-50 px-4 text-[9px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 justify-center border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20 cursor-pointer">
+          </SystemButton>
+          <SystemButton variant="destructive" type="button" onClick={onCancel} className="px-4 flex items-center gap-1.5 justify-center">
             <X className="w-3.5 h-3.5" />
             Cancel
-          </button>
+          </SystemButton>
         </div>
       </div>
     </div>
@@ -5174,25 +5175,25 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           >
             {subjects === 0 ? "No subjects" : `${subjects} subject${subjects === 1 ? "" : "s"}`}
           </span>
-          <button
+          <SystemButton variant="default"
             type="button"
             onClick={onView}
-            className="h-9 rounded-xl bg-[#fbf0fe] px-4 text-[9px] font-black uppercase tracking-wider text-[#8127cf] flex items-center gap-1.5 justify-center hover:bg-[#8127cf] hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
+            className="px-4 flex items-center gap-1.5 justify-center"
           >
             View
-          </button>
+          </SystemButton>
           {/* Revoking a teacher's access is destructive and irreversible from
               here, so it does not sit lit up in red on every row beside View.
               It surfaces on hover, and on keyboard focus so it stays reachable. */}
-          <button
+          <SystemButton variant="destructive"
             type="button"
             onClick={onRemove}
             aria-label={`Revoke access for ${teacher.fullName}`}
-            className="h-9 rounded-xl px-4 text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1.5 justify-center opacity-0 hover:bg-rose-500 hover:text-white hover:shadow-md hover:shadow-rose-500/20 focus-visible:opacity-100 transition-all duration-200 active:scale-95 cursor-pointer group-hover/faculty:opacity-100"
+            className="px-4 flex items-center gap-1.5 justify-center"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Revoke
-          </button>
+          </SystemButton>
         </div>
       </div>
     </div>
@@ -5235,11 +5236,11 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
     )}>
-      <button
+      <SystemButton variant="ghost"
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          "flex w-full items-center justify-between gap-4 text-left",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
@@ -5276,7 +5277,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
             )}
           />
         </div>
-      </button>
+      </SystemButton>
 
       {open ? (
         <div className="border-t border-[#cfc2d6]/10 p-5">
@@ -5422,17 +5423,17 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">
           {tableOptions.map((opt) => (
-            <button
+            <SystemButton variant="ghost"
               key={opt.value}
               type="button"
               onClick={() => setFilter(opt.value)}
               className={cn(
-                "rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer",
+                "px-3 py-1.5",
                 filter === opt.value ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
               )}
             >
               {opt.label}
-            </button>
+            </SystemButton>
           ))}
         </div>
         <span className="text-[9px] font-bold text-ink-subtle">{filtered.length} entries</span>
@@ -5484,25 +5485,25 @@ export function ActivityLogModal({ onClose }: { onClose: () => void }) {
           </div>
           {totalPages > 1 ? (
             <div className="mt-4 flex items-center justify-center gap-3">
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                className="flex items-center gap-1 px-3 justify-start"
               >
                 Previous
-              </button>
+              </SystemButton>
               <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">
                 Page {safePage} of {totalPages}
               </span>
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase tracking-wider text-ink-muted transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                className="flex items-center gap-1 px-3 justify-start"
               >
                 Next
-              </button>
+              </SystemButton>
             </div>
           ) : null}
         </>
@@ -5522,19 +5523,19 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Classes</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
           </div>
-          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Teachers</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
           </div>
-          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
           </div>
-          <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Exams & Reports</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
           </div>
@@ -5581,10 +5582,10 @@ export function SpecialtyEditor({
         Teaching specialities
       </p>
 
-      <button
+      <SystemButton variant="ghost"
         type="button"
         onClick={onToggleAll}
-        className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-xl bg-white p-3 text-left transition-all hover:shadow-sm"
+        className="mb-3 flex w-full items-center gap-3 p-3 text-left justify-start"
       >
         <span
           className={cn(
@@ -5600,7 +5601,7 @@ export function SpecialtyEditor({
             Generalist — never warned about subject mismatch.
           </span>
         </span>
-      </button>
+      </SystemButton>
 
       {!teachesAll ? (
         <>
@@ -5611,14 +5612,14 @@ export function SpecialtyEditor({
                 className="inline-flex items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-black text-[#8127cf]"
               >
                 {s}
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => onRemove(s)}
-                  className="cursor-pointer text-[#8127cf]/60 transition-colors hover:text-rose-500"
+                  className=""
                   aria-label={`Remove ${s}`}
                 >
                   <X className="h-2.5 w-2.5" />
-                </button>
+                </SystemButton>
               </span>
             ))}
             {specialties.length === 0 ? (
@@ -5639,15 +5640,15 @@ export function SpecialtyEditor({
                 }
               }}
               placeholder="e.g. Mathematics"
-              className="h-10 flex-1 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+              className="h-10 flex-1 px-3 transition-all"
             />
-            <button
+            <SystemButton variant="default"
               type="button"
               onClick={() => onAdd(draft)}
-              className="h-10 shrink-0 cursor-pointer rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea] active:scale-95"
+              className="shrink-0 px-4"
             >
               Add
-            </button>
+            </SystemButton>
           </div>
         </>
       ) : null}
@@ -5948,15 +5949,15 @@ function TagListCard({
                   </p>
                 </div>
                 {onViewStudents && studentCount > 0 ? (
-                  <button
+                  <SystemButton variant="default"
                     type="button"
                     onClick={() => onViewStudents(item)}
                     title={`Show the ${studentCount} student${studentCount === 1 ? "" : "s"} tagged "${item.name}"`}
-                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white"
+                    className="flex shrink-0 items-center gap-1 px-2.5 py-1 justify-start"
                   >
                     {studentCount} student{studentCount === 1 ? "" : "s"}
                     <ArrowRight className="h-3 w-3" />
-                  </button>
+                  </SystemButton>
                 ) : (
                   <span
                     className={cn(
@@ -5968,22 +5969,22 @@ function TagListCard({
                   </span>
                 )}
                 <div className="flex shrink-0 items-center gap-1">
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => onEdit(item)}
-                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                    className="flex items-center justify-center"
                     title={`Rename ${kind}`}
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </SystemButton>
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => onDelete(item)}
-                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
+                    className="flex items-center justify-center"
                     title={`Delete ${kind}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </SystemButton>
                 </div>
               </div>
             );
@@ -6050,14 +6051,14 @@ function TagFormModal({
             onChange={(e) => setDescription(e.target.value)}
             placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
             rows={3}
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+            className="w-full px-4 py-3 transition-all"
           />
         </label>
         {kind === "category" ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={() => setIsActive((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-3 text-left transition-all hover:border-[#8127cf]/25"
+            className="flex w-full items-center gap-3 p-3 text-left justify-start"
           >
             <span
               className={cn(
@@ -6073,7 +6074,7 @@ function TagFormModal({
                 Inactive categories stay on existing students but can't be chosen for new admissions.
               </span>
             </span>
-          </button>
+          </SystemButton>
         ) : null}
       </div>
       <ModalActions
@@ -6257,20 +6258,20 @@ export function AdmissionQueriesPanel({
    * and the row gave no indication of what was being filtered.
    */
   const filterChip = (key: string, label: string, active: boolean, onSelect: () => void) => (
-    <button
+    <SystemButton variant="ghost"
       key={key}
       type="button"
       onClick={onSelect}
       aria-pressed={active}
       className={cn(
-        "h-9 rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+        "px-3.5",
         active
           ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
           : "bg-white text-ink-muted border border-[#cfc2d6]/25 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
       )}
     >
       {label}
-    </button>
+    </SystemButton>
   );
 
   return (
@@ -6361,10 +6362,10 @@ export function AdmissionQueriesPanel({
         {/* Overdue follow-ups are the only thing here that goes wrong on its
             own, so they get called out above the list rather than buried. */}
         {counts.OVERDUE > 0 && !showOverdue ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={() => { setStatusFilter("ALL"); setShowOverdue(true); setSourceFilter("ALL"); }}
-            className="mb-4 flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left transition-all hover:brightness-95"
+            className="mb-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:brightness-95"
           >
             <span className="flex items-center gap-3">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
@@ -6373,7 +6374,7 @@ export function AdmissionQueriesPanel({
               </span>
             </span>
             <ArrowRight className="h-4 w-4 text-rose-600" />
-          </button>
+          </SystemButton>
         ) : null}
 
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -6549,12 +6550,12 @@ export function AdmissionQueriesPanel({
             const overdue = ["ACTIVE", "FOLLOW_UP"].includes(q.status) && q.nextFollowUp && new Date(q.nextFollowUp).getTime() < now;
             const SourceIcon = querySourceIcon(q.source);
             return (
-              <button
+              <SystemButton variant="ghost"
                 key={q.id}
                 type="button"
                 onClick={() => setSelected(q)}
                 className={cn(
-                  "group/q relative w-full overflow-hidden rounded-[20px] border bg-white p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] cursor-pointer",
+                  "group/q relative w-full overflow-hidden p-4 text-left hover:-translate-y-0.5",
                   overdue
                     ? "border-rose-300/70 bg-rose-50/40 hover:border-rose-400/60"
                     : "border-[#cfc2d6]/25 hover:border-[#8127cf]/30"
@@ -6613,7 +6614,7 @@ export function AdmissionQueriesPanel({
                     </span>
                   ) : null}
                 </div>
-              </button>
+              </SystemButton>
             );
           })}
         </div>
@@ -6767,7 +6768,7 @@ function NewQueryModal({
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="What is this enquiry about?"
-            className="min-h-24 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle focus:bg-white"
+            className="min-h-24 w-full px-4 py-3 transition-all duration-250"
           />
         </label>
       </div>
@@ -6948,13 +6949,13 @@ function QueryDetailModal({
               {query._count?.followUps ?? followUps.length} follow-ups
             </span>
             {!deleteConfirm ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setDeleteConfirm(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider text-rose-500 transition-all duration-200 hover:bg-rose-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 justify-start"
               >
                 <Trash2 className="h-3.5 w-3.5" /> Delete query
-              </button>
+              </SystemButton>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-rose-600">Sure?</span>
@@ -6976,7 +6977,7 @@ function QueryDetailModal({
               <EmptyInline text="No follow-ups yet — log the first call below" />
             ) : (
               followUps.map((fu) => (
-                <div key={fu.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-white p-4">
+                <div key={fu.id} className="sk-panel p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
                       {formatDate(fu.date)}
@@ -7003,7 +7004,7 @@ function QueryDetailModal({
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What happened on this call / visit?"
-              className="min-h-20 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 placeholder:text-ink-subtle"
+              className="min-h-20 w-full px-4 py-3 transition-all duration-250"
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
@@ -7012,7 +7013,7 @@ function QueryDetailModal({
                   type="date"
                   value={nextDate}
                   onChange={(e) => setNextDate(e.target.value)}
-                  className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250"
+                  className="h-11 w-full px-4 transition-all duration-250"
                 />
               </div>
               <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={addFollowUp} disabled={busy} className="ml-auto">
@@ -7163,19 +7164,19 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
             .filter((k) => counts[k])
             .map((k) => ({ key: k, label: `${ARCHIVED_STATUS_LABELS[k]} (${counts[k]})` })),
         ].map((chip) => (
-          <button
+          <SystemButton variant="ghost"
             key={chip.key}
             type="button"
             onClick={() => setStatusFilter(chip.key)}
             className={cn(
-              "h-9 cursor-pointer rounded-full px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95",
+              "px-3.5",
               statusFilter === chip.key
                 ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
                 : "border border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
             )}
           >
             {chip.label}
-          </button>
+          </SystemButton>
         ))}
       </div>
 
@@ -7188,17 +7189,17 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
           className="max-w-xs"
         />
         {filtered.length > 0 ? (
-          <button
+          <SystemButton variant="outline"
             type="button"
             onClick={() =>
               setSelected((prev) =>
                 filtered.every((s) => prev.has(s.id)) ? new Set() : new Set(filtered.map((s) => s.id)),
               )
             }
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+            className="flex items-center gap-1.5 px-3 justify-start"
           >
             {filtered.every((s) => selected.has(s.id)) ? "Deselect all" : `Select all ${filtered.length}`}
-          </button>
+          </SystemButton>
         ) : null}
       </div>
 
@@ -7638,7 +7639,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 type="number"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
-                className="h-9 w-24 rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-xs font-black text-[#1f1a23] outline-none"
+                className="h-9 w-24 px-3"
               />
             </label>
             <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
@@ -7650,10 +7651,10 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         {/* Pending approvals are the only thing here that blocks someone else,
             so they get called out rather than sitting inside a tab. */}
         {pendingCount > 0 && tab !== "requests" ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={() => { setTab("requests"); setStatusFilter("PENDING"); }}
-            className="mt-4 flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left transition-all hover:brightness-95"
+            className="mt-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:brightness-95"
           >
             <span className="flex items-center gap-3">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
@@ -7662,7 +7663,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               </span>
             </span>
             <ArrowRight className="h-4 w-4 text-amber-700" />
-          </button>
+          </SystemButton>
         ) : null}
       </div>
 
@@ -7744,17 +7745,17 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         {LEAVE_TABS.map((t) => {
           const Icon = t.icon;
           return (
-            <button
+            <SystemButton variant="ghost"
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
               className={cn(
-                "flex h-10 items-center gap-1.5 rounded-xl px-3.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer",
+                "flex items-center gap-1.5 px-3.5 justify-start",
                 tab === t.id ? "bg-[#8127cf] text-white shadow-md" : "bg-[#fbf0fe]/60 text-ink-muted hover:bg-[#f0e0f8]"
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {t.label}
-            </button>
+            </SystemButton>
           );
         })}
       </div>
@@ -7767,7 +7768,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <SystemSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold text-[#1f1a23] outline-none"
+              className="h-10 cursor-pointer px-3"
             >
               <option value="">All statuses</option>
               <option value="PENDING">Pending</option>
@@ -7819,7 +7820,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
                       placeholder="Review note"
                       aria-label={`Review note for ${r.user?.fullName || "this request"}`}
-                      className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none"
+                      className="h-10 w-44 px-3"
                     />
                     <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
                       <SystemCheckbox
@@ -7873,17 +7874,17 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       onBlur={(e) => {
                         if (Number(e.target.value) !== t.defaultDaysDisplay) updateTypeDays(t.id, e.target.value);
                       }}
-                      className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-black outline-none"
+                      className="h-10 w-20 px-3"
                     />
                     days
                   </label>
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => deleteType(t)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                    className="flex items-center justify-center"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </SystemButton>
                 </div>
               </div>
             ))
@@ -7912,13 +7913,13 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                     {a.userId ? `User: ${a.user?.fullName || "—"}` : `All ${a.role || "staff"} members`} · {a.academicYear}
                   </p>
                 </div>
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => deleteAllocation(a.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 cursor-pointer"
+                  className="flex items-center justify-center"
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </SystemButton>
               </div>
             ))
           )}
@@ -8212,7 +8213,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={String(month)}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+            className="h-10 w-28 cursor-pointer px-3"
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
@@ -8223,7 +8224,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={String(year)}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+            className="h-10 w-28 cursor-pointer px-3"
           >
             {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
               <option key={y} value={y}>
@@ -8234,7 +8235,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <SystemSelect
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="h-10 w-40 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+            className="h-10 w-40 cursor-pointer px-3"
           >
             {PAYROLL_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -8417,7 +8418,7 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   return (
     <td className="py-1 px-3 text-right">
       <SystemInput
-        className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink"
+        className="w-24 px-2 py-1 text-right"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -8705,11 +8706,11 @@ export function RolePermissionsPanel() {
               ? modules.filter((m) => matrix[r.id][m]?.canView).length
               : null;
             return (
-              <button
+              <SystemButton variant="ghost"
                 key={r.id}
                 onClick={() => setActiveRole(r.id)}
                 className={cn(
-                  "flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95",
+                  "flex items-center gap-1.5 px-3.5 py-1.5 justify-start",
                   activeRole === r.id
                     ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
                     : "border border-[#cfc2d6]/25 bg-white text-ink hover:border-[#8127cf]/30 hover:text-[#8127cf]"
@@ -8724,7 +8725,7 @@ export function RolePermissionsPanel() {
                     {matrix?.[r.id]?._fixed ? "All" : seen}
                   </span>
                 ) : null}
-              </button>
+              </SystemButton>
             );
           })}
         </div>
@@ -8753,7 +8754,7 @@ export function RolePermissionsPanel() {
             onChange={(e) => setCopyFrom(e.target.value)}
             aria-label="Copy permissions from another role"
             disabled={Boolean(bulkBusy)}
-            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none disabled:opacity-50"
+            className="h-10 cursor-pointer px-3 disabled:opacity-50"
           >
             <option value="">Copy from role…</option>
             {PERM_ROLES.filter((r) => r.id !== activeRole).map((r) => (
@@ -8810,24 +8811,24 @@ export function RolePermissionsPanel() {
                     <td className="px-3 py-1.5 text-right">
                       {!isFixed ? (
                         <div className="inline-flex items-center gap-1">
-                          <button
+                          <SystemButton variant="ghost"
                             type="button"
                             disabled={Boolean(bulkBusy) || allOn}
                             onClick={() => setGroup(group.label, group.modules, true)}
                             title={`Give full access to everything in ${group.label}`}
-                            className="cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="px-2 py-1"
                           >
                             {bulkBusy === group.label ? <Loader2 className="h-3 w-3 animate-spin" /> : "On"}
-                          </button>
-                          <button
+                          </SystemButton>
+                          <SystemButton variant="ghost"
                             type="button"
                             disabled={Boolean(bulkBusy) || allOff}
                             onClick={() => setGroup(group.label, group.modules, false)}
                             title={`Remove all access to ${group.label}`}
-                            className="cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider text-rose-500 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="px-2 py-1"
                           >
                             Off
-                          </button>
+                          </SystemButton>
                         </div>
                       ) : null}
                     </td>
@@ -8850,14 +8851,14 @@ export function RolePermissionsPanel() {
                               {isFixed ? (
                                 <CheckCircle2 className={cn("mx-auto h-4.5 w-4.5", on ? "text-emerald-500" : "text-[#cfc2d6]/40")} />
                               ) : (
-                                <button
+                                <SystemButton variant="ghost"
                                   onClick={() => toggle(module, a.key)}
                                   disabled={busy || gatedByView}
                                   role="switch"
                                   aria-checked={on}
                                   title={gatedByView ? `Turn on View for ${permModuleLabel(module)} first` : undefined}
                                   className={cn(
-                                    "relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors",
+                                    "relative inline-flex items-center justify-start",
                                     on ? "bg-[#8127cf]" : "bg-[#ddd6e4]",
                                     busy && "opacity-60",
                                     gatedByView && "cursor-not-allowed opacity-35"
@@ -8870,25 +8871,25 @@ export function RolePermissionsPanel() {
                                       on ? "translate-x-5" : "translate-x-0.5"
                                     )}
                                   />
-                                </button>
+                                </SystemButton>
                               )}
                             </td>
                           );
                         })}
                         <td className="px-3 py-2 text-right">
                           {!isFixed ? (
-                            <button
+                            <SystemButton variant="ghost"
                               type="button"
                               disabled={rowBusy || Boolean(bulkBusy)}
                               onClick={() => setRow(module, !rowFull)}
                               title={rowFull ? `Remove all access to ${permModuleLabel(module)}` : `Give full access to ${permModuleLabel(module)}`}
                               className={cn(
-                                "cursor-pointer rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                                "px-2 py-1",
                                 rowFull ? "text-rose-500 hover:bg-rose-50" : "text-emerald-600 hover:bg-emerald-50"
                               )}
                             >
                               {rowBusy ? <Loader2 className="mx-auto h-3 w-3 animate-spin" /> : rowFull ? "None" : "Full"}
-                            </button>
+                            </SystemButton>
                           ) : null}
                         </td>
                       </tr>
@@ -9063,16 +9064,16 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-full bg-[#f3f4f9] p-1">
             {(["CLASS", "EXAM"] as const).map((t) => (
-              <button
+              <SystemButton variant="ghost"
                 key={t}
                 onClick={() => setTimeType(t)}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-xs font-bold transition-colors",
+                  "px-4 py-1.5",
                   timeType === t ? "bg-[#1f1a23] text-white" : "text-ink-muted hover:text-ink"
                 )}
               >
                 {t === "CLASS" ? "Class Periods" : "Exam Periods"}
-              </button>
+              </SystemButton>
             ))}
           </div>
           <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd((v) => !v)}>
@@ -9088,7 +9089,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <SystemInput
               type="number"
               min={1}
-              className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+              className="h-10 w-20 px-3"
               value={form.periodNumber}
               onChange={(e) => setForm((f) => ({ ...f, periodNumber: e.target.value }))}
             />
@@ -9097,7 +9098,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+              className="h-10 w-28 px-3"
               value={form.startTime}
               onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
             />
@@ -9106,7 +9107,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+              className="h-10 w-28 px-3"
               value={form.endTime}
               onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
             />
@@ -9188,7 +9189,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} start time`}
-                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none"
+                className="h-9 px-2.5"
                 value={draft.startTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: e.target.value } }))
@@ -9208,7 +9209,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} end time`}
-                className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none"
+                className="h-9 px-2.5"
                 value={draft.endTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: e.target.value } }))
@@ -9227,14 +9228,14 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
                 {lengthMinutes > 0 ? `${lengthMinutes} min` : "—"}
               </span>
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setConfirmPeriod(p)}
-                className="ml-auto cursor-pointer rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
+                className="ml-auto p-1.5"
                 aria-label={`Delete period ${p.periodNumber}`}
               >
                 <Trash2 className="h-4 w-4" />
-              </button>
+              </SystemButton>
             </div>
             </React.Fragment>
             );

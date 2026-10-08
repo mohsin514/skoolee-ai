@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
@@ -50,19 +51,17 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button
+            <Button aria-pressed={subTab === tab.key} variant="choice"
               key={tab.key}
               type="button"
               onClick={() => setSubTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                subTab === tab.key
-                  ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={"justify-start " + (`flex items-center gap-1.5 px-3 py-1.5 ${
+                ""
+              } `)}
             >
               <Icon className="w-3 h-3" />
               {tab.label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -141,7 +140,7 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+      <div className="sk-panel overflow-hidden animate-skeleton-in">
         <div className="px-5 py-3 bg-[#f3f4f9]/50">
           <div className="h-3 w-full max-w-md rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
         </div>
@@ -214,14 +213,14 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
                 {d.daysOverdue}d
               </span>
               <p className="text-xs font-black text-ink-muted">{d.overdueInvoices}</p>
-              <button
+              <Button variant="default"
                 type="button"
                 onClick={() => handleRemind(d.studentId)}
                 disabled={remindingId !== null}
-                className="rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+                className="px-3 py-1.5"
               >
                 {remindingId === d.studentId ? <Loader2 className="w-3 h-3 animate-spin inline" /> : tr("Send reminder")}
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -273,13 +272,13 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
       <div className="space-y-4 animate-skeleton-in">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3">
+            <div key={i} className="sk-panel px-4 py-3">
               <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-2" />
               <div className="h-5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
             </div>
           ))}
         </div>
-        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden">
+        <div className="sk-panel overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-[#f3f4f9] first:border-t-0">
               <div className="h-3.5 flex-1 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
@@ -415,7 +414,7 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
       <div className="space-y-4 animate-skeleton-in">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-[20px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+            <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
                 <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />

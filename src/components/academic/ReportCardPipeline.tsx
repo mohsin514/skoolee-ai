@@ -1,4 +1,8 @@
 "use client";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { jobMessages } from "@/lib/jobs/messages";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useState } from "react";
@@ -143,7 +147,7 @@ const copy = {
   },
 };
 const button =
-  "rounded-lg border px-3 py-2 text-sm disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "px-3 py-2";
 export function ReportCardPipeline({
   exam,
   campusId,
@@ -289,8 +293,8 @@ export function ReportCardPipeline({
             <>
               <label className="block">
                 {t.reason}
-                <textarea
-                  className="block w-full rounded border p-2"
+                <Textarea
+                  className="block w-full"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   maxLength={1000}
@@ -301,15 +305,15 @@ export function ReportCardPipeline({
           <div className="flex flex-wrap gap-2">
             {canReview && (
               <>
-                <button
-                  className={button}
+                <Button variant="outline"
+                  className="px-3 py-2"
                   disabled={busy}
                   onClick={() => action("generate")}
                 >
                   {t.generate}
-                </button>
-                <button
-                  className={button}
+                </Button>
+                <Button variant="outline"
+                  className="px-3 py-2"
                   disabled={
                     busy ||
                     !selected.length ||
@@ -324,9 +328,9 @@ export function ReportCardPipeline({
                   onClick={() => action("approve")}
                 >
                   {t.approve}
-                </button>
-                <button
-                  className={button}
+                </Button>
+                <Button variant="outline"
+                  className="px-3 py-2"
                   disabled={
                     busy ||
                     !cards.length ||
@@ -335,26 +339,26 @@ export function ReportCardPipeline({
                   onClick={() => action("review")}
                 >
                   {t.review}
-                </button>
+                </Button>
               </>
             )}
           </div>
           <label className="block text-sm">
             {t.filter}
-            <select
-              className="block rounded border p-2"
+            <Select
+              className="block"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="all">{t.all}</option>
               <option value="blocked">{t.blocked}</option>
               <option value="eligible">{t.eligible}</option>
-            </select>
+            </Select>
           </label>
           <label className="block text-sm">
             {t.reviewer}
-            <select
-              className="block rounded border p-2"
+            <Select
+              className="block"
               value={reviewerFilter}
               onChange={(e) => setReviewerFilter(e.target.value)}
             >
@@ -373,7 +377,7 @@ export function ReportCardPipeline({
                   {name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <ul className="space-y-3">
             {cards
@@ -392,9 +396,9 @@ export function ReportCardPipeline({
                 <li key={c.id} className="rounded-xl border p-3 space-y-2">
                   <div className="flex items-center flex-wrap gap-2">
                     {canReview && (
-                      <input
+                      <Checkbox
                         aria-label={`${t.approve}: ${c.student?.fullName} v${c.review.number}`}
-                        type="checkbox"
+
                         disabled={
                           busy ||
                           !!c.review.blockers.length ||
@@ -446,8 +450,8 @@ export function ReportCardPipeline({
                       {c.review.lastReviewedAt}
                     </p>
                   )}
-                  <button
-                    className={button}
+                  <Button variant="outline"
+                    className="px-3 py-2"
                     onClick={() => {
                       setActive(c.id);
                       setLanguage(c.review.language);
@@ -462,7 +466,7 @@ export function ReportCardPipeline({
                     }}
                   >
                     {t.inspect} <bdi>v{c.review.number}</bdi>
-                  </button>
+                  </Button>
                   {!!c.review.history?.length && (
                     <details>
                       <summary>
@@ -596,8 +600,8 @@ export function ReportCardPipeline({
                 <>
                   <label className="block">
                     {t.language}
-                    <select
-                      className="block rounded border p-2"
+                    <Select
+                      className="block"
                       value={language}
                       onChange={(e) => {
                         const l = e.target.value;
@@ -616,12 +620,12 @@ export function ReportCardPipeline({
                       <option value="en">English</option>
                       <option value="ar">العربية</option>
                       <option value="ur">اردو</option>
-                    </select>
+                    </Select>
                   </label>
                   <label className="block">
                     {t.remarks}
-                    <textarea
-                      className="block w-full rounded border p-2"
+                    <Textarea
+                      className="block w-full"
                       dir={language === "en" ? "ltr" : "rtl"}
                       value={remark}
                       onChange={(e) => setRemark(e.target.value)}
@@ -630,28 +634,28 @@ export function ReportCardPipeline({
                   {canReview && (
                     <label className="block">
                       {t.note}
-                      <textarea
-                        className="block w-full rounded border p-2"
+                      <Textarea
+                        className="block w-full"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                       />
                     </label>
                   )}
-                  <button
-                    className={button}
+                  <Button variant="outline"
+                    className="px-3 py-2"
                     disabled={busy}
                     onClick={() => save()}
                   >
                     {t.save}
-                  </button>
+                  </Button>
                   {canReview && (
-                    <button
-                      className={button}
+                    <Button variant="outline"
+                      className="px-3 py-2"
                       disabled={busy || !note.trim()}
                       onClick={() => save(true)}
                     >
                       {t.request}
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -660,8 +664,8 @@ export function ReportCardPipeline({
           {canReview && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                <button
-                  className={button}
+                <Button variant="outline"
+                  className="px-3 py-2"
                   disabled={
                     busy ||
                     !cards.length ||
@@ -670,14 +674,14 @@ export function ReportCardPipeline({
                   onClick={() => action("publish")}
                 >
                   {t.publish}
-                </button>
-                <button
-                  className={button}
+                </Button>
+                <Button variant="outline"
+                  className="px-3 py-2"
                   disabled={busy || !cards.some((c) => c.review.publishedAt)}
                   onClick={() => action("send")}
                 >
                   {t.send}
-                </button>
+                </Button>
               </div>
             </div>
           )}

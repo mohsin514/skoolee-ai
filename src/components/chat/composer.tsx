@@ -7,6 +7,11 @@ import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
 import type { ChatMessageView } from "@/lib/chat/types";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { InputGroup } from "@/components/ui/input-group";
+
+const MotionButton = motion.create(Button);
+
 
 const MAX_LENGTH = 4000;
 
@@ -41,7 +46,6 @@ export function Composer({
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -189,7 +193,7 @@ export function Composer({
                   {(editing ?? replyTo)?.body}
                 </p>
               </div>
-              <button
+              <Button variant="outline" size="icon"
                 type="button"
                 aria-label={editing ? "Cancel edit" : "Cancel reply"}
                 onClick={() => {
@@ -200,10 +204,10 @@ export function Composer({
                     onClearReply();
                   }
                 }}
-                className="shrink-0 cursor-pointer rounded-lg p-1 text-ink-muted transition-all hover:bg-white hover:text-[#8127cf] active:scale-90"
+                className="shrink-0"
               >
                 <X className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </div>
           </motion.div>
         )}
@@ -239,28 +243,21 @@ export function Composer({
                 )}
                 <span className="max-w-[150px] truncate">{f.file.name}</span>
                 {f.error && <span>· {f.error}</span>}
-                <button
+                <Button variant="outline" size="icon"
                   type="button"
                   aria-label={`Remove ${f.file.name}`}
                   onClick={() => setFiles((prev) => prev.filter((_, index) => index !== i))}
-                  className="cursor-pointer rounded p-0.5 transition-colors hover:bg-white/70"
+
                 >
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </li>
             ))}
           </motion.ul>
         )}
       </AnimatePresence>
 
-      <div
-        className={cn(
-          "flex items-end gap-2 rounded-[20px] border bg-white p-1.5 transition-all",
-          isFocused
-            ? "border-[#8127cf]/40 shadow-[0_0_0_4px_rgba(129,39,207,0.10),0_10px_28px_-14px_rgba(129,39,207,0.5)]"
-            : "border-[#cfc2d6]/30 shadow-[0_4px_16px_-10px_rgba(31,26,35,0.3)]"
-        )}
-      >
+      <InputGroup className="items-end gap-2 p-1.5">
         {!editing && (
           <>
             <input
@@ -274,16 +271,16 @@ export function Composer({
               }}
               accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
             />
-            <button
+            <Button variant="secondary" size="icon"
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={files.length >= 5}
               aria-label="Attach a file"
               title="Attach a file"
-              className="shrink-0 cursor-pointer rounded-2xl p-2.5 text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0"
             >
               <Paperclip className="h-4 w-4" />
-            </button>
+            </Button>
           </>
         )}
 
@@ -296,8 +293,6 @@ export function Composer({
           rows={1}
           value={value}
           maxLength={MAX_LENGTH}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
           onChange={(e) => {
             setValue(e.target.value);
             notifyTyping();
@@ -315,10 +310,10 @@ export function Composer({
             }
           }}
           placeholder={editing ? "Edit your message…" : "Write a message…"}
-          className="max-h-[150px] min-h-[40px] flex-1 resize-none border-0 bg-transparent px-1.5 py-2.5 text-[13px] font-semibold text-ink placeholder:text-ink-faint"
+          className="max-h-[150px] min-h-12 flex-1 resize-none px-1.5 py-2.5"
         />
 
-        <motion.button
+        <MotionButton variant="default" size="icon"
           type="button"
           onClick={submit}
           disabled={!canSend}
@@ -326,12 +321,7 @@ export function Composer({
           whileTap={canSend ? { scale: 0.9 } : undefined}
           animate={canSend ? { scale: 1 } : { scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 28 }}
-          className={cn(
-            "shrink-0 cursor-pointer rounded-2xl p-2.5 text-white transition-all",
-            canSend
-              ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-[0_8px_22px_-8px_rgba(129,39,207,0.8)] hover:shadow-[0_12px_30px_-10px_rgba(129,39,207,0.9)]"
-              : "cursor-not-allowed bg-[#cfc2d6]/50 text-white/70"
-          )}
+          className="shrink-0"
         >
           {isSending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -340,8 +330,8 @@ export function Composer({
           ) : (
             <Send className="h-4 w-4" />
           )}
-        </motion.button>
-      </div>
+        </MotionButton>
+      </InputGroup>
 
       {remaining < 200 && (
         <p

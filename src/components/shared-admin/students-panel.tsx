@@ -1,5 +1,6 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -478,10 +479,10 @@ export function StudentsPanel({
       label: "Student",
       sortable: true,
       render: (s) => (
-        <button
+        <SystemButton variant="ghost"
           type="button"
           onClick={() => onViewStudent(s, filtered)}
-          className="flex cursor-pointer items-center gap-2.5 text-left"
+          className="flex items-center gap-2.5 text-left justify-start"
         >
           <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
             <AvatarImage
@@ -500,7 +501,7 @@ export function StudentsPanel({
               Roll {s.rollNo || "—"}
             </span>
           </span>
-        </button>
+        </SystemButton>
       ),
     },
     {
@@ -726,13 +727,13 @@ export function StudentsPanel({
           />
         ) : null}
         {filtersActive ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={resetFilters}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="flex items-center gap-1.5 px-3 justify-start"
           >
             <X className="h-3 w-3" /> Clear
-          </button>
+          </SystemButton>
         ) : null}
       </WorkspaceToolbar>
 
@@ -1090,7 +1091,7 @@ function BulkTagModal({
         <SystemSelect
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none"
+          className="w-full cursor-pointer px-4 py-2.5"
         >
           <option value="">— None (clear it) —</option>
           {options.map((o) => (

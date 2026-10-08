@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
@@ -28,7 +29,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const API = "/api";
-const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white";
+const inputClass = "w-full";
 const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
 
 type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
@@ -51,16 +52,16 @@ export function AccountsTab({ campusId }: { campusId?: string }) {
         {TABS.map((tab) => {
           const isActive = active === tab.key;
           return (
-            <button
+            <Button aria-pressed={isActive} variant="choice"
               key={tab.key}
               type="button"
               onClick={() => setActive(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
+                ""
+              } `)}
             >
               {tab.label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -195,7 +196,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {accounts.map((acc) => (
-            <div key={acc.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+            <div key={acc.id} className="sk-panel p-5 flex items-center gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
                 <Wallet className="w-5 h-5" />
               </div>
@@ -211,12 +212,12 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
                 {acc.type}
               </span>
-              <button type="button" onClick={() => openModal(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit account")}>
+              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(acc)} className="flex items-center justify-center" aria-label={tr("Edit account")}>
                 <Pencil className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={() => setDeleting(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete account")}>
+              </Button>
+              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(acc)} className="flex items-center justify-center" aria-label={tr("Delete account")}>
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -226,16 +227,16 @@ function ChartPanel({ campusId }: { campusId?: string }) {
         <ModalFrame title={editing ? tr("Edit Account") : tr("New Account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
             <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
-            <div>
-              <label className={labelClass}><UiText>{"Type"}</UiText></label>
-              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
+            <label>
+              <span className={labelClass}><UiText>{"Type"}</UiText></span>
+              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className="w-full">
                 <option value="INCOME"><UiText>{"Income"}</UiText></option>
                 <option value="EXPENSE"><UiText>{"Expense"}</UiText></option>
                 <option value="ASSET"><UiText>{"Asset"}</UiText></option>
                 <option value="LIABILITY"><UiText>{"Liability"}</UiText></option>
                 <option value="EQUITY"><UiText>{"Equity"}</UiText></option>
               </SystemSelect>
-            </div>
+            </label>
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
@@ -376,7 +377,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {methods.map((m) => (
-            <div key={m.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+            <div key={m.id} className="sk-panel p-5 flex items-center gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
                 <CreditCard className="w-5 h-5" />
               </div>
@@ -384,19 +385,19 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
                 <p className="text-sm font-black text-[#1f1a23]">{m.name}</p>
                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{m.isActive ? tr("Active") : tr("Inactive")}</p>
               </div>
-              <button
+              <Button aria-pressed={m.isActive} variant="choice"
                 type="button"
                 onClick={() => handleToggle(m)}
-                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
+                className={`px-3 py-1.5 ${""} `}
               >
                 {m.isActive ? tr("Active") : tr("Inactive")}
-              </button>
-              <button type="button" onClick={() => openModal(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit method")}>
+              </Button>
+              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(m)} className="flex items-center justify-center" aria-label={tr("Edit method")}>
                 <Pencil className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={() => setDeleting(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete method")}>
+              </Button>
+              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(m)} className="flex items-center justify-center" aria-label={tr("Delete method")}>
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -569,7 +570,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {banks.map((b) => (
-            <div key={b.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+            <div key={b.id} className="sk-panel p-5 flex items-center gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
                 <Building2 className="w-5 h-5" />
               </div>
@@ -583,19 +584,19 @@ function BanksPanel({ campusId }: { campusId?: string }) {
                 <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
                 <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
-              <button
+              <Button aria-pressed={b.isActive} variant="choice"
                 type="button"
                 onClick={() => handleToggle(b)}
-                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${b.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
+                className={`px-3 py-1.5 ${""} `}
               >
                 {b.isActive ? tr("Active") : tr("Inactive")}
-              </button>
-              <button type="button" onClick={() => openModal(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit bank")}>
+              </Button>
+              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(b)} className="flex items-center justify-center" aria-label={tr("Edit bank")}>
                 <Pencil className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={() => setDeleting(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete bank")}>
+              </Button>
+              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(b)} className="flex items-center justify-center" aria-label={tr("Delete bank")}>
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -750,7 +751,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
   const pickList = kind === "INCOME" ? incomeAccounts : expenseAccounts;
 
   return (
-    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><select aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full"><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
@@ -776,7 +777,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       ) : (
         <div className="space-y-3">
           {entries.map((e) => (
-            <div key={e.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+            <div key={e.id} className="sk-panel p-5 flex items-center gap-4">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${e.kind === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                 {e.kind === "INCOME" ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
               </div>
@@ -794,9 +795,9 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                 {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount, e.currency)}
               </p>
               {!e.paymentId && (
-                <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete entry")}>
+                <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(e)} className="flex items-center justify-center" aria-label={tr("Delete entry")}>
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </Button>
               )}
             </div>
           ))}
@@ -817,15 +818,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               <FormInput label={`${tr("Amount")} (${currency || "PKR"})`} type="number" value={amount} placeholder="0" onChange={setAmount} />
               <FormInput label={tr("Date")} type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
             </div>
-            <div>
-              <label className={labelClass}><UiText>{"Bank Account (optional)"}</UiText></label>
-              <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
+            <label>
+              <span className={labelClass}><UiText>{"Bank Account (optional)"}</UiText></span>
+              <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className="w-full">
                 <option value=""><UiText>{"— None —"}</UiText></option>
                 {banks.filter((b) => b.isActive && b.currency === currency).map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </SystemSelect>
-            </div>
+            </label>
             <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("Extra detail")} onChange={setNote} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={kind === "INCOME" ? "Record Income" : "Record Expense"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -886,16 +887,16 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
   useEffect(() => { run(); }, [run]);
 
   return (
-    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><select aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full"><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
       <div className="flex items-end gap-3 flex-wrap">
-        <div>
-          <label className={labelClass}><UiText>{"From"}</UiText></label>
-          <SystemInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}><UiText>{"To"}</UiText></label>
-          <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
-        </div>
+        <label>
+          <span className={labelClass}><UiText>{"From"}</UiText></span>
+          <SystemInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full" />
+        </label>
+        <label>
+          <span className={labelClass}><UiText>{"To"}</UiText></span>
+          <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full" />
+        </label>
         <BrandButton icon={<Percent className="w-4 h-4" />} onClick={run} disabled={loading}>
           {loading ? <Loader className="w-4 h-4 animate-spin" /> : tr("Run Report")}
         </BrandButton>
@@ -916,7 +917,7 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
           {report.breakdown.length > 0 ? (
             <div className="space-y-3">
               {report.breakdown.map((b: any) => (
-                <div key={`${b.accountId}-${b.type}`} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+                <div key={`${b.accountId}-${b.type}`} className="sk-panel p-5 flex items-center gap-4">
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${b.type === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                     {b.type === "INCOME" ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                   </div>
@@ -945,7 +946,7 @@ function SkeletonRows() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+        <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
           <div className="flex items-start justify-between mb-3">
             <div className="space-y-2">
               <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />

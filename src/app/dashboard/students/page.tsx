@@ -134,15 +134,15 @@ function SortHeader({
   const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
   return (
     <TableHead>
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={() => onSort(column)}
         aria-label={`Sort by ${column}${active ? `, currently ${sortDir}ending` : ""}`}
-        className="flex cursor-pointer items-center gap-1 hover:text-primary"
+        className="justify-start px-1"
       >
         {children}
         <Icon className={`h-3 w-3 ${active ? "text-primary" : "opacity-40"}`} />
-      </button>
+      </Button>
     </TableHead>
   );
 }
@@ -397,12 +397,12 @@ export default function StudentsPage() {
                     setSearchQuery(event.target.value);
                     resetPage();
                   }}
-                  className="pl-9"
+
                 />
               </InputGroup>
               <Select
                 aria-label="Filter students by class"
-                className="w-full md:w-56"
+                className={"w-full md:w-56"}
                 value={classFilter}
                 onChange={(event) => {
                   setClassFilter(event.target.value);
@@ -415,7 +415,7 @@ export default function StudentsPage() {
                 ))}
               </Select>
               <Select
-                className="w-full md:w-44"
+                className={"w-full md:w-44"}
                 value={statusFilter}
                 onChange={(event) => {
                   setStatusFilter(event.target.value as "active" | "archived");

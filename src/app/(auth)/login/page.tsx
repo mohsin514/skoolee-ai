@@ -1,5 +1,5 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
   AlertCircle, CheckCircle2, Building2, Sparkles,
@@ -61,6 +62,15 @@ type LoginUser = {
   onboardingComplete?: boolean;
 };
 
+// Only recognize messages produced by the verification endpoint. Arbitrary
+// query text must not become trusted account guidance on the sign-in screen.
+const verificationErrors = new Set([
+  "Invalid verification link",
+  "This verification link is invalid or has expired",
+  "User not found",
+  "Verification failed",
+]);
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,6 +86,16 @@ export default function LoginPage() {
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
   const brandRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const schoolHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (formError) errorRef.current?.focus();
+  }, [formError]);
+
+  useEffect(() => {
+    if (choices) schoolHeadingRef.current?.focus();
+  }, [choices]);
 
   // Subtle parallax: blobs and the avatar orbit drift opposite the cursor
   // for a sense of depth. Written straight to the DOM (no re-render) and
@@ -99,14 +119,28 @@ export default function LoginPage() {
     // Set by signOutInvalidSession() when the server stopped accepting the
     // session. Without a word here the redirect looks like a random logout.
     const expired = searchParams.get("reason") === "session-expired";
-    if (verified) {
-      toast.success("Account verified. Please log in.", { duration: 8000 });
-    } else if (invited) {
-      toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
-    } else if (expired) {
-      toast.info("Your session has ended. Please sign in again.", { duration: 8000 });
-    }
-    if (verified || invited || expired) window.history.replaceState(null, "", "/login");
+    const verificationError = searchParams.get("error");
+    if (!verified && !invited && !expired && verificationError === null) return;
+    // On a direct load the root toaster subscribes after this page's effect.
+    // Wait until sibling effects have mounted, and cancel a superseded notice.
+    const noticeTimer = window.setTimeout(() => {
+      if (verified) {
+        toast.success("Account verified. Please log in.", { duration: 8000 });
+      } else if (invited) {
+        toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
+      } else if (expired) {
+        toast.info("Your session has ended. Please sign in again.", { duration: 8000 });
+      } else {
+        setFormError(verificationErrors.has(verificationError ?? "")
+          ? verificationError
+          : "Unable to verify this link. Please open the latest verification email and try again.");
+      }
+      const remaining = new URLSearchParams(searchParams.toString());
+      for (const key of ["verified", "invite", "reason", "error"]) remaining.delete(key);
+      const query = remaining.toString();
+      window.history.replaceState(null, "", query ? `/login?${query}` : "/login");
+    }, 0);
+    return () => window.clearTimeout(noticeTimer);
   }, [searchParams]);
 
   // Tick the rate-limit cooldown down to zero.
@@ -124,8 +158,9 @@ export default function LoginPage() {
     setCapsOn(e.getModifierState?.("CapsLock") ?? false);
   }, []);
 
-  // Spread this rather than register() inline: react-hook-form supplies its
-  // own onBlur, and we need to run ours alongside it instead of replacing it.
+  // Register in visual order so invalid submit focuses email before password.
+  // The password field also composes React Hook Form's onBlur with Caps Lock.
+  const emailField = register("email");
   const passwordField = register("password");
 
   // Where a signed-in user actually belongs. Shared by the plain sign-in and
@@ -222,43 +257,6 @@ export default function LoginPage() {
 
   return (
     <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes skShake {
-          0%,100% { transform: translateX(0); }
-          25%     { transform: translateX(-5px); }
-          75%     { transform: translateX(5px); }
-        }
-        @keyframes skShimmer {
-          from { transform: translateX(-130%) skewX(-12deg); }
-          to   { transform: translateX(130%) skewX(-12deg); }
-        }
-        @keyframes skCheckPop {
-          0%   { transform: scale(0.4); opacity: 0; }
-          60%  { transform: scale(1.15); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        .sk-shake { animation: skShake .34s ease-in-out; }
-        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
-        .sk-check-pop { animation: skCheckPop .4s cubic-bezier(.2,.7,.3,1) both; }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise, .sk-shake, .sk-shimmer, .sk-check-pop { animation: none !important; }
-          .sk-parallax { transition: none !important; }
-        }
-      `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
@@ -381,7 +379,7 @@ export default function LoginPage() {
           </div>
 
           <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
-            <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+            <h2 ref={schoolHeadingRef} tabIndex={-1} className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
               {choices ? "Choose your school" : "Welcome back"}
             </h2>
             <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
@@ -397,11 +395,14 @@ export default function LoginPage() {
           >
             {formError && (
               <div
+                id="login-error"
+                ref={errorRef}
+                tabIndex={-1}
                 role="alert"
-                className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3"
+                className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3"
               >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                <p className="text-[13px] font-bold leading-snug text-rose-600">{formError}</p>
+                <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-status-error-text" />
+                <p className="text-[13px] font-bold leading-snug text-status-error-text">{formError}</p>
               </div>
             )}
 
@@ -410,12 +411,13 @@ export default function LoginPage() {
                 {choices.map((c, i) => {
                   const busy = choosing === c.schoolId;
                   return (
-                    <button
+                    <Button variant="choice"
                       key={c.schoolId}
                       type="button"
                       onClick={() => pickSchool(c)}
                       disabled={!!choosing}
-                      className="sk-rise group flex w-full cursor-pointer items-center gap-4 rounded-2xl border-2 border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-4 text-left transition-all hover:border-[#8127cf]/45 hover:bg-white hover:shadow-lg hover:shadow-[#8127cf]/10 disabled:cursor-wait disabled:opacity-60"
+                      aria-busy={busy}
+                      className="sk-rise group flex w-full items-center justify-start gap-4 p-4 text-start"
                       style={{ animationDelay: `${i * 70}ms` }}
                     >
                       {c.logoUrl ? (
@@ -449,42 +451,41 @@ export default function LoginPage() {
                       ) : (
                         <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
 
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => { setChoices(null); setFormError(null); }}
                   disabled={!!choosing}
-                  className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#cfc2d6]/30 py-3 text-[12px] font-black text-ink-muted transition-colors hover:border-[#8127cf]/25 hover:text-[#8127cf] disabled:opacity-50"
+                  className="mt-2 w-full text-xs"
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Use a different account
-                </button>
+                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:-scale-x-100" /> Use a different account
+                </Button>
               </div>
             ) : (
               <>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
+                <Label htmlFor="email" className="ms-1 text-[10px] font-black uppercase tracking-wider text-ink">
                   Work Email
                 </Label>
-                <InputGroup surfaceClassName="bg-[#eff6ff]" className="group relative flex items-center">
-                  <Mail data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup surfaceClassName="bg-[#eff6ff]">
+                  <Mail aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
                   <Input
                     id="email"
                     type="email"
                     autoComplete="email"
                     autoFocus
                     aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? "login-email-error" : undefined}
                     placeholder="principal@institution.edu.pk"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-                      errors.email ? "bg-rose-50" : "bg-[#fbf0fe]"
-                    }`}
-                    {...register("email")}
+                    {...emailField}
                   />
                 </InputGroup>
-                {errors.email && <p className="px-1 text-xs font-bold text-rose-500">{errors.email.message}</p>}
+                {errors.email && <p id="login-email-error" className="px-1 text-xs font-bold text-status-error-text">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -499,35 +500,35 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <InputGroup surfaceClassName="bg-[#fdf2f8]" className="group relative flex items-center">
-                  <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup surfaceClassName="bg-[#fdf2f8]">
+                  <Lock aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
                     autoComplete="current-password"
                     aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? "login-password-error" : capsOn ? "login-caps-lock" : undefined}
                     placeholder="••••••••"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-                      errors.password ? "bg-rose-50" : "bg-[#fbf0fe]"
-                    }`}
                     {...passwordField}
                     onKeyUp={trackCaps}
                     onKeyDown={trackCaps}
                     onBlur={(e) => { setCapsOn(false); passwordField.onBlur(e); }}
                   />
-                  <button data-field-affix="end"
+                  <FieldAction data-field-affix="end"
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
                     aria-label={showPass ? "Hide password" : "Show password"}
-                    className="absolute right-4 cursor-pointer text-ink-subtle transition-colors hover:text-[#8127cf]"
+                    aria-pressed={showPass}
+                    aria-controls="password"
+                    className="cursor-pointer"
                   >
-                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                    {showPass ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
+                  </FieldAction>
                 </InputGroup>
-                {errors.password && <p className="px-1 text-xs font-bold text-rose-500">{errors.password.message}</p>}
+                {errors.password && <p id="login-password-error" className="px-1 text-xs font-bold text-status-error-text">{errors.password.message}</p>}
                 {capsOn && !errors.password && (
-                  <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
-                    <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
+                  <p id="login-caps-lock" role="status" className="flex items-center gap-1.5 px-1 text-xs font-bold text-status-warning-text">
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> Caps Lock is on
                   </p>
                 )}
               </div>
@@ -563,16 +564,11 @@ export default function LoginPage() {
                 </span>
               </label>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading || success || cooldown > 0}
-                className={`group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl font-black text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.985] disabled:cursor-wait disabled:active:scale-100 ${
-                  success
-                    ? "bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-emerald-500/30"
-                    : cooldown > 0
-                    ? "bg-gradient-to-r from-[#a08bb0] to-[#8f7aa0] shadow-none"
-                    : "bg-gradient-to-r from-[#8127cf] to-[#9c48ea] shadow-[#8127cf]/25 hover:shadow-[#8127cf]/35 disabled:opacity-60"
-                }`}
+                aria-busy={isLoading && !success}
+                className="group relative mt-1 min-h-12 w-full overflow-hidden"
               >
                 {!isLoading && !success && cooldown === 0 && (
                   <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -600,7 +596,7 @@ export default function LoginPage() {
                     </>
                   )}
                 </span>
-              </button>
+              </Button>
             </form>
 
             <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">

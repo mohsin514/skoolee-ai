@@ -1,5 +1,6 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { BookMarked, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -145,7 +146,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-[#cfc2d6]/10 bg-white p-4">
+    <div className="sk-panel mt-4 p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BookMarked className="h-4 w-4 text-[#8127cf]" />
@@ -172,27 +173,27 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                 <div className="space-y-1.5">
                   {syllabusTopics.map((topic, index) => (
                     <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/60 px-3 py-2">
-                      <button
+                      <SystemButton variant="ghost"
                         type="button"
                         onClick={() => moveTopic(index, index > 0 ? -1 : 1)}
                         disabled={busy}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-white hover:text-[#8127cf] disabled:opacity-30 cursor-pointer"
+                        className="flex shrink-0 items-center justify-center"
                         title="Move up"
                       >
                         <ChevronDown className="h-3 w-3 rotate-180" />
-                      </button>
+                      </SystemButton>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-black text-[#1f1a23]">{topic.title}</p>
                         {topic.description ? (
                           <p className="truncate text-[9px] font-bold text-ink-subtle">{topic.description}</p>
                         ) : null}
                       </div>
-                      <button
+                      <SystemButton variant="ghost"
                         type="button"
                         onClick={() => toggleStatus(topic)}
                         disabled={busy}
                         className={cn(
-                          "shrink-0 cursor-pointer rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-wider transition-all hover:opacity-80 disabled:opacity-50",
+                          "shrink-0 px-2 py-1",
                           topic.status === "COMPLETED"
                             ? "bg-emerald-50 text-emerald-600"
                             : topic.status === "IN_PROGRESS"
@@ -202,16 +203,16 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                         title="Cycle status: Not started → In progress → Completed"
                       >
                         {STATUS_LABEL[topic.status]}
-                      </button>
-                      <button
+                      </SystemButton>
+                      <SystemButton variant="ghost"
                         type="button"
                         onClick={() => deleteTopic(topic.id)}
                         disabled={busy}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
+                        className="flex shrink-0 items-center justify-center"
                         title="Delete topic"
                       >
                         <Trash2 className="h-3 w-3" />
-                      </button>
+                      </SystemButton>
                     </div>
                   ))}
                 </div>
@@ -224,17 +225,17 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                   onChange={(e) => setTopicTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }}
                   placeholder="Add a syllabus topic (e.g. Chapter 1: Algebra)"
-                  className="h-10 flex-1 rounded-xl border border-[#8127cf]/20 bg-white px-3 text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
+                  className="h-10 flex-1 px-3"
                 />
-                <button
+                <SystemButton variant="default"
                   type="button"
                   onClick={addTopic}
                   disabled={busy || !topicTitle.trim()}
-                  className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[9px] font-black uppercase tracking-wider text-white transition-all duration-200 hover:bg-[#6a1fad] active:scale-95 disabled:opacity-50"
+                  className="flex shrink-0 items-center gap-1.5 px-4 justify-start"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add
-                </button>
+                </SystemButton>
               </div>
             </>
           )}

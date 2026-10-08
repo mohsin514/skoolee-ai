@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -342,7 +343,7 @@ function RoomCard({
     (room._count?.slots ?? 0) + (room._count?.examSchedules ?? 0) + (room._count?.examRooms ?? 0);
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_14px_32px_-20px_rgba(129,39,207,0.5)]">
+    <div className="sk-panel group relative overflow-hidden p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_14px_32px_-20px_rgba(129,39,207,0.5)]">
       <div className="flex items-start gap-2.5">
         <span
           className={cn(
@@ -374,22 +375,22 @@ function RoomCard({
         </div>
 
         <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          <button
+          <Button variant="secondary" size="icon"
             type="button"
             onClick={onEdit}
             aria-label={`Edit room ${room.roomNumber}`}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#f3eeff] hover:text-[#8127cf]"
+            className="flex items-center justify-center"
           >
             <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
+          </Button>
+          <Button variant="secondary" size="icon"
             type="button"
             onClick={onDelete}
             aria-label={`Remove room ${room.roomNumber}`}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-600"
+            className="flex items-center justify-center"
           >
             <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -587,7 +588,7 @@ function RoomEditor({
 
               checked={draft.isExamHall}
               onChange={(e) => set("isExamHall", e.target.checked)}
-              className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+              className=""
             />
             <span className="min-w-0">
               <span className="block text-xs font-black text-[#1f1a23]">

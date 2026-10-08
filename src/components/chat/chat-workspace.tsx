@@ -8,6 +8,8 @@ import { useChat } from "./chat-provider";
 import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { NewConversationDialog } from "./new-conversation-dialog";
+import { Button } from "@/components/ui/button";
+
 
 interface ChatWorkspaceProps {
   /**
@@ -38,14 +40,14 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden />
             <p className="flex-1 text-[11px] font-bold leading-relaxed text-rose-700">{error}</p>
-            <button
+            <Button variant="destructive" size="icon"
               type="button"
               onClick={clearError}
               aria-label="Dismiss"
-              className="cursor-pointer rounded-lg p-0.5 text-rose-500 transition-colors hover:bg-rose-100"
+
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>

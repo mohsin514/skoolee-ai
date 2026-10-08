@@ -4,7 +4,7 @@ import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider
 
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
-import { InputGroup } from "@/components/ui/input-group";
+import { InputGroup , FieldAction } from "@/components/ui/input-group";
 
 
 import Link from "next/link";
@@ -48,6 +48,8 @@ import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -241,12 +243,12 @@ export function RoleHeader({
           <CycleBadge />
         {actions}
         <div ref={notifRef} className="relative">
-          <button
+          <Button variant="ghost" size="icon"
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
-              "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
-              notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
+              "relative flex items-center justify-center hover:-translate-y-0.5",
+              notifOpen && "bg-white shadow-md border-[#8127cf]/20",
               bellShake && "sk-shake"
             )}
             title={t("View notifications")}
@@ -255,7 +257,7 @@ export function RoleHeader({
             {unreadCount > 0 && (
               <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
-          </button>
+          </Button>
 
           {notifOpen && (
             <div className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
@@ -276,12 +278,12 @@ export function RoleHeader({
                   liveNotifications.map((n) => {
                     const Icon = resolveNotifIcon(n.icon);
                     return (
-                      <button
+                      <Button variant="ghost"
                         key={n.id}
                         type="button"
                         onClick={() => handleNotificationClick(n)}
                         className={cn(
-                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-start",
+                          "w-full flex justify-start items-start gap-3 text-start",
                           !n.isRead && "bg-[#fbf0fe]/30"
                         )}
                       >
@@ -299,40 +301,40 @@ export function RoleHeader({
                           <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
                           <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt, language, timezone)}</p>
                         </div>
-                      </button>
+                      </Button>
                     );
                   })
                 )}
               </div>
               {unreadCount > 0 && (
                 <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                  <button
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={markAllAsRead}
-                    className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
-                  ><UiText>{"Mark all as read"}</UiText></button>
+                    className="w-full"
+                  ><UiText>{"Mark all as read"}</UiText></Button>
                 </div>
               )}
             </div>
           )}
         </div>
-        <button
+        <Button variant="outline" size="icon"
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
+          className="flex items-center justify-center hover:-translate-y-0.5"
           title={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
-        </button>
+        </Button>
         <div className="hidden h-6 w-[1px] bg-gradient-to-b from-transparent via-[#cfc2d6]/30 to-transparent sm:block" />
 
         <div ref={menuRef} className="relative">
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
             title={t("Account menu")}
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/15 bg-white/85 p-1 pe-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white hover:shadow-lg active:scale-[0.98]",
+              "flex justify-start items-center gap-2.5 hover:-translate-y-0.5",
               menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
@@ -345,7 +347,7 @@ export function RoleHeader({
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
             <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
-          </button>
+          </Button>
 
           {menuOpen && (
             <div
@@ -369,33 +371,33 @@ export function RoleHeader({
               <div className="p-1.5">
                 <MenuLink href="/account/security" icon={KeyRound} label="Active sessions" onClick={() => setMenuOpen(false)} />
                 <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
-                <button
+                <Button variant="secondary" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setSettingsOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex justify-start w-full items-center gap-3"
                   role="menuitem"
                 >
-                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></button>
-                <button
+                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></Button>
+                <Button variant="secondary" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setPasswordModalOpen(true);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex justify-start w-full items-center gap-3"
                   role="menuitem"
                 >
-                  <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></button>
-                <button
+                  <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></Button>
+                <Button variant="destructive" size="sm"
                   type="button"
                   onClick={handleLogout}
-                  className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                  className="mt-0.5 flex justify-start w-full items-center gap-3"
                   role="menuitem"
                 >
-                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></button>
+                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></Button>
               </div>
             </div>
           )}
@@ -491,18 +493,18 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       dirtyMessage={t("Your new password has not been saved yet. Leave without changing it?")}
       footer={
         <div className="flex gap-3">
-          <button
+          <Button variant="secondary"
             onClick={onClose}
-            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          ><UiText>{"Cancel"}</UiText></button>
-          <button
+            className="flex-1 h-12"
+          ><UiText>{"Cancel"}</UiText></Button>
+          <Button variant="default"
             onClick={handleSubmit}
             disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
+            className="flex-[2] h-12 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
             {t(loading ? "Updating..." : "Update Password")}
-          </button>
+          </Button>
         </div>
       }
     >
@@ -515,7 +517,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder={t("Enter current password")}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+              className="h-12 w-full px-4"
             />
           </div>
 
@@ -528,16 +530,16 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder={t("Enter new password")}
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pe-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+                className="h-12 w-full px-4 pe-12"
               />
-              <button data-field-affix="end"
+              <FieldAction   data-field-affix="end"
                 type="button"
                 onClick={() => setShowPasswords(!showPasswords)}
                 aria-label={t(showPasswords ? "Hide passwords" : "Show passwords")}
-                className="absolute end-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
+                className="absolute end-4 top-1/2 -translate-y-1/2"
               >
                 {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+              </FieldAction>
             </InputGroup>
             {newPassword && (
               <div className="mt-2 flex items-center gap-2">
@@ -570,7 +572,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder={t("Re-enter new password")}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+              className="h-12 w-full px-4"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">

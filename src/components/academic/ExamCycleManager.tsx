@@ -1,9 +1,9 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowDownWideNarrow,
@@ -942,7 +942,7 @@ export function ExamCycleManager({
       </p>
 
       {/* ── Header ── */}
-      <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
+      <div className="sk-panel sk-rise relative overflow-hidden px-4 py-3 sm:px-5">
         <span
           aria-hidden
           className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", examTone.rail)}
@@ -982,7 +982,7 @@ export function ExamCycleManager({
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 aria-label="Filter by term"
-                className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] outline-none transition-all hover:border-[#8127cf]/30"
+                className="appearance-none pl-3 pr-8"
               >
                 <option value="ALL">All Terms</option>
                 {termOptions.map((t) => (
@@ -993,14 +993,14 @@ export function ExamCycleManager({
               </SystemSelect>
 
             </div>
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() => load(true)}
               aria-label="Refresh"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#8127cf] transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]"
+              className="flex items-center justify-center"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            </button>
+            </Button>
             <BrandButton
               variant="gradient"
               icon={<Plus className="h-4 w-4" />}
@@ -1049,7 +1049,7 @@ export function ExamCycleManager({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exams, classes, subjects…   ( / )"
             aria-label="Search exams"
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:bg-white"
+            className="w-full pl-9 pr-3"
           />
         </InputGroup>
 
@@ -1070,16 +1070,14 @@ export function ExamCycleManager({
             ),
           ]}
         />
-        <button
+        <Button variant="choice"
           type="button"
           onClick={() => setAttentionOnly((v) => !v)}
           aria-pressed={attentionOnly}
-          className={cn(
-            "flex cursor-pointer items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-[11px] font-black uppercase tracking-wider transition-colors",
-            attentionOnly
-              ? "border-amber-300 bg-amber-50 text-amber-700"
-              : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:text-[#8127cf]",
-          )}
+          className={"justify-start " + (cn(
+            "flex items-center gap-1.5 px-3 py-2.5",
+            "",
+          ))}
         >
           <TriangleAlert className="h-3.5 w-3.5" />
           Needs attention
@@ -1088,16 +1086,16 @@ export function ExamCycleManager({
               {flagged.size}
             </span>
           ) : null}
-        </button>
+        </Button>
 
         {filtersActive ? (
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={resetFilters}
-            className="cursor-pointer rounded-2xl px-3 py-2.5 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="px-3 py-2.5"
           >
             Clear
-          </button>
+          </Button>
         ) : null}
 
         <div className="ml-auto flex items-center gap-2.5">
@@ -1115,22 +1113,22 @@ export function ExamCycleManager({
             ]}
           />
           {prefs.sortKey !== "manual" ? (
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
               aria-label={prefs.sortDir === "asc" ? "Sort descending" : "Sort ascending"}
               title={prefs.sortDir === "asc" ? "Ascending" : "Descending"}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:text-[#8127cf]"
+              className="flex items-center justify-center"
             >
               {prefs.sortDir === "asc" ? (
                 <ArrowUpWideNarrow className="h-4 w-4" />
               ) : (
                 <ArrowDownWideNarrow className="h-4 w-4" />
               )}
-            </button>
+            </Button>
           ) : null}
           {prefs.view === "board" ? (
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() =>
                 patchPrefs({ density: prefs.density === "compact" ? "comfortable" : "compact" })
@@ -1138,14 +1136,14 @@ export function ExamCycleManager({
               aria-label={
                 prefs.density === "compact" ? "Switch to comfortable cards" : "Switch to compact cards"
               }
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:text-[#8127cf]"
+              className="flex items-center justify-center"
             >
               {prefs.density === "compact" ? (
                 <Rows3 className="h-4 w-4" />
               ) : (
                 <LayoutList className="h-4 w-4" />
               )}
-            </button>
+            </Button>
           ) : null}
 
           <div className="flex items-center gap-0.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
@@ -1190,27 +1188,27 @@ export function ExamCycleManager({
       ) : exams.length === 0 ? (
         <EmptyBoard isTeacher={isTeacher} onCreate={() => setCreating(true)} />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
+        <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
           <Search className="mb-3 h-10 w-10 text-ink-subtle" />
           <p className="text-sm font-bold text-ink-muted">Nothing matches those filters</p>
-          <button
+          <Button variant="default"
             type="button"
             onClick={resetFilters}
-            className="mt-3 cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6a1fb0]"
+            className="mt-3 px-4 py-2"
           >
             Clear filters
-          </button>
+          </Button>
         </div>
       ) : prefs.view === "board" ? (
         <>
           {stageFilter !== "ALL" ? (
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={() => setStageFilter("ALL")}
-              className="flex cursor-pointer items-center gap-1.5 rounded-full bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]"
+              className="justify-start flex items-center gap-1.5 px-3 py-1.5"
             >
               <X className="h-3 w-3" /> Showing one stage — show all
-            </button>
+            </Button>
           ) : null}
           <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
             {visibleColumns.map((col) => (
@@ -1420,11 +1418,11 @@ function BoardLane({
 
   if (collapsed) {
     return (
-      <button
+      <Button variant="outline"
         type="button"
         onClick={onToggleCollapse}
         title={`Expand ${column.title}`}
-        className="flex w-14 shrink-0 cursor-pointer flex-col items-center gap-3 rounded-3xl border border-[#cfc2d6]/10 bg-gradient-to-b from-white to-[#faf7fc] py-4 shadow-sm transition-colors hover:border-[#8127cf]/30"
+        className="flex w-14 shrink-0 flex-col items-center gap-3 py-4"
       >
         <ChevronRight className="h-4 w-4 text-ink-subtle" />
         <span
@@ -1439,7 +1437,7 @@ function BoardLane({
         >
           {column.title}
         </span>
-      </button>
+      </Button>
     );
   }
 
@@ -1478,14 +1476,14 @@ function BoardLane({
           >
             {exams.length}
           </span>
-          <button
+          <Button variant="secondary" size="icon"
             type="button"
             onClick={onToggleCollapse}
             aria-label={`Collapse ${column.title}`}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+            className="flex items-center justify-center"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
       <p className="mb-3 text-[10px] font-semibold text-ink-subtle">{column.hint}</p>
@@ -1594,16 +1592,14 @@ function StageTile({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[18px] border bg-white px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5",
-        active
-          ? "border-transparent"
-          : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] hover:border-[#8127cf]/30",
-      )}
+      className={"justify-start " + (cn(
+        "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-left hover:-translate-y-0.5",
+        "",
+      ))}
       style={active ? { boxShadow: `0 0 0 1.5px ${accent}, 0 10px 24px -14px ${accent}` } : undefined}
     >
       <span
@@ -1622,7 +1618,7 @@ function StageTile({
       <span className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
         {label}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -1638,18 +1634,18 @@ function ViewTab({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
-        active ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]",
-      )}
+      className={"justify-start " + (cn(
+        "flex items-center gap-1.5 px-3 py-2",
+        "",
+      ))}
     >
       <Icon className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -1670,7 +1666,7 @@ function FilterSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white py-2.5 pl-3 pr-8 text-[11px] font-bold text-[#1d1b20]"
+        className="appearance-none pl-3 pr-8"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -1713,27 +1709,27 @@ function BulkBar({
         </span>
       ) : (
         groups.map((g) => (
-          <button
+          <Button variant="default"
             key={g.key}
             type="button"
             disabled={busy}
             onClick={() => onRun(g.key, g.exams)}
-            className="flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:scale-[1.02] disabled:opacity-50"
+            className="justify-start flex items-center gap-1.5 px-3.5 py-2"
             style={{ backgroundColor: g.accent }}
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {g.label}
             <span className="rounded-full bg-white/25 px-1.5">{g.exams.length}</span>
-          </button>
+          </Button>
         ))
       )}
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={onClear}
-        className="ml-auto cursor-pointer rounded-2xl px-3 py-2 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
+        className="ml-auto px-3 py-2"
       >
         Clear
-      </button>
+      </Button>
     </div>
   );
 }
@@ -1742,7 +1738,7 @@ function BoardSkeleton({ count }: { count: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="rounded-3xl border border-[#cfc2d6]/10 bg-white p-4 shadow-sm">
+        <div key={i} className="sk-panel p-4">
           <div className="skeleton-shimmer mb-4 h-3 w-24 rounded-full bg-[#e8e0ec]/50" />
           <div className="space-y-3">
             {Array.from({ length: 2 }).map((_, j) => (
@@ -1757,7 +1753,7 @@ function BoardSkeleton({ count }: { count: number }) {
 
 function EmptyBoard({ isTeacher, onCreate }: { isTeacher: boolean; onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
+    <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
       <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
       <p className="text-sm font-bold text-ink-muted">{isTeacher ? "No tests yet" : "No exams yet"}</p>
       <p className="mt-1 text-xs font-semibold text-ink-subtle">
@@ -1931,7 +1927,7 @@ function RejectMarksModal({
             autoFocus
             maxLength={2000}
             placeholder="e.g. Mathematics totals need re-checking against the answer sheets."
-            className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition"
+            className="w-full"
           />
         </label>
         {/* Send back was simply disabled until the reason was long enough,
@@ -2084,13 +2080,13 @@ function CreateExamModal({
             </p>
           ) : null}
           <div className="flex items-center justify-end gap-3">
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted transition-colors hover:bg-[#4d4354]/5"
+              className="px-5 py-2.5"
             >
               Cancel
-            </button>
+            </Button>
             <BrandButton
               variant="gradient"
               onClick={submit}
@@ -2116,13 +2112,13 @@ function CreateExamModal({
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-rose-200 bg-rose-50/50 p-8 text-center">
               <AlertCircle className="h-8 w-8 text-rose-400" />
               <p className="text-xs font-bold text-rose-600">{classesError}</p>
-              <button
+              <Button variant="default"
                 type="button"
                 onClick={loadClasses}
-                className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0]"
+                className="justify-start flex items-center gap-1.5 px-4 py-2"
               >
                 <RefreshCw className="h-3 w-3" /> Retry
-              </button>
+              </Button>
             </div>
           ) : (
             <>
@@ -2130,7 +2126,7 @@ function CreateExamModal({
                 <SystemSelect
                   value={form.classId}
                   onChange={(e) => setForm({ ...form, classId: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
+                  className="w-full"
                 >
                   <option value="">Select class…</option>
                   {classes.map((c) => (
@@ -2146,7 +2142,7 @@ function CreateExamModal({
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Mid-Term Examination"
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
+                  className="w-full"
                 />
               </Field>
 
@@ -2155,7 +2151,7 @@ function CreateExamModal({
                   <SystemInput
                     value={form.term}
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
+                    className="w-full"
                   />
                 </Field>
                 <Field label="Academic Year">
@@ -2163,7 +2159,7 @@ function CreateExamModal({
                     type="number"
                     value={form.academicYear}
                     onChange={(e) => setForm({ ...form, academicYear: Number(e.target.value) })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
+                    className="w-full"
                   />
                 </Field>
               </div>
@@ -2172,7 +2168,7 @@ function CreateExamModal({
                 <SystemSelect
                   value={form.examType}
                   onChange={(e) => setForm({ ...form, examType: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
+                  className="w-full"
                 >
                   {typeOptions.map((t) => (
                     <option key={t} value={t}>

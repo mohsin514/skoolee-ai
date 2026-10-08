@@ -1,5 +1,6 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -404,12 +405,10 @@ export default function MarksEntryPage() {
               {exams.map((exam) => {
                 const meta = statusMeta[exam.status] || statusMeta.DRAFT;
                 return (
-                  <button
+                  <Button aria-pressed={selectedExam?.id === exam.id} variant="choice"
                     key={exam.id}
                     onClick={() => loadExamData(exam)}
-                    className={`text-left p-4 rounded-lg border transition-all ${
-                      selectedExam?.id === exam.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
-                    }`}
+                    className="block p-4 text-start"
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="font-semibold text-sm">{exam.title}</span>
@@ -422,7 +421,7 @@ export default function MarksEntryPage() {
                       {exam.term} | {exam.academicYear} | {exam._count?.marks || 0} marks
                     </p>
                     <p className="text-xs text-muted-foreground">{classLabel(exam.class)}</p>
-                  </button>
+                  </Button>
                 );
               })}
               {exams.length === 0 ? (
@@ -484,23 +483,23 @@ export default function MarksEntryPage() {
                 {isLoadingMarks ? (
                   <SkeletonTable rows={6} columns={4} label="Loading marks" />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/30">
-                          <th className="sticky left-0 z-10 bg-muted/30 px-4 py-3 text-left font-semibold w-12">#</th>
-                          <th className="sticky left-12 z-10 bg-muted/30 px-4 py-3 text-left font-semibold min-w-[210px]">Student</th>
+
+                    <Table containerClassName="overflow-x-auto" className="w-full text-sm">
+                      <TableHeader>
+                        <TableRow className="border-b bg-muted/30">
+                          <TableHead className="sticky start-0 z-10 bg-muted/30 px-4 py-3 text-start w-12">#</TableHead>
+                          <TableHead className="sticky start-12 z-10 bg-muted/30 px-4 py-3 text-start min-w-[210px]">Student</TableHead>
                           {subjects.map((subject) => (
-                            <th key={subject.id} className="px-3 py-3 text-center font-semibold min-w-[110px]">
+                            <TableHead key={subject.id} className="px-3 py-3 text-center min-w-[110px]">
                               <div>{subject.name}</div>
                               <div className="text-xs font-normal text-muted-foreground">/{subject.totalMarks}</div>
-                            </th>
+                            </TableHead>
                           ))}
-                          <th className="px-4 py-3 text-center font-semibold min-w-[80px]">Total</th>
-                          <th className="px-4 py-3 text-center font-semibold min-w-[70px]">Grade</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                          <TableHead className="px-4 py-3 text-center min-w-[80px]">Total</TableHead>
+                          <TableHead className="px-4 py-3 text-center min-w-[70px]">Grade</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {students.map((student, rowIndex) => {
                           const studentMarks = marks[student.id] || {};
                           const total = subjects.reduce((sum, subject) => {
@@ -511,17 +510,17 @@ export default function MarksEntryPage() {
                           const grade = maxTotal > 0 ? getGrade(total, maxTotal) : { grade: "-", color: "bg-gray-100 text-gray-500" };
 
                           return (
-                            <tr key={student.id} className={`border-b hover:bg-muted/20 ${rowIndex % 2 === 0 ? "" : "bg-muted/10"}`}>
-                              <td className="sticky left-0 z-10 bg-background px-4 py-2.5 text-muted-foreground">{rowIndex + 1}</td>
-                              <td className="sticky left-12 z-10 bg-background px-4 py-2.5">
+                            <TableRow key={student.id} className={`border-b hover:bg-muted/20 ${rowIndex % 2 === 0 ? "" : "bg-muted/10"}`}>
+                              <TableCell className="sticky start-0 z-10 bg-background px-4 py-2.5 text-muted-foreground">{rowIndex + 1}</TableCell>
+                              <TableCell className="sticky start-12 z-10 bg-background px-4 py-2.5">
                                 <div className="font-medium">{student.fullName}</div>
                                 <div className="text-xs text-muted-foreground">#{student.rollNo}</div>
-                              </td>
+                              </TableCell>
                               {subjects.map((subject, colIndex) => {
                                 const value = studentMarks[subject.id] ?? "";
                                 const invalid = value !== "" && (Number(value) < 0 || Number(value) > subject.totalMarks);
                                 return (
-                                  <td key={subject.id} className="px-3 py-2.5 text-center">
+                                  <TableCell key={subject.id} className="px-3 py-2.5 text-center">
                                     <Input
                                       ref={(node) => {
                                         inputRefs.current[`${student.id}:${subject.id}`] = node;
@@ -533,30 +532,30 @@ export default function MarksEntryPage() {
                                       value={value}
                                       onChange={(event) => setMark(student.id, subject.id, event.target.value)}
                                       onKeyDown={(event) => handleCellKeyDown(event, rowIndex, colIndex)}
-                                      className={`w-20 text-center mx-auto h-8 text-sm disabled:opacity-60 ${invalid ? "border-red-500 bg-red-50" : ""}`}
+                                      className={`w-20 text-center mx-auto ${invalid ? "" : ""} `}
                                     />
-                                  </td>
+                                  </TableCell>
                                 );
                               })}
-                              <td className="px-4 py-2.5 text-center font-semibold">{total}</td>
-                              <td className="px-4 py-2.5 text-center">
+                              <TableCell className="px-4 py-2.5 text-center">{total}</TableCell>
+                              <TableCell className="px-4 py-2.5 text-center">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${grade.color}`}>
                                   {grade.grade}
                                 </span>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
                         {students.length === 0 ? (
-                          <tr>
-                            <td colSpan={subjects.length + 4} className="py-8 text-center text-muted-foreground">
+                          <TableRow>
+                            <TableCell colSpan={subjects.length + 4} className="py-8 text-center text-muted-foreground">
                               No students in this class
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ) : null}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+
                 )}
               </CardContent>
             </Card>

@@ -191,7 +191,7 @@ export function StatCard({
           <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
         ) : (
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.soft} ${t.text}`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}
           >
             <Icon className="h-4 w-4" />
           </div>
@@ -219,7 +219,7 @@ export function PanelHeading({
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2.5">
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.soft} ${t.text}`}>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">

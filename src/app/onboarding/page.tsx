@@ -1,10 +1,11 @@
 'use client'
 
+import { Button, buttonVariants } from "@/components/ui/button";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { InputGroup } from "@/components/ui/input-group";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
 import React, { useCallback, useEffect, useMemo, useState, useId } from 'react';
@@ -503,14 +504,7 @@ export default function OnboardingWizard() {
 
   return (
     <div className="min-h-screen bg-[#fff7fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
-      <style>{`
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        @media (prefers-reduced-motion: reduce) { .sk-rise { animation: none !important; } }
-      `}</style>
+
 
       {/* ─── SIDEBAR (desktop) ─── */}
       <aside className="w-72 bg-white/50 backdrop-blur-md border-r border-[#cfc2d6]/30 hidden lg:flex flex-col p-8 fixed h-full z-50">
@@ -552,9 +546,9 @@ export default function OnboardingWizard() {
           ))}
         </nav>
 
-        <button onClick={handleLogout} className="mt-auto flex items-center gap-4 p-4 rounded-2xl text-gray-400 hover:bg-rose-50 hover:text-rose-600 transition-all font-bold text-sm cursor-pointer group">
+        <Button variant="destructive" onClick={handleLogout} className="mt-auto items-center gap-4 group justify-start">
           <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> <span>Sign Out</span>
-        </button>
+        </Button>
       </aside>
 
       <main className="flex-1 lg:ml-72 min-h-screen flex flex-col bg-[#fbf0fe]/50">
@@ -575,21 +569,15 @@ export default function OnboardingWizard() {
               const isActive = step === id;
               const isDone = stepIndex > i;
               return (
-                <button
+                <Button aria-pressed={isActive} variant="choice"
                   key={id}
                   type="button"
                   onClick={() => goTo(id)}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-normal transition-all ${
-                    isActive
-                      ? "bg-[#8127cf] text-white shadow-md"
-                      : isDone
-                      ? "bg-[#e8d5f5] text-[#8127cf] cursor-pointer"
-                      : "bg-[#f3f4f9] text-ink-subtle"
-                  }`}
+                  className="shrink-0 rounded-full justify-start"
                 >
                   {isDone ? <CheckCircle2 className="h-3 w-3" /> : null}
                   {STEP_META[id].title}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -603,14 +591,14 @@ export default function OnboardingWizard() {
           <div className="flex items-center gap-3">
             <Link
               href={`/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, campuses.length)}`}
-              className="inline-flex min-h-10 items-center rounded-lg border border-[#8127cf]/30 bg-white px-3 text-[10px] font-black uppercase text-[#8127cf] hover:bg-[#fbf0fe] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]"
+              className={buttonVariants({ variant: "outline", className: "" })}
             >
               Compare packages
             </Link>
             {stepIndex > 0 && (
-              <button onClick={goBack} className="text-[10px] font-black uppercase text-ink-subtle hover:text-[#8127cf] transition-all cursor-pointer">Go Back</button>
+              <Button variant="ghost" onClick={goBack} >Go Back</Button>
             )}
-            <button onClick={handleLogout} className="lg:hidden text-[10px] font-black uppercase text-rose-400 hover:text-rose-600 transition-all cursor-pointer">Sign Out</button>
+            <Button variant="ghost" onClick={handleLogout} >Sign Out</Button>
           </div>
         </header>
 
@@ -623,7 +611,7 @@ export default function OnboardingWizard() {
               {/* ═══ STEP: School Details ═══ */}
               {step === 'identity' && (
                 <motion.div key="identity" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                  <div className="sk-rise bg-white rounded-[40px] p-6 md:p-10 shadow-xl border border-[#cfc2d6]/10 relative overflow-hidden">
+                  <div className="sk-panel sk-rise p-6 md:p-10 relative overflow-hidden">
 
                     <div className="flex items-center gap-6 mb-10">
                       <div className="w-16 h-16 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shadow-inner shrink-0">
@@ -658,7 +646,7 @@ export default function OnboardingWizard() {
                                 <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} />
                               </label>
                               {schoolData.logoUrl && (
-                                <button onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} className="h-10 px-4 bg-white border border-[#cfc2d6]/20 text-ink-muted rounded-xl font-black text-[10px] uppercase tracking-normal hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer">Remove</button>
+                                <Button variant="outline" onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} >Remove</Button>
                               )}
                             </div>
                           </div>
@@ -703,15 +691,15 @@ export default function OnboardingWizard() {
                           <div className="flex items-center justify-between mb-5">
                             <Label className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal pl-1">{isStandalone ? 'Campus ID' : 'School ID'}</Label>
                             <div className="bg-white rounded-lg p-1 flex border border-[#cfc2d6]/10 shadow-sm">
-                              <button onClick={() => isStandalone ? handleCampusIdToggle(true) : handleSchoolIdToggle(true)} className={`px-3 py-1 text-[9px] font-black rounded-md transition-all cursor-pointer ${isStandalone ? (newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400') : (schoolData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400')}`}>Auto</button>
-                              <button onClick={() => isStandalone ? handleCampusIdToggle(false) : handleSchoolIdToggle(false)} className={`px-3 py-1 text-[9px] font-black rounded-md transition-all cursor-pointer ${isStandalone ? (!newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400') : (!schoolData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-gray-400')}`}>Manual</button>
+                              <Button aria-pressed={isStandalone ? newCampus.autoId : schoolData.autoId} variant="choice" onClick={() => isStandalone ? handleCampusIdToggle(true) : handleSchoolIdToggle(true)} >Auto</Button>
+                              <Button aria-pressed={isStandalone ? !newCampus.autoId : !schoolData.autoId} variant="choice" onClick={() => isStandalone ? handleCampusIdToggle(false) : handleSchoolIdToggle(false)} >Manual</Button>
                             </div>
                           </div>
                           <Input
                             value={isStandalone ? newCampus.regId : schoolData.regId}
                             onChange={e => isStandalone ? setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() }) : setSchoolData({ ...schoolData, regId: e.target.value.toUpperCase() })}
                             readOnly={isStandalone ? newCampus.autoId : schoolData.autoId}
-                            className="h-14 bg-white rounded-xl font-black text-lg tracking-normal border-0 text-center shadow-sm"
+                            className={"text-center"}
                           />
                           <p className="text-[10px] text-ink-subtle mt-4 pl-1 font-bold">A unique identifier for your {isStandalone ? 'campus' : 'school group'}.</p>
                         </div>
@@ -727,9 +715,9 @@ export default function OnboardingWizard() {
                     </div>
 
                     <div className="mt-12 flex justify-end">
-                      <button onClick={handleProceedFromIdentity} className="h-14 px-8 md:px-10 bg-[#1f1a23] text-white rounded-2xl font-black text-base flex items-center gap-3 hover:bg-black transition-all shadow-2xl active:scale-95 cursor-pointer group">
+                      <Button variant="dark" onClick={handleProceedFromIdentity} className="items-center gap-3 group justify-start">
                         {isStandalone ? "Next: Academic Setup" : "Next: Add Campuses"} <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </motion.div>
@@ -739,7 +727,7 @@ export default function OnboardingWizard() {
               {step === 'campuses' && (
                 <motion.div key="campuses" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid lg:grid-cols-5 gap-8">
                   <div className="lg:col-span-3 space-y-6">
-                    <div className="sk-rise bg-white rounded-[40px] p-6 md:p-10 shadow-xl border border-[#cfc2d6]/10">
+                    <div className="sk-panel sk-rise p-6 md:p-10">
                       <div className="flex items-center gap-4 mb-8">
                         <div className="w-12 h-12 bg-[#fbf0fe] rounded-xl flex items-center justify-center text-[#8127cf] shrink-0">
                           <Building className="w-6 h-6" />
@@ -773,7 +761,7 @@ export default function OnboardingWizard() {
                               <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
-                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
+                                className={"w-full"}
                               >
                                 {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
                               </SystemSelect>
@@ -786,20 +774,20 @@ export default function OnboardingWizard() {
                             <div className="flex justify-between items-center px-1 mb-1">
                               <Label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal pl-1">Campus ID</Label>
                               <div className="flex bg-[#f3f4f9] p-0.5 rounded-lg border border-[#cfc2d6]/10 scale-90 origin-right shadow-sm">
-                                <button
+                                <Button aria-pressed={newCampus.autoId} variant="choice"
                                   onClick={() => handleCampusIdToggle(true)}
                                   type="button"
-                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-ink-subtle'}`}
+
                                 >
                                   Auto
-                                </button>
-                                <button
+                                </Button>
+                                <Button aria-pressed={!newCampus.autoId} variant="choice"
                                   onClick={() => handleCampusIdToggle(false)}
                                   type="button"
-                                  className={`px-2.5 py-1 text-[8px] font-black rounded-md transition-all cursor-pointer ${!newCampus.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'text-ink-subtle'}`}
+
                                 >
                                   Edit
-                                </button>
+                                </Button>
                               </div>
                             </div>
                             <Input
@@ -807,16 +795,16 @@ export default function OnboardingWizard() {
                               readOnly={newCampus.autoId}
                               onChange={e => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })}
                               placeholder="BR-XXXX"
-                              className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center transition-all text-sm"
+                              className={"text-center"}
                             />
                           </div>
                           <div className="flex gap-2">
                             {editingCampusId && (
-                              <button onClick={cancelEdit} className="h-12 px-4 bg-gray-100 text-gray-600 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-gray-200 cursor-pointer transition-all">
+                              <Button variant="secondary" onClick={cancelEdit} className="items-center justify-center gap-2">
                                 Cancel
-                              </button>
+                              </Button>
                             )}
-                            <button onClick={addCampus} className="h-12 flex-1 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
+                            <Button variant="default" onClick={addCampus} className="flex-1 items-center justify-center gap-2">
                               {editingCampusId ? (
                                 <>
                                   <CheckCircle2 className="w-4 h-4" /> Update Campus
@@ -826,24 +814,24 @@ export default function OnboardingWizard() {
                                   <Plus className="w-4 h-4" /> Add Campus
                                 </>
                               )}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between px-2">
-                      <button onClick={goBack} className="h-12 px-5 rounded-xl border border-[#cfc2d6]/30 font-black text-xs uppercase tracking-wider text-ink-muted hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer flex items-center gap-2">
+                      <Button variant="outline" onClick={goBack} className="items-center gap-2 justify-start">
                         <ChevronLeft className="w-4 h-4" /> Back
-                      </button>
-                      <button onClick={() => setStep('academic')} disabled={campuses.length === 0} className="h-12 px-8 bg-[#1f1a23] text-white rounded-xl font-black text-base flex items-center gap-3 hover:bg-black cursor-pointer shadow-xl transition-all group disabled:opacity-40 disabled:cursor-not-allowed">
+                      </Button>
+                      <Button variant="dark" onClick={() => setStep('academic')} disabled={campuses.length === 0} className="items-center gap-3 group justify-start">
                         Next: Academic Setup <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   <div className="lg:col-span-2">
-                    <div className="sk-rise bg-white rounded-[40px] p-8 h-full min-h-[450px] flex flex-col border border-[#cfc2d6]/10 shadow-2xl relative" style={{ animationDelay: "160ms" }}>
+                    <div className="sk-panel sk-rise p-8 h-full min-h-[450px] flex flex-col relative" style={{ animationDelay: "160ms" }}>
                       <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-50 text-[#1f1a23]">
                         <h3 className="text-[10px] font-black uppercase tracking-normal flex items-center gap-2">
                           <Users className="w-4 h-4 text-[#8127cf]" /> Your Campuses
@@ -879,21 +867,21 @@ export default function OnboardingWizard() {
                               </div>
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
+                              <Button variant="secondary"
                                 onClick={() => editCampus(c)}
-                                className="text-[#8127cf] p-2 hover:bg-[#fbf0fe] rounded-lg cursor-pointer transition-colors"
+
                                 title="Edit campus"
                                 disabled={editingCampusId === c.id}
                               >
                                 <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
+                              </Button>
+                              <Button variant="destructive"
                                 onClick={() => setCampusToDelete(c)}
-                                className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+
                                 title="Delete campus"
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -917,7 +905,7 @@ export default function OnboardingWizard() {
                   land on a dashboard already telling it what it forgot. */}
               {step === 'academic' && (
                 <motion.div key="academic" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                  <div className="sk-rise bg-white rounded-[40px] p-6 md:p-10 shadow-xl border border-[#cfc2d6]/10">
+                  <div className="sk-panel sk-rise p-6 md:p-10">
                     <div className="flex items-center gap-6 mb-9">
                       <div className="w-16 h-16 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shadow-inner shrink-0">
                         <CalendarRange className="w-8 h-8" />
@@ -950,7 +938,7 @@ export default function OnboardingWizard() {
                                 onChange={e => setAcademicYear(e.target.value)}
                                 placeholder={String(thisYear)}
                                 inputMode="numeric"
-                                className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none text-[#1f1a23]"
+                                className={"w-full"}
                               />
                             </InputGroup>
                           </div>
@@ -964,16 +952,16 @@ export default function OnboardingWizard() {
                                 value={schoolData.sessionLabel}
                                 onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
                                 placeholder={sessionLabelFor(thisYear)}
-                                className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none text-[#1f1a23]"
+                                className={"w-full"}
                               />
-                              <button data-field-affix="end"
+                              <FieldAction   data-field-affix="end"
                                 type="button"
                                 aria-label="Reset session name"
                                 onClick={() => setSchoolData({ ...schoolData, sessionLabel: sessionLabelFor(Number(schoolData.academicYear) || thisYear) })}
-                                className="absolute right-4 text-ink-subtle hover:text-[#8127cf] hover:rotate-90 transition-all cursor-pointer"
+
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
-                              </button>
+                              </FieldAction>
                             </InputGroup>
                           </div>
                         </div>
@@ -1005,7 +993,7 @@ export default function OnboardingWizard() {
                             <SystemSelect
                               value={schoolData.timezone}
                               onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
-                              className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
+                              className={"w-full"}
                             >
                               {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </SystemSelect>
@@ -1031,21 +1019,17 @@ export default function OnboardingWizard() {
                           {WEEK_DAYS.map((d) => {
                             const off = schoolData.weekends.includes(d.num);
                             return (
-                              <button
+                              <Button variant="choice"
                                 key={d.num}
                                 type="button"
                                 onClick={() => toggleWorkingDay(d.num)}
                                 aria-pressed={!off}
                                 aria-label={`${d.long} — ${off ? "closed" : "working day"}`}
-                                className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 py-3 transition-all cursor-pointer ${
-                                  off
-                                    ? "border-[#cfc2d6]/25 bg-[#f3f4f9] text-ink-subtle hover:border-rose-200"
-                                    : "border-[#8127cf] bg-gradient-to-br from-[#fbf0fe] to-white text-[#8127cf] shadow-md shadow-[#8127cf]/10"
-                                }`}
+                                className="min-w-0 flex-col px-1 py-3 justify-start"
                               >
                                 <span className="text-[10px] font-black uppercase tracking-wider">{d.short}</span>
                                 <span className={`h-1.5 w-1.5 rounded-full transition-colors ${off ? "bg-[#cfc2d6]" : "bg-[#8127cf]"}`} />
-                              </button>
+                              </Button>
                             );
                           })}
                         </div>
@@ -1083,12 +1067,12 @@ export default function OnboardingWizard() {
                     </div>
 
                     <div className="mt-11 flex items-center justify-between">
-                      <button onClick={goBack} className="h-12 px-5 rounded-xl border border-[#cfc2d6]/30 font-black text-xs uppercase tracking-wider text-ink-muted hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer flex items-center gap-2">
+                      <Button variant="outline" onClick={goBack} className="items-center gap-2 justify-start">
                         <ChevronLeft className="w-4 h-4" /> Back
-                      </button>
-                      <button onClick={handleProceedFromAcademic} className="h-14 px-8 md:px-10 bg-[#1f1a23] text-white rounded-2xl font-black text-base flex items-center gap-3 hover:bg-black transition-all shadow-2xl active:scale-95 cursor-pointer group">
+                      </Button>
+                      <Button variant="dark" onClick={handleProceedFromAcademic} className="items-center gap-3 group justify-start">
                         Review &amp; Finish <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </motion.div>
@@ -1106,7 +1090,7 @@ export default function OnboardingWizard() {
                     <p className="text-base font-semibold text-ink-muted max-w-sm mx-auto">Review your details below and launch your dashboard.</p>
                   </div>
 
-                  <div className="sk-rise bg-white p-6 md:p-8 rounded-[40px] border border-[#cfc2d6]/10 text-left space-y-3 shadow-2xl relative overflow-hidden">
+                  <div className="sk-panel sk-rise p-6 md:p-8 text-left space-y-3 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Building className="w-32 h-32" /></div>
                     {(schoolData.logoUrl || schoolData.tagline) && (
                       <div className="flex items-center gap-4 mb-6 relative z-10">
@@ -1173,21 +1157,21 @@ export default function OnboardingWizard() {
                   </div>
 
                   <div className="flex items-center gap-4 pt-2">
-                    <button
+                    <Button variant="outline"
                       onClick={goBack}
                       disabled={loading}
-                      className="h-16 w-16 shrink-0 rounded-[24px] border border-[#cfc2d6]/30 bg-white text-ink-muted flex items-center justify-center hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer disabled:opacity-40"
+                      className="w-16 shrink-0 items-center justify-center"
                       aria-label="Back"
                     >
                       <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="default"
                       onClick={handleFinalLaunch}
                       disabled={loading}
-                      className="flex-1 h-16 bg-[#8127cf] text-white rounded-[24px] font-black text-lg shadow-2xl shadow-[#8127cf]/25 flex items-center justify-center gap-4 hover:bg-[#9c48ea] transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer group"
+                      className="flex-1 items-center justify-center gap-4 group"
                     >
                       {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Launch Dashboard <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" /></>}
-                    </button>
+                    </Button>
                   </div>
                 </motion.div>
               )}
@@ -1207,18 +1191,18 @@ export default function OnboardingWizard() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button
+            <Button variant="outline"
               onClick={() => setCampusToDelete(null)}
-              className="h-12 px-6 rounded-xl border border-[#cfc2d6]/30 font-bold text-sm text-ink-muted hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer"
+
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button variant="destructive"
               onClick={confirmDeleteCampus}
-              className="h-12 px-6 bg-rose-500 text-white rounded-xl font-bold text-sm hover:bg-rose-600 cursor-pointer shadow-lg shadow-rose-500/20 transition-all"
+
             >
               Delete Campus
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1237,11 +1221,11 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
   onClick?: () => void;
 }) {
   return (
-    <button
+    <Button aria-pressed={active} variant="choice"
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`w-full text-left p-5 rounded-[24px] transition-all duration-300 flex items-center gap-5 border ${active ? 'bg-[#fbf0fe] border-[#8127cf]/10 shadow-xl shadow-[#8127cf]/5' : 'border-transparent hover:bg-white/65 hover:border-[#cfc2d6]/20'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:-translate-y-0.5'}`}
+      className="relative w-full justify-start gap-4 p-5 text-start"
     >
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500 shadow-md shrink-0 ${active ? 'bg-[#8127cf] text-white scale-110' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-ink-subtle'}`}>
         {done ? <CheckCircle2 className="w-5 h-5" /> : num}
@@ -1250,7 +1234,7 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
         <h4 className={`text-sm font-black text-[#1f1a23] leading-none mb-1.5 truncate ${!active && !done && 'opacity-40'}`}>{title}</h4>
         <p className={`text-[10px] font-bold text-ink-muted tracking-normal truncate ${!active && 'opacity-40'}`}>{desc}</p>
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -1268,7 +1252,7 @@ function InputField({ error, label, value, onChange, placeholder, icon: Icon, is
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
+            className={"w-full min-h-[100px] resize-none"}
           />
         ) : (
           <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} dir={["email", "tel", "url"].includes(type) ? "ltr" : undefined}
@@ -1278,7 +1262,7 @@ function InputField({ error, label, value, onChange, placeholder, icon: Icon, is
             placeholder={placeholder}
             readOnly={readonly}
             inputMode={inputMode}
-            className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
+            className={`w-full ${readonly ? "" : ""} `}
           />
         )}
       </InputGroup>

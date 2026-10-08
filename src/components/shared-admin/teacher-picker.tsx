@@ -1,4 +1,5 @@
 "use client";
+import { Button as SystemButton } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -174,16 +175,16 @@ export function TeacherPicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or subject…"
-              className="h-8 w-full bg-transparent text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
+              className="h-8 w-full"
             />
           </InputGroup>
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5">
             {allowUnassigned ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => pick("")}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                  "flex w-full items-center gap-3 px-3 py-2.5 text-left justify-start",
                   value === "" ? "bg-[#fbf0fe]" : "hover:bg-[#fbf0fe]/60"
                 )}
               >
@@ -196,7 +197,7 @@ export function TeacherPicker({
                     <p className="mt-0.5 text-[9px] font-bold text-ink-subtle">No teacher assigned yet</p>
                   ) : null}
                 </div>
-              </button>
+              </SystemButton>
             ) : null}
 
             {filtered.map((t) => {
@@ -211,14 +212,14 @@ export function TeacherPicker({
                   : null;
 
               return (
-                <button
+                <SystemButton variant="ghost"
                   key={t.id}
                   type="button"
                   disabled={!!blocked}
                   title={blocked || undefined}
                   onClick={() => pick(t.id)}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                    "flex w-full items-start gap-3 px-3 py-2.5 text-left justify-start",
                     blocked
                       ? "cursor-not-allowed opacity-55"
                       : value === t.id
@@ -268,7 +269,7 @@ export function TeacherPicker({
                       </p>
                     ) : null}
                   </div>
-                </button>
+                </SystemButton>
               );
             })}
             {filtered.length === 0 ? (
@@ -278,10 +279,10 @@ export function TeacherPicker({
         </div>
       ) : (
         <>
-          <button
+          <SystemButton variant="outline"
             type="button"
             onClick={() => setOpen(true)}
-            className="sk-field-trigger flex h-14 w-full cursor-pointer items-center justify-between rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-left transition-all duration-200 hover:border-[#cfc2d6]/40 focus:bg-white"
+            className="sk-field-trigger flex h-14 w-full items-center justify-between px-4 text-left"
           >
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
@@ -308,7 +309,7 @@ export function TeacherPicker({
             <span className="ml-3 shrink-0 rounded-lg bg-[#8127cf]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
               Change
             </span>
-          </button>
+          </SystemButton>
 
           {/* Warnings on the current selection stay visible while collapsed, so
               an existing bad assignment isn't hidden behind a closed dropdown. */}

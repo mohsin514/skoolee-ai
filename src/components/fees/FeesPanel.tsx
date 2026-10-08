@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useState } from "react";
 import {
@@ -39,19 +40,17 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
           const Icon = tab.icon;
           const active = activeTab === tab.key;
           return (
-            <button
+            <Button aria-pressed={active} variant="choice"
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                active
-                  ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
+                ""
+              } `)}
             >
               <Icon className="w-3.5 h-3.5" />
               {t(tab.label)}
-            </button>
+            </Button>
           );
         })}
       </div>

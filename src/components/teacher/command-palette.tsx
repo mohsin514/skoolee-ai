@@ -10,6 +10,8 @@ import { TEACHER_NAV } from "@/components/teacher/teacher-page";
 import { classLabel } from "@/components/teacher/teacher-components";
 import { TEACHER_PALETTE_EVENT } from "@/components/teacher/palette-bus";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 /**
  * ⌘K / Ctrl+K quick switcher for the teacher console.
@@ -168,7 +170,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
             }}
             placeholder="Jump to a section, class or student…"
             aria-label="Search sections, classes and students"
-            className="h-14 w-full bg-transparent text-sm font-bold text-[#1d1b20] outline-none placeholder:font-semibold placeholder:text-ink-subtle"
+            className="h-14 w-full"
           />
           <kbd data-field-affix="end" data-field-action="text" className="hidden shrink-0 rounded-md border border-[#cfc2d6]/40 px-1.5 py-0.5 text-[10px] font-black text-ink-subtle sm:block">
             ESC
@@ -191,13 +193,13 @@ export function TeacherCommandPalette({ data }: { data: any }) {
                       {cmd.group}
                     </p>
                   ) : null}
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     data-idx={i}
                     onMouseEnter={() => setCursor(i)}
                     onClick={() => run(cmd)}
                     className={cn(
-                      "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                      "flex justify-start w-full items-center gap-3 text-left",
                       cursor === i ? "bg-[#fbf0fe]" : "hover:bg-[#fbf0fe]/60",
                     )}
                   >
@@ -216,7 +218,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
                       ) : null}
                     </span>
                     {cursor === i ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" /> : null}
-                  </button>
+                  </Button>
                 </div>
               );
             })

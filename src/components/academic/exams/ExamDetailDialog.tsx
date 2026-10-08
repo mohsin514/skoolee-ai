@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -106,29 +107,29 @@ export function ExamDetailDialog({
       headerActions={
         sequence && sequence.length > 1 && onNavigate ? (
           <div className="flex items-center gap-1 rounded-2xl bg-[#f6f2fa] px-1.5 py-1">
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               disabled={!prev || dirty}
               onClick={() => prev && onNavigate(prev.id)}
               title={dirty ? "Save your marks first" : prev ? `Previous: ${prev.title}` : "First exam"}
               aria-label="Previous exam"
-              className="flex h-7 w-7 items-center justify-center rounded-xl text-ink-muted transition-colors enabled:cursor-pointer hover:bg-white hover:text-[#8127cf] disabled:opacity-35"
+              className="flex items-center justify-center enabled:cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
+            </Button>
             <span className="px-1 text-[10px] font-black tabular-nums text-ink-muted">
               {index + 1}/{sequence.length}
             </span>
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               disabled={!next || dirty}
               onClick={() => next && onNavigate(next.id)}
               title={dirty ? "Save your marks first" : next ? `Next: ${next.title}` : "Last exam"}
               aria-label="Next exam"
-              className="flex h-7 w-7 items-center justify-center rounded-xl text-ink-muted transition-colors enabled:cursor-pointer hover:bg-white hover:text-[#8127cf] disabled:opacity-35"
+              className="flex items-center justify-center enabled:cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         ) : null
       }
@@ -140,15 +141,15 @@ export function ExamDetailDialog({
             const Icon = t.icon;
             const active = tab === t.key;
             return (
-              <button
+              <Button data-selected={active} variant="choice"
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
                 aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex cursor-pointer items-center gap-1.5 rounded-xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
-                  active ? "text-[#8127cf]" : "text-ink-muted hover:text-[#8127cf]",
-                )}
+                className={"justify-start " + (cn(
+                  "relative flex items-center gap-1.5 px-3.5 py-2",
+                  "",
+                ))}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {t.label}
@@ -158,7 +159,7 @@ export function ExamDetailDialog({
                     className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-gradient-to-r from-[#8127cf] to-[#b06bea]"
                   />
                 ) : null}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -433,17 +434,17 @@ function MarksEntry({
           const active = s.id === subjectId;
           const complete = s.done === s.total && s.total > 0;
           return (
-            <button
+            <Button data-selected={active} variant="choice"
               key={s.id}
               type="button"
               onClick={() => setSubjectId(s.id)}
               aria-current={active ? "true" : undefined}
-              className={cn(
-                "group flex shrink-0 cursor-pointer flex-col gap-1.5 rounded-2xl border px-3.5 py-2 transition-all duration-200",
+              className={"justify-start " + (cn(
+                "group flex shrink-0 flex-col gap-1.5 px-3.5 py-2",
                 active
-                  ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.3),0_10px_24px_-14px_rgba(129,39,207,0.5)]"
-                  : "border-[#cfc2d6]/25 bg-white hover:-translate-y-0.5 hover:border-[#8127cf]/35",
-              )}
+                  ? ""
+                  : "hover:-translate-y-0.5",
+              ))}
             >
               <span className="flex items-center gap-1.5">
                 {complete ? (
@@ -467,7 +468,7 @@ function MarksEntry({
                 tone={complete ? "emerald" : "violet"}
                 className="w-full"
               />
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -516,7 +517,7 @@ function MarksEntry({
 
       {/* ── The column ──────────────────────────────────────────────────── */}
       {subject ? (
-        <div className="overflow-hidden rounded-[20px] border border-[#cfc2d6]/20 bg-white">
+        <div className="sk-panel overflow-hidden">
           <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-2 sm:px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
             <span>Roll</span>
             <span>Student</span>
@@ -574,44 +575,40 @@ function MarksEntry({
                       }}
                       placeholder="—"
                       className={cn(
-                        "w-10 rounded-lg border px-1 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all focus:ring-4 focus:ring-[#8127cf]/15 sm:w-16 sm:px-2",
+                        "w-10 text-center tabular-nums sm:w-16 sm:px-2",
                         absent || exempt
-                          ? "border-[#cfc2d6]/25 bg-[#f3f4f9] text-ink-subtle"
+                          ? ""
                           : pct === null
-                          ? "border-[#cfc2d6]/25 bg-white text-[#1f1a23]"
-                          : pass
-                          ? "border-emerald-200 bg-emerald-50/60 text-emerald-700"
-                          : "border-rose-200 bg-rose-50/60 text-rose-600",
+                          ? ""
+                          : "",
                       )}
                     />
-                    <button
+                    <Button aria-pressed={absent} variant="choice"
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, absent ? undefined : ABSENT)}
                       title={tr(absent ? "Mark present" : "Mark absent")}
-                      aria-label={tr(absent ? "Mark present" : "Mark absent")}
+
                       className={cn(
-                        "h-6 shrink-0 rounded-md px-1.5 text-[9px] font-black uppercase transition-colors enabled:cursor-pointer disabled:opacity-40",
-                        absent
-                          ? "bg-[#1f1a23] text-white"
-                          : "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]",
+                        "shrink-0 px-1.5 enabled:cursor-pointer",
+                        "",
                       )}
                     >
                       Abs
-                    </button>
-                    <button
+                    </Button>
+                    <Button aria-pressed={exempt} variant="choice"
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, exempt ? undefined : EXEMPT)}
                       title={tr(exempt ? "Remove exemption" : "Mark exempt")}
-                      aria-label={tr(exempt ? "Remove exemption" : "Mark exempt")}
+
                       className={cn(
-                        "h-6 shrink-0 rounded-md px-1.5 text-[9px] font-black uppercase transition-colors enabled:cursor-pointer disabled:opacity-40",
-                        exempt ? "bg-[#1f1a23] text-white" : "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]",
+                        "shrink-0 px-1.5 enabled:cursor-pointer",
+                        "",
                       )}
                     >
                       Ex
-                    </button>
+                    </Button>
                   </div>
                   <span
                     className={cn(

@@ -1,5 +1,5 @@
 'use client'
-import { InputGroup } from "@/components/ui/input-group";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -16,6 +16,9 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form-field";
+import { Select } from "@/components/ui/select";
+import { Button, buttonVariants } from "@/components/ui/button";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
@@ -42,6 +45,7 @@ interface InputFieldProps {
   placeholder: string;
   value: string;
   onChange: (val: string) => void;
+  onBlur?: () => void;
   icon: LucideIcon;
   type?: string;
   className?: string;
@@ -49,6 +53,7 @@ interface InputFieldProps {
   autoComplete?: string;
   error?: string;
   hint?: string;
+  descriptionId?: string;
 }
 
 interface TypeOptionProps {
@@ -102,6 +107,7 @@ export default function RegisterPage() {
   const [capsOn, setCapsOn] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const brandRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   // Subtle cursor-parallax on the brand panel's blobs and avatar orbit —
   // written straight to the DOM so it doesn't trigger React re-renders.
@@ -165,15 +171,20 @@ export default function RegisterPage() {
     return { score, label: labels[score], tone: tones[score] };
   }, [passwordRequirements, formData.password]);
 
-  const emailError = touched.email && formData.email && !EMAIL_PATTERN.test(formData.email)
+  const emailError = touched.email && !EMAIL_PATTERN.test(formData.email)
     ? "Enter a valid email address"
     : undefined;
-  const nameError = touched.name && formData.name.trim().length > 0 && formData.name.trim().length < 3
+  const nameError = touched.name && formData.name.trim().length < 3
     ? "Enter your full name"
     : undefined;
-  const schoolNameError = touched.schoolName && formData.schoolName.trim().length > 0 && formData.schoolName.trim().length < 3
+  const schoolNameError = touched.schoolName && formData.schoolName.trim().length < 3
     ? "Institution name must be at least 3 characters"
     : undefined;
+  const regIdError = touched.regId && formData.regId.trim().length < 3 ? "An institution ID is required." : undefined;
+  const passwordError = touched.password && !passwordRequirements.slice(0, 4).every((rule) => rule.met)
+    ? "Please meet all password requirements." : undefined;
+  const confirmPasswordError = touched.confirmPassword && (!formData.confirmPassword || formData.password !== formData.confirmPassword)
+    ? "Passwords must match." : undefined;
 
   const canSubmit =
     formData.name.trim().length >= 3 &&
@@ -207,8 +218,9 @@ export default function RegisterPage() {
 
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setFormError(null);
-    setTouched({ name: true, email: true, schoolName: true, password: true, confirmPassword: true });
+    setTouched({ name: true, email: true, schoolName: true, regId: true, password: true, confirmPassword: true });
 
     if (!canSubmit) {
       const firstProblem =
@@ -219,6 +231,15 @@ export default function RegisterPage() {
         : !passwordRequirements.every((r) => r.met) ? "Please meet all password requirements."
         : "Please accept the Terms of Service and Privacy Policy.";
       setFormError(firstProblem);
+      const firstInvalidId =
+        formData.name.trim().length < 3 ? "name"
+        : !EMAIL_PATTERN.test(formData.email) ? "email"
+        : formData.schoolName.trim().length < 3 ? "schoolName"
+        : formData.regId.trim().length < 3 ? "regId"
+        : !passwordRequirements.slice(0, 4).every((rule) => rule.met) ? "password"
+        : formData.password !== formData.confirmPassword ? "confirmPassword"
+        : "acceptedTerms";
+      e.currentTarget.querySelector<HTMLElement>(`#${firstInvalidId}`)?.focus();
       return;
     }
 
@@ -256,6 +277,7 @@ export default function RegisterPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Registration failed";
       setFormError(message);
+      requestAnimationFrame(() => errorRef.current?.focus());
       toast.error(message);
     } finally {
       setLoading(false);
@@ -280,39 +302,6 @@ export default function RegisterPage() {
           : "lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]"
       }`}
     >
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes skShimmer {
-          from { transform: translateX(-130%) skewX(-12deg); }
-          to   { transform: translateX(130%) skewX(-12deg); }
-        }
-        @keyframes skShake {
-          0%,100% { transform: translateX(0); }
-          25%     { transform: translateX(-5px); }
-          75%     { transform: translateX(5px); }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
-        .sk-shake { animation: skShake .34s ease-in-out; }
-        /* The split moves when step 2 claims more room — glide rather than jump. */
-        .sk-shell { transition: grid-template-columns .5s cubic-bezier(.2,.7,.3,1), max-width .5s cubic-bezier(.2,.7,.3,1); }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise, .sk-shimmer, .sk-shake { animation: none !important; }
-          .sk-parallax, .sk-shell { transition: none !important; }
-        }
-      `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
@@ -434,13 +423,12 @@ export default function RegisterPage() {
       >
         <div className={`sk-shell w-full ${wide ? "max-w-[860px]" : "max-w-lg"}`}>
           {wide ? (
-            /* Logo and progress share a row on the long step. Stacked, the
-               wordmark, its rule and the rail cost ~65px of height that the
-               form needs more than the flourish does. */
-            <div className="sk-rise mb-4 flex items-center gap-5 sm:gap-7">
+            /* Share a row when there is room; stack on phones so the logo and
+               progress rail do not set a minimum page width above the viewport. */
+            <div className="sk-rise mb-4 flex flex-col items-center gap-3 sm:flex-row sm:gap-7">
               <SkooleeLogo size="1.85rem" weight="heavy" />
-              <span aria-hidden className="h-6 w-px shrink-0 bg-[#cfc2d6]/50" />
-              <StepRail step={step} className="mb-0 flex-1" />
+              <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[#cfc2d6]/50 sm:block" />
+              <StepRail step={step} className="mb-0 w-full flex-1" />
             </div>
           ) : (
             <>
@@ -472,7 +460,17 @@ export default function RegisterPage() {
                   </p>
                 </div>
 
-                <div className="space-y-3 mb-6" role="radiogroup" aria-label="Institution type">
+                <div className="space-y-3 mb-6" role="radiogroup" aria-label="Institution type" onKeyDown={(event) => {
+                  const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1
+                    : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+                  if (!delta) return;
+                  event.preventDefault();
+                  const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+                  const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                  const next = options[(index + delta + options.length) % options.length];
+                  next?.focus();
+                  next?.click();
+                }}>
                   <TypeOption active={type === 'school_group'} onClick={() => handleTypeChange('school_group')} icon={Network} title="Multi-Campus School Group" desc="One school with multiple campuses or branches." />
                   <TypeOption active={type === 'single_campus'} onClick={() => handleTypeChange('single_campus')} icon={Building2} title="Single Campus School" desc="One school, one location — quick and simple." />
                 </div>
@@ -484,15 +482,13 @@ export default function RegisterPage() {
                     : "You'll sign in as Campus Admin — your single campus is created for you."}
                 </p>
 
-                <button
+                <Button
+                  type="button"
                   onClick={handleStep1}
-                  className="group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985]"
+                  className="group mt-1 min-h-12 w-full"
                 >
-                  <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-                  <span className="relative z-10 flex items-center gap-2">
-                    Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </button>
+                  Continue <ArrowRight aria-hidden className="rtl:rotate-180" />
+                </Button>
 
                 <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
                   <p className="text-sm font-semibold text-ink-muted">
@@ -521,19 +517,24 @@ export default function RegisterPage() {
                     </p>
                     <h2 className="text-[1.6rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-0.5 sm:text-[1.75rem]">Create your account</h2>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="icon"
                     onClick={() => setStep(1)}
+                    disabled={loading}
                     aria-label="Back to institution type"
-                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"
+                    className="shrink-0"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
+                    <ChevronLeft aria-hidden className="rtl:rotate-180" />
+                  </Button>
                 </div>
 
                 {formError && (
                   <div
+                    ref={errorRef}
                     role="alert"
+                    tabIndex={-1}
                     className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3"
                   >
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
@@ -547,7 +548,8 @@ export default function RegisterPage() {
                     trigger columns with no room for them). The pairing is
                     deliberate: the two tall groups lead each row, so neither
                     row is padded out by a short neighbour. */}
-                <form className="@container" onSubmit={handleStep2Submit} noValidate>
+                <form className="@container" onSubmit={handleStep2Submit} aria-busy={loading} noValidate>
+                  <fieldset disabled={loading} className="min-w-0">
                   <div className="grid items-start gap-4 @2xl:grid-cols-2 @2xl:gap-x-7">
 
                     <FieldGroup icon={UserIcon} title="Your details">
@@ -555,11 +557,13 @@ export default function RegisterPage() {
                         <InputField
                           id="name" label="Full Name" placeholder="Your full name" required
                           autoComplete="name" error={nameError}
+                          onBlur={() => markTouched('name')}
                           value={formData.name} onChange={(v) => set('name', v)} icon={UserIcon}
                         />
                         <InputField
                           id="email" label="Work Email" placeholder="you@school.edu.pk" required type="email"
                           autoComplete="email" error={emailError}
+                          onBlur={() => markTouched('email')}
                           value={formData.email} onChange={(v) => set('email', v)} icon={Mail}
                         />
                       </div>
@@ -581,67 +585,71 @@ export default function RegisterPage() {
                         label={type === 'school_group' ? "School Group Name" : "School Name"}
                         placeholder={type === 'school_group' ? "e.g. Beaconhouse School System" : "e.g. Horizon Academy"}
                         required error={schoolNameError} autoComplete="organization"
+                        onBlur={() => markTouched('schoolName')}
                         value={formData.schoolName} onChange={(v) => set('schoolName', v)}
                         icon={Building}
                       />
-                      <label htmlFor="country" className="block space-y-1.5 text-sm font-semibold text-ink">
-                        <span>Institution country</span>
-                        <select
+                      <FormField name="country" id="country" label="Institution country" hint={`Default billing currency: ${currencyForCountry(formData.country)}. Prices keep their published currency; no conversion is applied.`}>
+                        <Select
                           id="country"
                           value={formData.country}
                           onChange={(event) => set("country", event.target.value as Country)}
-                          className="h-12 w-full rounded-2xl border border-[#cfc2d6]/40 bg-white px-4 text-sm font-semibold text-[#1f1a23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30"
                         >
                           {COUNTRIES.map((country) => <option key={country} value={country}>{({ PK: "Pakistan", SA: "Saudi Arabia", AE: "United Arab Emirates", KW: "Kuwait", OTHER: "Other" })[country]}</option>)}
-                        </select>
-                        <span className="block text-xs font-medium text-ink-muted">Default billing currency: {currencyForCountry(formData.country)}. Prices keep their published currency; no conversion is applied.</span>
-                      </label>
+                        </Select>
+                      </FormField>
                       <div className="space-y-1.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-3.5">
-                        <div className="flex items-center justify-between gap-2 px-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                           <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
                             {type === 'school_group' ? 'School Group ID' : 'School ID'}
                           </Label>
                           <div className="flex gap-1.5">
-                            <button
+                            <Button
                               type="button"
+                              size="sm"
+                              variant={formData.autoId ? "default" : "outline"}
                               onClick={() => handleAutoId(true)}
-                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                              aria-pressed={formData.autoId}
+                              className="min-w-11"
                             >
                               Auto
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
+                              size="sm"
+                              variant={!formData.autoId ? "default" : "outline"}
                               onClick={() => handleAutoId(false)}
-                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                              aria-pressed={!formData.autoId}
+                              className="min-w-11"
                             >
                               Manual
-                            </button>
+                            </Button>
                           </div>
                         </div>
-                        <InputGroup surfaceClassName="bg-white" className="relative flex items-center">
-                          <Hash data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
+                        <FormField name="regId" id="regId" required error={regIdError} hint="Printed on report cards, invoices and receipts. It cannot be changed later.">
+                        <InputGroup surfaceClassName="bg-white">
+                          <Hash aria-hidden data-field-affix="start" className="h-4 w-4 text-[#8127cf]/40" />
                           <Input
                             id="regId"
                             readOnly={formData.autoId}
                             value={formData.regId}
                             placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
                             onChange={e => set('regId', e.target.value.toUpperCase())}
-                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none"
+                            onBlur={() => markTouched('regId')}
+                            className="font-bold tracking-wide"
                           />
                           {formData.autoId && (
-                            <button data-field-affix="end"
+                            <FieldAction data-field-affix="end"
                               type="button"
                               onClick={() => set('regId', generateRegId(type))}
                               aria-label="Generate a new ID"
-                              className="absolute right-3.5 cursor-pointer text-ink-subtle transition-all hover:rotate-90 hover:text-[#8127cf]"
+                              className="text-ink-subtle"
                             >
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            </button>
+                              <RefreshCw aria-hidden className="h-3.5 w-3.5" />
+                            </FieldAction>
                           )}
                         </InputGroup>
-                        <p className="px-1 text-[10px] font-bold leading-snug text-ink-subtle">
-                          Printed on report cards, invoices and receipts. It cannot be changed later.
-                        </p>
+                        </FormField>
                       </div>
                     </FieldGroup>
 
@@ -649,6 +657,8 @@ export default function RegisterPage() {
                       <InputField
                         id="password" label="Password" placeholder="Min 8 characters" required
                         autoComplete="new-password"
+                        error={passwordError} onBlur={() => markTouched('password')}
+                        descriptionId="registration-password-rules"
                         type={showPass ? "text" : "password"}
                         value={formData.password} onChange={(v) => set('password', v)} icon={Lock}
                         onToggleReveal={() => setShowPass((v) => !v)}
@@ -658,6 +668,8 @@ export default function RegisterPage() {
                       <InputField
                         id="confirmPassword" label="Confirm Password" placeholder="Re-enter password" required
                         autoComplete="new-password"
+                        error={confirmPasswordError} onBlur={() => markTouched('confirmPassword')}
+                        descriptionId="registration-password-rules"
                         type={showConfirm ? "text" : "password"}
                         value={formData.confirmPassword} onChange={(v) => set('confirmPassword', v)} icon={ShieldCheck}
                         onToggleReveal={() => setShowConfirm((v) => !v)}
@@ -693,7 +705,7 @@ export default function RegisterPage() {
                             {strength.label || "—"}
                           </p>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        <div id="registration-password-rules" className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                           {passwordRequirements.map((r) => (
                             <div key={r.label} className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                               {r.met ? <CheckCircle className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0 opacity-30" />} {r.label}
@@ -711,6 +723,7 @@ export default function RegisterPage() {
                       <label className="group flex cursor-pointer items-start gap-2.5 px-1 select-none">
                         <span className="relative mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center">
                           <input
+                            id="acceptedTerms"
                             type="checkbox"
                             checked={formData.acceptedTerms}
                             onChange={(e) => set('acceptedTerms', e.target.checked)}
@@ -741,29 +754,30 @@ export default function RegisterPage() {
                         </span>
                       </label>
                       <div className="flex shrink-0 gap-3">
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="icon"
                           onClick={() => setStep(1)}
                           aria-label="Back"
-                          className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-ink-muted transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+                          className="h-12 w-12 shrink-0"
                         >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button
+                          <ChevronLeft aria-hidden className="rtl:rotate-180" />
+                        </Button>
+                        <Button
                           type="submit"
                           disabled={loading}
-                          className="group relative flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 @xl:flex-none @xl:w-52"
+                          aria-busy={loading}
+                          className="min-h-12 flex-1 @xl:flex-none @xl:w-52"
                         >
-                          {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
-                          <span className="relative z-10 flex items-center gap-2">
-                            {loading
-                              ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>
-                              : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
-                          </span>
-                        </button>
+                          {loading
+                            ? <><Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> Creating account…</>
+                            : <>Create Account <ArrowRight aria-hidden className="rtl:rotate-180" /></>}
+                        </Button>
                       </div>
                     </div>
                   </div>
+                  </fieldset>
                 </form>
               </motion.div>
             )}
@@ -806,8 +820,8 @@ export default function RegisterPage() {
                   ))}
                 </div>
 
-                <Link href="/login" className="inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 font-black text-white shadow-lg shadow-emerald-200/30 transition-all hover:shadow-xl hover:shadow-emerald-200/50">
-                  Go to Login <ArrowRight className="h-4 w-4" />
+                <Link href="/login" className={buttonVariants({ className: "min-h-12 w-full" })}>
+                  Go to Login <ArrowRight aria-hidden className="rtl:rotate-180" />
                 </Link>
               </motion.div>
             )}
@@ -829,14 +843,14 @@ export default function RegisterPage() {
 /** Three-stop progress rail above the card, so the flow's length is visible. */
 function StepRail({ step, className = "mb-6" }: { step: number; className?: string }) {
   return (
-    <div className={`flex items-center gap-2 px-1 ${className}`}>
+    <div role="list" aria-label="Registration progress" className={`flex items-center gap-2 px-1 ${className}`}>
       {STEP_LABELS.map((label, i) => {
         const num = i + 1;
         const done = step > num;
         const active = step === num;
         return (
           <React.Fragment key={label}>
-            <div className="flex items-center gap-2">
+            <div role="listitem" aria-current={active ? "step" : undefined} aria-label={`Step ${num} of ${STEP_LABELS.length}: ${label}`} className="flex items-center gap-2">
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black transition-all duration-300 ${
                   done
@@ -904,12 +918,13 @@ function FieldGroup({
 
 function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProps) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       role="radio"
       aria-checked={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
-      className={`relative group flex w-full cursor-pointer items-center gap-5 overflow-hidden rounded-2xl border-2 p-5 text-left transition-all ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-[#cfc2d6]/20 bg-[#f3f4f9] hover:border-[#8127cf]/20 hover:bg-white'}`}
+      className="relative group flex w-full items-center justify-start gap-5 overflow-hidden p-5 text-start"
     >
       <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-ink-subtle group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
         <Icon className="h-6 w-6" />
@@ -923,13 +938,13 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
           <CheckCircle className="h-3 w-3" />
         </motion.div>
       )}
-    </button>
+    </Button>
   );
 }
 
 function InputField({
   id, label, placeholder, value, onChange, icon: Icon, type = "text", className = "",
-  required, autoComplete, error, hint, onToggleReveal, revealed, onCapsChange,
+  required, autoComplete, error, hint, descriptionId, onBlur, onToggleReveal, revealed, onCapsChange,
 }: InputFieldProps & {
   onToggleReveal?: () => void;
   revealed?: boolean;
@@ -940,12 +955,9 @@ function InputField({
     : undefined;
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </Label>
-      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+    <FormField name={id} id={id} label={label} required={required} error={error} hint={hint}>
+      <InputGroup>
+        <Icon aria-hidden data-field-affix="start" className="h-4 w-4 text-ink-subtle group-focus-within:text-primary" />
         <Input
           id={id}
           type={type}
@@ -953,31 +965,26 @@ function InputField({
           value={value}
           required={required}
           autoComplete={autoComplete}
-          aria-invalid={!!error}
+          aria-describedby={descriptionId}
           onChange={e => onChange(e.target.value)}
           onKeyUp={trackCaps}
           onKeyDown={trackCaps}
-          onBlur={onCapsChange ? () => onCapsChange(false) : undefined}
-          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-            error ? "bg-rose-50" : "bg-[#fbf0fe]"
-          } ${onToggleReveal ? "pr-11" : "pr-4"} ${className}`}
+          onBlur={() => { onBlur?.(); onCapsChange?.(false); }}
+          className={className}
         />
         {onToggleReveal && (
-          <button data-field-affix="end"
+          <FieldAction data-field-affix="end"
             type="button"
             onClick={onToggleReveal}
-            aria-label={revealed ? "Hide password" : "Show password"}
-            className="absolute right-3.5 cursor-pointer text-ink-subtle transition-colors hover:text-[#8127cf]"
+            aria-label={`${revealed ? "Hide" : "Show"} ${label.toLowerCase()}`}
+            aria-controls={id}
+            aria-pressed={Boolean(revealed)}
+            className="text-ink-subtle"
           >
-            {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+            {revealed ? <EyeOff aria-hidden className="h-4 w-4" /> : <Eye aria-hidden className="h-4 w-4" />}
+          </FieldAction>
         )}
       </InputGroup>
-      {error
-        ? <p className="px-1 text-xs font-bold text-rose-500">{error}</p>
-        : hint
-        ? <p className="px-1 text-[10px] font-bold text-ink-subtle">{hint}</p>
-        : null}
-    </div>
+    </FormField>
   );
 }

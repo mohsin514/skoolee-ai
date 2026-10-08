@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
@@ -50,19 +51,17 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
           const Icon = tab.icon;
           const active = subTab === tab.key;
           return (
-            <button
+            <Button aria-pressed={subTab === tab.key} variant="choice"
               key={tab.key}
               type="button"
               onClick={() => setSubTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                active
-                  ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
+                ""
+              } `)}
             >
               <Icon className="w-3.5 h-3.5" />
               {tab.label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -141,7 +140,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+          <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-start justify-between mb-3">
               <div className="space-y-2">
                 <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
@@ -270,20 +269,20 @@ function StructureCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
+          <Button aria-label={tr("Edit fee structure")} variant="secondary" size="icon"
             type="button"
             onClick={onEdit}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted"
+            className="flex items-center justify-center"
           >
             <Edit3 className="w-3.5 h-3.5" />
-          </button>
-          <button
+          </Button>
+          <Button aria-label={tr("Delete fee structure")} variant="secondary" size="icon"
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted"
+            className="flex items-center justify-center"
           >
             <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          </Button>
           <ConfirmAction
             open={confirmOpen}
             title={tr("Deactivate Structure")}
@@ -435,7 +434,7 @@ function StructureModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
+  const inputClass = "w-full";
   const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
 
   return (
@@ -454,61 +453,61 @@ function StructureModal({
       }
     >
         <div className="space-y-4">
-          <div>
-            <label className={labelClass}><UiText>{"Class"}</UiText></label>
+          <label>
+            <span className={labelClass}><UiText>{"Class"}</UiText></span>
             <SystemSelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
               <option value=""><UiText>{"Select class..."}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
             </SystemSelect>
-          </div>
+          </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>{tr("Monthly Fee")} (<bdi>{currency}</bdi>)</label>
+            <label>
+              <span className={labelClass}>{tr("Monthly Fee")} (<bdi>{currency}</bdi>)</span>
               <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}><UiText>{"Installment Plan"}</UiText></label>
+            </label>
+            <label>
+              <span className={labelClass}><UiText>{"Installment Plan"}</UiText></span>
               <SystemSelect value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
                 <option value="11-month"><UiText>{"11 Months (Jul-May)"}</UiText></option>
                 <option value="6-month"><UiText>{"6 Months"}</UiText></option>
                 <option value="quarterly"><UiText>{"Quarterly"}</UiText></option>
                 <option value="one-time"><UiText>{"One Time"}</UiText></option>
               </SystemSelect>
-            </div>
+            </label>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelClass}><UiText>{"Late Fee %"}</UiText></label>
+            <label>
+              <span className={labelClass}><UiText>{"Late Fee %"}</UiText></span>
               <SystemInput type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
-            </div>
+            </label>
             <div>
               <label className={labelClass}><UiText>{"Compound"}</UiText></label>
-              <button
+              <Button aria-pressed={compoundLateFee} variant="choice"
                 type="button"
                 onClick={() => setCompoundLateFee(!compoundLateFee)}
-                className={`w-full h-11 rounded-2xl border px-4 text-sm font-bold transition-colors cursor-pointer ${compoundLateFee ? "border-[#8127cf]/30 bg-[#fbf0fe] text-[#8127cf]" : "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted"}`}
+                className={`w-full h-11 px-4 ${""} `}
               >
                 {compoundLateFee ? tr("Yes") : tr("No")}
-              </button>
+              </Button>
             </div>
-            <div>
-              <label className={labelClass}><UiText>{"Tax %"}</UiText></label>
+            <label>
+              <span className={labelClass}><UiText>{"Tax %"}</UiText></span>
               <SystemInput type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
-            </div>
+            </label>
           </div>
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"One-Time Fees"}</UiText></p>
-              <button
+              <Button variant="link"
                 type="button"
                 onClick={() => setOneTimeFees([...oneTimeFees, { name: "", amount: "" }])}
-                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              ><UiText>{"+ Add Fee"}</UiText></button>
+                className="hover:underline"
+              ><UiText>{"+ Add Fee"}</UiText></Button>
             </div>
             <div className="space-y-2">
               {oneTimeFees.map((row, i) => (
@@ -522,7 +521,7 @@ function StructureModal({
                       copy[i] = { ...copy[i], name: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
+                    className="flex-1"
                   />
                   <SystemInput
                     type="number"
@@ -533,15 +532,15 @@ function StructureModal({
                       copy[i] = { ...copy[i], amount: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="w-28 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
+                    className="w-28"
                   />
-                  <button
+                  <Button aria-label={tr("Remove one-time fee")} variant="secondary" size="icon"
                     type="button"
                     onClick={() => setOneTimeFees(oneTimeFees.filter((_, j) => j !== i))}
-                    className="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors cursor-pointer shrink-0"
+                    className="flex items-center justify-center shrink-0"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </Button>
                 </div>
               ))}
               {oneTimeFees.length === 0 && (
@@ -553,11 +552,11 @@ function StructureModal({
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Discount Rules"}</UiText></p>
-              <button
+              <Button variant="link"
                 type="button"
                 onClick={() => setDiscountRules([...discountRules, { name: "", pct: "" }])}
-                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              ><UiText>{"+ Add Discount"}</UiText></button>
+                className="hover:underline"
+              ><UiText>{"+ Add Discount"}</UiText></Button>
             </div>
             <div className="space-y-2">
               {discountRules.map((row, i) => (
@@ -571,7 +570,7 @@ function StructureModal({
                       copy[i] = { ...copy[i], name: e.target.value };
                       setDiscountRules(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
+                    className="flex-1"
                   />
                   <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative w-24">
                     <SystemInput
@@ -584,17 +583,17 @@ function StructureModal({
                         copy[i] = { ...copy[i], pct: e.target.value };
                         setDiscountRules(copy);
                       }}
-                      className="w-full h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 pr-7 text-xs font-bold outline-none"
+                      className="w-full pr-7"
                     />
                     <Percent data-field-affix="end" className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
                   </InputGroup>
-                  <button
+                  <Button aria-label={tr("Remove discount rule")} variant="secondary" size="icon"
                     type="button"
                     onClick={() => setDiscountRules(discountRules.filter((_, j) => j !== i))}
-                    className="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors cursor-pointer shrink-0"
+                    className="flex items-center justify-center shrink-0"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </Button>
                 </div>
               ))}
               {discountRules.length === 0 && (

@@ -1,8 +1,10 @@
 "use client";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { InputGroup } from "@/components/ui/input-group";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -357,13 +359,13 @@ export default function MarksPage() {
               onChange={(e) => setExamQuery(e.target.value)}
               placeholder="Find an assessment or class…"
               aria-label="Filter assessments"
-              className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
+              className={"w-full"}
             />
             {examQuery ? (
-              <button data-field-affix="end" type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
-                className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <FieldAction   data-field-affix="end" type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
+                >
                 <X className="h-3 w-3" />
-              </button>
+              </FieldAction>
             ) : null}
           </InputGroup>
           <span className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">
@@ -372,11 +374,11 @@ export default function MarksPage() {
           {/* The grid caps at a readable number; without this the teacher had
               no way to know the other six existed. */}
           {visibleExams.length > EXAM_PAGE && (
-            <button type="button" onClick={() => setShowAllExams((v) => !v)}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe] px-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
+            <Button variant="outline" type="button" onClick={() => setShowAllExams((v) => !v)}
+              className="items-center gap-1.5 justify-start">
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllExams && "rotate-180")} />
               {showAllExams ? "Show fewer" : `Show all ${visibleExams.length}`}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -394,11 +396,8 @@ export default function MarksPage() {
             const isSelected = selectedExamId === exam.id;
             const isLockedExam = exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
             return (
-              <button key={exam.id} type="button" onClick={() => { if (draft.dirty && exam.id !== selectedExamId) setPendingExamId(exam.id); else setSelectedExamId(exam.id); }} title={`Select ${exam.title}`}
-                className={cn(
-                  "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98]",
-                  isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" : "border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"
-                )}
+              <Button aria-pressed={isSelected} variant="choice" key={exam.id} type="button" onClick={() => { if (draft.dirty && exam.id !== selectedExamId) setPendingExamId(exam.id); else setSelectedExamId(exam.id); }} title={`Select ${exam.title}`}
+                className="sk-rise block p-4 text-start"
                 style={{ animationDelay: `${index * 80}ms` }}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
@@ -417,16 +416,16 @@ export default function MarksPage() {
                     </span>
                   )}
                 </div>
-              </button>
+              </Button>
             );
           })}
           {visibleExams.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center">
+            <div className="sk-panel col-span-full flex flex-col items-center gap-3 p-8 text-center">
               <p className="text-sm font-bold text-[#1d1b20]">No assessment matches “{examQuery}”</p>
-              <button type="button" onClick={() => setExamQuery("")}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+              <Button variant="secondary" type="button" onClick={() => setExamQuery("")}
+                className="items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear filter
-              </button>
+              </Button>
             </div>
           ) : null}
         </div>
@@ -466,50 +465,50 @@ export default function MarksPage() {
               ))}
             </div>
           ) : markSheet?.subjects?.length && markSheet?.students?.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left">
-                <thead>
-                  <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+
+              <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
+                <TableHeader>
+                  <TableRow className="bg-[#fbf0fe]/40 text-ink-muted">
                     {/* The student column is frozen: past three subjects the
                         names scrolled out of view and the teacher was typing
                         into an anonymous grid. */}
-                    <th className="sticky left-0 z-10 bg-[#fbf0fe]/95 px-5 py-4 backdrop-blur-sm">Student</th>
+                    <TableHead className="sticky start-0 z-10 bg-[#fbf0fe]/95 px-5 py-4 backdrop-blur-sm">Student</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
                       const entered = markSheet.students.filter(
                         (st: any) => (marksByKey[`${st.id}:${subject.id}`] ?? "") !== "",
                       ).length;
                       return (
-                        <th key={subject.id} className="px-3 py-3 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>
+                        <TableHead key={subject.id} className="px-3 py-3 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>
                           <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-muted">{subject.name}</span>
                           <span className="block text-[10px] font-normal text-ink-subtle">
                             / {subject.totalMarks || 100} · {entered}/{markSheet.students.length}
                           </span>
                           {!isLocked ? (
                             <span className="mt-1 flex items-center justify-center gap-1">
-                              <button type="button"
+                              <Button size="sm" variant="link" type="button"
                                 onClick={() => focusCell(0, col)}
                                 title={`Jump to the first ${subject.name} cell`}
-                                className="cursor-pointer rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white">
+                                className="px-1">
                                 Enter
-                              </button>
-                              <button type="button"
+                              </Button>
+                              <Button size="icon" variant="ghost" type="button"
                                 onClick={() => clearColumn(subject.id, subject.name)}
                                 title={`Clear every ${subject.name} mark on this sheet`}
                                 aria-label={`Clear the ${subject.name} column`}
-                                className="cursor-pointer rounded-md p-0.5 text-ink-faint transition-colors hover:bg-rose-100 hover:text-rose-600">
+                                >
                                 <Eraser className="h-3 w-3" />
-                              </button>
+                              </Button>
                             </span>
                           ) : null}
-                        </th>
+                        </TableHead>
                       );
                     })}
                     {/* A mark sheet without a running total makes the teacher do
                         the arithmetic they came here to avoid. */}
-                    <th className="px-4 py-4 text-center">Total</th>
-                  </tr>
-                </thead>
-                <tbody ref={gridRef} className="divide-y divide-[#f3f4f9]">
+                    <TableHead className="px-4 py-4 text-center">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody ref={gridRef} className="divide-y divide-[#f3f4f9]">
                   {markSheet.students.map((student: any, row: number) => {
                     const rowMarks = markSheet.subjects.map((subject: any) => ({
                       subject,
@@ -521,13 +520,13 @@ export default function MarksPage() {
                     const pct = outOf > 0 ? Math.round((obtained / outOf) * 100) : null;
                     const rowIncomplete = scored.length < markSheet.subjects.length;
                     return (
-                      <tr key={student.id} className={cn(
+                      <TableRow key={student.id} className={cn(
                         "transition-colors hover:bg-[#fbf0fe]/20",
                         rowIncomplete && !isLocked && "bg-amber-50/25",
                       )}>
-                        <td className="sticky left-0 z-10 bg-white px-5 py-3">
+                        <TableCell className="sticky start-0 z-10 bg-white px-5 py-3">
                           <StudentMini student={student} />
-                        </td>
+                        </TableCell>
                         {markSheet.subjects.map((subject: any, col: number) => {
                           const key = `${student.id}:${subject.id}`;
                           const value = marksByKey[key] || "";
@@ -538,7 +537,7 @@ export default function MarksPage() {
                           const isOverLimit = value !== "" && (!Number.isFinite(numVal) || numVal < 0 || numVal > max);
                           const isDirty = dirtyKeys.has(key);
                           return (
-                            <td key={subject.id} className="px-3 py-3">
+                            <TableCell key={subject.id} className="px-3 py-3">
                               <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
@@ -562,18 +561,12 @@ export default function MarksPage() {
                                 }}
                                 title={isLocked ? "This exam is locked — marks are read-only" : `${student.fullName} · ${subject.name}, max ${max}. Enter moves down, ⌘D fills down.`}
                                 aria-label={`${subject.name} marks for ${student.fullName}, out of ${max}`}
-                                className={cn(
-                                  "h-11 w-full rounded-xl border px-3 text-center text-sm font-bold outline-none transition-all",
-                                  "focus:bg-white",
-                                  isLocked ? "bg-[#f3f4f9]/40 text-ink-muted cursor-not-allowed" : "bg-[#fbf0fe]/40",
-                                  isDirty && !isOverLimit && "border-amber-300 bg-amber-50/70",
-                                  isOverLimit ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#cfc2d6]/20"
-                                )} />
+                                className={"w-full text-center"} />
                               {isOverLimit && <p id={`mark-${key}-error`} className="text-xs font-semibold text-destructive">Enter 0 to {max}.</p>}
-                            </td>
+                            </TableCell>
                           );
                         })}
-                        <td className="px-4 py-3 text-center">
+                        <TableCell className="px-4 py-3 text-center">
                           {scored.length ? (
                             <span className="inline-flex flex-col items-center leading-tight">
                               <span className={cn(
@@ -589,13 +582,13 @@ export default function MarksPage() {
                           ) : (
                             <span className="text-[11px] font-semibold text-ink-subtle">—</span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+
           ) : (
             <div className="p-8">
               <EmptyInline text={selectedExamId ? "No editable subjects for this exam." : "Select an exam to enter marks."} />
@@ -616,17 +609,12 @@ export default function MarksPage() {
           )}
           <div className="flex flex-wrap items-center gap-2">
             {markSheet?.students?.length && !isLocked ? (
-              <button type="button" onClick={() => setShortcutsOpen((v) => !v)} aria-pressed={shortcutsOpen}
+              <Button className="justify-start" variant="choice" type="button" onClick={() => setShortcutsOpen((v) => !v)} aria-pressed={shortcutsOpen}
                 title="Show the keyboard shortcuts for entering a mark sheet quickly"
-                className={cn(
-                  "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-xs font-black uppercase tracking-wider transition-all active:scale-[0.97]",
-                  shortcutsOpen
-                    ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
-                    : "border-[#8127cf]/10 bg-[#fbf0fe] text-[#8127cf] hover:bg-white",
-                )}>
+                >
                 <Keyboard className="h-4 w-4" />
                 Shortcuts
-              </button>
+              </Button>
             ) : null}
             {markSheet?.students?.length ? (
               <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportMarksCSV}><span title="Download marks as CSV file">Export CSV</span></BrandButton>

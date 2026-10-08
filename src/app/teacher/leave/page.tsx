@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertCircle, CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
@@ -251,7 +252,7 @@ export default function LeavePage() {
             {balances.map((b) => {
               const pct = b.allocated > 0 ? Math.min(100, Math.round((b.approved / b.allocated) * 100)) : 0;
               return (
-                <div key={b.leaveTypeId} className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.08),0_12px_32px_-12px_rgba(129,39,207,0.16)]">
+                <div key={b.leaveTypeId} className="sk-panel sk-rise p-6">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-black text-[#1f1a23]">{b.name}</p>
                     <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${b.remaining > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-600"}`}>
@@ -273,7 +274,7 @@ export default function LeavePage() {
                  contradicted the UI: with no leave *types* configured at all
                  the Apply button is disabled, yet the text promised requests
                  would still be submitted. Only the second case can apply. */
-              <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-6 sm:col-span-2 lg:col-span-3">
+              <div className="sk-panel p-6 sm:col-span-2 lg:col-span-3">
                 <p className="text-sm font-bold text-ink-muted">
                   {types.length === 0
                     ? "Your campus admin has not set up any leave types yet, so leave cannot be requested here for now."
@@ -283,7 +284,7 @@ export default function LeavePage() {
             ) : null}
           </div>
 
-          <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.08),0_12px_32px_-12px_rgba(129,39,207,0.16)]">
+          <div className="sk-panel p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-[#1f1a23]">
                 <Plane className="h-4 w-4 text-[#8127cf]" /> Request History
@@ -291,23 +292,18 @@ export default function LeavePage() {
               <div className="flex flex-wrap items-center gap-1.5">
                 {statuses.length > 1 ? (
                   ["", ...statuses].map((st) => (
-                    <button
+                    <Button variant="choice"
                       key={st || "all"}
                       type="button"
                       onClick={() => setStatusFilter(st)}
                       aria-pressed={statusFilter === st}
-                      className={cn(
-                        "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                        statusFilter === st
-                          ? "border-[#8127cf] bg-[#8127cf] text-white"
-                          : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
-                      )}
+
                     >
                       {st || "All"}
                       {st === "PENDING" && pendingCount > 0 ? (
                         <span className="ml-1 opacity-70">{pendingCount}</span>
                       ) : null}
-                    </button>
+                    </Button>
                   ))
                 ) : (
                   <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-ink-muted">
@@ -327,16 +323,16 @@ export default function LeavePage() {
                   <p className="text-sm font-bold text-ink-subtle">
                     No {String(statusFilter).toLowerCase()} requests.
                   </p>
-                  <button type="button" onClick={() => setStatusFilter("")}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+                  <Button variant="ghost" type="button" onClick={() => setStatusFilter("")}
+                    className="items-center gap-1.5 justify-start">
                     <X className="h-3.5 w-3.5" /> Show all
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 visibleRequests.map((r) => {
                   const Icon = STATUS_ICONS[r.status] || Clock;
                   return (
-                    <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
+                    <div key={r.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
                         <Icon className="h-5 w-5" />
                       </div>
@@ -407,7 +403,7 @@ export default function LeavePage() {
               <SystemSelect
                 value={applyForm.leaveTypeId}
                 onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
-                className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white"
+                className={"w-full"}
               >
                 <option value="">Select leave type</option>
                 {types.map((t) => {
@@ -428,7 +424,7 @@ export default function LeavePage() {
                   type="date"
                   value={applyForm.fromDate}
                   onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
-                  className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white"
+                  className={"w-full"}
                 />
               </label>
               <label className="block">
@@ -440,9 +436,9 @@ export default function LeavePage() {
                      the reversed range is prevented rather than reported. */
                   min={applyForm.fromDate || undefined}
                   onChange={(e) => setApplyForm((p) => ({ ...p, toDate: e.target.value }))}
-                  className={`h-14 w-full rounded-2xl border bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white ${
-                    datesReversed ? "border-rose-300" : "border-[#cfc2d6]/20"
-                  }`}
+                  className={`w-full ${
+                    datesReversed ? "" : ""
+                  } `}
                 />
               </label>
             </div>
@@ -481,10 +477,10 @@ export default function LeavePage() {
                 onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
                 rows={3}
                 placeholder="Brief reason for the leave"
-                className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white placeholder:text-ink-subtle"
+                className={"w-full"}
               />
             </label>
-            <button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+            <Button variant="ghost" type="submit" className="hidden" tabIndex={-1} aria-hidden />
           </form>
         </ModalFrame>
       ) : null}

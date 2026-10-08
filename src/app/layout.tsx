@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import { NetworkProvider } from "@/components/providers/network-provider";
@@ -76,55 +76,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <AppLoaderProvider>
             <NetworkProvider>{children}</NetworkProvider>
-            {/*
-              Bottom-centre, collapsed.
-
-              Top-right put the stack directly over the close button of every
-              centred dialog — elementFromPoint confirmed the toast, not the
-              button, received the click. Bottom-right was no better: a toast is
-              ~356px wide and the wide dialogs are 896px, so at any viewport the
-              toast overhangs their bottom-right corner, which is exactly where
-              the primary action sits. Bottom-centre is the one corner-free
-              position: the dialog footers put their buttons hard left and hard
-              right, so a centred toast clears both.
-            */}
-            <Toaster
-              position="bottom-center"
-              richColors
-              closeButton
-              visibleToasts={3}
-              /*
-                Below md the role consoles carry a fixed bottom tab bar — 58px
-                of primary navigation. Sonner's default 16px mobile offset put
-                every toast squarely on top of it, so for five seconds after any
-                action the navigation was simply gone. Lift it clear of the bar
-                and of the home indicator below that. Desktop keeps the 24px
-                default and the corner-free reasoning above.
-              */
-              mobileOffset={{
-                bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
-                top: 16,
-                left: 16,
-                right: 16,
-              }}
-              toastOptions={{
-                duration: 5000,
-                style: { 
-                  fontFamily: "var(--font-plus-jakarta-sans)",
-                  borderRadius: "28px",
-                  padding: "18px 20px",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  letterSpacing: "0",
-                  color: "#1f1a23",
-                  border: "1px solid rgba(207, 194, 214, 0.36)",
-                  boxShadow: "0 28px 70px -18px rgba(31, 26, 35, 0.28)",
-                  background: "rgba(255, 255, 255, 0.96)",
-                  backdropFilter: "blur(14px)",
-                },
-                className: "skoolee-toast",
-              }}
-            />
+            <AppToaster />
           </AppLoaderProvider>
         </Suspense>
       </body>

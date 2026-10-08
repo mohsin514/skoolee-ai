@@ -63,11 +63,12 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
   const formatNumber = (value: number) => new Intl.NumberFormat(locale, { useGrouping: false }).format(value);
   const weekdays = Array.from({ length: 7 }, (_, index) => new Date(2026, 0, 4 + (weekStartsOn + index) % 7));
   const [open, setOpen] = useState(false);
-  const [cursor, setCursor] = useState(() => parse(value) ?? new Date());
+  const campusToday = parse(todayDate ?? '') ?? new Date();
+  const [cursor, setCursor] = useState(() => parse(value) ?? campusToday);
   const grid = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<string | null>(null);
   const selectedDate = parse(value);
-  const today = todayDate || iso(new Date());
+  const today = iso(campusToday);
   const year = cursor.getFullYear(), month = cursor.getMonth();
   const count = new Date(year, month + 1, 0).getDate();
   const offset = (new Date(year, month, 1).getDay() - weekStartsOn + 7) % 7;
@@ -114,7 +115,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
       onValueChange?.(event.target.value);
       onChange?.(event);
     }} className={cn('sk-date pe-14', className)} />
-    <button type="button" disabled={disabled || readOnly} aria-label={copy.openCalendar(label)} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setLocalValue(inputRef.current?.value ?? ""); setCursor(boundedDate(parse(inputRef.current?.value ?? value) ?? new Date())); setOpen(true); }} className="absolute end-0.5 top-0.5 grid h-11 w-11 place-items-center rounded-[14px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"><CalendarDays aria-hidden="true" className="h-5 w-5" /></button>
+    <button type="button" disabled={disabled || readOnly} aria-label={copy.openCalendar(label)} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setLocalValue(inputRef.current?.value ?? ""); setCursor(boundedDate(parse(inputRef.current?.value ?? value) ?? campusToday)); setOpen(true); }} className="absolute end-0.5 top-0.5 grid h-11 w-11 place-items-center rounded-[14px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"><CalendarDays aria-hidden="true" className="h-5 w-5" /></button>
     {open && <ModalSurface onClose={() => setOpen(false)} ariaLabel={copy.dialogTitle} className="!max-w-sm">
       <div dir={dir} lang={locale} className="min-h-0 overflow-y-auto overscroll-contain">
         <div className="relative overflow-hidden bg-gradient-to-br from-[#542080] via-[#7020b9] to-[#8127cf] px-5 pb-5 pt-5 text-white sm:px-6">
@@ -149,7 +150,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
               return <button type="button" key={key} data-date={key} aria-label={formatDate(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} disabled={outOfRange(date)} aria-pressed={selected} aria-current={isToday ? 'date' : undefined} tabIndex={cursor.getDate() === i + 1 ? 0 : -1} onFocus={() => { if (iso(cursor) !== key) setCursor(date); }} onClick={() => choose(date)} className={cn('disabled:cursor-not-allowed disabled:opacity-35 relative min-h-11 rounded-xl text-sm font-medium tabular-nums transition-[background-color,color,box-shadow] hover:bg-primary/10', selected && 'bg-primary font-bold text-white shadow-[0_5px_12px_-4px_rgba(129,39,207,0.5)] hover:bg-primary', !selected && isToday && 'bg-primary/5 font-bold text-primary ring-1 ring-inset ring-primary/25')}>{formatNumber(i + 1)}{isToday && <span aria-hidden="true" className={cn('absolute bottom-1 start-1/2 h-1 w-1 -translate-x-1/2 rounded-full rtl:translate-x-1/2', selected ? 'bg-white' : 'bg-primary')} />}</button>;
             })}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3"><Button variant="ghost" disabled={outOfRange(new Date())} onClick={() => choose(new Date())} className="text-primary hover:text-primary">{copy.today}</Button><Button variant="outline" onClick={() => setOpen(false)}>{copy.cancel}</Button></div>
+          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3"><Button variant="ghost" disabled={outOfRange(campusToday)} onClick={() => choose(campusToday)} className="text-primary hover:text-primary">{copy.today}</Button><Button variant="outline" onClick={() => setOpen(false)}>{copy.cancel}</Button></div>
           <p className="sr-only">{copy.keyboardHelp}</p>
         </div>
       </div>

@@ -5,6 +5,8 @@ import {
   AlertTriangle, ArrowUpRight, CheckCircle2, Clock, MapPin, Timer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
 
 export interface TimetableSlot {
   id: string;
@@ -159,14 +161,14 @@ export function TodaySchedule({
                 />
               </div>
             </div>
-            <button
+            <Button variant="default" size="sm"
               type="button"
               onClick={onOpenTimetable}
-              className="group flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-lg hover:shadow-[#8127cf]/25 active:scale-[0.96] cursor-pointer"
+              className="group flex justify-start items-center gap-1.5"
             >
               Full timetable
               <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -191,13 +193,13 @@ export function TodaySchedule({
               active && end > start ? clamp(((minuteNow - start) / (end - start)) * 100, 0, 100) : 0;
 
             return (
-              <button
+              <Button variant="ghost"
                 key={slot.id}
                 type="button"
                 onClick={onOpenTimetable}
                 title="Open the full timetable"
                 className={cn(
-                  "sk-sweep-trigger group relative isolate shrink-0 snap-start overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-[0.97] cursor-pointer min-w-[196px] w-[212px]",
+                  "sk-sweep-trigger block group relative isolate shrink-0 snap-start overflow-hidden p-4 text-left hover:-translate-y-1.5 min-w-[196px] w-[212px]",
                   active
                     ? "border-transparent bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#b10e6b] shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
                     : clashing
@@ -288,7 +290,7 @@ export function TodaySchedule({
                     />
                   </div>
                 ) : null}
-              </button>
+              </Button>
             );
           })}
         </div>

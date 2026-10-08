@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import SkooleeLogo from "@/components/SkooleeLogo";
 
 export interface ProductPageCopy {
@@ -49,23 +49,21 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
     <main className="min-h-screen bg-white text-[#1f1a23]">
       <header className="border-b border-[#e8e0ed] bg-white/95">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2 font-black tracking-normal">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-black tracking-normal">
             <SkooleeLogo size="1.15rem" />
           </Link>
-          <nav className="flex items-center gap-3 text-sm font-semibold">
-            <Link href="/privacy" className="hidden text-ink hover:text-[#8127cf] sm:block">
+          <nav aria-label="Product navigation" className="flex w-full flex-wrap items-center gap-2 text-sm font-semibold sm:w-auto">
+            <Link href="/privacy" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Trust
             </Link>
-            <Link href="/pricing" className="text-ink hover:text-[#8127cf]">
+            <Link href="/pricing" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Pricing
             </Link>
-            <Link href="/login" className="text-ink hover:text-[#8127cf]">
+            <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Login
             </Link>
-            <a href={demoMailto(copy.eyebrow)}>
-              <Button size="sm">Book a demo</Button>
-            </a>
+            <a href={demoMailto(copy.eyebrow)} className={buttonVariants({ size: "sm" })}>Book a demo</a>
           </nav>
         </div>
       </header>
@@ -79,14 +77,12 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-ink">{copy.description}</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href={demoMailto(copy.eyebrow)}>
-                <Button>
-                  {copy.primaryCta || "Book a demo"}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+              <a href={demoMailto(copy.eyebrow)} className={buttonVariants()}>
+                {copy.primaryCta || "Book a demo"}
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </a>
-              <Link href="/security">
-                <Button variant="outline">{copy.secondaryCta || "Review security"}</Button>
+              <Link href="/security" className={buttonVariants({ variant: "outline" })}>
+                {copy.secondaryCta || "Review security"}
               </Link>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -138,7 +134,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
       <section className="mx-auto max-w-6xl px-6 py-14">
         <div className="grid gap-5 md:grid-cols-3">
           {copy.sections.map((section) => (
-            <article key={section.title} className="rounded-lg border border-[#e8e0ed] bg-white p-5 shadow-sm">
+            <article key={section.title} className="sk-panel p-5">
               <section.icon className="h-6 w-6 text-[#8127cf]" />
               <h2 className="mt-4 text-lg font-bold tracking-normal">{section.title}</h2>
               <p className="mt-2 text-sm leading-6 text-ink">{section.body}</p>

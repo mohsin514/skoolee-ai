@@ -5,11 +5,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Put scroll bounds on the shared wrapper so sticky cells have one scroll owner. */
+  containerClassName?: string;
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto rounded-[24px] border border-border-subtle bg-white">
+  TableProps
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto rounded-(--radius-table) border border-border-subtle bg-white", containerClassName)}>
     <table
       ref={ref}
       className={cn("sk-data-table w-full caption-bottom text-sm", className)}
@@ -64,6 +69,7 @@ const TableHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <th
     ref={ref}
+    scope="col"
     className={cn(
       "h-12 px-4 text-start align-middle text-xs font-black text-ink-muted [&:has([role=checkbox])]:pe-0",
       className

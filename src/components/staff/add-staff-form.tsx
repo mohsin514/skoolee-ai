@@ -30,6 +30,8 @@ import {
   ReviewSection,
   WizardShell,
 } from "@/components/shared-admin/wizard-shell";
+import { Button } from "@/components/ui/button";
+
 
 interface AddStaffFormProps {
   role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST";
@@ -210,18 +212,14 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                     <Field label="Gender">
                       <div className="flex gap-2">
                         {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
-                          <button
+                          <Button aria-pressed={form.gender === g} variant="choice" size="sm"
                             key={g}
                             type="button"
-                            className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
-                              form.gender === g
-                                ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                                : "bg-[#f3f4f9] text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                            }`}
+                            className="flex-1"
                             onClick={() => update("gender", g)}
                           >
                             {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Other"}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </Field>

@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && tsx scripts/check-commercial-contract.ts && next build",
+    "build": "prisma generate && tsx scripts/check-commercial-contract.ts && npm run check:ui && next build",
     "start": "next start",
     "lint": "eslint",
+    "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
+    "audit:ui": "node --import tsx scripts/ui-adoption-inventory.ts",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
     "test:outbox": "node --import tsx --test tests/outbox/outbox.test.ts",
     "test:outbox:api": "node --import tsx --test tests/outbox/api.test.ts",

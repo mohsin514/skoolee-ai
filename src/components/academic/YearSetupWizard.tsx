@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -313,15 +314,15 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
           <div key={s} className="flex flex-1 items-center gap-2">
-            <button
+            <Button aria-pressed={i === step} variant="choice"
               onClick={() => setStep(i)}
-              className={`flex flex-1 items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-all ${
-                i === step ? "border-[#8127cf] bg-[#8127cf] text-white" : i < step ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[#cfc2d6]/30 bg-white text-ink-muted"
-              }`}
+              className={"justify-start " + (`flex flex-1 items-center gap-2 px-4 py-2.5 ${
+                i === step ? "" : i < step ? "" : ""
+              } `)}
             >
               {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 text-[10px]">{i + 1}</span>}
               <span className="hidden sm:inline">{s}</span>
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -339,10 +340,10 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Number of Terms</p>
               <div className="flex gap-2">
                 {[1, 2, 3].map((n) => (
-                  <button key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
-                    className={`rounded-xl border px-5 py-2 text-sm font-bold ${termCount === n ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
+                  <Button aria-pressed={termCount === n} variant="choice" key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
+                    className={`px-5 py-2 ${termCount === n ? "" : ""} `}>
                     {n}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -368,17 +369,17 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
             <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><CalendarDays className="h-5 w-5 text-[#8127cf]" />Set Calendar</h3>
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => (
-                <button key={d.num} onClick={() => toggleWeekend(d.num)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${weekends.includes(d.num) ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
+                <Button aria-pressed={weekends.includes(d.num)} variant="choice" key={d.num} onClick={() => toggleWeekend(d.num)}
+                  className={`px-3 py-1.5 ${weekends.includes(d.num) ? "" : ""} `}>
                   {d.short}{weekends.includes(d.num) ? " · off" : ""}
-                </button>
+                </Button>
               ))}
-              <button
+              <Button aria-pressed={holidayMode} variant="choice"
                 onClick={() => { setHolidayMode((v) => !v); setHolidayPick(null); }}
-                className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${holidayMode ? "border-teal-500 bg-teal-500 text-white shadow-md shadow-teal-500/25" : "border-teal-500/40 bg-teal-50 text-teal-700 hover:bg-teal-100"}`}
+                className={`px-3 py-1.5 ${holidayMode ? "" : ""} `}
               >
                 {holidayMode ? (holidayPick ? `Finish range → ${holidayPick}` : "Pick end day…") : "✚ Mark holiday range"}
-              </button>
+              </Button>
             </div>
             <p className="text-[10px] font-semibold text-ink-muted">
               Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.
@@ -390,13 +391,13 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 <Field label="Name" value={holidayDraft.name} onChange={(v) => setHolidayDraft((d) => ({ ...d, name: v }))} />
                 <Field label="From" type="date" value={holidayDraft.fromDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, fromDate: v }))} />
                 <Field label="To" type="date" value={holidayDraft.toDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, toDate: v }))} />
-                <button onClick={addHoliday} disabled={saving} className="flex items-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
+                <Button variant="default" onClick={addHoliday} disabled={saving} className="justify-start flex items-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add</Button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {holidays.map((h) => (
                   <span key={h.id} className="flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
                     {h.name} ({h.fromDate}→{h.toDate})
-                    <button onClick={() => removeHoliday(h.id)} className="text-teal-700/60 hover:text-rose-500"><X className="h-3 w-3" /></button>
+                    <Button variant="ghost" onClick={() => removeHoliday(h.id)} className=""><X className="h-3 w-3" /></Button>
                   </span>
                 ))}
               </div>
@@ -411,9 +412,9 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Clock className="h-5 w-5 text-[#8127cf]" />Define Periods</h3>
               <div className="flex gap-2">
                 {(["CLASS", "EXAM"] as const).map((t) => (
-                  <button key={t} onClick={() => setPeriodTab(t)} className={`rounded-xl border px-4 py-1.5 text-xs font-bold ${periodTab === t ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
+                  <Button aria-pressed={periodTab === t} variant="choice" key={t} onClick={() => setPeriodTab(t)} className={`px-4 py-1.5 ${periodTab === t ? "" : ""} `}>
                     {t === "CLASS" ? "Class Periods" : "Exam Periods"}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -421,17 +422,17 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <Field label="Period #" type="number" value={periodDraft.periodNumber} onChange={(v) => setPeriodDraft((d) => ({ ...d, periodNumber: v }))} />
               <Field label="Start" type="time" value={periodDraft.startTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, startTime: v }))} />
               <Field label="End" type="time" value={periodDraft.endTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, endTime: v }))} />
-              <button onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
+              <Button variant="default" onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add</Button>
             </div>
             <div className="space-y-2">
               {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
               {activePeriods.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+                <div key={p.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f3eeff] text-sm font-black text-[#8127cf]">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <button onClick={() => deletePeriod(p.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <Button variant="ghost" onClick={() => deletePeriod(p.id)} className=""><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
             </div>
@@ -446,25 +447,25 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <Field label="Room #" value={roomDraft.roomNumber} onChange={(v) => setRoomDraft((d) => ({ ...d, roomNumber: v }))} />
               <Field label="Capacity" type="number" value={roomDraft.capacity} onChange={(v) => setRoomDraft((d) => ({ ...d, capacity: v }))} />
               <div className="sm:col-span-2 flex items-end">
-                <button onClick={addRoom} disabled={saving} className="flex items-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add Room</button>
+                <Button variant="default" onClick={addRoom} disabled={saving} className="justify-start flex items-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add Room</Button>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {rooms.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+                <div key={r.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div>
                     <p className="text-sm font-bold text-[#1f1a23]">Room {r.roomNumber}</p>
                     <p className="text-xs text-ink-muted">Capacity {r.capacity}</p>
                   </div>
-                  <button onClick={() => deleteRoom(r.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <Button variant="ghost" onClick={() => deleteRoom(r.id)} className=""><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
               {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
             </div>
             <div className="flex justify-end">
-              <button onClick={completeSetup} disabled={saving} className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-black text-white disabled:opacity-50">
+              <Button variant="default" onClick={completeSetup} disabled={saving} className="justify-start flex items-center gap-2 px-6 py-3">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Complete Setup
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -472,18 +473,18 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
 
       {/* nav */}
       <div className="flex justify-between">
-        <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
-          className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/30 bg-white px-5 py-2.5 text-sm font-bold text-ink disabled:opacity-40">
+        <Button variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
+          className="justify-start flex items-center gap-2 px-5 py-2.5">
           <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        </Button>
         {/* Step 1 has pending state to commit (the academic cycle); the later
             steps save each control as it changes, so a plain advance is
             correct there. */}
         {step < 3 && (
-          <button
+          <Button variant="default"
             onClick={step === 0 ? nextFromStep1 : () => setStep((s) => s + 1)}
             disabled={saving}
-            className="flex items-center gap-2 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            className="justify-start flex items-center gap-2 px-5 py-2.5"
           >
             {step === 0 && saving ? (
               <>
@@ -494,7 +495,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 {step === 0 ? "Save & Continue" : "Next"} <ArrowRight className="h-4 w-4" />
               </>
             )}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -518,7 +519,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const max = Math.max(...ends);
   const span = Math.max(1, max - min);
   return (
-    <div className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-4">
+    <div className="sk-panel p-4">
       <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-ink-muted">Year Preview</p>
       <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-[#f3f4f9]">
         {filled.map((t, i) => {
@@ -554,7 +555,7 @@ function Field({ label, value, onChange, type = "text", placeholder }: { label: 
     <label className="block">
       <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label}</span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1f1a23] outline-none" />
+        className="w-full" />
     </label>
   );
 }
@@ -576,11 +577,11 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
     return { m, daysInMonth, leading };
   });
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
       {months.map(({ m, daysInMonth, leading }) => (
-        <div key={m} className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-3">
+        <div key={m} className="sk-panel p-3">
           <p className="mb-2 text-center text-xs font-black text-[#8127cf]">{MONTHS[m]} {year}</p>
-          <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] font-bold text-ink-subtle">
+          <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-bold text-ink-subtle">
             {WEEKDAYS.map((d) => <span key={d.num}>{d.short[0]}</span>)}
           </div>
           <div className="mt-1 grid grid-cols-7 gap-0.5">
@@ -593,23 +594,18 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
               const hol = isHoliday(iso);
               const isPick = holidayMode && holidayPick === iso;
               return (
-                <button
+                <Button variant="choice"
+                  data-selected={isPick}
+                  aria-pressed={holidayMode ? isPick : isWeekend}
+                  aria-label={`${iso} · ${hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : holidayMode ? "Select for holiday range" : isWeekend ? "Make this weekday a working day" : "Make this weekday a weekend"}`}
                   key={dayNum}
                   type="button"
                   onClick={() => onDayClick(iso)}
-                  title={hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : holidayMode ? "Click to select for holiday range" : isWeekend ? "Click to make this weekday a working day" : "Click to make this weekday a weekend"}
-                  className={`flex h-6 cursor-pointer items-center justify-center rounded text-[9px] font-semibold transition-all ${
-                    isPick
-                      ? "bg-teal-500 text-white ring-2 ring-teal-300"
-                      : hol
-                        ? "bg-teal-500 text-white"
-                        : isWeekend
-                          ? "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]"
-                          : "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  }`}
+                  title={hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : holidayMode ? "Select for holiday range" : isWeekend ? "Make this weekday a working day" : "Make this weekday a weekend"}
+                  className={`min-h-11 min-w-0 px-0 py-1 ${hol ? "bg-teal-50 text-teal-800" : isWeekend ? "bg-surface-subtle text-ink-muted" : ""}`}
                 >
                   {dayNum}
-                </button>
+                </Button>
               );
             })}
           </div>

@@ -18,6 +18,10 @@ import { Maximize2, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "./chat-provider";
 import { ChatWorkspace } from "./chat-workspace";
+import { Button } from "@/components/ui/button";
+
+const MotionButton = motion.create(Button);
+
 
 export function ChatDock() {
   const { unreadTotal, viewer, closeConversation } = useChat();
@@ -53,7 +57,7 @@ export function ChatDock() {
   return (
     <MotionConfig reducedMotion="user">
       {/* Sits above the mobile tab bar, which occupies the bottom of the screen. */}
-      <motion.button
+      <MotionButton variant="default" size="icon"
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-label={hasUnread ? `Messages, ${unreadTotal} unread` : "Messages"}
@@ -62,9 +66,7 @@ export function ChatDock() {
         whileTap={{ scale: 0.92 }}
         transition={{ type: "spring", stiffness: 520, damping: 26 }}
         className={cn(
-          "group fixed bottom-24 right-4 z-[60] grid h-14 w-14 cursor-pointer place-items-center rounded-[20px]",
-          "bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#b10e6b] text-white",
-          "shadow-[0_16px_38px_-10px_rgba(129,39,207,0.65),0_4px_12px_-4px_rgba(31,26,35,0.3)]",
+          "group fixed bottom-24 right-4 z-[60] grid h-14 w-14 place-items-center",
           "md:bottom-6 md:right-6"
         )}
       >
@@ -106,7 +108,7 @@ export function ChatDock() {
             </motion.span>
           )}
         </AnimatePresence>
-      </motion.button>
+      </MotionButton>
 
       <AnimatePresence>
         {isOpen && (
@@ -151,14 +153,14 @@ export function ChatDock() {
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Link>
-                  <button
+                  <Button variant="default" size="icon"
                     type="button"
                     onClick={() => setIsOpen(false)}
                     aria-label="Close messages"
-                    className="cursor-pointer rounded-xl p-1.5 text-white/80 transition-all hover:bg-white/20 hover:text-white active:scale-90"
+
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               </header>
 

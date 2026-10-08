@@ -14,13 +14,14 @@ test('staff task → validation → draft → stale recovery → review receipt'
   await page.getByLabel('Search tasks').fill('report');
   await expect(page.getByText('1 selected · Selection does not approve records')).toBeVisible();
   await page.getByLabel('Search tasks').fill('');
-  await expect(page).toHaveScreenshot('staff-workspace.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
+  // Keep exercising recovery even when a visual baseline needs review.
+  await expect.soft(page).toHaveScreenshot('staff-workspace.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
   await page.screenshot({ path: `${evidence}/01-staff-workspace.png`, fullPage: true });
   await page.getByRole('button', { name: 'Review next', exact: true }).click();
   await page.getByRole('button', { name: 'Review changes', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Campus', exact: true })).toBeFocused();
   await expect(page.getByRole('combobox', { name: 'Campus', exact: true })).toHaveAttribute('aria-invalid', 'true');
-  await expect(page).toHaveScreenshot('form-recovery.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
+  await expect.soft(page).toHaveScreenshot('form-recovery.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
   await page.screenshot({ path: `${evidence}/02-form-recovery.png`, fullPage: true });
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText('Example draft saved in this tab. Nothing has been published.')).toBeVisible();

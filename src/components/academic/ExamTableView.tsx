@@ -1,5 +1,7 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import React from "react";
 import {
   ArrowDownWideNarrow,
@@ -37,7 +39,7 @@ const HEADERS: { key: SortKey | null; label: string; className?: string }[] = [
   { key: "stage", label: "Stage" },
   { key: "date", label: "Dates" },
   { key: "progress", label: "Marks" },
-  { key: null, label: "Next step", className: "text-right" },
+  { key: null, label: "Next step", className: "text-end" },
 ];
 
 /**
@@ -77,32 +79,33 @@ export function ExamTableView({
   const allSelected = exams.length > 0 && exams.every((e) => selected.has(e.id));
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 bg-white shadow-sm custom-scrollbar">
-      <table className="w-full min-w-[900px] text-left">
-        <thead>
-          <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-            <th className="w-10 px-4 py-3">
+
+      <Table containerClassName="custom-scrollbar" className="w-full min-w-[900px] text-start">
+        <TableHeader>
+          <TableRow className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
+            <TableHead className="w-10 px-4 py-3">
               <SystemCheckbox
 
                 checked={allSelected}
                 onChange={onToggleAll}
                 aria-label="Select every exam in this list"
-                className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                className=""
               />
-            </th>
+            </TableHead>
             {HEADERS.slice(1).map((h) => (
-              <th
+              <TableHead
                 key={h.label}
+                aria-sort={h.key ? (sort.key === h.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none") : undefined}
                 className={cn(
                   "px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted",
                   h.className,
                 )}
               >
                 {h.key ? (
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => onSort(h.key as SortKey)}
-                    className="inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-[#8127cf]"
+                    className="justify-start inline-flex items-center gap-1"
                   >
                     {h.label}
                     {sort.key === h.key ? (
@@ -114,15 +117,15 @@ export function ExamTableView({
                     ) : (
                       <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
                     )}
-                  </button>
+                  </Button>
                 ) : (
                   h.label
                 )}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {exams.map((exam) => {
             const m = meta[exam.id];
             const sched = schedules[exam.id];
@@ -134,33 +137,33 @@ export function ExamTableView({
               role !== "TEACHER" &&
               (exam.status === "LOCKED" || exam.status === "PRINCIPAL_REVIEWED");
             return (
-              <tr
+              <TableRow
                 key={exam.id}
                 className={cn(
                   "border-b border-[#cfc2d6]/5 transition-colors hover:bg-[#fbf0fe]/25",
                   selected.has(exam.id) && "bg-[#fbf0fe]/40",
                 )}
               >
-                <td className="px-4 py-3">
+                <TableCell className="px-4 py-3">
                   <SystemCheckbox
 
                     checked={selected.has(exam.id)}
                     onChange={() => onToggleSelect(exam.id)}
                     aria-label={`Select ${exam.title}`}
-                    className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                    className=""
                   />
-                </td>
-                <td className="px-4 py-3">
-                  <button
+                </TableCell>
+                <TableCell className="px-4 py-3">
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => onOpen(exam.id)}
-                    className="flex cursor-pointer items-center gap-1.5 text-left text-sm font-black text-[#1d1b20] transition-colors hover:text-[#8127cf]"
+                    className="justify-start flex items-center gap-1.5 text-start"
                   >
                     {flagged.has(exam.id) ? (
                       <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                     ) : null}
                     {exam.title}
-                  </button>
+                  </Button>
                   <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                     {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
                       exam.examType?.replaceAll("_", " ") ||
@@ -168,12 +171,12 @@ export function ExamTableView({
                     {" · "}
                     {exam.term} {exam.academicYear}
                   </p>
-                </td>
-                <td className="px-4 py-3 text-xs font-bold text-ink">{classLabel(exam.class)}</td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3 text-xs font-bold text-ink">{classLabel(exam.class)}</TableCell>
+                <TableCell className="px-4 py-3">
                   <StatusPill status={exam.status} />
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {range ? (
                     <span className="inline-flex items-center gap-1 text-xs font-bold text-teal-700">
                       <CalendarDays className="h-3 w-3" />
@@ -185,8 +188,8 @@ export function ExamTableView({
                   ) : (
                     <span className="text-[11px] font-semibold text-ink-subtle">Not scheduled</span>
                   )}
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {m && m.expectedMarks > 0 ? (
                     <div className="w-28">
                       <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
@@ -210,23 +213,23 @@ export function ExamTableView({
                   ) : (
                     <span className="text-[11px] font-semibold text-ink-subtle">—</span>
                   )}
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">
                     {canReject ? (
-                      <button
+                      <Button variant="outline"
                         type="button"
                         onClick={() => onReject(exam)}
-                        className="flex cursor-pointer items-center gap-1 rounded-xl border border-rose-200 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-colors hover:bg-rose-50"
+                        className="justify-start flex items-center gap-1 px-2.5 py-1.5"
                       >
                         <RotateCcw className="h-3 w-3" /> Send back
-                      </button>
+                      </Button>
                     ) : null}
                     {action ? (
-                      <button
+                      <Button variant="default"
                         type="button"
                         onClick={() => onAdvance(exam, action)}
-                        className="flex cursor-pointer items-center gap-1 rounded-xl bg-[#8127cf] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0]"
+                        className="justify-start flex items-center gap-1 px-3 py-1.5"
                       >
                         {action.type === "lock" ? (
                           <Lock className="h-3 w-3" />
@@ -234,19 +237,19 @@ export function ExamTableView({
                           <CheckCircle2 className="h-3 w-3" />
                         )}
                         {action.label}
-                      </button>
+                      </Button>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
                         <CheckCircle2 className="h-3 w-3" /> Done
                       </span>
                     )}
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+
   );
 }

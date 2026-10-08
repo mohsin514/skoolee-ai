@@ -26,6 +26,8 @@ import {
 } from "recharts";
 import { EmptyChart, InsightCard, SeriesLegend, SingleFigure, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, GRADE_COLOR, GRADE_ORDER, INK, NO_ENTRY_ANIMATION, SERIES, STATUS } from "./palette";
+import { Button } from "@/components/ui/button";
+
 
 interface TeachingInsightsProps {
   /** The exam summaries the dashboard already holds. */
@@ -113,13 +115,13 @@ export function TeachingInsights({
           className="xl:col-span-2"
           delay={80}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("/teacher/marks")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Enter marks
-            </button>
+            </Button>
           }
           table={{
             columns: ["Paper", "Entered", "Missing", "Complete %"],
@@ -180,13 +182,13 @@ export function TeachingInsights({
           subtitle={`${attendance.total} students in your classes`}
           delay={140}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("/teacher/attendance")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Mark
-            </button>
+            </Button>
           }
           table={{
             columns: ["Status", "Students"],
@@ -246,13 +248,13 @@ export function TeachingInsights({
           subtitle="Students in each class you teach"
           delay={80}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("/teacher/classes")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Classes
-            </button>
+            </Button>
           }
           table={{ columns: ["Class", "Students"], rows: derived.rolls.map((r) => [r.name, r.students]) }}
         >

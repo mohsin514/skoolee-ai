@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+
 
 /**
  * The shell the operations consoles sit in.
@@ -242,10 +244,10 @@ export function ConsoleQuickLink({
 }) {
   const t = toneOf(tone);
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={onClick}
-      className="group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 text-left shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]"
+      className="sk-panel block group relative overflow-hidden p-4 text-left"
     >
       <span
         aria-hidden
@@ -263,6 +265,6 @@ export function ConsoleQuickLink({
         {label}
       </p>
       <p className="mt-1 text-[11px] font-semibold leading-snug text-ink-muted">{description}</p>
-    </button>
+    </Button>
   );
 }

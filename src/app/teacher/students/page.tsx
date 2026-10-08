@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -181,22 +182,17 @@ export default function TeacherStudentsPage() {
             ["LEAVE", "Leave", todayCounts.LEAVE, "border-amber-200 bg-amber-50 text-amber-700"],
             ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "border-[#8127cf]/20 bg-[#fbf0fe] text-[#8127cf]"],
           ] as [string, string, number, string][]).map(([key, label, count, tone]) => (
-            <button
+            <Button className="justify-start" variant="choice"
               key={key || "all"}
               type="button"
               onClick={() => setTodayFilter(key)}
               aria-pressed={todayFilter === key}
               title={`Show ${label.toLowerCase()}`}
-              className={cn(
-                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                todayFilter === key
-                  ? "border-[#8127cf] bg-[#8127cf] text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.7)]"
-                  : `${tone} hover:brightness-95`,
-              )}
+
             >
               {label}
               <span className="tabular-nums opacity-70">{count}</span>
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -301,11 +297,11 @@ export default function TeacherStudentsPage() {
                   className="sk-panel sk-rise group flex flex-col p-5 text-left transition-all hover:-translate-y-0.5"
                   style={{ animationDelay: `${index * 60}ms` }}
                 >
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => setSelectedStudent(student)}
                     title={`Open ${student.fullName}'s profile`}
-                    className="cursor-pointer text-left rounded-2xl"
+                    className="block justify-start p-0 text-start"
                   >
                     <div className="mb-4 flex items-start gap-4">
                       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
@@ -358,7 +354,7 @@ export default function TeacherStudentsPage() {
                         ) : null}
                       </div>
                     ) : null}
-                  </button>
+                  </Button>
 
                   {/* Everything a teacher actually does next, without leaving. */}
                   <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-[#cfc2d6]/15 pt-3">
@@ -394,7 +390,7 @@ export default function TeacherStudentsPage() {
                         Chat
                       </span>
                     )}
-                    <button
+                    <Button size="sm" variant="secondary"
                       type="button"
                       onClick={() =>
                         router.push(
@@ -402,22 +398,22 @@ export default function TeacherStudentsPage() {
                         )
                       }
                       title={`Open ${student.fullName}'s report card`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
+                      className="min-w-0 flex-col px-1 text-xs justify-start"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Report
-                    </button>
-                    <button
+                    </Button>
+                    <Button size="sm" variant="secondary"
                       type="button"
                       onClick={() =>
                         router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
                       }
                       title={`Mark attendance for ${classLabel(student.class)}`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
+                      className="min-w-0 flex-col px-1 text-xs justify-start"
                     >
                       <CalendarCheck className="h-3.5 w-3.5" />
                       Attend
-                    </button>
+                    </Button>
                   </div>
                 </div>
               );
@@ -435,10 +431,10 @@ export default function TeacherStudentsPage() {
             {/* Telling someone to adjust a filter without giving them a way to
                 clear it leaves them to hunt for the two controls themselves. */}
             {search || classFilter || todayFilter ? (
-              <button type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}
-                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97]">
+              <Button variant="secondary" type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}
+                className="mt-5 items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear filters
-              </button>
+              </Button>
             ) : null}
           </div>
         )}

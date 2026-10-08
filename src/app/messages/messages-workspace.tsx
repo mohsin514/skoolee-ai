@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -57,14 +58,14 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
         <span className="flex-1" />
 
         {viewer?.canManageSettings && (
-          <button
+          <Button variant="secondary"
             type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="relative flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-ink-muted transition-all hover:-translate-y-0.5 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="relative shrink-0 items-center gap-1.5 justify-start"
           >
             <Settings className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Messaging policy</span>
-          </button>
+          </Button>
         )}
       </header>
 

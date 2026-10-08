@@ -1,5 +1,6 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -375,14 +376,14 @@ export function CreateClassWizard({
                 </p>
               </div>
             </div>
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] cursor-pointer"
+              className="p-2"
             >
               <X className="h-5 w-5" />
-            </button>
+            </SystemButton>
           </div>
 
           <div className="mt-4 flex items-center gap-2">
@@ -391,13 +392,13 @@ export function CreateClassWizard({
               const isActive = i === step;
               const isDone = i < step;
               return (
-                <button
+                <SystemButton variant="ghost"
                   key={s.label}
                   type="button"
                   disabled={busy}
                   onClick={() => jumpTo(i)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                    "flex items-center gap-1.5 px-3 py-1.5 justify-start",
                     isActive
                       ? "bg-[#8127cf] text-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
                       : isDone
@@ -407,7 +408,7 @@ export function CreateClassWizard({
                 >
                   <Icon className="h-3 w-3" />
                   <span className="hidden sm:inline">{s.label}</span>
-                </button>
+                </SystemButton>
               );
             })}
           </div>
@@ -431,7 +432,7 @@ export function CreateClassWizard({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grade 8"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                    className="h-14 w-full px-4 transition-all"
                   />
                 </label>
               </div>
@@ -443,7 +444,7 @@ export function CreateClassWizard({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                    className="h-14 w-full px-4 transition-all"
                   />
                 </label>
               </div>
@@ -461,12 +462,12 @@ export function CreateClassWizard({
                   ]).map((option) => {
                     const active = teachingMode === option.mode;
                     return (
-                      <button
+                      <SystemButton variant="ghost"
                         key={option.mode}
                         type="button"
                         onClick={() => setTeachingMode(option.mode)}
                         className={cn(
-                          "rounded-2xl border-2 p-4 text-left transition-all cursor-pointer",
+                          "p-4 text-left",
                           active
                             ? "border-[#8127cf] bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
                             : "border-transparent bg-white/60 hover:border-[#8127cf]/25 hover:bg-white"
@@ -477,7 +478,7 @@ export function CreateClassWizard({
                           {active ? <Check className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
                         </div>
                         <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">{option.copy}</p>
-                      </button>
+                      </SystemButton>
                     );
                   })}
                 </div>
@@ -501,12 +502,12 @@ export function CreateClassWizard({
                   ]).map((option) => {
                     const active = hasSections === option.has;
                     return (
-                      <button
+                      <SystemButton variant="ghost"
                         key={String(option.has)}
                         type="button"
                         onClick={() => setHasSections(option.has)}
                         className={cn(
-                          "rounded-2xl border-2 p-4 text-left transition-all cursor-pointer",
+                          "p-4 text-left",
                           active
                             ? "border-[#8127cf] bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
                             : "border-transparent bg-white/60 hover:border-[#8127cf]/25 hover:bg-white"
@@ -517,7 +518,7 @@ export function CreateClassWizard({
                           {active ? <Check className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
                         </div>
                         <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">{option.copy}</p>
-                      </button>
+                      </SystemButton>
                     );
                   })}
                 </div>
@@ -569,7 +570,7 @@ export function CreateClassWizard({
                     onChange={(e) => setSectionsInput(e.target.value)}
                     onBlur={syncSectionsFromInput}
                     placeholder="A, B, C"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                    className="h-14 w-full px-4 transition-all"
                   />
                 </label>
                 <p className="mt-2 pl-2 text-[10px] font-bold text-ink-muted">
@@ -637,7 +638,7 @@ export function CreateClassWizard({
                       <SystemSelect
                         value={copyFromClassId}
                         onChange={(e) => applyCopySubjects(e.target.value)}
-                        className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-[10px] font-black text-[#8127cf] outline-none"
+                        className="h-10 cursor-pointer px-3"
                       >
                         <option value="">Copy subjects from…</option>
                         {copyableClasses.map((cls) => (
@@ -647,14 +648,14 @@ export function CreateClassWizard({
                         ))}
                       </SystemSelect>
                     ) : null}
-                    <button
+                    <SystemButton variant="default"
                       type="button"
                       onClick={() => setSubjects((current) => [...current, emptySubject()])}
-                      className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#8127cf] px-3 text-[10px] font-black text-white transition-all hover:bg-[#9c48ea] active:scale-95"
+                      className="flex items-center gap-1.5 px-3 justify-start"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Add Subject
-                    </button>
+                    </SystemButton>
                   </div>
                 </div>
               </div>
@@ -672,13 +673,13 @@ export function CreateClassWizard({
                             </p>
                           ) : null}
                         </div>
-                        <button
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() => setSubjects((current) => current.filter((s) => s.key !== subject.key))}
-                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
+                          className="flex items-center justify-center"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        </SystemButton>
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
                         <label className="block">
@@ -688,7 +689,7 @@ export function CreateClassWizard({
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
                             placeholder="e.g. Mathematics"
-                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+                            className="h-12 w-full px-4 transition-all"
                           />
                         </label>
                         <label className="block">
@@ -697,7 +698,7 @@ export function CreateClassWizard({
                             type="number"
                             value={subject.totalMarks}
                             onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
-                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white"
+                            className="h-12 w-full px-4 transition-all"
                           />
                         </label>
                       </div>
@@ -716,16 +717,16 @@ export function CreateClassWizard({
                           />
                           {hasSections && sectionNames.length > 1 ? (
                             <div>
-                              <button
+                              <SystemButton variant="ghost"
                                 type="button"
                                 onClick={() =>
                                   setExpandedSubjects((prev) => ({ ...prev, [subject.key]: !prev[subject.key] }))
                                 }
-                                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black text-[#8127cf] transition-colors hover:bg-[#fbf0fe] cursor-pointer"
+                                className="flex items-center gap-1.5 px-2 py-1 justify-start"
                               >
                                 {expandedSubjects[subject.key] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                 {expandedSubjects[subject.key] ? "Hide per-section teachers" : "Assign a different teacher per section"}
-                              </button>
+                              </SystemButton>
                               {expandedSubjects[subject.key] ? (
                                 <div className="mt-3 space-y-3 border-l-2 border-[#cfc2d6]/25 pl-3">
                                   {sectionNames.map((sec) => {
@@ -787,7 +788,7 @@ export function CreateClassWizard({
                         onChange={(e) => updateSubject(subject.key, { topicsText: e.target.value })}
                         rows={3}
                         placeholder={"One topic per line, e.g.\nReal numbers\nLinear equations\nPerimeter & area"}
-                        className="w-full resize-none rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+                        className="w-full resize-none p-4 transition-all"
                       />
                     </div>
                   ))}
@@ -815,7 +816,7 @@ export function CreateClassWizard({
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-white border border-[#cfc2d6]/25 p-4">
+                  <div className="sk-panel p-4">
                     <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">Sections</p>
                     <p className="mt-1 text-xl font-black text-[#1f1a23]">{hasSections ? sectionCount : "—"}</p>
                     <p className="mt-1 text-[9px] font-bold text-ink-muted">
@@ -824,11 +825,11 @@ export function CreateClassWizard({
                         : "No sections — single class"}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white border border-[#cfc2d6]/25 p-4">
+                  <div className="sk-panel p-4">
                     <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">{hasSections ? "Subjects per section" : "Subjects"}</p>
                     <p className="mt-1 text-xl font-black text-[#1f1a23]">{subjects.length}</p>
                   </div>
-                  <div className="rounded-2xl bg-white border border-[#cfc2d6]/25 p-4">
+                  <div className="sk-panel p-4">
                     <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">Syllabus topics</p>
                     <p className="mt-1 text-xl font-black text-[#1f1a23]">
                       {subjects.reduce((sum, s) => sum + parseTopics(s.topicsText).length, 0)}
@@ -903,10 +904,10 @@ export function CreateClassWizard({
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={step === 0 ? onClose : goBack}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                className="flex h-12 items-center gap-2 px-4 justify-start"
               >
                 {step === 0 ? "Cancel" : (
                   <>
@@ -914,25 +915,25 @@ export function CreateClassWizard({
                     Back
                   </>
                 )}
-              </button>
+              </SystemButton>
               {step < WIZARD_STEPS.length - 1 ? (
-                <button
+                <SystemButton variant="default"
                   type="button"
                   onClick={goNext}
-                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] transition-all hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98]"
+                  className="flex h-12 items-center gap-2 px-6 justify-start"
                 >
                   Next
                   <ArrowRight className="h-4 w-4" />
-                </button>
+                </SystemButton>
               ) : (
-                <button
+                <SystemButton variant="default"
                   type="button"
                   onClick={handleCreate}
-                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] transition-all hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98]"
+                  className="flex h-12 items-center gap-2 px-6 justify-start"
                 >
                   <Copy className="h-4 w-4" />
                   Create Everything
-                </button>
+                </SystemButton>
               )}
             </div>
           )}

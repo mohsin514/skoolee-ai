@@ -299,7 +299,7 @@ export default function StudentDashboard() {
                           : "border-[#cfc2d6]/12 bg-white"
                       }`}
                     >
-                      <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-white border border-[#cfc2d6]/20">
+                      <div className="sk-panel flex h-11 w-11 shrink-0 flex-col items-center justify-center">
                         <span className="text-[7px] font-black uppercase text-[#8127cf]/60">Period</span>
                         <span className="text-sm font-black leading-none text-[#1f1a23]">{s.periodNumber}</span>
                       </div>

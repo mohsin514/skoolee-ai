@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "./BrandButton";
+import { Button } from "@/components/ui/button";
+
 
 export interface AIFeatureOption {
   feature: string;
@@ -138,7 +140,7 @@ export function AiActionPanel({
               runAI();
             }
           }}
-          className="rounded-2xl border-[#cfc2d6]/30 bg-white/80"
+
         />
 
         <BrandButton className="w-full h-12" onClick={runAI} disabled={busy}
@@ -155,25 +157,25 @@ export function AiActionPanel({
                 <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
               </div>
               <div className="flex items-center gap-1">
-                <button
+                <Button variant="secondary" size="sm"
                   type="button"
                   onClick={copyOutput}
                   title="Copy this draft to the clipboard"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100"
+                  className="inline-flex justify-start items-center gap-1"
                 >
                   {copied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   {copied ? "Copied" : "Copy"}
-                </button>
-                <button
+                </Button>
+                <Button variant="secondary" size="sm"
                   type="button"
                   onClick={runAI}
                   disabled={busy}
                   title="Draft this again with the same context"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40"
+                  className="inline-flex justify-start items-center gap-1"
                 >
                   <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
                   Redo
-                </button>
+                </Button>
               </div>
             </div>
             {/* A long lesson plan scrolls inside this box; without the cue the
@@ -231,7 +233,7 @@ export function AIReviewQueue({
   return (
     <div className="space-y-3">
       {visibleItems.slice(0, 5).map((item, index) => (
-        <div key={item.id} className="sk-rise rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.08),0_10px_28px_-12px_rgba(129,39,207,0.16)]" style={{ animationDelay: `${index * 60}ms` }}>
+        <div key={item.id} className="sk-panel sk-rise p-4" style={{ animationDelay: `${index * 60}ms` }}>
           <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-wider mb-1">
             {item.feature.replaceAll("_", " ")}
           </p>

@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 interface ChatSettingsDialogProps {
   open: boolean;
@@ -133,13 +135,13 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                   ? "Saved"
                   : "Changes save as you make them"}
           </p>
-          <button
+          <Button variant="default" size="sm"
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[11px] font-black text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+
           >
             Done
-          </button>
+          </Button>
         </div>
       }
     >
@@ -170,25 +172,22 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                         </p>
                       </div>
 
-                      <button
+                      <Button variant="choice" size="icon"
                         id={`chat-setting-${toggle.key}`}
                         type="button"
                         role="switch"
                         aria-checked={value}
                         onClick={() => save({ ...settings, [toggle.key]: !value })}
-                        className={cn(
-                          "mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors",
-                          value ? "bg-[#8127cf]" : "bg-[#cfc2d6]/60"
-                        )}
+                        className="mt-0.5 shrink-0"
                       >
                         <span
                           className={cn(
-                            "block h-5 w-5 rounded-full bg-white shadow transition-transform",
-                            value && "translate-x-5"
+                            "block h-5 w-5 rounded-full bg-current transition-opacity",
+                            value ? "opacity-100" : "opacity-25"
                           )}
                           aria-hidden
                         />
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
@@ -237,7 +236,7 @@ function TimeField({
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-xs font-bold text-ink"
+        className="mt-1 w-full px-3 py-2"
       />
     </div>
   );

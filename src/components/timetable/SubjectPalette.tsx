@@ -20,7 +20,7 @@ export function SubjectPalette({
   const coverage = totalClassSlots > 0 ? Math.min(100, Math.round((placedTotal / totalClassSlots) * 100)) : 0;
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm">
+    <div className="sk-panel flex h-full flex-col p-4">
       <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Subject Palette</p>
       <h3 className="text-sm font-black text-[#1f1a23] mt-1">Plan the week</h3>
 

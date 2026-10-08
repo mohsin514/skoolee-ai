@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+
 
 const WEEKDAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -160,7 +162,7 @@ export function ExamDateSheet({
             <SystemSelect
               value={classFilter}
               onChange={(e) => { setClassFilter(e.target.value); setSelectedExamId(""); }}
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+              className="px-3"
             >
               <option value="">All classes</option>
               {classOptions.map((c) => (
@@ -171,7 +173,7 @@ export function ExamDateSheet({
           <SystemSelect
             value={selectedExamId}
             onChange={(e) => setSelectedExamId(e.target.value)}
-            className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none"
+            className="px-3"
           >
             <option value="">— Select exam cycle —</option>
             {visibleExams.map((e) => (
@@ -182,14 +184,14 @@ export function ExamDateSheet({
             ))}
           </SystemSelect>
           {hasSheets && (
-            <button
+            <Button variant="dark" size="sm"
               type="button"
               onClick={() => window.print()}
-              className="flex h-10 items-center gap-2 rounded-xl bg-[#1f1a23] px-4 text-xs font-black uppercase tracking-wider text-white transition-all duration-200 hover:bg-[#2d2833] active:scale-95 cursor-pointer"
+              className="flex justify-start items-center gap-2"
             >
               <Printer className="h-4 w-4" />
               Print
-            </button>
+            </Button>
           )}
         </div>
       </div>

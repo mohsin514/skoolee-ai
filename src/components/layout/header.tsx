@@ -210,7 +210,7 @@ export function Header({ title, description, actions }: HeaderProps) {
               type="button"
               variant="outline"
               size="icon"
-              className="relative shrink-0 rounded-xl bg-white/80 hover:-translate-y-0.5 h-10 w-10"
+              className="relative shrink-0 hover:-translate-y-0.5"
               title="Notifications"
               onClick={() => {
                 setNotifOpen((open) => !open);
@@ -275,13 +275,13 @@ export function Header({ title, description, actions }: HeaderProps) {
                 </div>
                 {unreadCount > 0 && (
                   <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                    <button
+                    <Button variant="secondary" size="sm"
                       type="button"
                       onClick={markAllAsRead}
-                      className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
+                      className="w-full"
                     >
                       Mark all as read
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -291,14 +291,14 @@ export function Header({ title, description, actions }: HeaderProps) {
           {actions && <div className="order-last w-full min-w-0 [&>div]:flex-wrap sm:order-none sm:w-auto">{actions}</div>}
 
           <div ref={menuRef} className="relative z-[80]">
-            <button
+            <Button variant="ghost"
               type="button"
               onClick={() => {
                 setMenuOpen((open) => !open);
                 setNotifOpen(false);
               }}
               className={cn(
-                "flex h-10 items-center gap-2 rounded-xl border border-[#cfc2d6]/25 bg-white/85 px-2 pr-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:bg-white hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer",
+                "flex justify-start items-center gap-2 text-left hover:-translate-y-0.5",
                 menuOpen && "border-[#8127cf]/35 bg-white shadow-lg ring-2 ring-[#8127cf]/15"
               )}
               aria-haspopup="menu"
@@ -318,7 +318,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                   menuOpen && "rotate-180 text-[#8127cf]"
                 )}
               />
-            </button>
+            </Button>
 
             {menuOpen && (
               <div
@@ -362,15 +362,15 @@ export function Header({ title, description, actions }: HeaderProps) {
                     label="Billing"
                     onClick={() => setMenuOpen(false)}
                   />
-                  <button
+                  <Button variant="destructive" size="sm"
                     type="button"
                     onClick={signOut}
-                    className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                    className="mt-0.5 flex justify-start w-full items-center gap-3"
                     role="menuitem"
                   >
                     <LogOut className="h-4 w-4" />
                     Sign out
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

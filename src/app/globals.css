@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Shared action skins serve native buttons and semantic navigation links. */
+@custom-variant actionable-hover {
+  @media (hover: hover) {
+    &:where(:enabled, a[href]):not([aria-disabled="true"]):hover { @slot; }
+  }
+}
+@custom-variant actionable-active (&:where(:enabled, a[href]):not([aria-disabled="true"]):active);
+
 /* ─── shadcn/ui Design Tokens ───────────────────────────── */
 
 :root {
@@ -140,8 +148,10 @@
 
 /* ─── Base Styles ────────────────────────────────────────── */
 
-* {
-  border-color: hsl(var(--border));
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
 }
 
 body {
@@ -253,15 +263,15 @@ button:disabled,
 }
 
 .animate-modal-enter {
-  animation: modal-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: modal-enter var(--duration-dialog-enter) var(--ease-enter) both;
 }
 
 .animate-backdrop-enter {
-  animation: backdrop-enter 200ms ease-out both;
+  animation: backdrop-enter var(--duration-control) ease-out both;
 }
 
 .animate-dropdown-enter {
-  animation: dropdown-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dropdown-enter var(--duration-control) var(--ease-enter) both;
 }
 
 /* ─── Dialog motion ──────────────────────────────────────────
@@ -295,25 +305,23 @@ button:disabled,
 }
 
 .animate-modal-exit {
-  animation: modal-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: modal-exit var(--duration-dialog-exit) var(--ease-exit) both;
 }
 
 .animate-backdrop-exit {
-  animation: backdrop-exit 180ms ease-in both;
+  animation: backdrop-exit var(--duration-dialog-exit) ease-in both;
 }
 
 .animate-sheet-enter {
-  animation: sheet-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: sheet-enter var(--duration-sheet-enter) var(--ease-enter) both;
 }
 
 .animate-sheet-exit {
-  animation: sheet-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: sheet-exit var(--duration-dialog-exit) var(--ease-exit) both;
 }
 
-/* Vestibular triggers are the reason this exists: a sheet flying up the screen
-   is exactly the large-area movement that provokes them. Collapse the motion
-   to a cross-fade rather than removing feedback entirely, so the dialog still
-   reads as arriving and leaving. */
+/* Remove spatial motion. The global reduced-motion rule below makes these
+   fades immediate; dialog exit lifecycle remains the existing 180ms. */
 @media (prefers-reduced-motion: reduce) {
   .animate-modal-enter,
   .animate-modal-exit,
@@ -322,7 +330,6 @@ button:disabled,
   .animate-dropdown-enter,
   .animate-drawer-enter {
     animation-name: fade-in;
-    animation-duration: 120ms;
   }
 
   .animate-modal-exit,
@@ -375,6 +382,7 @@ button:disabled,
 .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
 .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
 .sk-parallax { transition: transform 0.35s ease-out; will-change: transform; }
+.sk-shell { transition: grid-template-columns 0.5s cubic-bezier(0.2, 0.7, 0.3, 1), max-width 0.5s cubic-bezier(0.2, 0.7, 0.3, 1); }
 .sk-rise { animation: skRise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .sk-shake { animation: skShake 0.34s ease-in-out; }
 .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
@@ -475,7 +483,7 @@ button:disabled,
   /* A sparkle frozen mid-cycle would sit as a static dot in the corner of
      every card; the decoration is purely motion, so it goes entirely. */
   .sk-sparkle { display: none !important; }
-  .sk-parallax { transition: none !important; }
+  .sk-parallax, .sk-shell { transition: none !important; }
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
@@ -545,50 +553,8 @@ button:disabled,
   background: hsl(var(--background));
 }
 
-.skoolee-dashboard-main table {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.skoolee-dashboard-main thead tr {
-  background: rgb(243 244 249 / 0.7);
-}
-
-.skoolee-dashboard-main th {
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.skoolee-dashboard-main tbody tr {
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.skoolee-dashboard-main tbody tr:hover {
-  background: rgb(251 240 254 / 0.48);
-}
-
-.skoolee-dashboard-main .rounded-md {
-  border-radius: 0.75rem;
-}
-
-.skoolee-dashboard-main .rounded-lg {
-  border-radius: 1rem;
-}
-
-.skoolee-dashboard-main .rounded-xl {
-  border-radius: 1.35rem;
-}
-
-.skoolee-dashboard-main .border-border,
-.skoolee-dashboard-main .border-sidebar-border {
-  border-color: rgb(207 194 214 / 0.2);
-}
-
-.skoolee-dashboard-main .bg-muted\/30,
-.skoolee-dashboard-main .bg-muted\/50 {
-  background-color: rgb(243 244 249 / 0.62);
-}
+/* Legacy routes consume the same table, surface and radius recipes as role routes.
+   Do not override utility classes under the dashboard shell. */
 
 /* ─── Skoolee Premium Toasts ───────────────────────────── */
 
@@ -597,15 +563,20 @@ button:disabled,
   --normal-border: rgba(207, 194, 214, 0.4);
   --normal-text: #1f1a23;
 
-  box-shadow: 0 28px 70px -18px rgba(31, 26, 35, 0.28) !important;
-  border: 1px solid var(--normal-border) !important;
+  font-family: var(--font-plus-jakarta-sans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: var(--shadow-toast) !important;
+  /* Sonner's more specific rich-color rules own status borders and fills. */
+  border: 1px solid var(--normal-border);
   backdrop-filter: blur(14px) !important;
   padding: 18px 20px !important;
-  border-radius: 28px !important;
+  border-radius: var(--radius-panel) !important;
 }
 
 .skoolee-toast [data-icon] {
-  margin-right: 12px;
+  /* Sonner already supplies direction-aware icon spacing. */
   transform: scale(1.1);
 }
 
@@ -634,7 +605,7 @@ button:disabled,
   font-weight: 900 !important;
 }
 
-[data-sonner-toaster][data-theme='light'] {
+[data-sonner-toaster][data-sonner-theme='light'] .skoolee-toast {
   --success-bg: #ecfdf5;
   --success-border: #10b981;
   --success-text: #065f46;
@@ -646,6 +617,31 @@ button:disabled,
 
 /* F61 shared interaction tokens. Use words with every status color. */
 :root {
+  /* Semantic geometry and elevation retain the existing component values. */
+  --control-min: 44px;
+  --field-min: 48px;
+  --control-large: 56px;
+  --radius-selection: 7px;
+  --radius-control-small: 12px;
+  --radius-control: 16px;
+  --radius-toolbar: 20px;
+  --radius-table: 24px;
+  --radius-panel: 28px;
+  --radius-dialog: 32px;
+  --radius-pill: 9999px;
+  --radius-workspace-mobile: 24px;
+  --radius-workspace: 32px;
+  --shadow-panel: 0 2px 4px rgb(40 23 60 / .02), 0 12px 32px -20px rgb(80 42 118 / .24);
+  --shadow-toast: 0 28px 70px -18px rgb(31 26 35 / .28);
+  --shadow-workspace: 0 2px 4px rgb(40 23 60 / .02), 0 20px 60px -30px rgb(80 42 118 / .25), inset 0 1px 0 white;
+  --duration-fast: 150ms;
+  --duration-control: 200ms;
+  --duration-dialog-enter: 280ms;
+  --duration-sheet-enter: 320ms;
+  --duration-dialog-exit: 180ms;
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);
+  --ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
   --space-task: 1.5rem;
   --space-control: 0.75rem;
   --text-body: 0.875rem;
@@ -749,7 +745,7 @@ button:disabled,
     padding-inline-end: 0.875rem;
     gap: 1rem;
   }
-  .sk-select::picker-icon { content: ""; width: 0.45rem; height: 0.45rem; border-inline-end: 2px solid currentColor; border-bottom: 2px solid currentColor; color: hsl(var(--primary)); rotate: 45deg; margin-inline: auto 0.25rem; transition: rotate 180ms; }
+  .sk-select::picker-icon { content: ""; width: 0.45rem; height: 0.45rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; color: hsl(var(--primary)); rotate: 45deg; margin-inline: auto 0.25rem; transition: rotate 180ms; }
   .sk-select:open::picker-icon { rotate: 225deg; }
   .sk-select::picker(select) {
     margin-block: 0.5rem;
@@ -819,16 +815,16 @@ button:disabled,
   /* Shared surfaces for domain cards as well as the reference compositions. */
   .sk-panel {
     border: 1px solid var(--border-subtle);
-    border-radius: 1.75rem;
+    border-radius: var(--radius-panel);
     background: #fff;
     color: var(--color-foreground);
-    box-shadow: 0 2px 4px rgb(40 23 60 / 2%), 0 12px 32px -20px rgb(80 42 118 / 24%);
+    box-shadow: var(--shadow-panel);
     transition: border-color 180ms, box-shadow 180ms;
   }
   .sk-panel:hover { border-color: var(--border-subtle-hover); }
   .sk-toolbar {
     border: 1px solid var(--border-subtle);
-    border-radius: 1.25rem;
+    border-radius: var(--radius-toolbar);
     background: var(--surface-subtle);
     padding: 0.75rem;
     gap: 0.75rem;
@@ -844,7 +840,7 @@ button:disabled,
   .sk-data-table { width: 100%; text-align: start; font-size: 0.875rem; }
   .sk-data-table thead { background: var(--surface-subtle); }
   .sk-data-table th { text-align: inherit; color: var(--color-ink-muted); font-size: 0.75rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
-  .sk-data-table tbody tr { border-bottom: 1px solid var(--border-subtle); transition: background-color 150ms; }
+  .sk-data-table tbody tr { border-bottom: 1px solid var(--border-subtle); transition: background-color var(--duration-fast); }
   .sk-data-table tbody tr:hover, .sk-data-table tbody tr:focus-within { background: var(--surface-hover); }
   .sk-data-table tbody tr[data-state="selected"] { background: var(--surface-selected); }
 }
@@ -896,9 +892,8 @@ button:disabled,
    Standalone fields own their ring; inside .sk-input-group only the group
    paints one, and grouped children never paint border, halo or outline. */
 
-/* Rest, hover, disabled and invalid borders. The base `* { border-color }`
-   rule is unlayered, so border-colour utilities cannot reach fields; these
-   stay at single-class specificity so every focus rule below still wins. */
+/* Rest, hover, disabled and invalid borders intentionally override caller
+   utilities. Keep state ownership here so every focus rule below still wins. */
 :where(.sk-field):not(.sk-input-group *) { border-color: var(--field-border); }
 :where(.sk-field:enabled:hover):not(.sk-input-group *) { border-color: var(--field-border-hover); }
 :where(.sk-field:disabled):not(.sk-input-group *) { border-color: hsl(var(--border)); }
@@ -980,4 +975,17 @@ button:disabled,
   body:has(#locale-print-sample) #locale-print-sample,
   body:has(#locale-print-sample) #locale-print-sample * { visibility: visible; }
   #locale-print-sample { position: absolute; inset: 0; width: 100%; padding: 20mm; border: 0; background: white; font-family: Arial, sans-serif; }
+}
+
+/* Role navigation remains fixed below md; Sonner's own mobile breakpoint is
+   600px, so retain clearance through the entire 601–767px tablet interval. */
+@media (max-width: 767px) {
+  [data-sonner-toaster][data-y-position="bottom"][data-x-position="center"] {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Existing mobile navigation uses py-1; preserve it while reserving the inset. */
+@utility safe-area-pb {
+  padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
 }

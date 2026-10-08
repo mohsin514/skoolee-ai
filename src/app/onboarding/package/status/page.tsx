@@ -1,5 +1,6 @@
 "use client";
 
+import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -92,7 +93,7 @@ function CheckoutStatus() {
   const isRtl = language === "ar" || language === "ur";
   return (
     <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] px-4 py-8 text-[#1f1a23] sm:px-8 sm:py-12">
-      <section aria-labelledby="payment-status-title" className="mx-auto max-w-xl rounded-3xl border border-[#e6dce9] bg-white p-6 shadow-sm sm:p-10">
+      <section aria-labelledby="payment-status-title" className="sk-panel mx-auto max-w-xl p-6 sm:p-10">
         <h1 id="payment-status-title" className="text-2xl font-black sm:text-3xl">{copy.statusTitle}</h1>
         {error && <p role="alert" className="mt-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>}
         {!intent && !error && <p aria-live="polite" className="mt-5 flex items-center gap-2 text-sm text-[#615668]"><Loader2 className="h-4 w-4 animate-spin" />{copy.loadingOrder}</p>}
@@ -119,12 +120,12 @@ function CheckoutStatus() {
               <div><dt className="text-[#615668]">{copy.accountNumber}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.accountNumber}</bdi></dd></div>
               {bank.iban && <div><dt className="text-[#615668]">{copy.iban}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.iban}</bdi></dd></div>}
             </dl>}
-            {intent.checkoutUrl && isPending && <a href={intent.checkoutUrl} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#8127cf] px-4 text-sm font-bold text-white hover:bg-[#681daf] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">{copy.continueCheckout}</a>}
-            {canRetry && <button type="button" onClick={retry} disabled={busy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-4 text-sm font-bold text-white hover:bg-[#681daf] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">
+            {intent.checkoutUrl && isPending && <a href={intent.checkoutUrl} className={buttonVariants({ variant: "default", className: "w-full" })}>{copy.continueCheckout}</a>}
+            {canRetry && <Button variant="default" type="button" onClick={retry} disabled={busy} className="w-full items-center justify-center gap-2">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} {copy.retryCheckout}
-            </button>}
-            {isPending && <button type="button" onClick={() => void load()} className="min-h-11 rounded-xl border border-[#cfc2d6] px-4 text-sm font-semibold hover:bg-[#fbf7fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8127cf]">{copy.refreshStatus}</button>}
-            <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}`} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[#cfc2d6] px-4 text-sm font-bold text-[#5c5063] hover:bg-[#fbf7fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8127cf]">
+            </Button>}
+            {isPending && <Button variant="outline" type="button" onClick={() => void load()} >{copy.refreshStatus}</Button>}
+            <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
               {copy.resumeSetup}
             </Link>
           </div>

@@ -1,22 +1,21 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { localeTag } from "@/lib/locale/package";
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Plus,
-  X,
   BookOpen,
   PartyPopper,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Modal } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -335,46 +334,44 @@ export function AcademicCalendar({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-white p-1">
+          <div className="sk-panel flex items-center gap-0.5 p-1">
             {(["month", "agenda"] as const).map((v) => (
-              <button
+              <Button variant="choice"
                 key={v}
                 type="button"
                 onClick={() => setCalendarView(v)}
                 aria-pressed={calendarView === v}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all",
-                  calendarView === v
-                    ? "bg-[#8127cf] text-white"
-                    : "text-ink-muted hover:text-[#8127cf]",
+                  "px-3 py-1.5",
+                  "",
                 )}
               >
                 {v === "month" ? tr("Month") : tr("What's next")}
-              </button>
+              </Button>
             ))}
           </div>
           {calendarView === "month" ? (
             <>
-              <button onClick={prevMonth} aria-label={tr("Previous month")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <Button variant="outline" size="icon" onClick={prevMonth} aria-label={tr("Previous month")} className="flex items-center justify-center">
                 <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
-                className="cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-              ><UiText>{"Today"}</UiText></button>
-              <button onClick={nextMonth} aria-label={tr("Next month")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                className="px-3 py-2"
+              ><UiText>{"Today"}</UiText></Button>
+              <Button variant="outline" size="icon" onClick={nextMonth} aria-label={tr("Next month")} className="flex items-center justify-center">
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <button onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex items-center justify-center">
                 <ChevronLeft className="h-4 w-4" />
-              </button>
+              </Button>
               <span className="text-[11px] font-black uppercase tracking-wider text-ink-muted">{viewYear}</span>
-              <button onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex items-center justify-center">
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -419,7 +416,10 @@ export function AcademicCalendar({
               const holidayBg = layers.holidays && cell.holidays.length > 0;
               const weekendBg = cell.isWeekend && !(layers.holidays && cell.holidays.length > 0);
               return (
-                <button
+                <Button variant="choice"
+                  aria-current={isToday ? "date" : undefined}
+                  data-selected={isToday}
+                  aria-label={tr("Events on {0}", [new Date(`${cell.iso}T00:00:00Z`).toLocaleDateString(localeTag(locale), { timeZone: "UTC", dateStyle: "full" })])}
                   key={cell.iso}
                   type="button"
                   onClick={(e) => {
@@ -427,13 +427,9 @@ export function AcademicCalendar({
                     setPopover({ iso: cell.iso, x: r.left, y: r.bottom + 6, mode: canEdit ? "add" : "view" });
                   }}
                   className={cn(
-                    "group relative flex h-16 flex-col rounded-xl border p-1.5 text-left transition-all",
-                    holidayBg
-                      ? "border-[#0d9488]/30 bg-[#0d9488]/10"
-                      : weekendBg
-                        ? "border-[#cfc2d6]/10 bg-[#f3f4f9]"
-                        : "border-[#cfc2d6]/10 bg-white hover:border-[#8127cf]/40 hover:bg-[#fbf0fe]/40",
-                    isToday && "ring-2 ring-[#8127cf]/50"
+                    "group relative flex h-16 min-w-0 flex-col items-stretch justify-start p-1.5 text-start",
+                    holidayBg && "bg-teal-50",
+                    weekendBg && "bg-surface-subtle"
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -442,14 +438,8 @@ export function AcademicCalendar({
                     </span>
                     {canEdit && (
                       <span
-                        role="button"
-                        tabIndex={-1}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          setPopover({ iso: cell.iso, x: r.left, y: r.bottom + 6, mode: "add" });
-                        }}
-                        className="flex h-4 w-4 items-center justify-center rounded-full bg-[#8127cf] text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden="true"
+                        className="flex h-4 w-4 items-center justify-center rounded-full bg-[#8127cf] text-white opacity-60"
                       >
                         <Plus className="h-3 w-3" />
                       </span>
@@ -463,15 +453,14 @@ export function AcademicCalendar({
                     )}
                     {layers.holidays && cell.holidays.length > 0 && <Dot color="#0d9488" title={cell.holidays.map((h) => h.name).join(", ")} />}
                   </div>
-                </button>
+                </Button>
               );
             })}
           </div>
         </div>
       )}
 
-      {popover && typeof document !== "undefined" &&
-        createPortal(
+      {popover && (
           <DayPopover
             popover={popover}
             day={dayMap.get(popover.iso)}
@@ -481,8 +470,7 @@ export function AcademicCalendar({
             onScheduleExam={onScheduleExam}
             onHolidayAdded={() => { setPopover(null); load(); }}
             campusId={campusId}
-          />,
-          document.body
+          />
         )}
     </div>
   );
@@ -490,20 +478,20 @@ export function AcademicCalendar({
 
 function LayerChip({ label, color, active, onClick }: { label: string; color: string; active: boolean; onClick: () => void }) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
       // These are filters, not a legend. On/off is conveyed only by a colour
       // shift, so the state has to be exposed for assistive tech too.
       aria-pressed={active}
-      className={cn(
-        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all",
-        active ? "border-[#cfc2d6]/30 bg-white text-[#1d1b20]" : "border-[#cfc2d6]/15 bg-[#faf7fc] text-ink-subtle"
-      )}
+      className={"justify-start " + (cn(
+        "flex items-center gap-1.5 px-3 py-1",
+        ""
+      ))}
     >
       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: active ? color : "#cfc2d6" }} />
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -536,43 +524,7 @@ function DayPopover({
   const [fromDate, setFromDate] = useState(popover.iso);
   const [toDate, setToDate] = useState(popover.iso);
   const [saving, setSaving] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  /* A click anywhere outside dismissed this instantly. That is right for a
-     popover showing a day's events, and wrong the moment the office has typed
-     a holiday name into it, so the dismissal asks first once there is
-     something to lose. */
   const dirty = canEdit && name.trim().length > 0;
-
-  /* The guard used to be a native `window.confirm`, which is unstyled and
-     arrives detached from the popover it is asking about. It now asks with the
-     same ConfirmAction as everywhere else. */
-  const [askDiscard, setAskDiscard] = useState(false);
-
-  const requestClose = useCallback(() => {
-    if (dirty) {
-      setAskDiscard(true);
-      return;
-    }
-    onClose();
-  }, [dirty, onClose]);
-
-  useEffect(() => {
-    // While the discard question is up it owns Escape and the outside click —
-    // the confirm is portaled to <body>, so without this the click that
-    // answered it also counted as a click outside the popover.
-    if (askDiscard) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) requestClose();
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDown);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [requestClose, askDiscard]);
 
   const datesReversed = fromDate > toDate;
   /* Both of these were checked on submit and reported as toasts, so the
@@ -604,8 +556,6 @@ function DayPopover({
 
   const dayLabel = new Date(`${popover.iso}T00:00:00Z`).toLocaleDateString(localeTag(locale), { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
-  const pos = { top: Math.min(popover.y, (typeof window !== "undefined" ? window.innerHeight - 320 : popover.y)), left: Math.min(popover.x, (typeof window !== "undefined" ? window.innerWidth - 300 : popover.x)) };
-
   const events: { kind: string; color: string; text: string }[] = [];
   if (day) {
     if (layers.holidays) day.holidays.forEach((h) => events.push({ kind: "Holiday", color: "#0d9488", text: h.name }));
@@ -615,21 +565,15 @@ function DayPopover({
   }
 
   return (
-    <div
-      ref={ref}
-      style={pos}
-      role="dialog"
-      aria-label={tr("Events on {0}", [dayLabel])}
-      className="fixed z-[200] w-[290px] rounded-2xl border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_24px_70px_rgba(31,26,35,0.28)] animate-modal-enter"
+    <Modal
+      title={tr("Events on {0}", [dayLabel])}
+      icon={CalendarDays}
+      size="sm"
+      onClose={onClose}
+      dirty={dirty}
+      dirtyMessage={tr("The holiday has not been added yet. Closing now throws away what you typed.")}
+      dismissible={!saving}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-black text-[#1d1b20]">{dayLabel}</p>
-        <button type="button" onClick={requestClose} aria-label={tr("Close")} title={tr("Close (Esc)")}
-          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle hover:bg-rose-50 hover:text-rose-500">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
       {events.length === 0 ? (
         <p className="py-2 text-xs font-semibold text-ink-subtle"><UiText>{"No events scheduled."}</UiText></p>
       ) : (
@@ -651,58 +595,49 @@ function DayPopover({
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
-              <SystemInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none" />
+              <SystemInput type="date" aria-label={tr("From")} readOnly={saving} value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full" />
             </label>
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
               {/* The picker itself now refuses a date before the start. */}
-              <SystemInput type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
-                className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300" : "border-[#cfc2d6]/30"}`} />
+              <SystemInput type="date" aria-label={tr("To")} aria-invalid={datesReversed} readOnly={saving} value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
+                className={`w-full ${""} `} />
             </label>
           </div>
           <SystemInput
             value={name}
+            readOnly={saving}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}
             placeholder={tr("Holiday name")}
             aria-label={tr("Holiday name for {0}", [dayLabel])}
-            className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none"
+            className="w-full"
           />
           {blockedReason ? (
             <p className="text-[10px] font-semibold text-amber-700">{blockedReason}</p>
           ) : null}
           <div className="flex gap-2">
-            <button
+            <Button variant="default"
               type="button"
               onClick={addHoliday}
               disabled={saving || Boolean(blockedReason)}
               title={blockedReason || tr("Add a holiday from {0} to {1}", [fromDate, toDate])}
-              className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-[#0d9488] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1 px-3 py-2"
             >
-              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add Holiday"}</UiText></button>
-            <button
+              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add Holiday"}</UiText></Button>
+            <Button variant="default"
               type="button"
+              disabled={saving}
               onClick={() => { onClose(); if (onScheduleExam) onScheduleExam(); else toast.info("Open the Exam Cycles manager to schedule an exam."); }}
               title={tr("Schedule an exam on this date")}
-              className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97]"
+              className="flex flex-1 items-center justify-center gap-1 px-3 py-2"
             >
-              <BookOpen className="h-3.5 w-3.5" /><UiText>{"Schedule Exam"}</UiText></button>
+              <BookOpen className="h-3.5 w-3.5" /><UiText>{"Schedule Exam"}</UiText></Button>
           </div>
         </div>
       )}
 
-      <ConfirmAction
-        open={askDiscard}
-        tone="warning"
-        title={tr("Discard this holiday?")}
-        description={tr("The holiday has not been added yet. Closing now throws away what you typed.")}
-        detail={name.trim() ? <span><UiText>{"\""}</UiText>{name.trim()}<UiText>{"\""}</UiText></span> : undefined}
-        confirmLabel={tr("Discard")}
-        cancelLabel={tr("Keep editing")}
-        onCancel={() => setAskDiscard(false)}
-        onConfirm={() => { setAskDiscard(false); onClose(); }}
-      />
-    </div>
+    </Modal>
   );
 }
 

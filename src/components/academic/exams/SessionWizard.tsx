@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarRange,
@@ -234,17 +235,17 @@ export function SessionWizard({
             {TYPES.map((t) => {
               const active = examType === t.value;
               return (
-                <button
+                <Button variant="choice"
                   key={t.value}
                   type="button"
                   onClick={() => setExamType(t.value)}
                   aria-pressed={active}
-                  className={cn(
-                    "group relative flex cursor-pointer items-start gap-3 overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200",
+                  className={"justify-start " + (cn(
+                    "group relative flex items-start gap-3 overflow-hidden p-3.5 text-left",
                     active
-                      ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.35),0_12px_28px_-16px_rgba(129,39,207,0.5)]"
-                      : "border-[#cfc2d6]/25 bg-white hover:-translate-y-0.5 hover:border-[#8127cf]/35",
-                  )}
+                      ? ""
+                      : "hover:-translate-y-0.5",
+                  ))}
                 >
                   <span
                     className={cn(
@@ -263,7 +264,7 @@ export function SessionWizard({
                   {active ? (
                     <Check className="absolute right-3 top-3 h-4 w-4 text-[#8127cf]" />
                   ) : null}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -321,20 +322,20 @@ export function SessionWizard({
               Which classes sit it
             </p>
             <div className="ml-auto flex gap-1.5">
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set(classes.map((c) => c.id)))}
-                className="cursor-pointer rounded-lg bg-[#f3eeff] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#e9dcfb]"
+                className="px-2.5 py-1"
               >
                 All
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set())}
-                className="cursor-pointer rounded-lg bg-[#f6f2fa] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-[#eee7f4]"
+                className="px-2.5 py-1"
               >
                 None
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -356,25 +357,23 @@ export function SessionWizard({
                 return (
                   <div
                     key={name}
-                    className="rounded-xl border border-[#cfc2d6]/20 bg-white p-2.5"
+                    className="sk-panel p-2.5"
                   >
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button aria-pressed={allOn} variant="choice" size="icon"
                         type="button"
                         onClick={() => toggleGroup(rows)}
                         className={cn(
-                          "flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-all",
+                          "flex shrink-0 items-center justify-center",
                           allOn
-                            ? "border-[#8127cf] bg-[#8127cf] text-white"
-                            : someOn
-                            ? "border-[#8127cf] bg-[#f3eeff]"
-                            : "border-[#cfc2d6]/50 bg-white hover:border-[#8127cf]/50",
+                            ? ""
+                            : "",
                         )}
                         aria-label={`Select all sections of ${name}`}
                       >
                         {allOn ? <Check className="h-3 w-3" /> : null}
                         {someOn ? <span className="h-1.5 w-1.5 rounded-sm bg-[#8127cf]" /> : null}
-                      </button>
+                      </Button>
                       <School className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
                       <span className="text-xs font-black text-[#1f1a23]">{name}</span>
                       <span className="text-[10px] font-bold text-ink-subtle">
@@ -386,26 +385,24 @@ export function SessionWizard({
                         const on = selected.has(row.id);
                         const n = countsOf(row);
                         return (
-                          <button
+                          <Button variant="choice"
                             key={row.id}
                             type="button"
                             onClick={() => toggle(row.id)}
                             aria-pressed={on}
                             title={`${n.students} students · ${n.subjects} subjects`}
-                            className={cn(
-                              "flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-black transition-all",
-                              on
-                                ? "border-[#8127cf]/40 bg-[#f3eeff] text-[#8127cf]"
-                                : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/30",
-                              n.subjects === 0 && "opacity-60",
-                            )}
+                            className={"justify-start " + (cn(
+                              "flex items-center gap-1.5 px-2.5 py-1",
+                              "",
+                              n.subjects === 0 && "",
+                            ))}
                           >
                             {labelOf(row)}
                             <span className="flex items-center gap-0.5 text-[9px] font-bold opacity-70">
                               <Users className="h-2.5 w-2.5" />
                               {n.students}
                             </span>
-                          </button>
+                          </Button>
                         );
                       })}
                     </div>

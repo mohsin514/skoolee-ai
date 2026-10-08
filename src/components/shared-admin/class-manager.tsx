@@ -1,5 +1,6 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import React, {
   useCallback,
   useEffect,
@@ -241,15 +242,16 @@ function SettingsDrawer({
   /* A side drawer rather than a centred dialog, so it keeps its own layout —
      but it had no focus trap, no scroll lock and a hand-picked `z-[150]`. */
   const drawerRef = useRef<HTMLDivElement>(null);
-  const { z } = useDialogBehaviour(drawerRef, { onClose });
+  const requestClose = () => { if (!classUpdateBusy) onClose(); };
+  const { z } = useDialogBehaviour(drawerRef, { onClose: requestClose });
 
   return (
     <div
       className="fixed inset-0 flex justify-end"
       style={{ zIndex: z }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
     >
-      <div className="absolute inset-0 bg-[#1f1a23]/30 backdrop-blur-sm animate-backdrop-enter" onMouseDown={onClose} />
+      <div className="absolute inset-0 bg-[#1f1a23]/30 backdrop-blur-sm animate-backdrop-enter" onMouseDown={requestClose} />
       <div
         ref={drawerRef}
         role="dialog"
@@ -268,13 +270,15 @@ function SettingsDrawer({
               {classLabel(section)}
             </h3>
           </div>
-          <button
+          <SystemButton variant="ghost"
             type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+            onClick={requestClose}
+            disabled={classUpdateBusy}
+            aria-label="Close class settings"
+            className="flex items-center justify-center"
           >
             <X className="h-5 w-5" />
-          </button>
+          </SystemButton>
         </div>
 
         {/* Drawer body */}
@@ -302,18 +306,18 @@ function SettingsDrawer({
               placeholder="2026"
               onChange={setEditYear}
             />
-            <button
+            <SystemButton variant="dark"
               type="button"
               onClick={save}
               disabled={classUpdateBusy}
-              className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#1f1a23] text-sm font-black text-white shadow-xl transition-all hover:bg-black active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-12 w-full items-center justify-center gap-2"
             >
               {classUpdateBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 "Save Changes"
               )}
-            </button>
+            </SystemButton>
           </div>
 
           <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5">
@@ -324,14 +328,14 @@ function SettingsDrawer({
               Archive this class to remove it from current class lists. Its
               students, academic records, fees, and history are preserved.
             </p>
-            <button
+            <SystemButton variant="secondary"
               type="button"
               onClick={() => onDeleteClass(section)}
-              className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-amber-700 text-sm font-black text-white shadow-sm transition-colors hover:bg-amber-800 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800"
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2"
             >
               <Archive className="h-4 w-4" />
               Archive Class
-            </button>
+            </SystemButton>
           </div>
         </div>
       </div>
@@ -435,21 +439,21 @@ function AddSectionPanel({
   return (
     <div
       ref={panelRef}
-      className="mt-3 rounded-2xl border border-[#8127cf]/20 bg-white p-3.5 shadow-sm"
+      className="sk-panel mt-3 p-3.5"
     >
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
           New section
         </span>
-        <button
+        <SystemButton variant="ghost"
           type="button"
           onClick={onDone}
           disabled={busy}
           aria-label="Cancel"
-          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-40"
+          className="flex items-center justify-center"
         >
           <X className="h-3 w-3" />
-        </button>
+        </SystemButton>
       </div>
 
       <SystemInput
@@ -459,7 +463,7 @@ function AddSectionPanel({
         autoFocus
         disabled={busy}
         placeholder="B  ·  or  B-D"
-        className="mt-2 h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3 text-xs font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:bg-white"
+        className="mt-2 h-10 w-full px-3 transition-all"
       />
 
       {names.length > 0 ? (
@@ -493,7 +497,7 @@ function AddSectionPanel({
             value={cloneFromId}
             onChange={(e) => setCloneFromId(e.target.value)}
             disabled={busy}
-            className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none"
+            className="h-9 w-full cursor-pointer px-2.5"
           >
             <option value="">Start empty</option>
             {sections
@@ -515,7 +519,7 @@ function AddSectionPanel({
           value={teacherId}
           onChange={(e) => setTeacherId(e.target.value)}
           disabled={busy}
-          className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none"
+          className="h-9 w-full cursor-pointer px-2.5"
         >
           <option value="">Assign later</option>
           {teachers.map((t: any) => (
@@ -533,15 +537,15 @@ function AddSectionPanel({
         </p>
       ) : null}
 
-      <button
+      <SystemButton variant="default"
         type="button"
         onClick={submit}
         disabled={Boolean(blocked) || busy}
-        className="mt-2.5 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[11px] font-black text-white transition-all hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
         {busy ? "Creating\u2026" : "Add section"}
-      </button>
+      </SystemButton>
     </div>
   );
 }
@@ -718,20 +722,20 @@ function MatrixView({
                             </span>
                           </div>
                         )}
-                        <button
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() =>
                             setOpenPickerKey(isPickerOpen ? null : cellKey)
                           }
                           className={cn(
-                            "rounded-lg px-2.5 py-1 text-[7px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                            "px-2.5 py-1",
                             isPickerOpen
                               ? "bg-[#8127cf] text-white shadow-md shadow-[#8127cf]/20"
                               : "bg-[#8127cf]/8 text-[#8127cf] hover:bg-[#8127cf]/15",
                           )}
                         >
                           {assigned ? "Change" : "Assign"}
-                        </button>
+                        </SystemButton>
                         {isPickerOpen ? (
                           <div className="mt-1 w-full max-w-[200px] rounded-xl border border-[#cfc2d6]/15 bg-white p-2 shadow-lg">
                             <TeacherPicker
@@ -942,7 +946,7 @@ function SectionDetailView({
                 const active = teachingMode === option.mode;
                 const Icon = option.icon;
                 return (
-                  <button
+                  <SystemButton variant="ghost"
                     key={option.mode}
                     type="button"
                     disabled={teachingModeBusy}
@@ -951,7 +955,7 @@ function SectionDetailView({
                         onChangeTeachingMode(section.id, option.mode);
                     }}
                     className={cn(
-                      "rounded-2xl border-2 p-3.5 text-left transition-all duration-300 cursor-pointer disabled:cursor-wait disabled:opacity-60",
+                      "p-3.5 text-left",
                       active
                         ? option.activeClasses
                         : "border-transparent bg-white/70 hover:border-[#cfc2d6]/30 hover:bg-white hover:shadow-sm",
@@ -987,7 +991,7 @@ function SectionDetailView({
                     <p className="mt-1.5 pl-9 text-[9px] font-bold leading-relaxed text-ink-subtle">
                       {option.desc}
                     </p>
-                  </button>
+                  </SystemButton>
                 );
               })}
             </div>
@@ -1014,7 +1018,7 @@ function SectionDetailView({
               return (
                 <div
                   key={subject.id}
-                  className="group/card rounded-2xl border border-[#cfc2d6]/10 border-l-[3px] border-l-[#8127cf]/40 bg-white p-4 transition-all duration-200 hover:border-l-[#8127cf] hover:shadow-md"
+                  className="sk-panel group/card p-4 transition-all duration-200 hover:border-l-[#8127cf] hover:shadow-md"
                 >
                   {isEditing ? (
                     <div className="space-y-3">
@@ -1034,7 +1038,7 @@ function SectionDetailView({
                         />
                       </div>
                       <div className="flex gap-2">
-                        <button
+                        <SystemButton variant="dark"
                           type="button"
                           onClick={() =>
                             saveEditingSubject(subject.id)
@@ -1042,21 +1046,21 @@ function SectionDetailView({
                           disabled={
                             subjectUpdateBusyId === subject.id
                           }
-                          className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#1f1a23] text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-black active:scale-[0.98] disabled:opacity-50"
+                          className="flex flex-1 items-center justify-center gap-2"
                         >
                           {subjectUpdateBusyId === subject.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
                             "Save"
                           )}
-                        </button>
-                        <button
+                        </SystemButton>
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
-                          className="h-10 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                          className="px-4"
                         >
                           Cancel
-                        </button>
+                        </SystemButton>
                       </div>
                     </div>
                   ) : (
@@ -1101,38 +1105,38 @@ function SectionDetailView({
                         </div>
                         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/card:opacity-100">
                           {/* Syllabus chip */}
-                          <button
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() =>
                               setExpandedSyllabusId(
                                 isSyllabusOpen ? null : subject.id,
                               )
                             }
-                            className="flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+                            className="flex items-center gap-1 px-2 justify-start"
                           >
                             <BookOpen className="h-3 w-3" />
                             Syllabus
-                          </button>
-                          <button
+                          </SystemButton>
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() =>
                               startEditingSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                            className="flex items-center justify-center"
                             title="Edit subject"
                           >
                             <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
+                          </SystemButton>
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() =>
                               onDeleteSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
+                            className="flex items-center justify-center"
                             title="Delete subject"
                           >
                             <Trash2 className="h-3 w-3" />
-                          </button>
+                          </SystemButton>
                         </div>
                       </div>
 
@@ -1231,10 +1235,10 @@ function SectionDetailView({
               </div>
             ) : null}
             {allSections.length > 1 ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setApplyToAllSections((v) => !v)}
-                className="mt-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 p-3 text-left transition-all hover:bg-[#fbf0fe]"
+                className="mt-3 flex w-full items-center gap-3 p-3 text-left justify-start"
               >
                 <span
                   className={cn(
@@ -1260,14 +1264,14 @@ function SectionDetailView({
                     skipped.
                   </span>
                 </span>
-              </button>
+              </SystemButton>
             ) : null}
             <div className="mt-3 flex justify-end">
-              <button
+              <SystemButton variant="dark"
                 type="button"
                 onClick={createSubject}
                 disabled={creatingSubject || !subjectName.trim()}
-                className="flex h-11 cursor-pointer items-center gap-2 rounded-2xl bg-[#1f1a23] px-5 text-[10px] font-black uppercase tracking-wider text-white shadow-xl transition-all hover:bg-black active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 items-center gap-2 px-5 justify-start"
               >
                 {creatingSubject ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1277,7 +1281,7 @@ function SectionDetailView({
                     Add Subject
                   </>
                 )}
-              </button>
+              </SystemButton>
             </div>
           </div>
         </div>
@@ -1385,14 +1389,14 @@ function SectionDetailView({
                 ) : null}
               </div>
             ) : null}
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() =>
                 students.length > 0
                   ? setShowAllStudents(!showAllStudents)
                   : onAddStudent()
               }
-              className="mt-3 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe] text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+              className="mt-3 flex w-full items-center justify-center gap-1.5"
             >
               {students.length > 0 ? (
                 <>
@@ -1407,7 +1411,7 @@ function SectionDetailView({
                   Add First Student
                 </>
               )}
-            </button>
+            </SystemButton>
           </div>
 
           {/* Setup progress */}
@@ -1526,22 +1530,22 @@ function SectionDetailView({
               <GraduationCap className="h-3.5 w-3.5 text-[#8127cf]" />
               All Students ({students.length})
             </p>
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onAddStudent}
-              className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+              className="flex items-center gap-1.5 px-3 justify-start"
             >
               <Plus className="h-3 w-3" />
               Add Student
-            </button>
+            </SystemButton>
           </div>
           <div className="flex flex-wrap gap-2">
             {visibleStudents.map((student: any) => (
-              <button
+              <SystemButton variant="outline"
                 key={student.id}
                 type="button"
                 onClick={() => onViewStudent(student)}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-[#cfc2d6]/10 bg-white px-4 py-3 text-left transition-all hover:shadow-md sm:w-auto sm:min-w-[200px]"
+                className="flex w-full items-center gap-3 px-4 py-3 text-left sm:w-auto sm:min-w-[200px] justify-start"
               >
                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-[10px]" />
@@ -1554,26 +1558,26 @@ function SectionDetailView({
                     Roll {student.rollNo || "N/A"}
                   </p>
                 </div>
-              </button>
+              </SystemButton>
             ))}
             {/* Add student card */}
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onAddStudent}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 px-4 py-3 text-[10px] font-black text-ink-subtle transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/30 hover:text-[#8127cf] sm:w-auto sm:min-w-[200px]"
+              className="flex w-full items-center justify-center gap-2 px-4 py-3 sm:w-auto sm:min-w-[200px]"
             >
               <Plus className="h-4 w-4" />
               Add Student
-            </button>
+            </SystemButton>
           </div>
           {students.length > 8 && !showAllStudents ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() => setShowAllStudents(true)}
-              className="text-[10px] font-black text-[#8127cf] underline decoration-[#8127cf]/30 underline-offset-2 transition-all hover:decoration-[#8127cf] cursor-pointer"
+              className="underline decoration-[#8127cf]/30 underline-offset-2 hover:decoration-[#8127cf]"
             >
               Show all {students.length} students
-            </button>
+            </SystemButton>
           ) : null}
         </div>
       ) : null}
@@ -1726,23 +1730,23 @@ export function ClassManager({
 
               <div className="flex shrink-0 items-center gap-1.5">
                 {onRefresh ? (
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={onRefresh}
-                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+                    className="flex items-center justify-center"
                     title="Refresh data"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                  </button>
+                  </SystemButton>
                 ) : null}
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={onClose}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+                  className="flex items-center justify-center"
                 >
                   <X className="h-4 w-4" />
                   <span className="sr-only">Close</span>
-                </button>
+                </SystemButton>
               </div>
             </div>
 
@@ -1832,13 +1836,13 @@ export function ClassManager({
         {/* ============================================================ */}
         <div className="flex min-h-0 flex-1">
           {/* Mobile rail toggle */}
-          <button
+          <SystemButton variant="default"
             type="button"
             onClick={() => setMobileRailOpen(!mobileRailOpen)}
-            className="absolute bottom-6 left-6 z-[130] flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/30 transition-all hover:scale-105 active:scale-95 lg:hidden"
+            className="absolute bottom-6 left-6 z-[130] flex h-12 w-12 items-center justify-center lg:hidden"
           >
             <Layers className="h-5 w-5" />
-          </button>
+          </SystemButton>
 
           {/* Left Rail */}
           <div
@@ -1857,26 +1861,26 @@ export function ClassManager({
                 <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                   Sections
                 </span>
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => setMobileRailOpen(false)}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500"
+                  className="flex items-center justify-center"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </SystemButton>
               </div>
             ) : null}
 
             <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
               {/* All Sections button */}
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => {
                   setSelectedSectionId("all");
                   setMobileRailOpen(false);
                 }}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2.5 rounded-2xl px-3.5 py-3 text-left transition-all duration-200",
+                  "flex w-full items-center gap-2.5 px-3.5 py-3 text-left justify-start",
                   selectedSectionId === "all"
                     ? "bg-white shadow-md shadow-[#8127cf]/8"
                     : "hover:bg-white/70",
@@ -1907,7 +1911,7 @@ export function ClassManager({
                     Matrix view
                   </p>
                 </div>
-              </button>
+              </SystemButton>
 
               {/* Divider */}
               <div className="my-3 h-px bg-[#cfc2d6]/15" />
@@ -1926,7 +1930,7 @@ export function ClassManager({
                   const gaps = sectionGaps(sec);
 
                   return (
-                    <button
+                    <SystemButton variant="ghost"
                       key={sec.id}
                       type="button"
                       onClick={() => {
@@ -1934,7 +1938,7 @@ export function ClassManager({
                         setMobileRailOpen(false);
                       }}
                       className={cn(
-                        "flex w-full cursor-pointer items-start gap-2.5 rounded-2xl px-3.5 py-3 text-left transition-all duration-200",
+                        "flex w-full items-start gap-2.5 px-3.5 py-3 text-left justify-start",
                         active
                           ? "border-l-[3px] border-l-[#8127cf] bg-white pl-3 shadow-md shadow-[#8127cf]/8"
                           : "border-l-[3px] border-l-transparent hover:bg-white/70",
@@ -1984,7 +1988,7 @@ export function ClassManager({
                           ) : null}
                         </div>
                       </div>
-                    </button>
+                    </SystemButton>
                   );
                 })}
               </div>
@@ -2005,10 +2009,10 @@ export function ClassManager({
                     onDone={() => setAddingSection(false)}
                   />
                 ) : (
-                  <button
+                  <SystemButton variant="outline"
                     type="button"
                     onClick={() => setAddingSection(true)}
-                    className="mt-3 flex w-full cursor-pointer items-center gap-2.5 rounded-2xl border border-dashed border-[#8127cf]/25 px-3.5 py-3 text-left transition-all hover:border-[#8127cf]/50 hover:bg-white/70 active:scale-[0.99]"
+                    className="mt-3 flex w-full items-center gap-2.5 px-3.5 py-3 text-left justify-start"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
                       <Plus className="h-4 w-4" />
@@ -2019,7 +2023,7 @@ export function ClassManager({
                         Copies subjects across
                       </span>
                     </span>
-                  </button>
+                  </SystemButton>
                 )
               ) : null}
             </div>
@@ -2099,14 +2103,14 @@ export function ClassManager({
                         </p>
                       </div>
                     </div>
-                    <button
+                    <SystemButton variant="ghost"
                       type="button"
                       onClick={() => setSettingsOpen(true)}
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
+                      className="flex items-center justify-center"
                       title="Section settings"
                     >
                       <Settings className="h-5 w-5" />
-                    </button>
+                    </SystemButton>
                   </div>
                   <SectionDetailView
                     section={selectedSection}
@@ -2154,7 +2158,7 @@ export function ClassManager({
                 {sortedSections.length !== 1 ? "s" : ""}
               </span>
             </div>
-            <button
+            <SystemButton variant="outline"
               type="button"
               onClick={() => {
                 if (selectedSection) {
@@ -2164,11 +2168,11 @@ export function ClassManager({
                   setSettingsOpen(true);
                 }
               }}
-              className="flex h-8 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/15 bg-white px-3.5 text-[9px] font-black uppercase tracking-wider text-ink-muted shadow-sm transition-all duration-200 hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+              className="flex items-center gap-2 px-3.5 justify-start"
             >
               <Settings className="h-3 w-3" />
               Settings
-            </button>
+            </SystemButton>
           </div>
         </div>
       </ModalSurface>

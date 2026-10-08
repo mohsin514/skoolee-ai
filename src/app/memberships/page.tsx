@@ -1,4 +1,8 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { inviteStaff } from "@/app/actions/invite";
@@ -71,30 +75,30 @@ export default function MembershipsPage() {
     finally { setBusy(false); }
   }
   return <main dir={language === "en" ? "ltr" : "rtl"} lang={language} className="mx-auto max-w-5xl space-y-6 p-4 text-ink sm:p-8">
-    <nav className="flex flex-wrap gap-4"><Link href="/dashboard">{t.workspace}</Link><button className="min-h-11" onClick={switchInstitution}>{t.switch}</button></nav>
-    <label className="flex min-h-11 w-fit items-center gap-2">{t.language}<select aria-label={t.language} value={language} onChange={event => setLanguage(event.target.value as keyof typeof copy)} className="min-h-11 rounded border bg-background px-3"><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></select></label>
+    <nav className="flex flex-wrap gap-4"><Link href="/dashboard">{t.workspace}</Link><Button variant="ghost" className="min-h-11" onClick={switchInstitution}>{t.switch}</Button></nav>
+    <label className="flex min-h-11 w-fit items-center gap-2">{t.language}<Select aria-label={t.language} value={language} onChange={event => setLanguage(event.target.value as keyof typeof copy)} className="min-h-11"><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></label>
     <h1 className="text-3xl font-bold">{t.title}</h1>
     <p>{t.scope}</p>
     <p role="status" aria-live="polite">{message || (!data ? t.loading : `${data.school.name} · ${data.school.registrationKind}`)}</p>
-    {data?.canManage && <form className="space-y-4 rounded-xl border p-5" onSubmit={event => { event.preventDefault(); setReview(true); }}>
+    {data?.canManage && <form className="space-y-4 sk-panel p-5" onSubmit={event => { event.preventDefault(); setReview(true); }}>
       <h2 className="text-xl font-semibold">{editing ? t.change : t.invite}</h2>
       <fieldset disabled={busy || review} className="grid gap-4 sm:grid-cols-2">
-        <label>{t.email}<input className="block min-h-11 w-full rounded border p-2" type="email" dir="ltr" required value={email} disabled={!!editing} onChange={event => setEmail(event.target.value)} /></label>
-        <label>{t.role}<select className="block min-h-11 w-full rounded border p-2" value={role} onChange={event => { setRole(event.target.value as InvitableRole); setPurchase(false); setManage(false); }}>{INVITABLE_ROLES.filter(item => data.isOwner || item !== "CAMPUS_ADMIN").map(item => <option key={item} value={item}>{label(item)}</option>)}</select></label>
-        <label>{t.campus}<select className="block min-h-11 w-full rounded border p-2" required value={campusId} onChange={event => setCampusId(event.target.value)}><option value="">{t.chooseCampus}</option>{data.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select></label>
-        {editing && <label className="min-h-11"><input type="checkbox" checked={active} onChange={event => setActive(event.target.checked)} /> {t.active}</label>}
-        {data.isOwner && !["STUDENT", "PARENT"].includes(role) && <><label className="min-h-11"><input type="checkbox" checked={purchase} onChange={event => setPurchase(event.target.checked)} /> {t.purchase}</label><label className="min-h-11"><input type="checkbox" checked={manage} onChange={event => setManage(event.target.checked)} /> {t.manage}</label></>}
+        <label>{t.email}<Input className="block min-h-11 w-full" type="email" dir="ltr" required value={email} disabled={!!editing} onChange={event => setEmail(event.target.value)} /></label>
+        <label>{t.role}<Select className="block min-h-11 w-full" value={role} onChange={event => { setRole(event.target.value as InvitableRole); setPurchase(false); setManage(false); }}>{INVITABLE_ROLES.filter(item => data.isOwner || item !== "CAMPUS_ADMIN").map(item => <option key={item} value={item}>{label(item)}</option>)}</Select></label>
+        <label>{t.campus}<Select className="block min-h-11 w-full" required value={campusId} onChange={event => setCampusId(event.target.value)}><option value="">{t.chooseCampus}</option>{data.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></label>
+        {editing && <label className="min-h-11"><Checkbox  checked={active} onChange={event => setActive(event.target.checked)} /> {t.active}</label>}
+        {data.isOwner && !["STUDENT", "PARENT"].includes(role) && <><label className="min-h-11"><Checkbox  checked={purchase} onChange={event => setPurchase(event.target.checked)} /> {t.purchase}</label><label className="min-h-11"><Checkbox  checked={manage} onChange={event => setManage(event.target.checked)} /> {t.manage}</label></>}
       </fieldset>
-      {!editing && !review && <div className="flex flex-wrap gap-4"><button className="min-h-11" type="button" onClick={saveDraft}>{t.saveDraft}</button><button className="min-h-11" type="button" onClick={restoreDraft}>{t.restore}</button></div>}
+      {!editing && !review && <div className="flex flex-wrap gap-4"><Button variant="ghost" className="min-h-11" type="button" onClick={saveDraft}>{t.saveDraft}</Button><Button variant="ghost" className="min-h-11" type="button" onClick={restoreDraft}>{t.restore}</Button></div>}
       <section aria-label={t.preview} className="space-y-2 rounded-lg bg-slate-50 p-4">
         <h3 className="font-bold">{label(role)} · {data.campuses.find(campus => campus.id === campusId)?.name || t.choose}</h3>
         {editing && <p>{t.current}: {label(editing.role)} · {data.campuses.find(campus => campus.id === editing.campusId)?.name}. {t.sessions}</p>}
         <ul className="list-inside list-disc">{preview.tasks.map(task => <li key={task}>{task}</li>)}</ul>
         <p>{preview.ownership}</p><p>{preview.purchasing}</p><p>{preview.management}</p><p>{preview.rank}</p><p>{t.workspaceLabel}: <bdi>{preview.landing}</bdi>. {t.noSetup}</p>
       </section>
-      {review ? <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded bg-purple-700 px-4 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" type="button" disabled={busy} onClick={submit}>{busy ? t.save : editing ? t.confirmChange : t.send}</button><button className="min-h-11" type="button" disabled={busy} onClick={() => setReview(false)}>{t.back}</button></div> : <button className="min-h-11 rounded bg-purple-700 px-4 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">{editing ? t.reviewChange : t.reviewInvite}</button>}
+      {review ? <div className="flex flex-wrap gap-3"><Button variant="default" className="min-h-11 px-4" type="button" disabled={busy} onClick={submit}>{busy ? t.save : editing ? t.confirmChange : t.send}</Button><Button variant="ghost" className="min-h-11" type="button" disabled={busy} onClick={() => setReview(false)}>{t.back}</Button></div> : <Button variant="default" className="min-h-11 px-4">{editing ? t.reviewChange : t.reviewInvite}</Button>}
     </form>}
-    <section className="space-y-3" aria-label={t.currentMembers}><h2 className="text-xl font-semibold">{t.currentMembers}</h2>{data?.members.length === 0 && <p>{t.noMembers}</p>}{data?.members.map(member => <article key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><h3 className="font-bold">{member.fullName}</h3><p><bdi>{member.email}</bdi></p><p>{label(member.role)} · {member.isInstitutionOwner ? t.owner : t.member} · {member.isActive ? t.activeLabel : t.revoked}</p></div>{data.canManage && !member.isInstitutionOwner && member.id !== data.currentUserId && INVITABLE_ROLES.includes(member.role as InvitableRole) && <button className="min-h-11" onClick={() => { setEditing(member); setEmail(member.email); setRole(member.role as InvitableRole); setCampusId(member.campusId); setPurchase(member.canPurchaseSubscription); setManage(member.canManageMemberships); setActive(member.isActive); setReview(false); window.scrollTo({ top: 0 }); }}>{t.reviewAccess}</button>}</article>)}</section>
+    <section className="space-y-3" aria-label={t.currentMembers}><h2 className="text-xl font-semibold">{t.currentMembers}</h2>{data?.members.length === 0 && <p>{t.noMembers}</p>}{data?.members.map(member => <article key={member.id} className="flex flex-wrap items-center justify-between gap-3 sk-panel p-4"><div><h3 className="font-bold">{member.fullName}</h3><p><bdi>{member.email}</bdi></p><p>{label(member.role)} · {member.isInstitutionOwner ? t.owner : t.member} · {member.isActive ? t.activeLabel : t.revoked}</p></div>{data.canManage && !member.isInstitutionOwner && member.id !== data.currentUserId && INVITABLE_ROLES.includes(member.role as InvitableRole) && <Button variant="ghost" className="min-h-11" onClick={() => { setEditing(member); setEmail(member.email); setRole(member.role as InvitableRole); setCampusId(member.campusId); setPurchase(member.canPurchaseSubscription); setManage(member.canManageMemberships); setActive(member.isActive); setReview(false); window.scrollTo({ top: 0 }); }}>{t.reviewAccess}</Button>}</article>)}</section>
     {data?.members.some(member => member.id === data.currentUserId && (member.isInstitutionOwner || member.canPurchaseSubscription)) && <Link className="block min-h-11 underline" href="/subscription">{t.openSubscription}</Link>}
     {!data?.canManage && data && <p>{t.askOwner}</p>}
   </main>;

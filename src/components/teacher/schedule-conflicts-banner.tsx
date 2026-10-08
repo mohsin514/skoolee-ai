@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAY_LABELS, detectSlotClashes, type ClashSlot } from "@/lib/timetable/clashes";
+import { Button } from "@/components/ui/button";
+
 
 /**
  * Teacher-facing counterpart to the office's `TeacherConflictsBanner`.
@@ -34,11 +36,11 @@ export function ScheduleConflictsBanner({
 
   return (
     <div className="sk-rise overflow-hidden rounded-[24px] border border-rose-200/70 bg-gradient-to-br from-rose-50 to-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(190,18,60,0.20)]">
-      <button
+      <Button variant="secondary"
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-rose-50/60"
+        className="flex w-full items-center justify-between gap-3 text-left"
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
@@ -57,7 +59,7 @@ export function ScheduleConflictsBanner({
         <ChevronDown
           className={cn("h-4 w-4 shrink-0 text-rose-500 transition-transform", open && "rotate-180")}
         />
-      </button>
+      </Button>
 
       {open ? (
         <div className="space-y-2 border-t border-rose-200/50 p-4">

@@ -1,4 +1,5 @@
 "use client";
+import { Button as SystemButton } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
@@ -27,6 +28,7 @@ import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { useLocale } from "@/components/locale/LocaleProvider";
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -149,7 +151,7 @@ export function WorkspaceHeader({
       />
 
       <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 max-w-full items-center gap-3">
           <span
             className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
             style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}
@@ -160,8 +162,8 @@ export function WorkspaceHeader({
             {/* Eyebrow rides beside the title rather than above it: it is
                 context, not a heading, and a whole line for one word was the
                 single biggest waste of height on every screen. */}
-            <div className="flex items-baseline gap-2">
-              <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <h2 className="min-w-0 break-words text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
                 {title}
               </h2>
               <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
@@ -338,17 +340,17 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
         aria-label={label}
-        className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+        className="h-10 w-full pl-9 pr-9 transition-all"
       />
       {value ? (
-        <button data-field-affix="end"
+        <SystemButton variant="ghost" data-field-affix="end"
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+          className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center justify-center"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </SystemButton>
       ) : null}
     </InputGroup>
   );
@@ -372,7 +374,7 @@ export function ToolbarSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition-all hover:border-[#8127cf]/30"
+        className="h-10 cursor-pointer appearance-none pl-3 pr-8 transition-all"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -555,12 +557,49 @@ export interface DataColumn<T> {
   key: string;
   label: string;
   sortable?: boolean;
-  align?: "left" | "right" | "center";
+  /** Prefer logical start/end; left/right retain their physical alignment. */
+  align?: "start" | "end" | "left" | "right" | "center";
   /** Tailwind width class, e.g. "w-32". */
   width?: string;
   /** Hide below the lg breakpoint — keeps narrow screens readable. */
   secondary?: boolean;
+  /** First-cell render owns its action, including opaque custom components. */
+  rowAction?: "provided";
   render: (row: T) => ReactNode;
+}
+
+const tableCopy = {
+  en: { select: "Select", deselect: "Deselect", all: "Select all displayed rows", open: "Open" },
+  ar: { select: "تحديد", deselect: "إلغاء تحديد", all: "تحديد جميع الصفوف المعروضة", open: "فتح" },
+  ur: { select: "منتخب کریں", deselect: "انتخاب ختم کریں", all: "تمام دکھائی گئی قطاریں منتخب کریں", open: "کھولیں" },
+};
+
+function cellText(node: ReactNode): string {
+  return React.Children.toArray(node).map(child => {
+    if (typeof child === "string" || typeof child === "number") return String(child);
+    return React.isValidElement<{ children?: ReactNode }>(child) ? cellText(child.props.children) : "";
+  }).filter(Boolean).join(" ");
+}
+
+/** Inspect supplied markup without calling a component or changing its children. */
+function hasCellControl(node: ReactNode): boolean {
+  return React.Children.toArray(node).some(child => {
+    if (!React.isValidElement<{ children?: ReactNode; href?: unknown; role?: string; contentEditable?: boolean | "true" | "false" }>(child)) return false;
+    if (child.props.role === "button" || child.props.role === "link") return true;
+    if (child.type === Button || (typeof child.type !== "string" && child.props.href !== undefined)) return true;
+    if (typeof child.type === "string" && (
+      ["button", "input", "select", "textarea", "summary"].includes(child.type) ||
+      (child.type === "a" && child.props.href !== undefined) ||
+      child.props.contentEditable === true || child.props.contentEditable === "true"
+    )) return true;
+    return hasCellControl(child.props.children);
+  });
+}
+
+const cellControlSelector = 'button, a[href], input, select, textarea, summary, [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])';
+
+function columnAlignment(align: DataColumn<unknown>["align"]) {
+  return { start: "text-start", end: "text-end", left: "text-left", right: "text-right", center: "text-center" }[align ?? "start"];
 }
 
 export function DataTable<T>({
@@ -577,6 +616,9 @@ export function DataTable<T>({
   density = "comfortable",
   empty,
   minWidth = 900,
+  caption,
+  getRowLabel,
+  selectAllLabel,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -591,24 +633,38 @@ export function DataTable<T>({
   density?: "compact" | "comfortable";
   empty?: ReactNode;
   minWidth?: number;
+  caption?: ReactNode;
+  /** A record name for selection/action labels; never passed through translation. */
+  getRowLabel?: (row: T) => string;
+  /** Describe the existing callback scope if it differs from the displayed rows. */
+  selectAllLabel?: string;
 }) {
+  const copy = tableCopy[useLocale().language];
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const selectable = Boolean(onToggleSelect);
   const allSelected =
     selectable && rows.length > 0 && rows.every((r) => selected?.has(rowKey(r)));
+  const partiallySelected = selectable && !allSelected && rows.some(r => selected?.has(rowKey(r)));
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = partiallySelected;
+  }, [partiallySelected, selectable]);
   const pad = density === "compact" ? "px-3 py-2" : "px-4 py-3";
 
   return (
     <div className="sk-panel overflow-x-auto custom-scrollbar">
       <table className="sk-data-table" style={{ minWidth }}>
+        {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
           <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
             {selectable ? (
-              <th className={cn("w-10", pad)}>
+              <th scope="col" className={cn("w-10", pad)}>
                 <SystemCheckbox
-
+                  ref={selectAllRef}
                   checked={allSelected}
+                  aria-checked={partiallySelected ? "mixed" : allSelected}
+                  disabled={!onToggleAll || rows.length === 0}
                   onChange={onToggleAll}
-                  aria-label="Select everything in this list"
+                  aria-label={selectAllLabel ?? copy.all}
                   className="h-4 w-4 cursor-pointer accent-[#8127cf]"
                 />
               </th>
@@ -616,20 +672,21 @@ export function DataTable<T>({
             {columns.map((c) => (
               <th
                 key={c.key}
+                scope="col"
+                aria-sort={sort?.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
                 className={cn(
                   pad,
                   "text-xs font-semibold text-ink-muted",
                   c.width,
-                  c.align === "right" && "text-right",
-                  c.align === "center" && "text-center",
+                  columnAlignment(c.align),
                   c.secondary && "hidden lg:table-cell",
                 )}
               >
                 {c.sortable && onSort ? (
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => onSort(c.key)}
-                    className="inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-[#8127cf]"
+                    className="inline-flex items-center gap-1 justify-start"
                   >
                     {c.label}
                     {sort?.key === c.key ? (
@@ -641,7 +698,7 @@ export function DataTable<T>({
                     ) : (
                       <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
                     )}
-                  </button>
+                  </SystemButton>
                 ) : (
                   c.label
                 )}
@@ -653,6 +710,8 @@ export function DataTable<T>({
           {rows.map((row) => {
             const id = rowKey(row);
             const isSelected = selected?.has(id);
+            const cells = columns.map(column => column.render(row));
+            const rowLabel = getRowLabel?.(row).trim() || cellText(cells[0]).trim() || id;
             return (
               <tr
                 key={id}
@@ -669,7 +728,7 @@ export function DataTable<T>({
 
                       checked={Boolean(isSelected)}
                       onChange={() => onToggleSelect?.(id)}
-                      aria-label="Select row"
+                      aria-label={`${isSelected ? copy.deselect : copy.select} ${rowLabel}`}
                       className="h-4 w-4 cursor-pointer accent-[#8127cf]"
                     />
                   </td>
@@ -677,16 +736,31 @@ export function DataTable<T>({
                 {columns.map((c, i) => (
                   <td
                     key={c.key}
-                    onClick={i === 0 && onRowClick ? () => onRowClick(row) : undefined}
+                    onClick={i === 0 && onRowClick ? event => {
+                      // Preserve the legacy cell click without also firing for its controls.
+                      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest(cellControlSelector))) return;
+                      onRowClick(row);
+                    } : undefined}
                     className={cn(
                       pad,
-                      c.align === "right" && "text-right",
-                      c.align === "center" && "text-center",
+                      columnAlignment(c.align),
                       c.secondary && "hidden lg:table-cell",
                       i === 0 && onRowClick && "cursor-pointer",
                     )}
                   >
-                    {c.render(row)}
+                    {i === 0 && onRowClick && c.rowAction !== "provided" && !hasCellControl(cells[i]) ? (
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="min-w-0 flex-1">{cells[i]}</div>
+                        <SystemButton variant="ghost"
+                          type="button"
+                          aria-label={`${copy.open} ${rowLabel}`}
+                          onClick={() => onRowClick(row)}
+                          className="inline-flex min-h-11 shrink-0 items-center px-2 underline underline-offset-4 justify-start"
+                        >
+                          {copy.open}
+                        </SystemButton>
+                      </div>
+                    ) : cells[i]}
                   </td>
                 ))}
               </tr>
@@ -743,7 +817,7 @@ export function Pagination({
           <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
-            className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all"
+            className="h-9 cursor-pointer px-2.5 transition-all"
           >
             {perPageOptions.map((n) => (
               <option key={n} value={n}>

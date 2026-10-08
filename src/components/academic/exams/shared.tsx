@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React from "react";
 import { AlertTriangle, CheckCircle2, Info, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,7 @@ export function ProgressStat({
       ? "bg-rose-50 text-rose-600"
       : "bg-[#f3eeff] text-[#8127cf]";
   return (
-    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white p-3.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-14px_rgba(31,26,35,0.28)]">
+    <div className="sk-panel p-3.5">
       <div className="flex items-center gap-2.5">
         <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl", chip)}>
           <Icon className="h-4 w-4" />
@@ -129,7 +130,7 @@ export function ConflictPanel({
   const blocking = conflicts.filter((c) => c.blocking).length;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_26px_-16px_rgba(31,26,35,0.3)]">
+    <div className="sk-panel overflow-hidden">
       <div
         className={cn(
           "flex items-center gap-2.5 px-4 py-2.5",
@@ -145,13 +146,13 @@ export function ConflictPanel({
             : `${conflicts.length} thing${conflicts.length === 1 ? "" : "s"} worth checking`}
         </p>
         {onDismiss ? (
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={onDismiss}
-            className="ml-auto cursor-pointer text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:text-[#8127cf]"
+            className="ml-auto"
           >
             Hide
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -293,6 +294,6 @@ export function Field({
 }
 
 export const inputClass =
-  "h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-colors";
+  "w-full";
 
 export const selectClass = cn(inputClass, "cursor-pointer");

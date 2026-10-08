@@ -1,8 +1,8 @@
 'use client';
-import { InputGroup } from "@/components/ui/input-group";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,10 +10,11 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { requestPasswordReset, resetPassword, verifyToken } from "@/app/actions/auth/reset";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { FieldError, FormField } from "@/components/ui/form-field";
 import {
   Loader2, ArrowRight, Mail, Lock, CheckCircle2, AlertCircle,
-  CheckCircle, XCircle, ShieldCheck, Eye, Sparkles,
+  CheckCircle, XCircle, ShieldCheck, Eye, EyeOff, Sparkles,
 } from "lucide-react";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import Link from "next/link";
@@ -37,26 +38,48 @@ export default function ForgotPasswordPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
+  const [verification, setVerification] = useState<{ token: string; status: "valid" | "invalid" | "error" } | null>(null);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const verificationStatus = verification?.token === token ? verification.status : "loading";
+  const [requestError, setRequestError] = useState<string>();
+  const [resetError, setResetError] = useState<string>();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const stateHeadingRef = useRef<HTMLHeadingElement>(null);
+  const requestErrorRef = useRef<HTMLDivElement>(null);
+  const resetErrorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (token) {
-      verifyToken(token).then(res => {
-        setIsValidToken(res.valid);
-        if (!res.valid) {
-          toast.error("Your recovery link has expired or is invalid.");
-        }
-      });
+    if (!token) return;
+    let active = true;
+    verifyToken(token).then(res => {
+      if (!active) return;
+      setVerification({ token, status: res.valid ? "valid" : "invalid" });
+      if (!res.valid) toast.error("Your recovery link has expired or is invalid.");
+    }).catch(() => {
+      if (active) setVerification({ token, status: "error" });
+    });
+    return () => { active = false; };
+  }, [token, verificationAttempt]);
+
+  useEffect(() => {
+    if (isSubmitted || verificationStatus === "invalid" || verificationStatus === "error") {
+      stateHeadingRef.current?.focus();
     }
-  }, [token]);
+  }, [isSubmitted, verificationStatus]);
+
+  useEffect(() => {
+    if (requestError) requestErrorRef.current?.focus();
+    if (resetError) resetErrorRef.current?.focus();
+  }, [requestError, resetError]);
 
   // Form for Requesting Reset
-  const requestForm = useForm({
+  const requestForm = useForm<z.infer<typeof requestSchema>>({
     resolver: zodResolver(requestSchema),
   });
 
   // Form for Resetting Password
-  const resetForm = useForm({
+  const resetForm = useForm<z.infer<typeof resetSchema>>({
     resolver: zodResolver(resetSchema),
     defaultValues: { password: '', confirmPassword: '' },
   });
@@ -72,25 +95,30 @@ export default function ForgotPasswordPage() {
     { label: "Passwords match", met: watchPassword === watchConfirm && watchPassword !== '' },
   ];
 
-  const handleRequest = async (data: any) => {
+  const handleRequest = async (data: z.infer<typeof requestSchema>) => {
+    setRequestError(undefined);
     setIsLoading(true);
     try {
       await requestPasswordReset(data.email);
       setIsSubmitted(true);
       toast.success("Identity verification link sent to your email.");
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to send a recovery link. Please try again.";
+      setRequestError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleReset = async (data: any) => {
+  const handleReset = async (data: z.infer<typeof resetSchema>) => {
     if (!token) return;
+    setResetError(undefined);
 
     // Final check for requirements
     const unmet = passwordRequirements.filter(r => !r.met);
     if (unmet.length > 0) {
+      resetForm.setError("password", { type: "validate", message: "Please satisfy all security requirements." }, { shouldFocus: true });
       toast.error("Please satisfy all security requirements.");
       return;
     }
@@ -100,8 +128,10 @@ export default function ForgotPasswordPage() {
       await resetPassword(token, data.password);
       toast.success("Security credentials updated successfully.");
       router.push("/login");
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save your password. Please try again.";
+      setResetError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -109,24 +139,6 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-rise { animation: skRise .5s cubic-bezier(.2,.7,.3,1) both; }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise { animation: none !important; }
-        }
-      `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14">
@@ -160,14 +172,14 @@ export default function ForgotPasswordPage() {
             </span>
           </div>
 
-          <h1 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+          <h2 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
             Regain access to
             <br />
             your
             <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
               {" "}campus.
             </span>
-          </h1>
+          </h2>
 
           <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
             <div className="flex items-start gap-4">
@@ -194,69 +206,46 @@ export default function ForgotPasswordPage() {
       </section>
 
       {/* ─── FORM PANEL ──────────────────────────────── */}
-      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
+      <section className="relative flex flex-col items-center justify-center p-4 sm:p-10 lg:p-14">
         <div className="w-full max-w-[30rem]">
           <div className="mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
             <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
           </div>
 
-          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
             {!token ? (
               // ── REQUEST RESET ──
               !isSubmitted ? (
                 <>
                   <div className="mb-7 text-center">
-                    <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                    <h1 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
                       Recover account
-                    </h2>
+                    </h1>
                     <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
                       We&apos;ll email you a single-use recovery link.
                     </p>
                   </div>
 
-                  <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-4" noValidate>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-                        Email Identity
-                      </Label>
-                      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-                        <Mail data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
+                  <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-4" aria-busy={isLoading} noValidate>
+                    {requestError && <div ref={requestErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-request-error"><FieldError id="recover-request-error">{requestError}</FieldError></div>}
+                    <FormField name="email" id="recover-email" label="Email Identity" error={requestForm.formState.errors.email?.message} required>
+                      <InputGroup>
+                        <Mail data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
                         <Input
                           id="recover-email"
                           type="email"
                           autoComplete="email"
                           placeholder="admin@horizon.edu"
-                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-                            requestForm.formState.errors.email ? "bg-rose-50" : "bg-[#fbf0fe]"
-                          }`}
+                          readOnly={isLoading}
                           {...requestForm.register("email")}
                         />
                       </InputGroup>
-                      {requestForm.formState.errors.email && (
-                        <p className="px-1 text-xs font-bold text-rose-500">
-                          {(requestForm.formState.errors.email as any).message}
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Sending…</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Send reset link</span>
-                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                        </>
-                      )}
-                    </button>
+                    </FormField>
+                    <p role="status" className="sr-only">{isLoading ? "Sending…" : ""}</p>
+                    <Button type="submit" disabled={isLoading} className="mt-1 w-full">
+                      {isLoading ? <><Loader2 aria-hidden="true" className="animate-spin" /><span>Sending…</span></> : <><span>Send reset link</span><ArrowRight aria-hidden="true" className="rtl:rotate-180" /></>}
+                    </Button>
                   </form>
                 </>
               ) : (
@@ -264,7 +253,7 @@ export default function ForgotPasswordPage() {
                   <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                     <CheckCircle2 className="h-10 w-10" />
                   </div>
-                  <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Check your inbox</h3>
+                  <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Check your inbox</h1>
                   <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                     If an eligible account exists, a single-use link will be sent. Check your inbox and spam folder.
                     If it does not arrive, try again in five minutes or contact your school administrator.
@@ -274,125 +263,80 @@ export default function ForgotPasswordPage() {
                   </Link>
                 </div>
               )
-            ) : isValidToken === false ? (
+            ) : verificationStatus === "invalid" ? (
               <div className="py-6 text-center">
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
                   <AlertCircle className="h-10 w-10" />
                 </div>
-                <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Link expired</h3>
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Link expired</h1>
                 <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                   This recovery link has reached its expiration or has already been used.
                   Request a fresh one to continue.
                 </p>
-                <button
-                  onClick={() => router.push("/forgot-password")}
-                  className="cursor-pointer text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-                >
+                <Button type="button" variant="outline" onClick={() => router.push("/forgot-password")}>
                   Request new link
-                </button>
+                </Button>
               </div>
-            ) : isValidToken === null ? (
-              <div className="flex flex-col items-center justify-center gap-4 py-12">
-                <Loader2 className="h-10 w-10 animate-spin text-[#8127cf]" />
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-ink-muted">Verifying link…</p>
+            ) : verificationStatus === "error" ? (
+              <div className="py-6 text-center">
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-ink">Unable to verify link</h1>
+                <p className="mb-6 text-sm font-semibold leading-6 text-ink-muted">We couldn&apos;t check this recovery link. Please try again.</p>
+                <Button type="button" variant="outline" onClick={() => { setVerification(null); setVerificationAttempt(attempt => attempt + 1); }}>
+                  Try again
+                </Button>
+              </div>
+            ) : verificationStatus === "loading" ? (
+              <div role="status" className="flex flex-col items-center justify-center gap-4 py-12">
+                <Loader2 aria-hidden="true" className="h-10 w-10 animate-spin text-primary" />
+                <h1 className="text-base font-bold text-ink-muted">Verifying link…</h1>
               </div>
             ) : (
               // ── RESET PASSWORD ──
               <>
                 <div className="mb-7 text-center">
-                  <h2 className="text-[1.85rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                  <h1 className="text-[1.85rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
                     New password
-                  </h2>
+                  </h1>
                   <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
                     Define your new institutional access code.
                   </p>
                 </div>
 
-                <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" noValidate>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-                      New Password
-                    </Label>
-                    <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-                      <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
-                      <Input
-                        id="new-password"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-                          resetForm.formState.errors.password ? "bg-rose-50" : "bg-[#fbf0fe]"
-                        }`}
-                        {...resetForm.register("password")}
-                      />
+                <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" aria-busy={isLoading} noValidate>
+                  {resetError && <div ref={resetErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-reset-error"><FieldError id="recover-reset-error">{resetError}</FieldError></div>}
+                  <FormField name="password" id="new-password" label="New Password" error={resetForm.formState.errors.password?.message} required>
+                    <InputGroup>
+                      <Lock data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
+                      <Input id="new-password" aria-describedby="password-requirements" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="••••••••" readOnly={isLoading} {...resetForm.register("password")} />
+                      <FieldAction type="button" data-field-affix="end" aria-controls="new-password" aria-label={showPassword ? "Hide new password" : "Show new password"} disabled={isLoading} onClick={() => setShowPassword(value => !value)}>
+                        {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                      </FieldAction>
                     </InputGroup>
-                    {resetForm.formState.errors.password && (
-                      <p className="px-1 text-xs font-bold text-rose-500">
-                        {(resetForm.formState.errors.password as any).message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-                      Confirm Password
-                    </Label>
-                    <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-                      <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-                          resetForm.formState.errors.confirmPassword ? "bg-rose-50" : "bg-[#fbf0fe]"
-                        }`}
-                        {...resetForm.register("confirmPassword")}
-                      />
+                  </FormField>
+                  <FormField name="confirmPassword" id="confirm-password" label="Confirm Password" error={resetForm.formState.errors.confirmPassword?.message} required>
+                    <InputGroup>
+                      <Lock data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
+                      <Input id="confirm-password" aria-describedby="password-requirements" type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" placeholder="••••••••" readOnly={isLoading} {...resetForm.register("confirmPassword")} />
+                      <FieldAction type="button" data-field-affix="end" aria-controls="confirm-password" aria-label={showConfirmPassword ? "Hide confirmed password" : "Show confirmed password"} disabled={isLoading} onClick={() => setShowConfirmPassword(value => !value)}>
+                        {showConfirmPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                      </FieldAction>
                     </InputGroup>
-                    {resetForm.formState.errors.confirmPassword && (
-                      <p className="px-1 text-xs font-bold text-rose-500">
-                        {(resetForm.formState.errors.confirmPassword as any).message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">
-                      Security checklist
-                    </p>
-                    <div className="grid grid-cols-2 gap-y-1.5">
-                      {passwordRequirements.map((req, i) => (
-                        <div
-                          key={i}
-                          className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
-                            req.met ? "text-emerald-600" : "text-ink-subtle"
-                          }`}
-                        >
-                          {req.met ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5 opacity-30" />}
-                          {req.label}
-                        </div>
+                  </FormField>
+                  <div className="rounded-2xl border border-border bg-muted p-4">
+                    <h2 className="mb-2 text-sm font-bold text-ink">Security checklist</h2>
+                    <ul id="password-requirements" className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
+                      {passwordRequirements.map(req => (
+                        <li key={req.label} className={`flex items-start gap-1.5 text-sm font-semibold ${req.met ? "text-emerald-800" : "text-ink-muted"}`}>
+                          {req.met ? <CheckCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />}
+                          <span><span className="sr-only">{req.met ? "Met: " : "Not yet met: "}</span>{req.label}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="group mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 disabled:active:scale-100"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Saving…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Save new password</span>
-                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                      </>
-                    )}
-                  </button>
+                  <p role="status" className="sr-only">{isLoading ? "Saving…" : ""}</p>
+                  <Button type="submit" disabled={isLoading} className="mt-1 w-full">
+                    {isLoading ? <><Loader2 aria-hidden="true" className="animate-spin" /><span>Saving…</span></> : <><span>Save new password</span><ArrowRight aria-hidden="true" className="rtl:rotate-180" /></>}
+                  </Button>
                 </form>
               </>
             )}

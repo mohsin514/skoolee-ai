@@ -2,7 +2,7 @@
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
   Bus,
   Building2,
@@ -56,10 +56,13 @@ import {
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+
 
 /* ─── tiny helpers ─── */
 const inputCls =
-  "h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:bg-red-50/60";
+  "max-w-full";
 const labelCls =
   "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle";
 const cardCls =
@@ -82,9 +85,9 @@ function EmptyRow({ cols, text }: { cols: number; text: string }) {
 
 function DeleteBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   return (
-    <button onClick={onClick} disabled={loading} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
+    <Button variant="destructive" size="icon" type="button" aria-label="Delete" onClick={onClick} disabled={loading}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-    </button>
+    </Button>
   );
 }
 
@@ -106,17 +109,8 @@ function OpField({
   width?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className={width}>
-      <label className={labelCls}>{label}</label>
-      {children}
-      {error ? (
-        <p role="alert" className="mt-1 pl-1 text-[10px] font-bold text-red-600">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
+  const fieldName = useId();
+  return <FormField name={fieldName} label={label} error={error} className={width}>{children}</FormField>;
 }
 
 /**
@@ -168,9 +162,9 @@ export function TransportPanel() {
           <PanelTitle icon={Bus} title="Transport Management" />
           <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
             {(["routes", "vehicles"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
+              <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
                 {t === "routes" ? "Routes" : "Vehicles"}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -368,9 +362,9 @@ export function DormitoryPanel() {
         <PanelTitle icon={Building2} title="Hostel Management" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["types", "rooms"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
+            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {t === "types" ? "Room Types" : "Rooms"}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -538,9 +532,9 @@ export function LibraryPanel() {
         <PanelTitle icon={BookOpen} title="Library Management" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["books", "members", "issues", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
+            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -847,7 +841,7 @@ function IssuesTab() {
                 <td className={tdCls}>{new Date(i.issueDate).toLocaleDateString()}</td>
                 <td className={tdCls}>{i.dueDate ? new Date(i.dueDate).toLocaleDateString() : "—"}</td>
                 <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${i.returnDate ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{i.returnDate ? "Returned" : "Issued"}</span></td>
-                <td className={tdCls}>{!i.returnDate && <button onClick={() => returnBook(i.id)} className="rounded-lg bg-[#8127cf]/10 px-2 py-1 text-xs font-bold text-[#8127cf] hover:bg-[#8127cf]/20"><RotateCcw className="mr-1 inline h-3 w-3" />Return</button>}</td>
+                <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="mr-1 inline h-3 w-3" />Return</Button>}</td>
               </tr>
             ))}
           </tbody>
@@ -869,9 +863,9 @@ export function InventoryPanel() {
         <PanelTitle icon={Package} title="Inventory / POS" />
         <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
           {(["items", "transactions", "stores", "suppliers", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
+            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -1280,7 +1274,7 @@ export function VisitorsPanel() {
                 <td className={tdCls}>{v.toMeet || "—"}</td>
                 <td className={tdCls}>{v.inTime ? new Date(v.inTime).toLocaleString() : "—"}</td>
                 <td className={tdCls}>{v.outTime ? new Date(v.outTime).toLocaleString() : "—"}</td>
-                <td className={tdCls}>{!v.outTime && <button onClick={() => checkout(v.id)} className="rounded-lg bg-[#8127cf]/10 px-2 py-1 text-xs font-bold text-[#8127cf] hover:bg-[#8127cf]/20">Check Out</button>}</td>
+                <td className={tdCls}>{!v.outTime && <Button variant="secondary" size="sm" onClick={() => checkout(v.id)} >Check Out</Button>}</td>
               </tr>
             ))}
           </tbody>
@@ -1364,7 +1358,7 @@ export function ComplaintsPanel() {
                 <td className={tdCls}>{c.phone || "—"}</td>
                 <td className={`${tdCls} max-w-[200px] truncate`}>{c.description || "—"}</td>
                 <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "RESOLVED" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{c.status || "OPEN"}</span></td>
-                <td className={tdCls}>{c.status !== "RESOLVED" && <button onClick={() => resolve(c.id)} className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-100">Resolve</button>}</td>
+                <td className={tdCls}>{c.status !== "RESOLVED" && <Button variant="secondary" size="sm" onClick={() => resolve(c.id)} >Resolve</Button>}</td>
               </tr>
             ))}
           </tbody>

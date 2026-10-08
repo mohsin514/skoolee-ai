@@ -1,5 +1,6 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { Button } from "@/components/ui/button";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
 import { useMemo, useState } from "react";
@@ -215,32 +216,27 @@ export default function AIPage() {
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search drafts…"
                     aria-label="Search saved AI drafts"
-                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
+                    className={"w-full"}
                   />
                   {query ? (
-                    <button data-field-affix="end" type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
-                      className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                    <FieldAction   data-field-affix="end" type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
+                      >
                       <X className="h-3 w-3" />
-                    </button>
+                    </FieldAction>
                   ) : null}
                 </InputGroup>
                 {features.length > 1 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {["", ...features].map((f) => (
-                      <button
+                      <Button variant="choice"
                         key={f || "all"}
                         type="button"
                         onClick={() => setFeatureFilter(f)}
                         aria-pressed={featureFilter === f}
-                        className={cn(
-                          "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                          featureFilter === f
-                            ? "border-[#8127cf] bg-[#8127cf] text-white"
-                            : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
-                        )}
+
                       >
                         {f ? featureLabel(f) : "All"}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 ) : null}
@@ -257,10 +253,10 @@ export default function AIPage() {
           ) : insights.length ? (
             <div className="flex flex-col items-center gap-3 p-10 text-center">
               <p className="text-sm font-bold text-[#1d1b20]">No draft matches that</p>
-              <button type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+              <Button variant="secondary" type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}
+                className="items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear filters
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
@@ -342,25 +338,25 @@ function InsightRow({ insight }: { insight: any }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <button
+          <Button size="icon" variant="secondary"
             type="button"
             onClick={copy}
             title="Copy this draft"
             aria-label={`Copy the ${featureLabel(insight.feature)} draft`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="items-center justify-center"
           >
             {copied ? <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-          </button>
-          <button
+          </Button>
+          <Button size="icon" variant="secondary"
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             title={open ? "Collapse" : "Read the full draft"}
             aria-label={open ? "Collapse this draft" : "Read the full draft"}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+            className="items-center justify-center"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
-          </button>
+          </Button>
         </div>
       </div>
     </li>

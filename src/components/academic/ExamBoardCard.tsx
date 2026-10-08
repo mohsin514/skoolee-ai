@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
@@ -156,13 +157,13 @@ export function ExamBoardCard({
               selectionActive || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
           />
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={() => onOpen()}
-            className="min-w-0 cursor-pointer text-left font-black leading-tight text-[#1d1b20] transition-colors hover:text-[#8127cf]"
+            className="min-w-0 text-left leading-tight"
           >
             {exam.title}
-          </button>
+          </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {flagged ? (
@@ -232,10 +233,10 @@ export function ExamBoardCard({
       ) : null}
 
       {action ? (
-        <button
+        <Button variant="default"
           type="button"
           onClick={() => onAdvance(action)}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:scale-[1.01]"
+          className="flex w-full items-center justify-center gap-1.5 py-2"
           style={{ backgroundColor: accent }}
         >
           {action.type === "lock" ? (
@@ -246,7 +247,7 @@ export function ExamBoardCard({
             <CheckCircle2 className="h-3.5 w-3.5" />
           )}
           {action.label}
-        </button>
+        </Button>
       ) : (
         <div className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2 text-[11px] font-black uppercase tracking-wider text-emerald-600">
           <CheckCircle2 className="h-3.5 w-3.5" /> Complete
@@ -254,13 +255,13 @@ export function ExamBoardCard({
       )}
 
       {canReject ? (
-        <button
+        <Button variant="outline"
           type="button"
           onClick={onReject}
-          className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white py-2 text-[11px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-50"
+          className="mt-2 flex w-full items-center justify-center gap-1.5 py-2"
         >
           <RotateCcw className="h-3.5 w-3.5" /> Send Back
-        </button>
+        </Button>
       ) : null}
     </article>
   );
@@ -318,32 +319,32 @@ function CardMenu({
 
   return (
     <div ref={ref} className="relative">
-      <button
+      <Button variant="secondary" size="icon"
         type="button"
         aria-label={`Actions for ${exam.title}`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+        className="flex items-center justify-center"
       >
         <MoreVertical className="h-3.5 w-3.5" />
-      </button>
+      </Button>
       {open ? (
-        <div className="absolute right-0 top-7 z-30 w-56 overflow-hidden rounded-2xl border border-[#cfc2d6]/20 bg-white p-1.5 shadow-[0_20px_50px_-12px_rgba(31,26,35,0.28)]">
+        <div className="sk-panel absolute right-0 top-7 z-30 w-56 overflow-hidden p-1.5">
           {tabs.map((t) => {
             const Icon = t.icon;
             return (
-              <button
+              <Button variant="secondary"
                 key={t.tab}
                 type="button"
                 onClick={() => {
                   setOpen(false);
                   onOpen(t.tab);
                 }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-ink transition-colors hover:bg-[#fbf0fe]"
+                className="justify-start flex w-full items-center gap-2 px-3 py-2 text-left"
               >
                 <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
                 {t.label}
-              </button>
+              </Button>
             );
           })}
 
@@ -353,7 +354,7 @@ function CardMenu({
           {columns.map((col) => {
             const verdict = evaluateMove(exam, col.key, { role, hasSchedule, meta });
             return (
-              <button
+              <Button variant="secondary"
                 key={col.key}
                 type="button"
                 disabled={!verdict.ok}
@@ -363,10 +364,8 @@ function CardMenu({
                   onMove(col.key);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition-colors",
-                  verdict.ok
-                    ? "cursor-pointer text-ink hover:bg-[#fbf0fe]"
-                    : "cursor-not-allowed text-ink-subtle/70",
+                  "flex w-full items-center justify-between gap-2 px-3 py-2 text-left",
+                  "",
                 )}
               >
                 <span className="flex items-center gap-2">
@@ -377,7 +376,7 @@ function CardMenu({
                   {col.title}
                 </span>
                 {verdict.ok ? <ChevronRight className="h-3.5 w-3.5 text-ink-subtle" /> : null}
-              </button>
+              </Button>
             );
           })}
         </div>

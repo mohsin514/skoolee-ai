@@ -24,6 +24,8 @@ import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { downloadCSV } from "@/lib/csv";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -584,39 +586,39 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         {/* Period selector */}
         <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
           {(["today", "week", "month"] as Period[]).map((p) => (
-            <button
+            <Button variant="ghost" size="sm"
               key={p}
               onClick={() => handlePeriodChange(p)}
               className={cn(
-                "rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                "",
                 period === p
-                  ? "bg-white text-[#8127cf] shadow-md"
-                  : "text-ink-muted hover:text-[#8127cf]"
+                  ? "bg-white shadow-md"
+                  : "text-ink-muted"
               )}
             >
               {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Month navigator */}
         <div className="flex items-center gap-2">
-          <button
+          <Button variant="outline" size="icon"
             onClick={handlePrevMonth}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex items-center justify-center"
           >
             <ChevronLeft className="h-4 w-4" />
-          </button>
+          </Button>
           <span className="text-sm font-black text-[#1f1a23] min-w-[140px] text-center">
             {formatMonthLabel(selectedMonth)}
           </span>
-          <button
+          <Button variant="outline" size="icon"
             onClick={handleNextMonth}
             disabled={shiftMonth(selectedMonth, 1) > currentMonthStr()}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center justify-center"
           >
             <ChevronRight className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -735,7 +737,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                     placeholder="Search class..."
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
-                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all"
+                    className="w-44 pl-9 pr-3"
                   />
                 </InputGroup>
               </div>
@@ -765,10 +767,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                   {filteredClasses.map((cls) => {
                     const rate = cls.percentage;
                     return (
-                      <button
+                      <Button variant="outline"
                         key={cls.classId}
                         onClick={() => handleClassClick(cls.classId)}
-                        className="w-full grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl bg-[#f3f4f9]/50 hover:bg-[#fbf0fe] border border-transparent hover:border-[#8127cf]/10 transition-all cursor-pointer text-left group"
+                        className="w-full grid grid-cols-12 gap-2 items-center text-left group"
                       >
                         <span className="col-span-3 text-sm font-bold text-[#1f1a23] group-hover:text-[#8127cf] transition-colors truncate">
                           {cls.className}
@@ -800,7 +802,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         >
                           {rate}%
                         </span>
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -826,10 +828,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {campusAtRiskClasses.map((cls) => (
-                  <button
+                  <Button variant="outline"
                     key={cls.classId}
                     onClick={() => handleClassClick(cls.classId)}
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-rose-50/50 border border-rose-100 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer text-left"
+                    className="flex justify-start items-center gap-4 text-left"
                   >
                     <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
                       <BarChart3 className="h-4 w-4 text-rose-600" />
@@ -842,7 +844,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         {cls.percentage}% attendance &middot; {cls.absent} absences
                       </p>
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -1003,7 +1005,7 @@ function ClassDetailView({
                 placeholder="Search student..."
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
-                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all"
+                className="w-44 pl-9 pr-3"
               />
             </InputGroup>
           </div>

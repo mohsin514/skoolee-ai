@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
 
 type Preview = {
   currentPlan: string;
@@ -125,14 +128,14 @@ export function SubscriptionLifecyclePanel() {
 
     <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-end">
       <label className="text-sm font-medium">Plan to review
-        <select className="mt-1 block h-10 w-full rounded-md border px-3" value={plan} onChange={event => setPlan(event.target.value)}>
+        <Select className="mt-1 block w-full px-3" value={plan} onChange={event => setPlan(event.target.value)}>
           <option value="BASIC">Basic</option><option value="PRO">Pro</option>
-        </select>
+        </Select>
       </label>
       <label className="text-sm font-medium">Billing period
-        <select className="mt-1 block h-10 w-full rounded-md border px-3" value={billingPeriod} onChange={event => setBillingPeriod(event.target.value as "monthly" | "annual")}>
+        <Select className="mt-1 block w-full px-3" value={billingPeriod} onChange={event => setBillingPeriod(event.target.value as "monthly" | "annual")}>
           <option value="monthly">Monthly</option><option value="annual">Annual</option>
-        </select>
+        </Select>
       </label>
       <Button type="button" variant="outline" disabled={saving} onClick={() => void submit("preview")}>Preview change</Button>
     </div>
@@ -150,7 +153,7 @@ export function SubscriptionLifecyclePanel() {
     </div>}
 
     <label className="block text-sm font-medium">Reason for billing review
-      <textarea className="mt-1 block min-h-20 w-full rounded-md border p-3" maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Optional details for the authorized billing reviewer" />
+      <Textarea className="mt-1 block w-full p-3" maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Optional details for the authorized billing reviewer" />
     </label>
     <div className="flex flex-wrap gap-2">
       <Button type="button" variant="outline" disabled={saving || Boolean(data.school.cancellationEffectiveAt)} onClick={() => void submit("cancel")}>Schedule cancellation</Button>
