@@ -29,7 +29,9 @@
     "check:commercial": "tsx scripts/check-commercial-contract.ts",
     "test:locale": "node --import tsx --test tests/locale/package.test.ts",
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",
-    "test:corrections": "node --import tsx --test tests/corrections/domain.test.ts tests/corrections/integration.test.ts"
+    "test:corrections": "node --import tsx --test tests/corrections/domain.test.ts tests/corrections/integration.test.ts",
+    "test:support-access:local": "tsx scripts/sko-215-local-acceptance.ts",
+    "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

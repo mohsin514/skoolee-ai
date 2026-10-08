@@ -95,6 +95,9 @@ model School {
   guardianAccessVersions  GuardianAccessVersion[]
   guardianAccessEvents    GuardianAccessEvent[]
   guardianReviewQueue     GuardianReviewQueue[]
+  supportIncidents        SupportIncident[]
+  supportGrants           SupportGrant[]
+  supportActions          SupportAction[]
   studentDocuments        StudentDocument[]
   studentTimelineEvents   StudentTimelineEvent[]
   admissionQueries        AdmissionQuery[]
@@ -224,6 +227,7 @@ model WorkflowJob {
   leaseToken String? @map("lease_token")
   leaseUntil DateTime? @map("lease_until")
   cancelRequestedAt DateTime? @map("cancel_requested_at")
+  supportGrantId String? @map("support_grant_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")
   startedAt DateTime? @map("started_at")
@@ -232,6 +236,7 @@ model WorkflowJob {
   activityItems ActivityItem[]
   @@unique([id, schoolId])
   @@index([state, leaseUntil])
+  @@index([supportGrantId, state])
   @@map("workflow_jobs")
 }
 
@@ -2541,6 +2546,74 @@ model SuperAdminAuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("super_admin_audit_logs")
+}
+
+// A support incident is the school-approved reason for bounded vendor support.
+// Actor IDs are immutable audit identities and intentionally have no User FK.
+model SupportIncident {
+  id               String   @id @default(uuid())
+  schoolId         String   @map("school_id")
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reference        String   @unique
+  purpose          String   @db.Text
+  impact           String   @db.Text
+  status           String   @default("open")
+  ownerActorId     String   @map("owner_actor_id")
+  closureEvidence String?  @map("closure_evidence") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  closedAt         DateTime? @map("closed_at")
+  grants           SupportGrant[]
+
+  @@index([schoolId, status, updatedAt])
+  @@map("support_incidents")
+}
+
+model SupportGrant {
+  id              String   @id @default(uuid())
+  schoolId        String   @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  incidentId      String   @map("incident_id")
+  incident        SupportIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  requestedById   String   @map("requested_by_id")
+  approvedById    String?  @map("approved_by_id")
+  purpose         String   @db.Text
+  scope           String[]
+  actions         String[] @default(["read"])
+  status          String   @default("pending")
+  expiresAt       DateTime @map("expires_at")
+  startedAt       DateTime? @map("started_at")
+  revokedAt       DateTime? @map("revoked_at")
+  emergencyReason String?  @map("emergency_reason") @db.Text
+  reviewDueAt     DateTime? @map("review_due_at")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewEvidence  String?  @map("review_evidence") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  queuedActions   SupportAction[]
+
+  @@index([schoolId, status, expiresAt])
+  @@index([incidentId])
+  @@map("support_grants")
+}
+
+model SupportAction {
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  grantId   String   @map("grant_id")
+  grant     SupportGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  actorId   String   @map("actor_id")
+  domain    String
+  action    String
+  status    String   @default("queued")
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([grantId, status])
+  @@index([schoolId])
+  @@map("support_actions")
 }
 
 model LoginSession {

@@ -66,8 +66,10 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { formatSupportInstant } from "@/lib/owner/support-ui";
 
-type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
+type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments" | "support";
 
 function planLabel(plan: string) {
   return getPlanLimits(plan).name;
@@ -285,6 +287,7 @@ export default function OwnerDashboard() {
     { icon: WalletCards, label: "Payments", active: activeView === "payments", onClick: () => setActiveView("payments") },
     { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
     { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
+    { icon: ShieldCheck, label: "Support Access", active: activeView === "support", onClick: () => setActiveView("support") },
   ];
   const bottomItems: RoleNavItem[] = [];
 
@@ -307,6 +310,7 @@ export default function OwnerDashboard() {
       dashboardHref="/owner"
     >
       <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
+        <SupportSessionBanner />
         {activeView === "schools" && (
           <SchoolsView
             stats={stats}
@@ -321,9 +325,209 @@ export default function OwnerDashboard() {
         {activeView === "payments" && <PaymentSettingsView />}
         {activeView === "audit" && <AuditLogView />}
         {activeView === "sessions" && <SessionsView />}
+        {activeView === "support" && <SupportAccessView schools={stats?.schools || []} />}
       </section>
     </RoleShell>
   );
+}
+
+type SupportGrantRow = {
+  id: string; schoolId: string; purpose: string; scope: string[]; actions: string[]; status: string; expiresAt: string;
+  emergencyReason: string | null; reviewDueAt: string | null; reviewedAt: string | null;
+  school: { id: string; name: string }; incident: { id: string; reference: string; purpose: string; impact: string; status: string; updatedAt: string; ownerActorId: string; closureEvidence: string | null };
+};
+
+function SupportSessionBanner() {
+  const t = useUiText();
+  const [session, setSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string } | null>(null);
+  const [remaining, setRemaining] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/owner/support/session", { cache: "no-store" });
+        const json = await response.json();
+        if (alive) setSession(response.ok && json.success ? json.data : null);
+      } catch { if (alive) setSession(null); }
+    };
+    void refresh();
+    const poll = window.setInterval(refresh, 15_000);
+    window.addEventListener("skoolee:support-session-change", refresh);
+    return () => { alive = false; window.clearInterval(poll); window.removeEventListener("skoolee:support-session-change", refresh); };
+  }, []);
+  useEffect(() => {
+    if (!session) return;
+    const tick = () => setRemaining(Math.max(0, Math.ceil((Date.parse(session.expiresAt) - Date.now()) / 1000)));
+    tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
+  }, [session]);
+  if (!session) return null;
+  const end = async () => {
+    const response = await fetch(`/api/owner/support/grants/${session.id}`, { method: "DELETE" });
+    if (!response.ok) { toast.error(t("Could not end support access")); return; }
+    setSession(null); toast.success(t("Support access ended"));
+  };
+  return <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+    <p className="font-semibold">{session.actions.some((action) => action === "write" || action === "export") ? t("Support access is active · scoped actions") : t("Support access is active · read only")} · {t("Expires")} <bdi dir="ltr">{formatSupportInstant(session.expiresAt)} · {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</bdi> · <bdi dir="ltr">{session.id}</bdi></p>
+    <button type="button" onClick={end} className="min-h-11 rounded-lg border border-amber-700 px-4 py-2 font-bold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">{t("End access now")}</button>
+  </div>;
+}
+
+function SupportAccessView({ schools }: { schools: { id: string; name: string }[] }) {
+  const t = useUiText();
+  const [grants, setGrants] = useState<SupportGrantRow[]>([]);
+  const [supportSession, setSupportSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string; queuedActions: { id: string; domain: string; action: string; status: string }[] } | null>(null);
+  const [preview, setPreview] = useState<{ id: string; domain: string; data: unknown } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [schoolId, setSchoolId] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [impact, setImpact] = useState("");
+  const [emergencyReason, setEmergencyReason] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(30);
+  const [scope, setScope] = useState<string[]>(["school_profile"]);
+  const [actions, setActions] = useState<string[]>(["read"]);
+  const [emergency, setEmergency] = useState(false);
+  const [closureEvidence, setClosureEvidence] = useState<Record<string, string>>({});
+  const [actionType, setActionType] = useState("read");
+  const [writeField, setWriteField] = useState("phone");
+  const [writeValue, setWriteValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const active = await fetch("/api/owner/support/session", { cache: "no-store" });
+      const activeJson = await active.json();
+      if (active.ok && activeJson.success) { setSupportSession(activeJson.data); setGrants([]); return; }
+      setSupportSession(null); setPreview(null);
+      const response = await fetch("/api/owner/support/grants", { cache: "no-store" }); const json = await response.json();
+      if (!response.ok) throw new Error(json.error || t("Failed to load support grants"));
+      setGrants(json.data || []);
+    }
+    catch { toast.error(t("Failed to load support grants")); }
+    finally { setLoading(false); }
+  }, [t]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supportSession) return;
+    const poll = window.setInterval(() => {
+      void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
+        if (!response.ok) { setSupportSession(null); setPreview(null); return; }
+        const json = await response.json();
+        if (!json.success || json.data.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
+      }).catch(() => { setSupportSession(null); setPreview(null); });
+    }, 10_000);
+    return () => window.clearInterval(poll);
+  }, [supportSession]);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/owner/support/grants", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schoolId, purpose, impact, scope, actions, durationMinutes, emergency, emergencyReason }) });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || t("Could not request support access"));
+      toast.success(emergency ? t("Emergency support access started; school review is required") : t("Support request sent to the school approver"));
+      setPurpose(""); setImpact(""); setEmergencyReason(""); setEmergency(false); await load();
+      window.dispatchEvent(new Event("skoolee:support-session-change"));
+    } catch (error) { toast.error(error instanceof Error ? error.message : t("Could not request support access")); }
+    finally { setBusy(false); }
+  };
+
+  const start = async (grant: SupportGrantRow) => {
+    const response = await fetch(`/api/owner/support/grants/${grant.id}/start`, { method: "POST" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not start support access")); return; }
+    toast.success(t("Support access started")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
+  };
+  const stop = async (grant: SupportGrantRow) => {
+    const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "DELETE" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not revoke support access")); return; }
+    toast.success(t("Support access revoked; queued actions were cancelled")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
+  };
+  const closeIncident = async (grant: SupportGrantRow) => {
+    const evidence = (closureEvidence[grant.id] || "").trim();
+    if (evidence.length < 12) return;
+    const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "closed", closureEvidence: evidence }) });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not close support incident")); return; }
+    toast.success(t("Incident closed with evidence")); await load();
+  };
+  const inspect = async (grant: Pick<SupportGrantRow, "id">, domain: string) => {
+    const response = await fetch(`/api/owner/support/workspace?grantId=${encodeURIComponent(grant.id)}&domain=${encodeURIComponent(domain)}`, { cache: "no-store" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Support access expired or was revoked")); return; }
+    setPreview({ id: grant.id, domain, data: json.data });
+  };
+  const queueAction = async () => {
+    if (!supportSession) return;
+    const chosenAction = supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export") || "";
+    if (!chosenAction) return;
+    const payload = chosenAction === "write" ? { field: writeField, value: writeValue } : undefined;
+    const response = await fetch("/api/owner/support/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: "school_profile", action: chosenAction, payload }) });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not queue support action")); return; }
+    toast.success(t("Action queued for scoped support")); setWriteValue(""); await load();
+  };
+  const executeAction = async (id: string, type: string) => {
+    const response = await fetch(`/api/owner/support/actions/${id}/execute`, { method: "POST" });
+    if (!response.ok) { const json = await response.json().catch(() => ({})); toast.error(json.error || t("Could not complete support action")); return; }
+    if (type === "export") {
+      const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "school-profile.csv"; anchor.click(); URL.revokeObjectURL(url);
+    }
+    toast.success(type === "export" ? t("Scoped export completed") : t("Scoped change completed")); await load();
+  };
+  const toggle = (items: string[], setter: (value: string[]) => void, value: string) => setter(items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
+  const domainLabels: Record<string, string> = { school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" };
+  return <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" dir="auto">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header><h1 className="text-xl font-extrabold">{t("Audited support access")}</h1><p className="mt-2 max-w-3xl text-sm text-ink-muted">{t("Create an incident, request least-privilege access from the school group administrator, and keep every support read and action linked to its grant.")}</p></header>
+      {supportSession ? <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 sm:p-6"><h2 className="font-bold">{t("Scoped active session")}</h2><p className="mt-1 text-sm">{supportSession.purpose}</p><p className="mt-1 text-xs">{t("Expires")}: <bdi dir="ltr" className="whitespace-nowrap">{formatSupportInstant(supportSession.expiresAt)}</bdi><br /><span dir="ltr" className="break-all">{supportSession.id}</span></p><div className="mt-4 flex flex-wrap gap-2">{supportSession.scope.map((domain) => <button key={domain} type="button" onClick={() => void inspect({ id: supportSession.id }, domain)} className="min-h-11 rounded-lg border border-amber-700 px-3 py-2 text-sm font-semibold">{t("Open")}: {t(domainLabels[domain] || domain)}</button>)}</div>
+        {(supportSession.actions.includes("write") || supportSession.actions.includes("export")) && supportSession.scope.includes("school_profile") && <div className="mt-5 rounded-lg border border-amber-700/30 bg-white p-4"><h3 className="font-bold">{t("Approved school profile actions")}</h3><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3"><label className="text-sm font-semibold">{t("Action")}<SystemSelect className="mt-1" value={supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")} onChange={(event) => setActionType(event.target.value)} aria-label={t("Action")}>{supportSession.actions.includes("write") && <option value="write">{t("Write")}</option>}{supportSession.actions.includes("export") && <option value="export">{t("Export")}</option>}</SystemSelect></label>{(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && <><label className="text-sm font-semibold">{t("Field")}<SystemSelect className="mt-1" value={writeField} onChange={(event) => setWriteField(event.target.value)} aria-label={t("Field")}><option value="phone">{t("Phone")}</option><option value="contactEmail">{t("Contact email")}</option><option value="website">{t("Website")}</option></SystemSelect></label><label className="text-sm font-semibold">{t("New value")}<SystemInput className="mt-1" value={writeValue} maxLength={180} onChange={(event) => setWriteValue(event.target.value)} aria-label={t("New value")} /></label></>}</div><button type="button" disabled={(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && !writeValue.trim()} onClick={() => void queueAction()} className="mt-3 min-h-11 rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{t("Queue action")}</button></div>}
+        {supportSession.queuedActions.length > 0 && <ul className="mt-4 space-y-2" aria-label={t("Support action queue")}>{supportSession.queuedActions.map((action) => <li key={action.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-700/30 bg-white p-3 text-sm"><span>{t(action.action[0].toUpperCase() + action.action.slice(1))} · {t(action.status)} · <bdi dir="ltr">{action.id}</bdi></span>{action.status === "queued" && <button type="button" onClick={() => void executeAction(action.id, action.action)} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 font-semibold">{t(action.action === "export" ? "Run export" : "Apply change")}</button>}</li>)}</ul>}
+      </section> : <>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="mb-4 text-base font-bold">{t("Request scoped access")}</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="text-sm font-semibold">{t("School")}
+            <SystemSelect className="mt-1" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} aria-label={t("School")}>
+              <option value="">{t("Choose a school")}</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+            </SystemSelect>
+          </label>
+          <label className="text-sm font-semibold">{t("Duration (minutes)")}
+            <SystemInput className="mt-1" type="number" min={5} max={emergency ? 60 : 480} value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))} />
+          </label>
+          <label className="text-sm font-semibold sm:col-span-2">{t("Support purpose")}
+            <SystemInput className="mt-1" value={purpose} onChange={(event) => setPurpose(event.target.value)} minLength={12} maxLength={500} aria-label={t("Support purpose")} />
+          </label>
+          <label className="text-sm font-semibold sm:col-span-2">{t("Impact")}
+            <textarea className="sk-field mt-1 min-h-24 w-full rounded-lg p-3" value={impact} onChange={(event) => setImpact(event.target.value)} minLength={8} maxLength={2000} aria-label={t("Impact")} />
+          </label>
+        </div>
+        <fieldset className="mt-5"><legend className="text-sm font-bold">{t("Allowed domains")}</legend><div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(domainLabels).map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input type="checkbox" checked={scope.includes(value)} onChange={() => toggle(scope, setScope, value)} />{t(label)}</label>)}
+        </div><p className="mt-2 text-xs text-rose-800">{t("Safeguarding, clinic, counselling, and custody records are always excluded.")}</p></fieldset>
+        <fieldset className="mt-4"><legend className="text-sm font-bold">{t("Allowed actions")}</legend><div className="mt-2 flex flex-wrap gap-3">{["read", "write", "export"].map((value) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input type="checkbox" checked={actions.includes(value)} onChange={() => toggle(actions, setActions, value)} />{t(value[0].toUpperCase() + value.slice(1))}</label>)}</div><p className="mt-2 text-xs text-ink-muted">{t("Read access is the default. Write access and exports require explicit approval.")}</p></fieldset>
+        <div className="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <label className="flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={emergency} onChange={(event) => { setEmergency(event.target.checked); if (event.target.checked) setDurationMinutes(Math.min(durationMinutes, 60)); }} />{t("Emergency access (school review due before expiry)")}</label>
+          {emergency && <label className="mt-3 block text-sm font-semibold">{t("Emergency justification")}<textarea className="sk-field mt-1 min-h-20 w-full rounded-lg p-3" value={emergencyReason} onChange={(event) => setEmergencyReason(event.target.value)} minLength={20} aria-label={t("Emergency justification")} /></label>}
+        </div>
+        <button type="button" disabled={busy || !schoolId || purpose.trim().length < 12 || impact.trim().length < 8 || scope.length === 0 || actions.length === 0 || emergency && emergencyReason.trim().length < 20} onClick={submit} className="mt-5 min-h-11 rounded-lg bg-violet-700 px-5 py-2 font-bold text-white disabled:opacity-50">{busy ? t("Submitting…") : emergency ? t("Start emergency access") : t("Send school approval request")}</button>
+      </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold">{t("Incidents and grants")}</h2><button type="button" onClick={() => void load()} className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold">{t("Refresh")}</button></div>
+        {loading ? <p className="py-8 text-sm">{t("Loading…")}</p> : grants.length === 0 ? <p className="py-8 text-sm text-ink-muted">{t("No support requests yet")}</p> : <div className="mt-4 space-y-3">{grants.map((grant) => <article key={grant.id} className="rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{grant.school.name} · <bdi dir="ltr">{grant.incident.reference}</bdi></p><p className="mt-1 text-sm text-ink-muted">{grant.purpose}</p><p className="mt-1 text-xs">{t("Incident owner")}: <bdi dir="ltr">{grant.incident.ownerActorId}</bdi> · {t("Incident status")}: {t(grant.incident.status)}</p><p className="mt-1 text-xs">{t("Status")}: {t(grant.status)} · {t("Expires")}: <bdi dir="ltr">{formatSupportInstant(grant.expiresAt)}</bdi></p><p className="mt-1 text-xs">{t("Domains")}: {grant.scope.map((item) => t(domainLabels[item] || item)).join(", ")} · {t("Actions")}: {grant.actions.map((item) => t(item[0].toUpperCase() + item.slice(1))).join(", ")}</p>{grant.incident.closureEvidence && <p className="mt-2 rounded bg-emerald-50 p-2 text-sm">{t("Closure evidence")}: {grant.incident.closureEvidence}</p>}{grant.emergencyReason && <p className="mt-2 rounded bg-amber-50 p-2 text-sm">{t("Emergency")}: {grant.emergencyReason}{grant.reviewedAt ? ` · ${t("Reviewed")}` : <> · {t("Review due")}: <bdi dir="ltr">{formatSupportInstant(grant.reviewDueAt || grant.expiresAt)}</bdi></>}</p>}</div>
+          <div className="flex flex-wrap gap-2">{grant.status === "approved" && <button type="button" onClick={() => void start(grant)} className="min-h-11 rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white">{t("Start access")}</button>}{grant.status === "active" && <button type="button" onClick={() => void stop(grant)} className="min-h-11 rounded-lg border border-rose-400 px-4 py-2 font-semibold text-rose-800">{t("Revoke now")}</button>}
+            {grant.status === "active" && grant.scope.map((domain) => <button key={domain} type="button" onClick={() => void inspect(grant, domain)} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">{t("Open")}: {t(domainLabels[domain] || domain)}</button>)}
+          </div></div>
+          {grant.incident.status !== "closed" && ["revoked", "expired", "rejected", "active", "approved"].includes(grant.status) && <div className="mt-3"><label className="block text-sm font-semibold">{t("Closure evidence")}<textarea className="sk-field mt-1 min-h-20 w-full rounded-lg p-3" value={closureEvidence[grant.id] || ""} onChange={(event) => setClosureEvidence((current) => ({ ...current, [grant.id]: event.target.value }))} aria-label={t("Closure evidence")} /></label><button type="button" disabled={(closureEvidence[grant.id] || "").trim().length < 12} onClick={() => void closeIncident(grant)} className="mt-2 min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50">{t("Close incident with evidence")}</button></div>}
+        </article>)}</div>}
+      </section>
+      </>}
+      {preview && <section className="rounded-xl border border-slate-300 bg-slate-50 p-4 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t("Audited support workspace")}: {t(domainLabels[preview.domain] || preview.domain)}</h2><button type="button" className="min-h-11 rounded-lg border px-4 py-2" onClick={() => setPreview(null)}>{t("Close")}</button></div><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white p-4 text-xs" dir="auto">{JSON.stringify(preview.data, null, 2)}</pre></section>}
+      <p className="text-xs text-ink-muted">{t("The school approver uses the existing school console. Vendor platform administration remains an APP_OWNER capability; support grants do not change school roles.")}</p>
+    </div>
+  </div>;
 }
 
 function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {

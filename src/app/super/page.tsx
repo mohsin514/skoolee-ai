@@ -35,6 +35,7 @@ import {
   X,
   type LucideIcon,
   Network,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
@@ -66,6 +67,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { formatSupportInstant } from "@/lib/owner/support-ui";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -99,7 +102,7 @@ function hasActiveSlot(slot: any) {
 
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates";
+type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates" | "support";
 export default function SuperAdminDashboard() {
   const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
@@ -353,6 +356,7 @@ export default function SuperAdminDashboard() {
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
     { icon: BookOpen, label: "Curriculum Templates", active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
+    { icon: ShieldCheck, label: "Support Approvals", active: activeView === "support", onClick: () => setActiveView("support") },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
@@ -406,7 +410,9 @@ const bottomItems: RoleNavItem[] = [];
       }
     >
       <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
-        {activeView === "billing" ? (
+        {activeView === "support" ? (
+          <SupportApprovalsPanel />
+        ) : activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
@@ -1180,4 +1186,39 @@ function ActivityLogModal({ onClose }: { onClose: () => void }) {
       )}
     </ModalFrame>
   );
+}
+
+function SupportApprovalsPanel() {
+  const t = useUiText();
+  const [items, setItems] = useState<any[]>([]);
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try { const response = await fetch("/api/super/support-grants", { cache: "no-store" }); const json = await response.json(); if (!response.ok) throw new Error(json.error); setItems(json.data || []); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t("Could not load support approvals")); }
+    finally { setLoading(false); }
+  }, [t]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  const decide = async (item: any, decision: string) => {
+    const response = await fetch("/api/super/support-grants", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grantId: item.id, decision, evidence: evidence[item.id] }) });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not update support grant")); return; }
+    toast.success(decision === "approve" ? t("Support access approved") : decision === "reject" ? t("Support request rejected") : decision === "revoke" ? t("Support access revoked") : t("Emergency review recorded"));
+    await refresh();
+  };
+  return <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" dir="auto">
+    <div className="mx-auto max-w-4xl space-y-5">
+      <header><h2 className="text-xl font-extrabold">{t("Support access approvals")}</h2><p className="mt-2 text-sm text-ink-muted">{t("Review vendor requests for this school only. Approve the named purpose, domains, actions, and expiry together.")}</p></header>
+      {loading ? <p>{t("Loading…")}</p> : items.length === 0 ? <p className="rounded-lg border border-slate-200 bg-white p-6">{t("No support requests need review")}</p> : items.map((item) => <article key={item.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold"><bdi dir="ltr">{item.incident.reference}</bdi> · {t(item.status)}</p><p className="mt-1 text-sm">{item.purpose}</p><p className="mt-1 text-xs text-ink-muted">{t("Impact")}: {item.incident.impact}</p><p className="mt-2 text-xs">{t("Domains")}: {item.scope.map((domain: string) => t(({ school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" } as Record<string, string>)[domain] || domain)).join(", ")} · {t("Actions")}: {item.actions.map((action: string) => t(action[0].toUpperCase() + action.slice(1))).join(", ")}</p><p className="mt-1 text-xs">{t("Expires")}: <bdi dir="ltr">{formatSupportInstant(item.expiresAt)}</bdi></p></div>
+          {item.emergencyReason && <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold">{t("Emergency access")}</span>}</div>
+        {item.emergencyReason && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm"><p className="font-bold">{t("Emergency justification")}</p><p className="mt-1">{item.emergencyReason}</p>{item.reviewDueAt && !item.reviewedAt && <p className="mt-2 font-semibold">{t("Review due")}: <bdi dir="ltr">{formatSupportInstant(item.reviewDueAt)}</bdi></p>}</div>}
+        {item.status === "pending" && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void decide(item, "approve")} className="min-h-11 rounded-lg bg-violet-700 px-4 py-2 font-bold text-white">{t("Approve request")}</button><button type="button" onClick={() => void decide(item, "reject")} className="min-h-11 rounded-lg border border-rose-400 px-4 py-2 font-semibold text-rose-800">{t("Reject request")}</button></div>}
+        {item.status === "active" && !item.reviewedAt && item.emergencyReason && <div className="space-y-2"><label className="block text-sm font-semibold">{t("Review evidence")}<textarea className="sk-field mt-1 min-h-20 w-full rounded-lg p-3" value={evidence[item.id] || ""} onChange={(event) => setEvidence((current) => ({ ...current, [item.id]: event.target.value }))} aria-label={t("Review evidence")} /></label><button type="button" disabled={(evidence[item.id] || "").trim().length < 12} onClick={() => void decide(item, "review")} className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50">{t("Record emergency review")}</button></div>}
+        {item.status === "active" && <button type="button" onClick={() => void decide(item, "revoke")} className="min-h-11 rounded-lg border border-rose-400 px-4 py-2 font-semibold text-rose-800">{t("Revoke access now")}</button>}
+      </article>)}
+      <button type="button" onClick={() => void refresh()} className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold">{t("Refresh")}</button>
+    </div>
+  </div>;
 }
