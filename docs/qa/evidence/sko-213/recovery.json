@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-08T09:04:28.747380+00:00",
+  "startedAt": "2026-10-08T09:25:16.591978+00:00",
   "status": "verified-awaiting-sign-off",
   "dataClass": "synthetic",
   "notificationIsolation": "No app, worker or notification SDK is executed; subprocess environment excludes all provider credentials.",
@@ -16,6 +16,10 @@
     },
     {
       "name": "additive-migration-tables-initially-empty",
+      "passed": true
+    },
+    {
+      "name": "enrollment-backfill-complete",
       "passed": true
     },
     {
@@ -52,24 +56,24 @@
     "host": "127.0.0.1",
     "port": 55413,
     "databases": {
-      "clean": "rehearsal_eb3cd65000a1_clean",
-      "upgrade": "rehearsal_eb3cd65000a1_upgrade",
-      "restored": "rehearsal_eb3cd65000a1_restored",
-      "failure": "rehearsal_eb3cd65000a1_failure"
+      "clean": "rehearsal_8bfdb62d8c37_clean",
+      "upgrade": "rehearsal_8bfdb62d8c37_upgrade",
+      "restored": "rehearsal_8bfdb62d8c37_restored",
+      "failure": "rehearsal_8bfdb62d8c37_failure"
     }
   },
   "supportedUpgradePaths": [
     "dev-9c5193d-schema-push-to-versioned-baseline",
     "verified-baseline-to-head"
   ],
-  "actualRestoredPointUtc": "2026-10-08 09:04:54.607108 UTC",
-  "backupStartedAt": "2026-10-08T09:04:54.610088+00:00",
-  "backupAgeSecondsAtRestore": 1.329133,
-  "verifiedRestoreElapsedSeconds": 15.198,
-  "restoreAttemptElapsedSeconds": 15.198,
-  "databaseBackupSha256": "070e9d8dadb06bc7dd947e95c34e1c4bf4b66445526a0e5d9337e941f5cf6a13",
+  "actualRestoredPointUtc": "2026-10-08 09:25:35.06982 UTC",
+  "backupStartedAt": "2026-10-08T09:25:35.071223+00:00",
+  "backupAgeSecondsAtRestore": 0.521407,
+  "verifiedRestoreElapsedSeconds": 12.486,
+  "restoreAttemptElapsedSeconds": 12.486,
+  "databaseBackupSha256": "224ecbc7807415186463a09d6d7639ce33a8a0e34585bc66edb35e13517e065e",
   "baselineSqlSha256": "3e653920ef9312aa574bb53cfdffc5d1d302eda10bb57613afa4296d47cae01d",
-  "elapsedSeconds": 50.908,
-  "completedAt": "2026-10-08T09:05:19.655688+00:00",
+  "elapsedSeconds": 40.155,
+  "completedAt": "2026-10-08T09:25:56.746968+00:00",
   "diagnostics": "diagnostics.log"
 }

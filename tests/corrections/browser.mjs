@@ -19,7 +19,7 @@ for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mo
    // KWD is not necessarily first. Two decimal currencies must use 1.00.
    if(role==='ACCOUNTANT')await page.locator('input[inputmode=decimal]').first().fill('1.00');
    await page.getByRole('button',{name:/^(Review correction|مراجعة التصحيح|تصحیح کا جائزہ)$/}).click();
-   const checkbox=page.getByRole('checkbox').last();await checkbox.waitFor();await checkbox.focus();await page.keyboard.press('Space');if(!await checkbox.isChecked())throw new Error('Keyboard review failed');
+   const checkbox=page.getByRole('checkbox',{name:/I reviewed the original|راجعت القيم الأصلية|میں نے اصل/});await checkbox.waitFor();await checkbox.focus();await page.keyboard.press('Space');if(!await checkbox.isChecked())throw new Error('Keyboard review failed');
    await page.getByRole('button',{name:/^(Save draft|حفظ المسودة|مسودہ محفوظ کریں)$/}).click();await page.reload();await page.waitForFunction(()=>document.querySelector('textarea')?.value==='Synthetic correction reason');
    await page.getByLabel('Language',{exact:true}).selectOption(language);
    const overflow=await page.locator('main').evaluate(e=>e.scrollWidth>e.clientWidth+2);if(overflow)throw new Error(`${role}/${name}/${language} overflow`);
