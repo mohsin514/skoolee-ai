@@ -1367,6 +1367,7 @@ model Mark {
 
 // ─── 9. REPORT_CARDS ──────────────────────────────────────
 model ReportCard {
+  localeSnapshot Json? @map("locale_snapshot")
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)

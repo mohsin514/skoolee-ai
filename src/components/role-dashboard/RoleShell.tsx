@@ -1,5 +1,7 @@
 "use client";
 
+import { LocaleProvider, UiText } from "@/components/locale/LocaleProvider";
+
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { NavigationAccessProvider, NavigationAccessNotice, useNavigationAccess } from "@/components/nav/NavigationAccess";
@@ -30,7 +32,7 @@ interface RoleShellProps {
 }
 
 export function RoleShell(props: RoleShellProps) {
-  return <NavigationAccessProvider access={props.navigationAccess}><RoleShellContent {...props} /></NavigationAccessProvider>;
+  return <LocaleProvider><NavigationAccessProvider access={props.navigationAccess}><RoleShellContent {...props} /></NavigationAccessProvider></LocaleProvider>;
 }
 
 function RoleShellContent({
@@ -109,7 +111,7 @@ function RoleShellContent({
   return (
     <ChatProvider>
       <div className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
-        <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:bg-card focus:p-3">Skip to content</a>
+        <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:bg-card focus:p-3"><UiText>Skip to content</UiText></a>
         <RoleSidebar
           tagline={tagline}
           items={navItems}

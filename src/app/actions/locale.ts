@@ -7,12 +7,12 @@ import { JWT_SECRET } from "@/lib/auth/secret";
 import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
-import { assertDelegatedChanges, canManageSchool, dateOnly, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage } from "@/lib/locale/package";
+import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage } from "@/lib/locale/package";
 import { getLocalePackage } from "@/lib/locale/store";
 
 async function session() {
   const auth = await getAuthUser();
-  if (!auth || auth.role === "APP_OWNER") throw new Error("permission");
+  if (!auth) throw new Error("permission");
   return runWithTenantContext(auth, async () => {
     const user = await prisma.user.findFirst({ where: { id: auth.userId, schoolId: auth.schoolId, isActive: true }, select: { id: true, schoolId: true, campusId: true, role: true, preferredLanguage: true } });
     if (!user) throw new Error("permission");
@@ -31,6 +31,7 @@ async function context(user: Awaited<ReturnType<typeof session>>) {
 export async function getLocaleSettings() {
   const user = await session();
   return runWithTenantContext(user, async () => {
+    if (user.role === "APP_OWNER") return { personal: user.preferredLanguage, role: user.role, canManage: false, ownCampusId: null, grouped: false, school: defaultLocale, campuses: [], policies: [] };
     const { campuses, canManage, grouped } = await context(user);
     const visible = canManage ? campuses : campuses.filter((c) => c.id === user.campusId);
     const policies = await prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, OR: [{ campusId: null }, ...visible.map((c) => ({ campusId: c.id }))] }, orderBy: { effectiveAt: "desc" }, take: 100 });
@@ -110,4 +111,11 @@ export async function reviewLocaleCurrency(id: string, approved: boolean) {
     const result = await prisma.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
     if (result.count !== 1) throw new Error("permission");
   });
+}
+
+export async function getEffectiveDisplayLocale() {
+  const user = await session();
+  const personal = user.preferredLanguage === "en" || user.preferredLanguage === "ar" ? user.preferredLanguage : null;
+  if (user.role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
+  return runWithTenantContext(user, () => getLocalePackage(user.schoolId, user.campusId, new Date(), personal));
 }

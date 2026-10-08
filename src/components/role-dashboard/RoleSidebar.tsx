@@ -1,5 +1,9 @@
 "use client";
 
+import { UiText } from "@/components/locale/LocaleProvider";
+
+import { useUiText, useLocale } from "@/components/locale/LocaleProvider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -54,10 +58,12 @@ function InstitutionBadge({ logoUrl, name }: { logoUrl?: string | null; name: st
 
 export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], logoUrl, collapsed = false, onToggleCollapse }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const t = useUiText();
+  const locale = useLocale();
   const pathname = usePathname();
   const access = useNavigationAccess();
-  const visible = (item: RoleNavItem) => ({ ...item, available: item.available !== false && access.allows(item.module) && access.allowsHref(item.href) });
-  const items = availableNavigation<SidebarEntry>(allItems.map((entry) => isNavGroup(entry) ? { ...entry, children: entry.children.map(visible) } : visible(entry)));
+  const visible = (item: RoleNavItem) => ({ ...item, label: t(item.label), lang: locale.language, available: item.available !== false && access.allows(item.module) && access.allowsHref(item.href) });
+  const items = availableNavigation<SidebarEntry>(allItems.map((entry) => isNavGroup(entry) ? { ...entry, label: t(entry.label), children: entry.children.map(visible) } : visible(entry)));
   const bottomItems = availableNavigation(allBottomItems.map(visible));
   const shortcuts = items.filter((entry): entry is RoleNavItem => !isNavGroup(entry)).slice(0, 4);
 
@@ -96,12 +102,12 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
       <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-1 py-1 safe-area-pb md:hidden">
         {shortcuts.map((item, index) => <NavigationItem key={item.label} item={item} mobile narrowHidden={index > 1} />)}
         <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-haspopup="dialog" className="flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl px-2 text-xs text-ink">
-          <Menu aria-hidden="true" className="h-5 w-5" /><span>More</span>
+          <Menu aria-hidden="true" className="h-5 w-5" /><span><UiText>{"More"}</UiText></span>
         </button>
       </nav>
       {mobileOpen && <ModalSurface onClose={() => setMobileOpen(false)} ariaLabel="Navigation" className="!max-h-[90dvh]">
         <div className="flex items-center justify-between border-b border-border p-4">
-          <h2 className="text-lg font-bold">Navigation</h2>
+          <h2 className="text-lg font-bold"><UiText>{"Navigation"}</UiText></h2>
           <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
         </div>
         <nav aria-label="All navigation" className="min-h-0 space-y-1 overflow-y-auto p-4">{navigation(false, () => setMobileOpen(false))}</nav>

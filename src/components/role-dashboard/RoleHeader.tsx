@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/locale/LocaleProvider";
+
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InputGroup } from "@/components/ui/input-group";
 
@@ -256,17 +258,17 @@ export function RoleHeader({
           {notifOpen && (
             <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
-                <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
+                <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
-                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount} new</span>
+                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount}<UiText>{"new"}</UiText></span>
                 )}
               </div>
               <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
                 {liveNotifications.length === 0 ? (
                   <div className="py-10 text-center">
                     <Bell className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No notifications yet</p>
-                    <p className="text-xs font-medium text-ink-subtle mt-1">You&#39;re all caught up</p>
+                    <p className="text-sm font-bold text-ink-subtle"><UiText>{"No notifications yet"}</UiText></p>
+                    <p className="text-xs font-medium text-ink-subtle mt-1"><UiText>{"You're all caught up"}</UiText></p>
                   </div>
                 ) : (
                   liveNotifications.map((n) => {
@@ -306,9 +308,7 @@ export function RoleHeader({
                     type="button"
                     onClick={markAllAsRead}
                     className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
-                  >
-                    Mark all as read
-                  </button>
+                  ><UiText>{"Mark all as read"}</UiText></button>
                 </div>
               )}
             </div>
@@ -359,9 +359,7 @@ export function RoleHeader({
                     <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
                     <p className="truncate text-[11px] font-semibold text-ink-muted">{displayRole}</p>
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
-                      <UserRound className="h-3 w-3" />
-                      Active account
-                    </div>
+                      <UserRound className="h-3 w-3" /><UiText>{"Active account"}</UiText></div>
                   </div>
                 </div>
               </div>
@@ -377,9 +375,7 @@ export function RoleHeader({
                   className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
-                  <Settings className="h-4 w-4" />
-                  Account settings
-                </button>
+                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></button>
                 <button
                   type="button"
                   onClick={() => {
@@ -389,18 +385,14 @@ export function RoleHeader({
                   className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
                   role="menuitem"
                 >
-                  <KeyRound className="h-4 w-4" />
-                  Change password
-                </button>
+                  <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></button>
                 <button
                   type="button"
                   onClick={handleLogout}
                   className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
                   role="menuitem"
                 >
-                  <LogOut className="h-4 w-4" />
-                  Sign out
-                </button>
+                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></button>
               </div>
             </div>
           )}
@@ -498,9 +490,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={onClose}
             className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
+          ><UiText>{"Cancel"}</UiText></button>
           <button
             onClick={handleSubmit}
             disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
@@ -514,9 +504,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     >
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Current Password
-            </label>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Current Password"}</UiText></label>
             <SystemInput
               type={showPasswords ? "text" : "password"}
               value={currentPassword}
@@ -527,9 +515,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              New Password
-            </label>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"New Password"}</UiText></label>
             <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
               <SystemInput
                 type={showPasswords ? "text" : "password"}
@@ -570,9 +556,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Confirm New Password
-            </label>
+            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Confirm New Password"}</UiText></label>
             <SystemInput
               type={showPasswords ? "text" : "password"}
               value={confirmPassword}
@@ -582,8 +566,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Passwords do not match
-              </p>
+                <AlertTriangle className="w-3 h-3" /><UiText>{"Passwords do not match"}</UiText></p>
             )}
           </div>
 

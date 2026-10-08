@@ -32,7 +32,7 @@ export function formatDateOnly(value: string, policy: LocalePackage): string {
 export function formatInstant(value: string | Date, policy: LocalePackage): string {
   const instant = new Date(value);
   if (!Number.isFinite(instant.getTime())) throw new Error("instant");
-  return new Intl.DateTimeFormat(localeTag(policy), { dateStyle: "medium", timeStyle: "short", timeZone: policy.timezone }).format(instant);
+  return new Intl.DateTimeFormat(localeTag(policy), { dateStyle: "long", timeStyle: "short", timeZone: policy.timezone }).format(instant);
 }
 export function minorUnits(currency: string): number {
   if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new Error("currency");
