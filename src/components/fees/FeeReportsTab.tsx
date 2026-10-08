@@ -170,7 +170,7 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[9px] font-bold text-ink-subtle">
-          {defaulters.length}<UiText>{"defaulter"}</UiText>{defaulters.length !== 1 ? "s" : ""}
+          {tr("Defaulters")}: {defaulters.length}
         </p>
         <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
       </div>

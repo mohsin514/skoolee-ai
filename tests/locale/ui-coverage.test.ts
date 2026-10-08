@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import ts from "typescript";
 import { arabicUi, urduUi } from "../../src/lib/locale/ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "../../src/lib/locale/workflow-ui-messages";
-const files = ["src/lib/locale/invoice-pdf.tsx", "src/lib/pdf.tsx", "src/app/student/fees/page.tsx", "src/app/parent/fees/page.tsx", ...readdirSync("src/components/fees").filter((file)=>file.endsWith("Tab.tsx")).map((file)=>`src/components/fees/${file}`), "src/components/academic/AcademicCalendar.tsx", "src/components/academic/ReportCardPipeline.tsx", "src/components/academic/exams/ReportCardsPanel.tsx", "src/components/settings/InstitutionSettingsPanel.tsx", "src/components/role-dashboard/RoleHeader.tsx", "src/components/role-dashboard/RoleSidebar.tsx"];
+const files = ["src/components/academic-year/CycleBadge.tsx", "src/app/student/attendance/page.tsx", "src/app/parent/attendance/page.tsx", "src/components/insights/FinanceOverview.tsx", "src/lib/locale/invoice-pdf.tsx", "src/lib/pdf.tsx", "src/app/student/fees/page.tsx", "src/app/parent/fees/page.tsx", ...readdirSync("src/components/fees").filter((file)=>file.endsWith("Tab.tsx")).map((file)=>`src/components/fees/${file}`), "src/components/academic/AcademicCalendar.tsx", "src/components/academic/ReportCardPipeline.tsx", "src/components/academic/exams/ReportCardsPanel.tsx", "src/components/settings/InstitutionSettingsPanel.tsx", "src/components/role-dashboard/RoleHeader.tsx", "src/components/role-dashboard/RoleSidebar.tsx"];
 test("every explicit interface copy key has nonempty Arabic and Urdu translations",()=>{
  assert.deepEqual(Object.keys(arabicUi).sort(),Object.keys(urduUi).sort());
  assert.deepEqual(Object.keys(arabicWorkflowUi).sort(),Object.keys(urduWorkflowUi).sort());
@@ -21,5 +21,5 @@ test("every explicit interface copy key has nonempty Arabic and Urdu translation
  const missing: string[]=[];
  for(const [language,catalog] of [["ar",{...arabicWorkflowUi,...arabicUi}],["ur",{...urduWorkflowUi,...urduUi}]] as const)for(const key of keys)if(!catalog[key])missing.push(`${language}: ${key}`);
  assert.deepEqual(missing,[]);assert.ok(keys.size>500);
- for(const [source, translated] of Object.entries({...arabicWorkflowUi,...urduWorkflowUi})) assert.deepEqual(translated.match(/\{\d+\}/g)?.sort() ?? [], source.match(/\{\d+\}/g)?.sort() ?? [], source);
+ for(const [source, translated] of [...Object.entries(arabicWorkflowUi),...Object.entries(urduWorkflowUi)]) assert.deepEqual(translated.match(/\{\d+\}/g)?.sort() ?? [], source.match(/\{\d+\}/g)?.sort() ?? [], source);
 });

@@ -93,13 +93,13 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           <InstitutionBadge logoUrl={logoUrl} name={tagline} />
           {!collapsed && <div className="min-w-0"><SkooleeLogo size="1.2rem" /><p lang={taglineLang} className="mt-1 break-words text-xs text-ink-muted">{tagline}</p></div>}
         </div>
-        <nav aria-label="Primary navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(collapsed)}</nav>
-        {onToggleCollapse && <button type="button" onClick={onToggleCollapse} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border text-sm text-ink">
+        <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(collapsed)}</nav>
+        {onToggleCollapse && <button type="button" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!collapsed} className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border text-sm text-ink">
           <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />
           {!collapsed && "Collapse"}
         </button>}
       </aside>
-      <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-1 py-1 safe-area-pb md:hidden">
+      <nav aria-label={t("Mobile navigation")} className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-1 py-1 safe-area-pb md:hidden">
         {shortcuts.map((item, index) => <NavigationItem key={item.label} item={item} mobile narrowHidden={index > 1} />)}
         <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-haspopup="dialog" className="flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl px-2 text-xs text-ink">
           <Menu aria-hidden="true" className="h-5 w-5" /><span><UiText>{"More"}</UiText></span>
@@ -108,9 +108,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
       {mobileOpen && <ModalSurface onClose={() => setMobileOpen(false)} ariaLabel="Navigation" className="!max-h-[90dvh]">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="text-lg font-bold"><UiText>{"Navigation"}</UiText></h2>
-          <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
+          <button type="button" aria-label={t("Close navigation")} onClick={() => setMobileOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
         </div>
-        <nav aria-label="All navigation" className="min-h-0 space-y-1 overflow-y-auto p-4">{navigation(false, () => setMobileOpen(false))}</nav>
+        <nav aria-label={t("All navigation")} className="min-h-0 space-y-1 overflow-y-auto p-4">{navigation(false, () => setMobileOpen(false))}</nav>
       </ModalSurface>}
     </>
   );

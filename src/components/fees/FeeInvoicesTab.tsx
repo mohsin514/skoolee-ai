@@ -235,7 +235,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-ink-subtle">{total}<UiText>{"invoice"}</UiText>{total !== 1 ? "s" : ""}</p>
+      <p className="text-[9px] font-bold text-ink-subtle">{tr("Invoices")}: {total}</p>
 
       {loading ? (
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">

@@ -1,4 +1,5 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
@@ -2723,6 +2724,7 @@ export function StudentDetailModal({
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   // The roster carries a summary; address, medical notes, allergies,
   // medications and special needs live only on the full record and are fetched
   // when a profile is actually opened. Render the summary immediately and merge
@@ -3130,7 +3132,7 @@ export function StudentDetailModal({
           ) : (
             <div className="mt-4 space-y-3">
               <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(student.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(student.gender)} />
               <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
               <DetailRow label="Nationality" value={student.nationality || "N/A"} />
@@ -3661,6 +3663,7 @@ export function TeacherDetailModal({
   onClose: () => void;
   onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -4058,7 +4061,7 @@ export function TeacherDetailModal({
               <DetailRow label="Email" value={teacher.email || "N/A"} />
               <DetailRow label="Phone" value={teacher.phone || "N/A"} />
               <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
-              <DetailRow label="Date of Birth" value={formatDate(teacher.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(teacher.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
             </div>
           )}
@@ -4108,7 +4111,7 @@ export function TeacherDetailModal({
                 value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
               />
               <DetailRow label="Experience" value={teacher.experience || "N/A"} />
-              <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
+              <DetailRow label="Joining Date" value={formatCalendarDate(teacher.joiningDate)} />
             </div>
           )}
         </div>

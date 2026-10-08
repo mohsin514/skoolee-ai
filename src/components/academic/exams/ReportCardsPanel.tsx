@@ -274,23 +274,23 @@ export function ReportCardsPanel({
         key: "lock",
         label: tr("Lock the marks"),
         icon: Lock,
-        blurb: "Freezes every mark and creates one report card per pupil.",
+        blurb: tr("Freezes every mark and creates one report card per pupil."),
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
         reason: !progress
-          ? "Checking how many marks are in…"
+          ? tr("Checking how many marks are in…")
           : progress.expected === 0
-          ? "This class has no students or no subjects yet."
+          ? tr("This class has no students or no subjects yet.")
           : marksComplete
-          ? `All ${progress.expected} marks are in.`
-          : `${missing} of ${progress.expected} marks still to enter — finish them on the Enter marks tab.`,
-        cta: "Lock marks",
+          ? tr("All {0} marks are in.", [progress.expected])
+          : tr("{0} of {1} marks still to enter — finish them on the Enter marks tab.", [missing, progress.expected]),
+        cta: tr("Lock marks"),
         onRun: lockExam,
       },
       {
         key: "review",
         label: tr("Review"),
         icon: ShieldCheck,
-        blurb: "The principal signs the results off before families see them.",
+        blurb: tr("The principal signs the results off before families see them."),
         // The server refuses to review while any card lacks an approved
         // remark, so the step has to test the same thing. Reporting "ready"
         // and then failing on click is the defect this panel was rebuilt for.
@@ -301,11 +301,11 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first — there is nothing to review yet."
+          ? tr("Lock the marks first — there is nothing to review yet.")
           : needingRemarks > 0
-          ? `${needingRemarks} report card${needingRemarks === 1 ? "" : "s"} still need an approved remark — write and approve them below.`
-          : "Every remark is approved. Ready for sign-off.",
-        cta: "Mark reviewed",
+          ? tr("Report cards awaiting an approved remark: {0}. Write and approve them below.", [needingRemarks])
+          : tr("Every remark is approved. Ready for sign-off."),
+        cta: tr("Mark reviewed"),
         onRun: () => run("review", "Results reviewed"),
       },
       {
@@ -314,7 +314,7 @@ export function ReportCardsPanel({
         key: "pdf",
         label: tr("Build the PDFs"),
         icon: FileText,
-        blurb: "Renders every report card to a PDF, ready to publish and send.",
+        blurb: tr("Renders every report card to a PDF, ready to publish and send."),
         state:
           isLocked && cards.length > 0 && pdfsMissing === 0
             ? "done"
@@ -322,43 +322,43 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first."
+          ? tr("Lock the marks first.")
           : pdfsMissing === 0 && cards.length > 0
-          ? `All ${cards.length} PDFs are built.`
-          : `${pdfsMissing} of ${cards.length} report cards have no PDF yet.`,
-        cta: "Build PDFs",
+          ? tr("All {0} PDFs are built.", [cards.length])
+          : tr("{0} of {1} report cards have no PDF yet.", [pdfsMissing, cards.length]),
+        cta: tr("Build PDFs"),
         onRun: () => run("pdf", "Report card PDFs built"),
       },
       {
         key: "publish",
         label: tr("Publish"),
         icon: Upload,
-        blurb: "Makes the report cards visible to parents and students.",
+        blurb: tr("Makes the report cards visible to parents and students."),
         state: published ? "done" : reviewed && pdfsMissing === 0 ? "ready" : "blocked",
         reason: published
-          ? "Published."
+          ? tr("Published.")
           : !reviewed
-          ? "Needs the principal's review first."
+          ? tr("Needs the principal's review first.")
           : pdfsMissing > 0
-          ? `${pdfsMissing} report card${pdfsMissing === 1 ? " has" : "s have"} no PDF yet — run the step above.`
-          : "Reviewed, PDFs built, ready to publish.",
-        cta: "Publish all",
+          ? tr("Report cards without a PDF: {0}. Run the step above.", [pdfsMissing])
+          : tr("Reviewed, PDFs built, ready to publish."),
+        cta: tr("Publish all"),
         onRun: () => run("publish", "Report cards published"),
       },
       {
         key: "send",
         label: tr("Send to families"),
         icon: Send,
-        blurb: "Delivers each report card over WhatsApp.",
+        blurb: tr("Delivers each report card over WhatsApp."),
         state: cards.length > 0 && cards.every((c) => c.isSent) ? "done" : published ? "ready" : "blocked",
         reason: published
-          ? `${cards.filter((c) => c.isSent).length} of ${cards.length} already sent.`
-          : "Publish the report cards before sending them out.",
-        cta: "Send all",
+          ? tr("{0} of {1} already sent.", [cards.filter((c) => c.isSent).length, cards.length])
+          : tr("Publish the report cards before sending them out."),
+        cta: tr("Send all"),
         onRun: () => run("send", "Report cards sent"),
       },
     ];
-  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks]);
+  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks, tr]);
 
   if (loading) {
     return (

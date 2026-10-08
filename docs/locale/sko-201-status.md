@@ -1,56 +1,48 @@
-# SKO-201 locale packages — implementation and remaining acceptance work
+# SKO-201: locale package implementation and verification
 
-This is an in-progress implementation. It is not approval to release full Arabic coverage or a completed SKO-201 acceptance claim.
+English, Arabic and Urdu are supported in locale settings, shared role navigation/account controls, school settings, the fee/accounting workflow, family fee and attendance views, report review, notifications and printed invoice/report/receipt workflows. Authored names, notes, identifiers and approved remarks retain their original content. Translation fixtures and automated coverage are engineering checks, not independent native-language approval.
 
-## Implemented
+## Policy and financial behavior
 
-- Append-only, effective-dated school and campus locale packages. Current database roles and school-group ownership govern writes; campus principals can change only delegated keys. Existing nondelegated overrides survive a delegated reset.
-- Personal English/Arabic preference; bilingual locale settings, validation/help states, shared interface/print/notification preview, RTL controls and mixed-direction tokens.
-- Signed expiring preview receipt, reauthorization and serializable application. Currency changes wait for a different accountant's review. No currency conversion.
-- Date-only formatting never applies timezone conversion. Instant formatting uses validated IANA zones. Gregorian/ISO display only; unsupported calendars are rejected.
-- Integer currency parsing with explicit half-away-from-zero rounding, zero/two/three decimal currencies, exact formatting through the safe integer range, and currency-mixing rejection.
-- Real attendance defaults resolve the active campus timezone. Real calendar feeds apply historical/future weekend rules per date; week start changes reorder the grid. Exam scheduling conflict checks and parent timetable views use the same policy. Legacy timezone/weekend writes cannot bypass reviewed policy.
-- Invoices retain a currency code (existing legacy sources remain PKR) and issuance locale snapshot. Actual invoice PDF uses Arabic shaping, localized copy, date-only fields and original currency minor units. Previously the PDF displayed integer minor units directly as rupees; the localized renderer uses the currency precision.
-- Notification templates have language identity. Arabic/English fallback catalogs have matching placeholders. Recipient preference overrides display language, original invoice amounts/dates are formatted from the invoice snapshot, and communication metadata retains locale. The email frame carries language/direction and Arabic copy. No test sent any message.
+- Append-only school/campus policies resolve by effective timestamp. Group administrators own school defaults; standalone administrators omit group hierarchy. Campus principals can change only explicitly delegated keys. Current database identity is rechecked on writes; vendor owners cannot change tenant policy.
+- Personal en/ar/ur preference controls interface direction and copy. Signed, expiring previews bind the user, proposed values and current policy revision. Effective dates explicitly begin at 00:00 UTC. A different accountant must approve a currency change.
+- Validated locations default PK to PKR, SA to SAR, AE (including Dubai imports) to AED, KW to KWD, and OTHER/unknown to USD. Location changes do not relabel or convert existing money.
+- Currency identity is captured on fee sources, invoices, discounts, carry-forward, bank accounts and ledger entries. Database triggers prevent changing posted monetary identity. Cross-currency invoice additions and totals are rejected or explicitly filtered. Family fee pages select one currency; dashboards filter a declared currency; the group overview uses the school policy currency.
+- Minor-unit precision is pinned independently of runtime CLDR data: PKR/SAR/AED/USD have two places, KWD three, JPY/KRW zero. Decimal parsing uses integer arithmetic and explicit half-away-from-zero rounding. This fixes a real Node/browser PKR precision disagreement found by bank-import testing.
+- Payments, bank reconciliation and receipts use original invoice currency. Online gateway collection remains explicitly PKR-only. No foreign exchange is implemented.
+- IANA zones, configurable week/weekend and Gregorian/ISO calendar display are validated. Birthdays/attendance remain date-only. Instant formatting uses the policy timezone. Future exam previews use real scoped papers and expose DST gaps/overlaps without rewriting stored dates or historical timestamps.
 
-## Still required before release / issue completion
+## Verification evidence
 
-- Apply and verify personal/school language across the existing role workspaces, all enabled forms, help and validation copy. An AST inventory found 3,088 unique static user-facing strings in 288 TSX files (11,645 source words), before dynamic messages. Existing workspaces do not yet switch completely to Arabic.
-- Integrate and validate the real academic report-card PDF language path; current report-card functionality still has the existing English/Urdu behavior.
-- Show real future scheduled events and their timezone effects in the settings preview; the current timezone comparison is a clearly marked synthetic UTC event. Preserve each historical event's original timezone context where needed.
-- Complete currency identity propagation for non-PKR fee sources and all downstream accounting totals/payment paths. Existing legacy accounting sources remain PKR, deliberately not reinterpreted by changing the display policy.
-- Human translation approval is not implied by synthetic fixtures or catalog completeness checks.
+All tests use disposable local PostgreSQL at port 55401 and local Next at port 3201, with no remote credentials or outbound email/payment/AI calls.
 
-## Validation completed locally
+| Acceptance area | Evidence |
+| --- | --- |
+| Locale inheritance, delegation, effective boundary, independent finance approval | package/database tests and actual signed-preview browser workflow |
+| Same canonical values in interface, print and notification previews | shared workflow samples and snapshot-preservation assertions |
+| Three languages and layouts | 99 locale-setting role/language/width combinations; 11 actual Urdu role dashboards/account forms at three widths |
+| Financial workflow UI | Six finance screens × three languages × three widths; keyboard date selection and 200% dialog checks; zero detected explicit missing keys |
+| Family financial identity | Student/parent × three languages × PKR/KWD/AED × three widths; displayed totals contain only selected currency |
+| Date-only stability | Student/parent attendance in all three languages under Pacific/Honolulu and Pacific/Kiritimati; October 1 remains October 1 |
+| Currency precision and storage | Zero/two/three-place tests, immutable currency DB trigger test, real KWD payment/ledger and bank opening balance, bank/ledger currency mismatch rejection, PKR/KWD/AED bank matching without payment side effects |
+| DST and future events | New York/London gap/overlap tests; actual exam preview and independent finance review |
+| Real notification paths | Persisted en/ar/ur report communications with NO_RECIPIENT; recipient-locale help and original IDs preserved |
+| PDF shaping and identity | Invoice, report-card, class-grade and receipt renderers; repeated en/ar/ur output, Poppler extraction and Arabic/Urdu visual inspection; original marks, notes, dates and monetary amounts preserved |
+| Release checks | TypeScript and locale/copy tests passed; final production build and updated-head CI recorded in the PR |
 
-- Unit regressions: 7 passed, including date-only stability, New York/London DST transitions, currencies JPY/SAR/KWD, negative rounding, safe-integer precision, delegation/role denial, catalog/placeholder completeness and HTML escaping.
-- PostgreSQL integration: effective instant boundaries, campus inheritance, legacy and changed weekend dates, finance gate, tenant denial, notification rendering/persistence with NO_RECIPIENT. Fixture rows are scoped to a disposable local database.
-- Browser matrix: 11 roles × 1440/768/390px = 33 checks; Arabic settings RTL, allowed controls, vendor denial, no horizontal overflow. These checks cover the locale settings screen, not unimplemented whole-workspace Arabic coverage.
-- Browser workflow: signed Arabic preview, PDF print, apply to FINANCE_REVIEW, independent accountant approval, original School.timezone unchanged.
-- Arabic browser-print PDF and actual invoice renderer PDF inspected visually and by text extraction, including Latin IDs and Arabic/Western digits.
-- TypeScript no-emit and focused ESLint pass at the recorded implementation point; rerun after subsequent edits.
+The catalog gate checks both languages and placeholder parity for explicit workflow keys. Runtime development diagnostics report missing keys rather than silently hiding coverage gaps. The source gate covers the workflow components named in `tests/locale/ui-coverage.test.ts`.
 
-## Local reproduction
+Representative synthetic artifacts are committed in [evidence](evidence/): Arabic invoice/class grades, Urdu report/receipt, Urdu phone finance and 200% bank-date dialog. All names and contact details are disposable test fixtures.
 
-Use only a disposable PostgreSQL instance at `127.0.0.1:55401/sko201`, with `DATABASE_URL` and `DIRECT_URL` explicitly set to that instance. The fixture and database harness refuse other addresses. Do not copy production `.env` files.
+## Reproduction
 
-1. Apply committed migrations to the empty local database and run `prisma generate` in isolated dependencies.
-2. Run `npm run test:locale` and `npm run test:locale:db`.
-3. Run `node --import tsx tests/locale/fixture.ts` with the local database variables.
-4. Run Next on port 3201 with the local database variables and `AUTH_SECRET=local-sko201-fixture`.
-5. Run `tests/locale/browser-check.ts`, then `tests/locale/preview-check.ts` with `node --import tsx`.
-6. `tests/locale/invoice-pdf-check.ts` writes a synthetic PDF to `/tmp/sko201-evidence`; inspect with Poppler.
-7. Stop the app, drop only the disposable local database, and stop the local PostgreSQL instance.
+Use only a disposable `sko201` or `sko201_replay` database on `127.0.0.1:55401`, with DATABASE_URL and DIRECT_URL explicitly set. Never copy a production .env into the worktree.
 
-No remote database writes, emails, payments, AI calls, merges to shared branches or deployments are part of this verification.
+1. Apply all migrations to the empty database and generate Prisma in isolated dependencies.
+2. Run `node --import tsx --test tests/locale/{package,country,events,ui-coverage,database,money-database}.test.ts`.
+3. Run `tests/locale/fixture.ts`; start Next on port 3201 with `AUTH_SECRET=local-sko201-fixture`.
+4. Run browser checks sequentially because role-language fixtures are shared: `browser-check`, `preview-check`, `header-browser-check`, `finance-browser-check`, `portal-browser-check`, `attendance-browser-check` `bank-import-check` and `bank-account-check` (all under `tests/locale`, using tsx).
+5. Run the invoice/report/receipt PDF scripts, then inspect `/tmp/sko201-evidence` using Poppler.
+6. Stop the local app before building. Delete only task-scoped fixtures/databases and stop the task-owned local PostgreSQL instance afterward.
 
-## Completion work after expanded English / Arabic / Urdu requirements
-
-- Added Urdu settings, invoice, academic report and all ten notification-template catalogs plus RTL email framing. Report font caches are separated by language after a repeated-render regression; six consecutive English/Arabic/Urdu renders passed. Urdu invoice/report visually reviewed with Latin IDs and Arabic digits; report remains one page.
-- Added validated PK/SA/AE/KW/OTHER location choices and default PKR/SAR/AED/KWD/USD mapping (Dubai normalization maps AE). Unknown new locale defaults to USD. Preview derives country currency server-side and requires currency delegation plus independent finance review.
-- Future exam preview reads actual scoped scheduled papers and their local period start times, showing before/after UTC interpretations. Dates/local times remain stored unchanged. DST gaps/overlaps are explicit. Two-zone DST tests pass.
-- Added immutable currency identity to monetary sources and ledger. Original legacy records remain PKR. Invoice generation copies source currency; cross-currency discounts, carry-forward, late fees and overpayment credit are refused. Payment collection uses invoice precision and posts its currency to ledger.
-- Actual invoice/fee collection displays and CSV amounts use record currency minor units. Ledger/profit and fee-summary reports filter currency, with selectors. PKR-only gateway rejects other invoice currencies.
-- Fresh localhost migration replay passed baseline, locale, report snapshot, money identity and outbox migrations. Real KWD payment/ledger and database immutable-currency checks passed. Policy/notification persistence passed after USD default change.
-
-Still in progress: full shared/role UI translation coverage and missing-key gate; remaining legacy financial editing/statement surfaces; complete three-language real workflow preview/role/browser coverage; final production build and recovery checks. The PR remains draft and Linear remains In Progress until these are completed.
+External Vercel demo/dev checks reported a build quota limit at checkpoint f2b7743; GitHub recovery and outbox checks passed there. The PR records final-head status separately. No merge, production migration or deployment is included in this task.

@@ -386,10 +386,10 @@ export function campusRows(campuses: any[]): CampusRow[] {
     const billed = fromMinor(
       Object.entries(invoice)
         .filter(([status]) => status !== "CANCELLED")
-        .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0),
+        .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0), campus.currency ?? "PKR",
     );
     const collected = fromMinor(
-      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0),
+      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0), campus.currency ?? "PKR",
     );
 
     const percentages = (campus.students ?? [])
@@ -477,7 +477,7 @@ export function campusFeeStack(campuses: any[]): CampusFeeStack[] {
   return (campuses ?? [])
     .map((campus: any) => {
       const summary = campus.invoiceSummary ?? {};
-      const amount = (key: string) => fromMinor(summary[key]?.amount ?? 0);
+      const amount = (key: string) => fromMinor(summary[key]?.amount ?? 0, campus.currency ?? "PKR");
       const row = {
         name: campus.name,
         Paid: amount("PAID"),

@@ -121,7 +121,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Payments"}</UiText></h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}><UiText>{"Export"}</UiText></BrandButton>
           <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={() => setShowBankImport(true)}><UiText>{"Bank Import"}</UiText></BrandButton>
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowPayment(true)}><UiText>{"Record Payment"}</UiText></BrandButton>
@@ -169,7 +169,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-ink-subtle">{total}<UiText>{"payment"}</UiText>{total !== 1 ? "s" : ""}</p>
+      <p className="text-[9px] font-bold text-ink-subtle">{tr("Payments")}: {total}</p>
 
       {loading ? (
         <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
@@ -581,16 +581,16 @@ function PaymentModal({
               ) : null;
             })()}
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Amount (PKR)"}</UiText></label>
+              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</label>
               <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
               <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Fine (PKR)"}</UiText></label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</label>
                 <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
               <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Discount (PKR)"}</UiText></label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</label>
                 <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
             </div>
@@ -698,7 +698,7 @@ function BankImportModal({
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Account Name"}</UiText></label>
             <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder={tr("School Savings Account")} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"From"}</UiText></label>
               <SystemInput type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />

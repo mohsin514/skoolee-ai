@@ -908,7 +908,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Discounts"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Flat (PKR) or percent — per student or auto-applied to a category"}</UiText></p>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{tr("Flat amount")} (<bdi>{currency}</bdi>) / {tr("Percent (max 100)")}</p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Discount"}</UiText></BrandButton>
       </div>

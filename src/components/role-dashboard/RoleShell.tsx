@@ -124,7 +124,7 @@ function RoleShellContent({
           id="workspace-content"
           tabIndex={-1}
           className={cn(
-            "flex-1 min-w-0 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-dvh overflow-hidden transition-[margin] duration-300 ease-out",
+            "flex-1 min-w-0 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-dvh overflow-hidden transition-none md:transition-[margin] duration-300 ease-out",
             collapsed ? "md:ms-[72px]" : "md:ms-64",
             className,
           )}

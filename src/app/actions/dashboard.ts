@@ -66,6 +66,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   const session = await getAuthUser();
   if (!session || session.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
+  const { currency } = await getLocalePackage(session.schoolId, null);
 
   const [
     school,
@@ -229,7 +230,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     }),
     prisma.invoice.groupBy({
       by: ["campusId", "status"],
-      where: { campus: { schoolId: session.schoolId } },
+      where: { currency, campus: { schoolId: session.schoolId } },
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
@@ -292,6 +293,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       aiUsage: aiUsageMap[campus.id] || { runs: 0, tokens: 0 },
       communicationSummary: communicationMap[campus.id] || {},
       invoiceSummary: invoiceMap[campus.id] || {},
+      currency,
       admin: admin
         ? { ...admin, status: admin.onboardingComplete ? "Active" : "Onboarding" }
         : pendingAdmin
@@ -348,6 +350,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   );
 
   return {
+    currency,
     schoolName: school?.name || "System",
     schoolSlug: school?.slug || "system",
     billing: {

@@ -6,7 +6,6 @@ import {
   ApiError,
   assertModuleRead,
   assertPermission,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -83,7 +82,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
@@ -111,6 +109,7 @@ export async function POST(req: NextRequest) {
     if (body.bankAccountId) {
       const bank = await prisma.bankAccount.findFirst({ where: { id: body.bankAccountId, campusId } });
       if (!bank) throw new ApiError("Bank account not found", 404);
+      if (bank.currency !== currency) throw new ApiError("Bank account currency must match the ledger entry", 400);
       bankAccountId = bank.id;
     }
 
@@ -139,7 +138,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "delete");
 
     const id = req.nextUrl.searchParams.get("id");

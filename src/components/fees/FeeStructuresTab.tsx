@@ -466,7 +466,7 @@ function StructureModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}><UiText>{"Monthly Fee (PKR)"}</UiText></label>
+              <label className={labelClass}>{tr("Monthly Fee")} (<bdi>{currency}</bdi>)</label>
               <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div>

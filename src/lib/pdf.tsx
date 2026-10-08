@@ -202,7 +202,7 @@ export async function generateClassGradesPdf(classId: string) {
 
   const locale = await getLocalePackage(cls.schoolId, cls.campusId);
   const t = (source: string) => translateUi(source, locale.language);
-  const number = (value: number) => new Intl.NumberFormat(localeTag(locale)).format(value);
+  const number = (value: number) => new Intl.NumberFormat(localeTag(locale),{useGrouping:false}).format(value);
   const rtl = locale.language !== "en";
   const results = await calculateWeightedGradeForClass(classId, cls.campusId, cls.academicYear);
   const passed = results.filter((r) => r.passed).length;
@@ -218,7 +218,7 @@ export async function generateClassGradesPdf(classId: string) {
     <Document language={locale.language}>
       <Page size="A4" style={[styles.page,{fontFamily:`Receipt-${locale.language}`,direction:rtl?"rtl":"ltr",textAlign:rtl?"right":"left"}]}>
         <Header campus={cls.campus} />
-        <Text style={styles.title}>{t("Final Grades")} — {className} ({number(cls.academicYear)})</Text>
+        <Text style={styles.title}>{t("Final Grades")}</Text><Text style={{fontSize:12,marginBottom:8}}>{className}</Text><Text style={styles.muted}>{number(cls.academicYear)}</Text>
         <Text style={[styles.muted, { marginBottom: 12 }]}>
           {t("Students")}: {number(results.length)} · {t("Passed")}: {number(passed)} · {t("Failed")}: {number(results.length - passed)}
         </Text>

@@ -1,6 +1,7 @@
 "use client";
 
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
 
 import { useCallback, useEffect, useState } from "react";
@@ -428,6 +429,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
 /* ── Bank Accounts ─────────────────────────────────────── */
 
 interface BankRow {
+  currency: string;
   id: string;
   name: string;
   bankName?: string | null;
@@ -437,6 +439,9 @@ interface BankRow {
 }
 
 function BanksPanel({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("PKR");
+  const [defaultCurrency, setDefaultCurrency] = useState("");
+  useEffect(() => { void getFinancialLocale(campusId).then(policy => setDefaultCurrency(policy.currency)); }, [campusId]);
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [banks, setBanks] = useState<BankRow[]>([]);
@@ -472,12 +477,14 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     setName(row?.name ?? "");
     setBankName(row?.bankName ?? "");
     setAccountNumber(row?.accountNumber ?? "");
-    setOpeningBalance(row ? String(paisaToRupees(row.openingBalance)) : "");
+    setCurrency(row?.currency || defaultCurrency);
+    setOpeningBalance(row ? String(paisaToRupees(row.openingBalance, row.currency)) : "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error(tr("Name is required")); return; }
+    if (!currency) { toast.error(tr("Currency could not be loaded")); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API}/accounts/bank-accounts`, {
@@ -488,7 +495,8 @@ function BanksPanel({ campusId }: { campusId?: string }) {
           name: name.trim(),
           bankName: bankName.trim() || undefined,
           accountNumber: accountNumber.trim() || undefined,
-          openingBalance: rupeesToPaisa(parseFloat(openingBalance) || 0),
+          currency,
+          openingBalance: rupeesToPaisa(openingBalance || "0", currency),
         }),
       });
       const json = await res.json();
@@ -573,7 +581,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
-                <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance)}</p>
+                <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
               <button
                 type="button"
@@ -599,7 +607,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
             <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Main School Account")} onChange={setName} />
             <FormInput label={tr("Bank Name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
             <FormInput label={tr("Account Number")} value={accountNumber} placeholder="e.g. 1234-5678-90" onChange={setAccountNumber} />
-            <FormInput label={tr("Opening Balance (PKR)")} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
+            <FormInput label={`${tr("Opening Balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Bank Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
@@ -805,7 +813,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </FormSelect>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
               <FormInput label={`${tr("Amount")} (${currency || "PKR"})`} type="number" value={amount} placeholder="0" onChange={setAmount} />
               <FormInput label={tr("Date")} type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
             </div>
@@ -813,7 +821,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               <label className={labelClass}><UiText>{"Bank Account (optional)"}</UiText></label>
               <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
                 <option value=""><UiText>{"— None —"}</UiText></option>
-                {banks.filter((b) => b.isActive).map((b) => (
+                {banks.filter((b) => b.isActive && b.currency === currency).map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </SystemSelect>

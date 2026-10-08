@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+
 /**
  * The accountant's opening screen.
  *
@@ -90,6 +92,7 @@ export function FinanceOverview({
   campusLabel: string;
   onNavigate: (view: string) => void;
 }) {
+  const tr = useUiText();
   const locale = useLocale();
   const fromMinor = (value: number) => value / 10 ** minorUnits(summary.currency);
   const money = (value: number) => new Intl.NumberFormat(localeTag(locale), { style: "currency", currency: summary.currency, minimumFractionDigits: minorUnits(summary.currency), maximumFractionDigits: minorUnits(summary.currency) }).format(value);
@@ -106,14 +109,14 @@ export function FinanceOverview({
         billed: fromMinor(r.billed),
         paid: fromMinor(r.paid),
         outstanding: fromMinor(r.outstanding),
-        label: STATUS_LABEL[r.status] ?? r.status,
+        label: tr(STATUS_LABEL[r.status] ?? r.status),
         color: STATUS_COLOR[r.status] ?? STATUS.neutral,
       }))
       .filter((r) => r.count > 0)
       .sort((a, b) => b.outstanding - a.outstanding || b.count - a.count);
 
     const collection = summary.collectionByMonth.map((r) => ({
-      label: monthLabel(r.month),
+      label: new Intl.DateTimeFormat(localeTag(locale), {month:"short", timeZone:"UTC"}).format(new Date(`${r.month}-01T00:00:00Z`)),
       amount: fromMinor(r.value),
       payments: r.count,
     }));
@@ -121,7 +124,7 @@ export function FinanceOverview({
     const methods = summary.byMethod.map((m) => ({
       ...m,
       amount: fromMinor(m.amount),
-      label: METHOD_LABEL[m.method] ?? m.method,
+      label: tr(METHOD_LABEL[m.method] ?? m.method),
     }));
 
     return {
@@ -135,72 +138,72 @@ export function FinanceOverview({
       hasCollection: collection.some((c) => c.amount > 0),
       methods,
     };
-  }, [summary]);
+  }, [summary, locale, tr]);
 
   return (
     <div className="space-y-5">
       <CommandHero
         eyebrow={campusLabel}
-        title="Finance command centre"
+        title={tr("Finance command centre")}
         heroValue={money(derived.collected)}
-        heroLabel="Collected against invoices raised"
+        heroLabel={tr("Collected against invoices raised")}
         heroCaption={
           derived.billed > 0
-            ? `${money(derived.outstanding)} still outstanding across ${derived.invoices.toLocaleString()} invoices for ${summary.studentsBilled.toLocaleString()} students.`
-            : "No invoices have been raised yet — generate the first run to start tracking collection."
+            ? tr("{0} outstanding across {1} invoices for {2} students.", [money(derived.outstanding), derived.invoices, summary.studentsBilled])
+            : tr("No invoices have been raised yet — generate the first run to start tracking collection.")
         }
         heroAccent={<TrendingUp className="mb-2 h-7 w-7 text-emerald-400" aria-hidden />}
         meters={[
           {
-            label: "Invoices settled in full",
+            label: tr("Invoices settled in full"),
             value: derived.buckets.find((b) => b.status === "PAID")?.count ?? 0,
             max: derived.invoices || 1,
             valueLabel: `${derived.buckets.find((b) => b.status === "PAID")?.count ?? 0} / ${derived.invoices}`,
             color: derived.rate >= 70 ? STATUS.good : STATUS.warning,
           },
           {
-            label: "Amount recovered",
+            label: tr("Amount recovered"),
             value: derived.collected,
             max: derived.billed || 1,
             valueLabel: `${money(derived.collected)} / ${money(derived.billed)}`,
           },
         ]}
         pills={[
-          { icon: FileText, label: "Invoices", value: derived.invoices, onClick: () => onNavigate("invoices") },
-          { icon: Wallet, label: "Payments", value: summary.paymentCount, onClick: () => onNavigate("payments") },
-          { icon: AlertTriangle, label: "Past due", value: summary.defaulters, onClick: () => onNavigate("fee-reports"), tone: summary.defaulters > 0 ? "critical" : "default" },
-          { icon: Banknote, label: "Payroll runs", value: summary.payrollRuns, onClick: () => onNavigate("payroll") },
+          { icon: FileText, label: tr("Invoices"), value: derived.invoices, onClick: () => onNavigate("invoices") },
+          { icon: Wallet, label: tr("Payments"), value: summary.paymentCount, onClick: () => onNavigate("payments") },
+          { icon: AlertTriangle, label: tr("Past due"), value: summary.defaulters, onClick: () => onNavigate("fee-reports"), tone: summary.defaulters > 0 ? "critical" : "default" },
+          { icon: Banknote, label: tr("Payroll runs"), value: summary.payrollRuns, onClick: () => onNavigate("payroll") },
         ]}
         aside={
           derived.billed > 0 ? (
             <RadialGauge
               value={derived.rate}
-              label="Collected"
-              sublabel={`${money(derived.collected)} of ${money(derived.billed)}`}
+              label={tr("Collected")}
+              sublabel={`${money(derived.collected)} / ${money(derived.billed)}`}
               color={derived.rate >= 70 ? STATUS.good : derived.rate >= 40 ? STATUS.warning : STATUS.critical}
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
               <Receipt className="h-7 w-7 text-[#cfc2d6]" aria-hidden />
-              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle">No invoices raised yet</p>
+              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle"><UiText>{"No invoices raised yet"}</UiText></p>
             </div>
           )
         }
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatTile icon={Receipt} label="Collected" value={money(derived.collected)} sub={`${derived.rate}% of billed`} tone={derived.rate >= 70 ? "good" : "warning"} onClick={() => onNavigate("payments")} delay={80} />
-        <StatTile icon={AlertTriangle} label="Outstanding" value={money(derived.outstanding)} sub={`${summary.defaulters} past due`} tone={derived.outstanding > 0 ? "warning" : "good"} onClick={() => onNavigate("fee-reports")} delay={140} />
-        <StatTile icon={FileText} label="Invoices" value={derived.invoices} sub={`${summary.studentsBilled} students billed`} onClick={() => onNavigate("invoices")} delay={200} />
-        <StatTile icon={Wallet} label="Payments" value={summary.paymentCount} sub="Last twelve months" onClick={() => onNavigate("payments")} delay={260} />
-        <StatTile icon={Banknote} label="Payroll" value={summary.payrollRuns} sub="Runs recorded" onClick={() => onNavigate("payroll")} delay={320} />
+        <StatTile icon={Receipt} label={tr("Collected")} value={money(derived.collected)} sub={tr("{0}% of billed", [derived.rate])} tone={derived.rate >= 70 ? "good" : "warning"} onClick={() => onNavigate("payments")} delay={80} />
+        <StatTile icon={AlertTriangle} label={tr("Outstanding")} value={money(derived.outstanding)} sub={tr("Past due: {0}", [summary.defaulters])} tone={derived.outstanding > 0 ? "warning" : "good"} onClick={() => onNavigate("fee-reports")} delay={140} />
+        <StatTile icon={FileText} label={tr("Invoices")} value={derived.invoices} sub={tr("Students billed: {0}", [summary.studentsBilled])} onClick={() => onNavigate("invoices")} delay={200} />
+        <StatTile icon={Wallet} label={tr("Payments")} value={summary.paymentCount} sub={tr("Last twelve months")} onClick={() => onNavigate("payments")} delay={260} />
+        <StatTile icon={Banknote} label={tr("Payroll")} value={summary.payrollRuns} sub="Runs recorded" onClick={() => onNavigate("payroll")} delay={320} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <InsightCard
           icon={TrendingUp}
-          title="Collection by month"
-          subtitle="Payments received over the last year"
+          title={tr("Collection by month")}
+          subtitle={tr("Payments received over the last year")}
           className="xl:col-span-2"
           delay={120}
           table={{
@@ -238,23 +241,21 @@ export function FinanceOverview({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="No payments recorded in the last twelve months" />
+            <EmptyChart label={tr("No payments recorded in the last twelve months")} />
           )}
         </InsightCard>
 
         <InsightCard
           icon={FileText}
-          title="Fee book"
-          subtitle="Invoices by status"
+          title={tr("Fee book")}
+          subtitle={tr("Invoices by status")}
           delay={180}
           actions={
             <button
               type="button"
               onClick={() => onNavigate("invoices")}
               className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-            >
-              Open
-            </button>
+            ><UiText>{"Open"}</UiText></button>
           }
           table={{
             columns: ["Status", "Invoices", "Billed", "Outstanding"],
@@ -278,10 +279,10 @@ export function FinanceOverview({
                 </BarChart>
               </ResponsiveContainer>
               <SeriesLegend className="mt-3" items={derived.buckets.map((b) => ({ label: b.label, color: b.color, value: money(b.outstanding) }))} />
-              <p className="mt-2 text-[10px] font-bold text-ink-subtle">Legend figures are the amount still outstanding.</p>
+              <p className="mt-2 text-[10px] font-bold text-ink-subtle"><UiText>{"Legend figures are the amount still outstanding."}</UiText></p>
             </>
           ) : (
-            <EmptyChart label="No invoices raised yet" />
+            <EmptyChart label={tr("No invoices raised yet")} />
           )}
         </InsightCard>
       </div>
@@ -289,17 +290,15 @@ export function FinanceOverview({
       {derived.methods.length > 0 ? (
         <InsightCard
           icon={CreditCard}
-          title="How families are paying"
-          subtitle="Amount received by method, last twelve months"
+          title={tr("How families are paying")}
+          subtitle={tr("Amount received by method, last twelve months")}
           delay={120}
           actions={
             <button
               type="button"
               onClick={() => onNavigate("fee-reports")}
               className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-            >
-              Reports
-            </button>
+            ><UiText>{"Reports"}</UiText></button>
           }
           table={{
             columns: ["Method", "Payments", "Amount"],

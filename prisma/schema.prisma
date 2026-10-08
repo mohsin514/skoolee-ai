@@ -1789,6 +1789,7 @@ model PaymentMethodRef {
 }
 
 model BankAccount {
+  currency       String        @default("PKR")
   id             String        @id @default(uuid())
   schoolId       String        @default("") @map("school_id")
   school         School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
