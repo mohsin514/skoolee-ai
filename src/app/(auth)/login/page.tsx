@@ -132,6 +132,7 @@ export default function LoginPage() {
   // Where a signed-in user actually belongs. Shared by the plain sign-in and
   // by the school picker so the two can never drift apart.
   const landAfterLogin = useCallback(async (user: LoginUser) => {
+    if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) { router.push("/protect-account"); return; }
     toast.success(`Welcome back, ${user.fullName}!`);
     setSuccess(true);
 

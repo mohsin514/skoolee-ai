@@ -25,6 +25,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  *  - SuperAdminAuditLog  platform-operator audit trail
  */
 const GLOBAL = [
+  "AuthAttempt", // Cross-instance pre-auth throttles, keyed only by SHA-256.
   "School",
   "PlatformConfig",
   "PendingRegistration",
