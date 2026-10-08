@@ -38,3 +38,5 @@ All validation uses an isolated local database on port 55419 and app on 3219, sy
 Screenshots: [desktop](sko-219/desktop.png), [tablet](sko-219/tablet.png), [phone](sko-219/phone.png), [RTL role preview](sko-219/rtl.png), [mobile acceptance](sko-219/accept-phone.png).
 
 The additive migration must be applied through the existing reviewed release process before deploying schema-dependent application code. This PR does not execute remote migrations. Unverified historical ownership is deliberately not inferred from campus count or labels. Arabic support here covers role names and access previews; general application translation remains the localization workstream.
+
+Recovery integration follow-up: the full clean provisioning, populated upgrade, backup/restore and file reconciliation rehearsal passed after correcting predecessor-column comparisons for additive migrations. Full-column backup/restore hashing remains enforced. Durable workflow verification passed on GitHub after rebasing onto current dev.
