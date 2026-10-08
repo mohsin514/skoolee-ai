@@ -369,9 +369,43 @@ export default function PrincipalDashboard() {
     } catch (error: any) { toast.error(error.message); }
   };
 
-  const handleDeleteClass = (cls: any) => {
-    const studentCount = cls._count?.students || 0;
-    setConfirmAction({ title: "Delete Class", description: `Delete "${cls.name}${cls.section ? ` - ${cls.section}` : ""}"? This affects ${studentCount} student(s) and all subjects/exams.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/classes/${cls.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete class"); toast.success("Class deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  const handleDeleteClass = async (cls: any) => {
+    try {
+      const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`);
+      const preview = await previewResponse.json();
+      if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
+      const impact = Object.entries(preview.dependencies || {})
+        .filter(([, count]) => Number(count) > 0)
+        .map(([label, count]) => `${count} ${label}`)
+        .join(", ") || "no linked records";
+      const label = `${cls.name}${cls.section ? ` · ${cls.section}` : ""}`;
+      setConfirmAction({
+        title: `Archive ${label}?`,
+        description: `This class has ${impact}. Archiving hides it from current class lists and preserves its academic and financial history. You can restore it later.`,
+        confirmLabel: "Archive Class",
+        run: async () => {
+          setConfirmBusy(true);
+          try {
+            const response = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: "Archived by administrator" }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Class could not be archived");
+            toast.success(result.message || "Class archived; history preserved");
+            setSelectedClass(null);
+            await refetch();
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Class could not be archived");
+          } finally {
+            setConfirmBusy(false);
+          }
+        },
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not calculate class impact");
+    }
   };
 
   const handleDeleteStudent = (student: any) => {

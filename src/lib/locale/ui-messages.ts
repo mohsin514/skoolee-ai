@@ -317,6 +317,7 @@ export const urduUi: Record<string, string> = {
   "Audited support access": "آڈٹ شدہ سپورٹ رسائی",
   "Create an incident, request least-privilege access from the school group administrator, and keep every support read and action linked to its grant.": "واقعہ بنائیں، اسکول گروپ منتظم سے محدود رسائی مانگیں، اور ہر سپورٹ مطالعہ اور عمل کو اجازت سے منسلک رکھیں۔",
   "Request scoped access": "محدود رسائی کی درخواست",
+  "School": "اسکول",
   "Choose a school": "اسکول منتخب کریں",
   "Duration (minutes)": "مدت (منٹ)",
   "Support purpose": "سپورٹ کا مقصد",

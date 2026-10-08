@@ -145,9 +145,10 @@ test('task actions, month-end keyboard navigation and high-contrast controls', a
   await page.keyboard.press('Shift+PageDown');
   await expect(calendar.getByRole('button', { name: 'Wednesday, February 28, 2029' })).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(calendar.getByRole('button', { name: 'Sunday, February 25, 2029' })).toBeFocused();
+  // The default locale starts the week on Monday (weekStartsOn: 1).
+  await expect(calendar.getByRole('button', { name: 'Monday, February 26, 2029' })).toBeFocused();
   await page.keyboard.press('End');
-  await expect(calendar.getByRole('button', { name: 'Saturday, March 3, 2029' })).toBeFocused();
+  await expect(calendar.getByRole('button', { name: 'Sunday, March 4, 2029' })).toBeFocused();
   await page.keyboard.press('Escape');
   await page.emulateMedia({ forcedColors: 'active' });
   await expect(page.getByLabel('Reference state')).toHaveCSS('appearance', 'auto');

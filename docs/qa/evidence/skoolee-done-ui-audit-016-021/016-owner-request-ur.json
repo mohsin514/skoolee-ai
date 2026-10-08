@@ -1,0 +1,49 @@
+{
+  "surface": "016-owner-request",
+  "route": "/owner",
+  "status": 200,
+  "language": "ur",
+  "dir": "rtl",
+  "headings": [
+    "آڈٹ شدہ سپورٹ رسائی",
+    "محدود رسائی کی درخواست",
+    "واقعات اور اجازتیں"
+  ],
+  "dimensions": [
+    {
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "lang": "ur",
+      "dir": "rtl",
+      "schoolLabel": "اسکول\nاسکول منتخب کریں\nSynthetic UI Audit School",
+      "noOverflow": true,
+      "screenshot": "016-owner-request-ur-1440.png"
+    },
+    {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "lang": "ur",
+      "dir": "rtl",
+      "schoolLabel": "اسکول\nاسکول منتخب کریں\nSynthetic UI Audit School",
+      "noOverflow": true,
+      "screenshot": "016-owner-request-ur-768.png"
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "lang": "ur",
+      "dir": "rtl",
+      "schoolLabel": "اسکول\nاسکول منتخب کریں\nSynthetic UI Audit School",
+      "noOverflow": true,
+      "screenshot": "016-owner-request-ur-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "text": "اسکول",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}

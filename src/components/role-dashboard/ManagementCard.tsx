@@ -46,32 +46,30 @@ export function ManagementCard({
     : null;
 
   return (
-    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-500 hover:-translate-y-0.5">
+    <div className="sk-panel sk-rise relative overflow-hidden">
       <CornerSparkles />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-60" />
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
       <div className="relative p-8">
         <div className="flex items-center gap-4 mb-5">
           <div className="relative">
-            <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] transition-all duration-300 group-hover:from-[#8127cf] group-hover:to-[#b876f0] group-hover:text-white group-hover:shadow-lg group-hover:shadow-[#8127cf]/20">
+            <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf]">
               <Icon className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <h3 className="text-lg font-black text-[#1f1a23] tracking-wider transition-colors group-hover:text-[#8127cf]">{title}</h3>
+            <h3 dir="auto" className="text-lg font-black text-[#1f1a23]">{title}</h3>
             <p className="text-[10px] font-semibold text-ink-subtle leading-relaxed italic mt-0.5">{description}</p>
           </div>
         </div>
 
         {user ? (
-          <div className="relative p-5 rounded-[24px] bg-gradient-to-br from-[#fbf0fe]/40 via-white to-[#fbf0fe]/20 border border-[#8127cf]/8 transition-all duration-300 hover:bg-[#fbf0fe]/60 hover:border-[#8127cf]/20 hover:shadow-md overflow-hidden">
+          <div className="relative p-5 rounded-[24px] bg-gradient-to-br from-[#fbf0fe]/40 via-white to-[#fbf0fe]/20 border border-[#8127cf]/8 overflow-hidden">
             <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/8 to-transparent rounded-full blur-[50px] pointer-events-none" />
             <div className="relative flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:border-[#8127cf]/30 group-hover:shadow-md">
+                  <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden">
                     {isPendingInvite ? (
                       <MailPlus className="w-6 h-6 text-[#8127cf]" />
                     ) : (
@@ -93,7 +91,7 @@ export function ManagementCard({
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider truncate mt-0.5">{user.email}</p>
+                  <p className="mt-0.5 truncate text-xs font-medium text-ink-muted"><bdi dir="ltr">{user.email}</bdi></p>
                   {isPendingInvite && inviteExpiry ? (
                     <p className="mt-1.5 flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
                       <Clock className="w-2.5 h-2.5" />

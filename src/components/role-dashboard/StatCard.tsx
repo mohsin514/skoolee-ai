@@ -33,9 +33,18 @@ const toneGlowClass = {
 function useCountUp(target: number, enabled: boolean, duration = 700): string {
   const [display, setDisplay] = useState(String(target));
   const prevValue = useRef(target);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
-    if (!enabled) {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(query.matches);
+    updatePreference();
+    query.addEventListener("change", updatePreference);
+    return () => query.removeEventListener("change", updatePreference);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || prefersReducedMotion) {
       setDisplay(String(target));
       prevValue.current = target;
       return;
@@ -58,7 +67,7 @@ function useCountUp(target: number, enabled: boolean, duration = 700): string {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target, enabled, duration]);
+  }, [target, enabled, duration, prefersReducedMotion]);
 
   return display;
 }
@@ -86,22 +95,22 @@ export function StatCard({
   const displayValue = isNumeric && countUp ? animatedValue : String(value);
 
   const className = cn(
-    "sk-panel group p-6 transition-all",
+    "sk-panel p-6",
     entranceDelay > 0 && "sk-rise",
-    onClick && "w-full cursor-pointer text-left hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
   );
   const content = (
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">
+          <p dir="auto" className="mb-2 text-xs font-semibold text-ink-muted">
             {label}
           </p>
-          <p className="text-3xl font-black text-[#1f1a23] leading-none">{displayValue}</p>
-          {sub && <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">{sub}</p>}
+          <p dir="auto" className="text-3xl font-black leading-none text-foreground">{displayValue}</p>
+          {sub && <p dir="auto" className="mt-2 text-xs font-semibold text-ink-muted">{sub}</p>}
         </div>
         <div className="relative shrink-0">
-          <div className={cn("absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500", toneGlowClass[tone])} />
+          {onClick && <div className={cn("absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500", toneGlowClass[tone])} />}
           <div className={cn("relative h-11 w-11 rounded-2xl flex items-center justify-center", toneClass[tone])}>
             <Icon className="w-5 h-5" />
           </div>

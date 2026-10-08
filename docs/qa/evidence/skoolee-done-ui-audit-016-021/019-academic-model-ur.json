@@ -1,0 +1,51 @@
+{
+  "surface": "019-academic-model",
+  "route": "/admin?view=academic-model",
+  "status": 200,
+  "language": "ur",
+  "dir": "rtl",
+  "title": "Campus Admin | SkooleeAI",
+  "headings": [
+    " نصاب، گریڈنگ اور ادوار ",
+    " ورژنز ",
+    " تعلیمی ماڈل بنائیں ",
+    " تعلیمی ادوار اور رپورٹنگ ",
+    " نصاب کے مضامین کا ربط ",
+    " درجات اور نامکمل کام کے اصول ",
+    " ترقی اور رپورٹ کے اصول "
+  ],
+  "dimensions": [
+    {
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ur-1440.png"
+    },
+    {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ur-768.png"
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ur-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "A",
+    "text": "اصل مواد پر جائیں",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}
