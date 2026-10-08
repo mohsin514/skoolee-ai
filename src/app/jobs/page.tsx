@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { LocaleProvider, useLocale } from "@/components/locale/LocaleProvider";
 import { jobMessages } from "@/lib/jobs/messages";
 import { outcomes } from "@/lib/jobs/contract";
@@ -80,20 +81,21 @@ function Jobs() {
     }
   };
   const counts = detail?.counts;
-  const input = "rounded-lg border p-3 min-w-0 bg-white text-slate-900";
+  const input =
+    "rounded-xl border border-field-border p-3 min-w-0 bg-field-surface text-foreground shadow-sm transition-colors hover:border-field-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
   return (
     <main
       dir={language === "en" ? "ltr" : "rtl"}
-      className="mx-auto max-w-6xl p-4 sm:p-8 space-y-5 text-slate-900 bg-slate-50 min-h-screen"
+      className="mx-auto max-w-6xl p-4 sm:p-8 space-y-5 text-foreground bg-background min-h-screen"
     >
       <header className="flex flex-wrap gap-4 items-center justify-between">
         <h1 className="text-2xl font-semibold">{t.title}</h1>
-        <button className={input} onClick={() => void refresh()}>
+        <Button variant="outline" className={input} onClick={() => void refresh()}>
           {t.refresh}
-        </button>
+        </Button>
       </header>
       {error && (
-        <p role="alert" className="rounded-xl bg-amber-100 p-4">
+        <p role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-4 text-status-warning-text">
           {t.unknown}
         </p>
       )}
@@ -201,7 +203,7 @@ function Jobs() {
             .map((j) => (
               <button
                 key={j.id}
-                className="rounded-xl border bg-white p-5 text-start space-y-2"
+                className="w-full rounded-2xl border border-border bg-card p-5 text-start text-card-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-primary/30 hover:bg-surface-hover hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transform-none space-y-2"
                 onClick={() => open(j.id)}
               >
                 <strong>{j.source_label}</strong>
@@ -218,9 +220,9 @@ function Jobs() {
         </section>
       ) : (
         <>
-          <button className={input} onClick={() => open("")}>
+          <Button variant="outline" className={input} onClick={() => open("")}>
             {t.back}
-          </button>
+          </Button>
           {!detail && !error && <p role="status">{t.loading}</p>}
           {detail && (
             <>
@@ -230,7 +232,7 @@ function Jobs() {
               </Link>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 {(["total", ...outcomes] as const).map((s) => (
-                  <div key={s} className="bg-white rounded-xl border p-3">
+                  <div key={s} className="bg-card text-card-foreground rounded-xl border border-border shadow-sm p-3">
                     <p>{t[s]}</p>
                     <strong className="text-xl">{counts?.[s]}</strong>
                   </div>
@@ -251,11 +253,12 @@ function Jobs() {
               <p className="text-sm">
                 {t.updated}: <bdi dir="ltr">{detail.updatedAt}</bdi>
               </p>
-              <p className="rounded-xl bg-blue-50 p-4">{t.cancelNote}</p>
+              <p className="rounded-xl border border-border-subtle bg-surface-subtle p-4 text-muted-foreground">{t.cancelNote}</p>
               <div className="flex gap-3 flex-wrap">
                 {detail.canEdit && (
                   <>
-                    <button
+                    <Button
+                      variant="outline"
                       className={input}
                       disabled={
                         busy ||
@@ -266,8 +269,9 @@ function Jobs() {
                       onClick={() => void act("retry")}
                     >
                       {busy ? t.working : t.retry} ({selected.length})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="outline"
                       className={input}
                       disabled={
                         busy ||
@@ -278,10 +282,11 @@ function Jobs() {
                       onClick={() => void act("cancel")}
                     >
                       {t.cancel}
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button
+                <Button
+                  variant="outline"
                   className={input}
                   onClick={() => {
                     const url = URL.createObjectURL(
@@ -297,7 +302,7 @@ function Jobs() {
                   }}
                 >
                   {t.receipt}
-                </button>
+                </Button>
               </div>
               <section className="space-y-3">
                 {detail.items
@@ -312,7 +317,7 @@ function Jobs() {
                   .map((i) => (
                     <article
                       key={i.id}
-                      className="border rounded-xl p-4 bg-white space-y-2 break-words"
+                      className="border border-border rounded-xl p-4 bg-card text-card-foreground shadow-sm space-y-2 break-words"
                     >
                       <div className="flex gap-3 items-start">
                         {detail.canEdit && i.canRetry && (

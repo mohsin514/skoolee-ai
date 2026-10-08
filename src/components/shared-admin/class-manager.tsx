@@ -10,6 +10,7 @@ import React, {
 import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
 import { parseSections } from "@/lib/class-sections";
 import {
+  Archive,
   AlertCircle,
   BookOpen,
   Check,
@@ -315,23 +316,21 @@ function SettingsDrawer({
             </button>
           </div>
 
-          {/* Danger zone */}
-          <div className="rounded-3xl border border-rose-200/50 bg-rose-50/30 p-5">
-            <p className="text-[9px] font-black uppercase tracking-wider text-rose-500/70">
-              Danger Zone
+          <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5">
+            <p className="text-[9px] font-black uppercase tracking-wider text-amber-800">
+              Class archive
             </p>
             <p className="mt-2 text-[11px] font-bold leading-relaxed text-ink-muted">
-              Permanently delete this section and all its data including
-              subjects, student enrollments, and exam records. This cannot
-              be undone.
+              Archive this class to remove it from current class lists. Its
+              students, academic records, fees, and history are preserved.
             </p>
             <button
               type="button"
               onClick={() => onDeleteClass(section)}
-              className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-500 text-sm font-black text-white shadow-lg shadow-rose-500/20 transition-all hover:bg-rose-600 active:scale-[0.98]"
+              className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-amber-700 text-sm font-black text-white shadow-sm transition-colors hover:bg-amber-800 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800"
             >
-              <Trash2 className="h-4 w-4" />
-              Delete Section
+              <Archive className="h-4 w-4" />
+              Archive Class
             </button>
           </div>
         </div>
