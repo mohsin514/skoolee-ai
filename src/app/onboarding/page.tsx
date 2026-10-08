@@ -2,6 +2,7 @@
 
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
 
@@ -58,6 +59,7 @@ const STEP_META: Record<StepId, { title: string; desc: string }> = {
 };
 
 interface InputFieldProps {
+  error?: string;
   label: string;
   value: string;
   onChange: (val: string) => void;
@@ -129,6 +131,7 @@ export default function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<StepId>('identity');
   const [loading, setLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [session, setSession] = useState<{ role?: string; email?: string; phone?: string | null; school?: { name?: string; city?: string; contactEmail?: string; phone?: string | null; regId?: string; plan?: string } } | null>(null);
 
   const isStandalone = session?.role === 'ADMIN';
@@ -407,7 +410,9 @@ export default function OnboardingWizard() {
   };
 
   const handleProceedFromIdentity = () => {
-    if (!schoolData.name || !schoolData.city) {
+    setFormErrors({});
+    if (!schoolData.name.trim() || !schoolData.city.trim()) {
+      setFormErrors({ ...(!schoolData.name.trim() ? { name: "School name is required." } : {}), ...(!schoolData.city.trim() ? { city: "City is required." } : {}) });
       toast.error("School name and city are required.");
       return;
     }
@@ -445,17 +450,21 @@ export default function OnboardingWizard() {
   const handleProceedFromAcademic = () => {
     const year = Number(schoolData.academicYear);
     if (!year || year < 2000 || year > thisYear + 5) {
+      setFormErrors({ academic: "Enter a valid academic year." });
       toast.error("Enter a valid academic year.");
       return;
     }
     if (!schoolData.sessionLabel.trim()) {
+      setFormErrors({ academic: "Give the session a name, e.g. 2026-27." });
       toast.error("Give the session a name, e.g. 2026-27.");
       return;
     }
     if (schoolData.sessionStart && schoolData.sessionEnd && schoolData.sessionEnd <= schoolData.sessionStart) {
+      setFormErrors({ academic: "The session must end after it starts." });
       toast.error("The session must end after it starts.");
       return;
     }
+    setFormErrors({});
     setStep('review');
   };
 
@@ -596,6 +605,7 @@ export default function OnboardingWizard() {
 
           <div className="w-full max-w-4xl">
             <DraftRecovery draft={recovery} saving={loading} excluded="Logo files are not stored in device drafts." />
+            <FormErrorSummary errors={formErrors} onFocusField={() => document.querySelector<HTMLInputElement>("[aria-invalid=true],main input")?.focus()} />
             <AnimatePresence mode="wait">
               {/* ═══ STEP: School Details ═══ */}
               {step === 'identity' && (
@@ -641,9 +651,9 @@ export default function OnboardingWizard() {
                           </div>
                         </div>
 
-                        <InputField label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
+                        <InputField error={formErrors.name} label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
                         <InputField label="Tagline / Motto" value={schoolData.tagline} onChange={(v: string) => setSchoolData({ ...schoolData, tagline: v })} placeholder="e.g. Knowledge is Power (optional)" icon={Tag} />
-                        <InputField label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
+                        <InputField error={formErrors.city} label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
                         <InputField label="Address" value={schoolData.address} onChange={(v: string) => setSchoolData({ ...schoolData, address: v })} placeholder="Street address (optional)" icon={MapPin} isArea />
                       </div>
 
@@ -1231,7 +1241,7 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
+function InputField({ error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
   const id = useId();
   return (
     <div className="space-y-1.5">
@@ -1241,14 +1251,14 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
       <InputGroup>
         {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
-          <SystemTextarea id={id} aria-required={required}
+          <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
           />
         ) : (
-          <Input id={id} aria-required={required} dir={["email", "tel", "url"].includes(type) ? "ltr" : undefined}
+          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} dir={["email", "tel", "url"].includes(type) ? "ltr" : undefined}
             type={type}
             value={value}
             onChange={e => onChange(e.target.value)}
@@ -1259,6 +1269,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
           />
         )}
       </InputGroup>
+      {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

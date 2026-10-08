@@ -851,8 +851,14 @@ export async function PATCH(req: NextRequest) {
       data.siblingGroupId = updates.siblingGroupId || null;
     }
 
+    // Conditional update protects each value this form originally read. The
+    // predicate is evaluated atomically with the write, including concurrent edits.
+    const expected = updates.expectedValues;
+    const conditions = expected && typeof expected === "object" ? Object.keys(data)
+      .filter(key => Object.hasOwn(expected, key) && !["siblingGroupId", "classId", "status"].includes(key))
+      .map(key => ({ [key]: key === "dateOfBirth" ? asDate(expected[key]) : (expected[key] || null) })) : [];
     const student = await prisma.student.update({
-      where: { id },
+      where: { id, ...(conditions.length ? { AND: conditions } : {}) },
       data,
       include: {
         class: { select: { id: true, name: true, section: true } },
@@ -910,6 +916,7 @@ export async function PATCH(req: NextRequest) {
 
     return Response.json({ success: true, data: student });
   } catch (error: any) {
+    if (error?.code === "P2025") return Response.json({ error: "This pupil record changed. Review your draft against the current record." }, { status: 409 });
     if (error?.code === "P2002") {
       return Response.json({ error: "Roll number already exists in this campus" }, { status: 409 });
     }

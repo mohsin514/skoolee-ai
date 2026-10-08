@@ -22,11 +22,12 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [checkedKey, setCheckedKey] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmedValues, setConfirmedValues] = useState<string | null>(null);
   const [reviewBaseline, setReviewBaseline] = useState<T | null>(null);
   const suspended = useRef(false);
   const key = scope && enabled ? draftKey(scope, record, schema) : null;
-  const dirty = enabled && !confirmed && !sameValue(values, baseline);
+  const confirmed = confirmedValues === JSON.stringify(values);
+  const dirty = enabled && !confirmed && !sameValue(values, reviewBaseline ?? baseline);
   useUnsavedGuard(dirty);
   const guard = useNavGuard(dirty, "You have changes that the server has not saved. Leave this form? Eligible fields remain in this tab for up to 24 hours.");
 
@@ -69,14 +70,16 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
   const fieldSignature = JSON.stringify(fields);
   useEffect(() => {
     if (!key) { setCheckedKey(null); setRecovery(null); setReviewBaseline(null); return; }
+    setReviewBaseline(null);
+    setRecovery(null);
     try {
       const stored = readDraft(sessionStorage, key, schema, JSON.parse(fieldSignature));
-      setRecovery(stored); setSavedAt(stored?.savedAt ?? null); setCheckedKey(key); setConfirmed(false);
+      setRecovery(stored); setSavedAt(stored?.savedAt ?? null); setCheckedKey(key); setConfirmedValues(null);
     } catch { setStorageError(true); setCheckedKey(key); }
   }, [key, schema, fieldSignature]);
 
   const valuesJson = JSON.stringify(permittedValues(values, fields));
-  const baselineJson = JSON.stringify(permittedValues(baseline, fields));
+  const baselineJson = JSON.stringify(permittedValues(reviewBaseline ?? baseline, fields));
   useEffect(() => {
     if (!key || checkedKey !== key || recovery || suspended.current || confirmed) return;
     try {
@@ -93,6 +96,18 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     if (key) { try { sessionStorage.removeItem(key); } catch { setStorageError(true); } }
     setRecovery(null); setSavedAt(null);
   };
+  const prepareReview = async () => {
+    const response = await fetch("/api/auth/session", { cache: "no-store" });
+    const session = await response.json();
+    if (!response.ok || session.user?.draftScope !== scope) { clearDeviceDrafts(); window.location.replace("/login?reason=session-changed"); throw new Error("Your session changed."); }
+    if (current) {
+      try { setReviewBaseline(await current()); }
+      catch (error) {
+        if (error instanceof Error && error.message === "Access revoked") { discard(); throw new Error("Access to this record was revoked. The protected draft was discarded."); }
+        throw new Error("The server could not be reached. Your draft is retained; try again when connected.");
+      }
+    }
+  };
   const accept = async (choices: Record<string, "draft" | "server">) => {
     if (!recovery || !key || recovery.expiresAt <= Date.now()) { discard(); return; }
     // Recheck session immediately before disclosing/applying recovered values.
@@ -102,7 +117,10 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     let latest = reviewBaseline ?? baseline;
     if (current) {
       try { latest = await current(); }
-      catch { discard(); throw new Error("Access to this record could not be verified. The protected draft was discarded."); }
+      catch (error) {
+        if (error instanceof Error && error.message === "Access revoked") { discard(); throw new Error("Access to this record was revoked. The protected draft was discarded."); }
+        throw new Error("The server could not be reached. Your draft is retained; try again when connected.");
+      }
       if (!sameValue(permittedValues(latest, fields), permittedValues(reviewBaseline ?? baseline, fields))) {
         setReviewBaseline(latest);
         throw new Error("The server record changed again. Review the current values and resolve the conflicts before applying.");
@@ -111,7 +129,14 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     apply(mergeDraft(recovery, latest, choices) as T, recovery.section);
     setRecovery(null);
   };
-  const markSaved = () => { discard(); setConfirmed(true); };
+  const reviewCurrent = async () => {
+    if (!current) return;
+    const latest = await current();
+    const time = Date.now();
+    setReviewBaseline(latest);
+    setRecovery({ schema, savedAt: time, expiresAt: time + DRAFT_TTL, baseline: permittedValues(baseline, fields), values: permittedValues(values, fields), section });
+  };
+  const markSaved = () => { discard(); setConfirmedValues(JSON.stringify(values)); };
   return { dirty, guard, recovery, conflicts: recovery ? conflictingFields(recovery, reviewBaseline ?? baseline) : [], baseline: reviewBaseline ?? baseline, savedAt, storageError,
-    ready: !!key && key === checkedKey, accept, discard, markSaved };
+    ready: !!key && key === checkedKey, accept, discard, markSaved, reviewCurrent, prepareReview };
 }

@@ -2819,14 +2819,14 @@ export function StudentDetailModal({
   };
 
   const baseline = studentDraftValues(student);
-  const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full,
+  const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
     values: edits, baseline,
     fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
     apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
     current: async () => {
       const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
       const result = await response.json();
-      if (!response.ok || !result.success) throw new Error("Access revoked");
+      if (!response.ok || !result.success) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
       return studentDraftValues(result.data);
     },
   });
@@ -2850,6 +2850,7 @@ export function StudentDetailModal({
     if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
     updates.categoryId = edits.categoryId || null;
     updates.groupId = edits.groupId || null;
+    updates.expectedValues = pupilDraft.baseline;
     try {
       await onUpdate(student.id, updates);
       // Some legacy callers catch their own request failure. Verify durability
@@ -2858,7 +2859,7 @@ export function StudentDetailModal({
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
       const saved = studentDraftValues(result.data);
-      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) throw new Error("The server has not confirmed these values. Your draft is retained.");
+      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
       pupilDraft.markSaved(); setFull(result.data); setEditing(false);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed. Your draft is retained."); }
   };

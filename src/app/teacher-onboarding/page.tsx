@@ -184,6 +184,7 @@ export default function TeacherOnboardingPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     if (!canSubmit) {
       setStep(0);
       setErrors({ profile: "Your name and phone number are required." });
@@ -613,6 +614,7 @@ export default function TeacherOnboardingPage() {
 
                 {step < STEPS.length - 1 ? (
                   <button
+                    key="next-step"
                     type="button"
                     disabled={step === 0 && !canStep0}
                     onClick={goNext}
@@ -623,6 +625,7 @@ export default function TeacherOnboardingPage() {
                   </button>
                 ) : (
                   <button
+                    key="complete-profile"
                     type="submit"
                     disabled={!canSubmit || saving}
                     className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"

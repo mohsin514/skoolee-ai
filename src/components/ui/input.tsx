@@ -10,7 +10,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
     <DatePicker {...props} ref={ref} label={props["aria-label"] || "Date"}
       value={value === undefined ? undefined : String(value)}
       defaultValue={defaultValue === undefined ? undefined : String(defaultValue)} />
-  ) : <NativeInput {...props} ref={ref} type={type} value={value} defaultValue={defaultValue} />,
+  ) : <NativeInput {...props} dir={props.dir ?? (["tel", "email", "url", "number"].includes(type ?? "") ? "ltr" : undefined)} ref={ref} type={type} value={value} defaultValue={defaultValue} />,
 );
 Input.displayName = "Input";
 export { Input };

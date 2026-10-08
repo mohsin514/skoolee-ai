@@ -263,6 +263,7 @@ function SchoolDialog({
     setSaving(true);
     try {
       await updateSchoolDetails({
+        expectedRevision: form.revision,
         name: form.name,
         tagline: form.tagline,
         city: form.city,
@@ -278,6 +279,7 @@ function SchoolDialog({
       await onSaved();
       onClose();
     } catch (error) {
+      if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
       toast.error(error instanceof Error ? error.message : "Could not save school details.");
     } finally {
       setSaving(false);
@@ -396,6 +398,7 @@ function CampusDialog({
     setSaving(true);
     try {
       await updateCampusDetails({
+        expectedRevision: form.revision,
         campusId: campus.id,
         name: form.name,
         city: form.city,
@@ -412,6 +415,7 @@ function CampusDialog({
       await onSaved();
       onClose();
     } catch (error) {
+      if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
       toast.error(error instanceof Error ? error.message : "Could not save campus details.");
     } finally {
       setSaving(false);

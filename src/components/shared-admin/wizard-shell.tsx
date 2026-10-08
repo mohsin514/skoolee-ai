@@ -83,7 +83,8 @@ function WizardChrome({
 
   return (
       <>
-        {/* ── Pinned header ── */}
+        <div id={`${titleId}-body`} className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+        {/* Header scrolls with the fields so 200% text cannot consume the entry viewport. */}
         <div
           {...dragHandleProps}
           className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
@@ -152,13 +153,14 @@ function WizardChrome({
         </div>
 
         {/* ── Scrolling body ── */}
-        <div id={`${titleId}-body`} className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fdfcfe] px-6 py-6 sm:px-7">
+        <div className="bg-[#fdfcfe] px-4 py-6 sm:px-7">
           {children}
         </div>
 
+        </div>
         {/* ── Pinned footer ── */}
         <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-white px-6 py-4 sm:px-7">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
               onClick={step === 0 ? requestClose : onBack}
@@ -222,13 +224,13 @@ export function FormSection({
     sky: "bg-sky-50 text-sky-600",
   } as const;
   return (
-    <section className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)] transition-shadow duration-300 hover:shadow-[0_6px_20px_-8px_rgba(129,39,207,0.20)]">
+    <section className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-3 sm:p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)] transition-shadow duration-300 hover:shadow-[0_6px_20px_-8px_rgba(129,39,207,0.20)]">
       <div className="mb-4 flex items-start gap-3">
-        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", tones[tone])}>
+        <span className={cn("hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex", tones[tone])}>
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <h3 className="break-words text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
           {hint ? <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">{hint}</p> : null}
         </div>
       </div>
@@ -328,13 +330,13 @@ export function ReviewSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)]">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-3 sm:p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8127cf]">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex bg-[#f3eeff] text-[#8127cf]">
             <Icon className="h-5 w-5" />
           </span>
-          <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <h3 className="break-words text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
         </div>
         <button
           type="button"

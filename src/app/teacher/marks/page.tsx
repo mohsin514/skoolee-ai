@@ -48,7 +48,7 @@ export default function MarksPage() {
     apply: (next) => setMarksByKey(next),
     current: async () => {
       const response = await fetch(`/api/marks?examId=${selectedExamId}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Access revoked");
+      if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
       const latest = await response.json();
       return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, String(mark.marksObtained)]));
     },

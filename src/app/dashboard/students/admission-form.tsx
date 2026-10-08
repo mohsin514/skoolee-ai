@@ -541,7 +541,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
           <FormErrorSummary errors={errors} onFocusField={(field) => {
             const targetStep = ["guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
             setStep(targetStep);
-            requestAnimationFrame(() => document.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
+            requestAnimationFrame(() => document.getElementById(`field-${field}`)?.focus());
           }} />
           {step === 0 && (
             <StepPersonalInfo
@@ -605,7 +605,7 @@ function StepPersonalInfo({
     <div className="space-y-5">
       <FormSection icon={User} title="Identity" hint="The student's name as it should appear on records and report cards.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Full Name (English) *" error={errors.fullName}>
+        <FieldGroup name="fullName" label="Full Name (English) *" error={errors.fullName}>
           <Input
             value={form.fullName}
             onChange={(e) => onUpdate("fullName", e.target.value)}
@@ -641,6 +641,7 @@ function StepPersonalInfo({
           </div>
         </FieldGroup>
         <FieldGroup
+          name="dateOfBirth"
           label="Date of Birth"
           error={errors.dateOfBirth}
           hint={age !== null ? `Age: ${age} years old` : undefined}
@@ -669,7 +670,7 @@ function StepPersonalInfo({
 
       <FormSection icon={GraduationCap} title="Placement" hint="Which class the student joins, and the roll number they are given.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Class *" error={errors.classId}>
+        <FieldGroup name="classId" label="Class *" error={errors.classId}>
           <Select
             value={selectedGroupKey}
             onChange={(e) => onSelectClassGroup(e.target.value)}
@@ -698,7 +699,7 @@ function StepPersonalInfo({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
+        <FieldGroup name="rollNo" label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
           <InputGroup className="relative">
             <Input
               value={form.rollNo}
@@ -734,12 +735,13 @@ function StepPersonalInfo({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FieldGroup label="Student Phone">
           <Input
+            type="tel"
             value={form.phone}
             onChange={(e) => onUpdate("phone", e.target.value)}
             placeholder="+92 300 1234567"
           />
         </FieldGroup>
-        <FieldGroup label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
+        <FieldGroup name="studentEmail" label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
           <Input
             type="email"
             value={form.studentEmail}
@@ -1027,8 +1029,9 @@ function StepGuardianDetails({
 
       <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
+        <FieldGroup name="guardianPhone" label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
           <Input
+            type="tel"
             value={form.guardianPhone}
             onChange={(e) => onUpdate("guardianPhone", e.target.value)}
             placeholder="+92 300 1234567"
@@ -1036,6 +1039,7 @@ function StepGuardianDetails({
         </FieldGroup>
         <FieldGroup label="Guardian WhatsApp (if different)">
           <Input
+            type="tel"
             value={form.guardianWhatsapp}
             onChange={(e) => onUpdate("guardianWhatsapp", e.target.value)}
             placeholder="+92 300 1234567"
@@ -1043,7 +1047,7 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
-      <FieldGroup label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
+      <FieldGroup name="guardianEmail" label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
         <Input
           type="email"
           value={form.guardianEmail}
@@ -1071,7 +1075,7 @@ function StepAddressMedical({
     <div className="space-y-5">
       <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records. This information is required.">
         <>
-          <FieldGroup label="Street Address *" error={errors.address}>
+          <FieldGroup name="address" label="Street Address *" error={errors.address}>
             <Input
               value={form.address}
               onChange={(e) => onUpdate("address", e.target.value)}
@@ -1079,7 +1083,7 @@ function StepAddressMedical({
             />
           </FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FieldGroup label="City *" error={errors.city}>
+            <FieldGroup name="city" label="City *" error={errors.city}>
               <Input
                 value={form.city}
                 onChange={(e) => onUpdate("city", e.target.value)}
@@ -1116,7 +1120,7 @@ function StepAddressMedical({
         hint="Anything staff must know in an emergency. Visible to teachers and the school office. This information is required."
       >
         <>
-          <FieldGroup label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
+          <FieldGroup name="medicalNotes" label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
             <Textarea
               value={form.medicalNotes}
               onChange={(e) => onUpdate("medicalNotes", e.target.value)}
@@ -1291,16 +1295,19 @@ function StepReview({
 
 
 function FieldGroup({
+  name: suppliedName,
   label,
   error,
   hint,
   children,
 }: {
+  name?: string;
   label: string;
   error?: string;
   hint?: string;
   children: React.ReactNode;
 }) {
-  const name = useId();
+  const generatedName = useId();
+  const name = suppliedName ?? generatedName;
   return <FormField name={name} label={label} error={error} hint={hint}>{children}</FormField>;
 }

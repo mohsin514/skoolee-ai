@@ -113,12 +113,15 @@ function useModalLayer(id: string, active = true) {
 
 let lockCount = 0;
 let savedOverflow = "";
+let savedRootOverflow = "";
 let savedPaddingRight = "";
 
 function lockScroll() {
   if (lockCount === 0 && typeof document !== "undefined") {
     const barWidth = window.innerWidth - document.documentElement.clientWidth;
     savedOverflow = document.body.style.overflow;
+    savedRootOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
     savedPaddingRight = document.body.style.paddingRight;
     document.body.style.overflow = "hidden";
     if (barWidth > 0) document.body.style.paddingRight = `${barWidth}px`;
@@ -130,6 +133,7 @@ function unlockScroll() {
   lockCount = Math.max(0, lockCount - 1);
   if (lockCount === 0 && typeof document !== "undefined") {
     document.body.style.overflow = savedOverflow;
+    document.documentElement.style.overflow = savedRootOverflow;
     document.body.style.paddingRight = savedPaddingRight;
   }
 }
