@@ -27,6 +27,8 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
+  corrections Correction[]
   studentEnrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   localePolicies LocalePolicy[]
@@ -263,6 +265,7 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  corrections Correction[]
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
   localePolicies LocalePolicy[]
   id            String   @id @default(uuid())
@@ -989,6 +992,7 @@ model Class {
 
 // ─── 5. STUDENTS ──────────────────────────────────────────
 model Student {
+  corrections Correction[]
   enrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   consolidatedIntoId String? @map("consolidated_into_id")
@@ -1424,6 +1428,7 @@ model GradeWeightConfig {
 
 // ─── 8. MARKS ─────────────────────────────────────────────
 model Mark {
+  correctionVersion Int @default(0) @map("correction_version")
   id            String  @id @default(uuid())
   schoolId      String  @default("") @map("school_id")
   school        School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1734,6 +1739,7 @@ model FeeCarryForward {
 
 // ─── 12. INVOICES ─────────────────────────────────────────
 model Invoice {
+  paymentAllocations PaymentAllocation[]
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   currency String @default("PKR")
@@ -1777,6 +1783,12 @@ model Invoice {
 
 // ─── 13. PAYMENTS ─────────────────────────────────────────
 model Payment {
+  currency String @default("PKR")
+  reversalOfId String? @map("reversal_of_id")
+  allocations PaymentAllocation[]
+  issuedReceipt PaymentReceipt?
+  reversalOf Payment? @relation("PaymentReversal", fields: [reversalOfId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "payment_reversal_fk")
+  reversals Payment[] @relation("PaymentReversal")
   id              String       @id @default(uuid())
   schoolId        String       @default("") @map("school_id")
   school          School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3278,4 +3290,85 @@ model LocalePolicy {
   @@unique([schoolId, scopeKey, effectiveAt])
   @@index([schoolId, campusId, effectiveAt])
   @@map("locale_policies")
+}
+
+model Correction {
+  school  School          @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "correction_school_fk")
+  campus  Campus          @relation(fields: [campusId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "correction_campus_fk")
+  student Student         @relation(fields: [studentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "correction_student_fk")
+  note    CorrectionNote?
+
+  id                String    @id @default(uuid())
+  schoolId          String    @map("school_id")
+  campusId          String    @map("campus_id")
+  studentId         String    @map("student_id")
+  kind              String
+  sourceId          String    @map("source_id")
+  sourceVersion     String    @map("source_version")
+  before            Json
+  after             Json
+  previewHash       String    @map("preview_hash")
+  reason            String
+  publicExplanation String    @map("public_explanation")
+  requesterId       String    @map("requester_id")
+  requesterName     String    @map("requester_name")
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  separateApprover  Boolean   @map("separate_approver")
+  status            String    @default("PENDING")
+  approverId        String?   @map("approver_id")
+  approverName      String?   @map("approver_name")
+  decidedAt         DateTime? @map("decided_at")
+  successorId       String?   @map("successor_id")
+  reportVersionIds  Json      @default("[]") @map("report_version_ids")
+
+  @@index([schoolId, campusId, studentId])
+  @@index([sourceId, requestedAt])
+  @@map("corrections")
+}
+
+model CorrectionNote {
+  correction Correction @relation(fields: [correctionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "correction_note_parent_fk")
+
+  id           String @id @default(uuid())
+  schoolId     String @map("school_id")
+  campusId     String @map("campus_id")
+  correctionId String @unique @map("correction_id")
+  text         String
+
+  @@index([schoolId])
+  @@map("correction_notes")
+}
+
+model PaymentAllocation {
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "allocation_payment_fk")
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "allocation_invoice_fk")
+
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  campusId  String   @map("campus_id")
+  paymentId String   @map("payment_id")
+  invoiceId String   @map("invoice_id")
+  amount    Int
+  credit    Int      @default(0)
+  currency  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([paymentId, invoiceId])
+  @@index([schoolId, campusId])
+  @@map("payment_allocations")
+}
+
+model PaymentReceipt {
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "payment_receipt_payment_fk")
+
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  campusId      String   @map("campus_id")
+  paymentId     String   @unique @map("payment_id")
+  snapshot      Json
+  documentBytes Bytes?   @map("document_bytes")
+  capturedAt    DateTime @default(now()) @map("captured_at")
+
+  @@index([schoolId, campusId])
+  @@map("payment_receipts")
 }

@@ -7,7 +7,7 @@ import { useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronLeft, Menu, X, type LucideIcon } from "lucide-react";
+import { History, ChevronDown, ChevronLeft, Menu, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableNavigation, isNavigationActive } from "@/lib/navigation/items";
 import { ModalSurface } from "@/components/ui/modal";
@@ -64,7 +64,7 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
   const access = useNavigationAccess();
   const visible = (item: RoleNavItem) => ({ ...item, label: t(item.label), lang: locale.language, available: item.available !== false && access.allows(item.module) && access.allowsHref(item.href) });
   const items = availableNavigation<SidebarEntry>(allItems.map((entry) => isNavGroup(entry) ? { ...entry, label: t(entry.label), children: entry.children.map(visible) } : visible(entry)));
-  const bottomItems = availableNavigation(allBottomItems.map(visible));
+  const bottomItems = availableNavigation([{ href: "/corrections", label: locale.language === "ar" ? "تصحيحات السجلات" : locale.language === "ur" ? "ریکارڈ کی تصحیحات" : "Record corrections", icon: History }, ...allBottomItems].map(visible));
   const shortcuts = items.filter((entry): entry is RoleNavItem => !isNavGroup(entry)).slice(0, 4);
 
   useEffect(() => setMobileOpen(false), [pathname]);

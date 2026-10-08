@@ -5,7 +5,7 @@ import { prisma } from "../../src/lib/db/prisma";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { recordPayment } from "../../src/lib/fees/payment";
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || !((url.port === "55401" && /^\/sko201(?:_replay)?$/.test(url.pathname)) || (url.port === "55410" && url.pathname === "/sko210"))) throw new Error("Isolated localhost fixture required");
+if (url.hostname !== "127.0.0.1" || !((url.port === "55401" && /^\/sko201(?:_replay)?$/.test(url.pathname)) || (url.port === "55410" && url.pathname === "/sko210") || (url.port === "55413" && url.pathname === "/sko213"))) throw new Error("Isolated localhost fixture required");
 test("real payment ledger preserves KWD minor units and immutable original invoice identity", async () => {
  const db = new PrismaClient(); const schoolId = "locale-money-test";
  try {

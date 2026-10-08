@@ -46,8 +46,9 @@ export type { GradeThresholds };
 export async function thresholdsForClass(
   classId: string,
   academicYear: number,
+  client: Pick<typeof prisma, "gradeWeightConfig"> = prisma,
 ): Promise<GradeThresholds> {
-  const config = await prisma.gradeWeightConfig.findUnique({
+  const config = await client.gradeWeightConfig.findUnique({
     where: { classId_academicYear: { classId, academicYear } },
     select: { gradeAplus: true, gradeA: true, gradeB: true, gradeC: true, gradeD: true },
   });
