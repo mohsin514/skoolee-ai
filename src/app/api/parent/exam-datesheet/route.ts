@@ -1,24 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse } from "@/lib/api/scope";
-import { resolveParentScope } from "@/lib/parent/resolve-child";
+import { withParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
-async function resolveClassId(req: NextRequest): Promise<string | null> {
-  const { studentId } = await resolveParentScope(req);
-  if (!studentId) return null;
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: { classId: true },
-  });
-  return student?.classId || null;
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const classId = await resolveClassId(req);
+    return await withParentScope(req, async ({ studentId }) => {
+    const student = await prisma.student.findFirst({ where: { id: studentId! }, select: { classId: true } });
+    const classId = student?.classId;
     if (!classId) {
       return Response.json({ success: true, data: null });
     }
@@ -57,6 +48,7 @@ export async function GET(req: NextRequest) {
     }
 
     return Response.json({ success: true, data: { exams, schedules: byExam } });
+    });
   } catch (error) {
     return errorResponse(error, "[parent/exam-datesheet] GET failed");
   }

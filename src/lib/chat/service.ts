@@ -49,7 +49,7 @@ const DEFAULT_PAGE_SIZE = 30;
  * intact rather than working around it.
  */
 function inTenant<T>(user: AuthUser, fn: (tx: TxClient) => Promise<T>): Promise<T> {
-  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId }, () =>
+  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () =>
     tenantTransaction(fn)
   );
 }

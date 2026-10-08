@@ -1,5 +1,7 @@
 'use server'
 
+import { studentScope, publishedMarksWhere, publishedReportsWhere } from "@/lib/auth/policy";
+
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -1318,20 +1320,6 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     select: { id: true, fullName: true, email: true, campusId: true, profileImageUrl: true },
   });
 
-  const accountEmail = (account?.email || session.email || "").toLowerCase();
-  // Identity must come from an explicit link (studentUserId / parentUserId) or
-  // an address the office recorded for this guardian. Matching on fullName
-  // would hand any namesake another child's marks, attendance, and fees, so
-  // that fallback is deliberately absent: an unlinked account sees
-  // profileMissing instead of somebody else's record.
-  const identityFilters: any[] = [
-    ...(session.role === "PARENT" ? [{ parentUserId: session.userId }] : []),
-    ...(session.role === "PARENT" && accountEmail ? [{ guardianEmail: { equals: accountEmail, mode: "insensitive" as const } }] : []),
-  ];
-
-  // Kept outside the `as const` include below so Prisma sees a mutable string[].
-  const RELEASED_REPORT_CARD = { status: { in: ["PUBLISHED", "SENT"] } };
-
   const studentInclude = {
       campus: { select: { id: true, name: true, city: true, logoUrl: true, school: { select: { logoUrl: true } } } },
       class: {
@@ -1356,7 +1344,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       // published them — never while an exam is in DRAFT/MARKS_ENTRY or a card
       // is still GENERATED/REVIEWED.
       marks: {
-        where: { exam: { status: "PUBLISHED" } },
+        where: publishedMarksWhere,
         include: {
           subject: {
             select: {
@@ -1380,7 +1368,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         take: 200,
       },
       reportCards: {
-        where: RELEASED_REPORT_CARD,
+        where: publishedReportsWhere,
         include: { exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } } },
         orderBy: { generatedAt: "desc" },
         take: 3,
@@ -1392,24 +1380,9 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       },
   } as const;
 
-  const baseStudentWhere = {
-    campus: { schoolId: session.schoolId },
-    ...(session.campusId ? { campusId: session.campusId } : {}),
-  };
-
-  const linkedStudent = session.role === "STUDENT"
-    ? await prisma.student.findFirst({
-        where: { ...baseStudentWhere, studentUserId: session.userId },
-        include: studentInclude,
-      })
-    : null;
-
-  const student = linkedStudent || await prisma.student.findFirst({
-    where: {
-      ...baseStudentWhere,
-      OR: identityFilters.length ? identityFilters : [{ id: "__missing_student__" }],
-    },
-    include: studentInclude,
+  const student = await prisma.student.findFirst({
+    where: studentScope(session), include: studentInclude,
+    orderBy: [{ rollNo: "asc" }, { id: "asc" }],
   });
 
   // Only the current year's days belong on the student's own dashboard;
@@ -1456,7 +1429,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       subjects: student?.class?.subjects || [],
       marks: student?.marks || [],
       attendance: currentYearAttendance,
-      reportCards: student?.reportCards || [],
+      reportCards: student?.reportCards.map((report) => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&redirect=1` })) || [],
       invoices: student?.invoices || [],
       attendanceRate,
       balanceDue,
