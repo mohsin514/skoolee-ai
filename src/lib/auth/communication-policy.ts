@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { AccessDenied, publishedReportsWhere } from "./policy";
+import { AccessDenied } from "./policy";
 
 /** Recheck queued recipient relationships immediately before delivery. */
 export async function assertCommunicationTarget(target: {
@@ -20,9 +20,8 @@ export async function assertCommunicationTarget(target: {
 }
 
 export async function assertPublishedCommunicationReport(reportId: string, studentId?: string | null) {
-  const report = await prisma.reportCard.findFirst({
-    where: { id: reportId, ...(studentId ? { studentId } : {}), ...publishedReportsWhere,
-      remarksApproved: true, exam: { status: "PUBLISHED", publishedAt: { not: null } } }, select: { id: true },
-  });
+  const { getPublishedVersion } = await import("@/lib/academic/report-versions");
+  const report = await prisma.reportCard.findFirst({ where: { id: reportId, ...(studentId ? { studentId } : {}) }, select: { id: true } });
   if (!report) throw new AccessDenied("report", "send");
+  await getPublishedVersion(report.id);
 }

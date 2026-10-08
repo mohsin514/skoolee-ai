@@ -1,3 +1,5 @@
+import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { publishedReportsWhere } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
@@ -76,6 +78,7 @@ async function handleParentMessage(phone: string, message: string) {
       class: { select: { name: true, section: true } },
       campus: { select: { name: true, schoolId: true } },
       reportCards: {
+        where: publishedReportsWhere,
         orderBy: { generatedAt: "desc" },
         take: 3,
         include: {
@@ -112,16 +115,9 @@ async function handleParentMessage(phone: string, message: string) {
   const totalAttendance = student.attendance.length;
   const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
 
-  const marksContext = student.marks
-    .map((m) => `${m.subject.name} (${m.exam.title}): ${m.marksObtained}/${m.subject.totalMarks}`)
-    .join("\n");
-
-  const reportContext = student.reportCards
-    .map(
-      (r) =>
-        `${r.exam.title} (${r.exam.term} ${r.exam.academicYear}): ${r.percentage.toFixed(1)}% - Grade ${r.grade || "N/A"} - Rank ${r.rank || "N/A"}`
-    )
-    .join("\n");
+  const published = await runWithTenantContext({ schoolId: student.campus.schoolId }, () => Promise.all(student.reportCards.map(async r => familyVersion(await getPublishedVersion(r.id)))));
+  const marksContext = published.flatMap(r => r.marks.map(m => `${m.subject} (${r.examTitle}): ${m.obtained}/${m.total}`)).join("\n");
+  const reportContext = published.map(r => `${r.examTitle} (${r.term} ${r.academicYear}): ${r.percentage}% - Grade ${r.grade || "N/A"}`).join("\n");
 
   // Tokenize the student's name before the prompt leaves for the model, then
   // restore it in the reply the parent receives.

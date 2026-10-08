@@ -1,40 +1,148 @@
 "use client";
-
-import { UiText, useUiText } from "@/components/locale/LocaleProvider";
-
+import { useLocale } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Loader2,
-  FilePlus2,
-  CheckCircle2,
-  Send,
-  Upload,
-  AlertTriangle,
-  Download,
-} from "lucide-react";
-import { toast } from "sonner";
-import { BrandButton } from "@/components/role-dashboard";
-import { cn } from "@/lib/utils";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 
-interface ReportCard {
+type Version = {
+  predecessorId: string | null;
   id: string;
-  status?: string;
-  grade?: string | null;
-  percentage?: number | null;
-  rank?: number | null;
-  isSent?: boolean;
-  deliveryStatus?: string | null;
-  student?: { fullName?: string; rollNo?: string } | null;
-}
-
-const STEPS = [
-  { key: "generate", label: "Generate", icon: FilePlus2 },
-  { key: "review", label: "Review", icon: CheckCircle2 },
-  { key: "publish", label: "Publish All", icon: Upload },
-  { key: "send", label: "Send All via WhatsApp", icon: Send },
-] as const;
-
+  number: number;
+  language: string;
+  blockers: string[];
+  changedSections: string[];
+  approvedAt: string | null;
+  approvedBy: string | null;
+  reviewerName?: string;
+  lastReviewerId?: string;
+  lastReviewedAt?: string;
+  history?: {
+    id: string;
+    number: number;
+    approvedAt: string;
+    publishedAt: string | null;
+    predecessorId: string | null;
+  }[];
+  delivery?: { channel: string; status: string }[];
+  publishedAt: string | null;
+  reviewerNote: string | null;
+  snapshot: {
+    weightConfig?: {
+      quizWeight: number;
+      classTestWeight: number;
+      midTermWeight: number;
+      finalWeight: number;
+      passingPercentage: number;
+      thresholds?: Record<string, number>;
+    };
+    overall?: { overallPercentage: number; overallGrade: string } | null;
+    marks: { subject: string; obtained: number; total: number }[];
+    reportCard: {
+      percentage: number;
+      grade: string;
+      reportLanguage: string;
+      remarksEn: string;
+      remarksUr: string;
+      remarksAr: string;
+    };
+  };
+  priorSnapshot: Version["snapshot"] | null;
+};
+type Card = {
+  id: string;
+  student?: { fullName?: string; rollNo?: string };
+  review: Version;
+};
+const copy = {
+  en: {
+    title: "Report review",
+    blocked: "Blocked",
+    eligible: "Eligible",
+    approved: "Approved",
+    changed: "Changed sections",
+    approve: "Approve selected versions",
+    review: "Complete class review",
+    publish: "Publish approved versions",
+    send: "Queue delivery",
+    generate: "Generate reports",
+    prior: "Last approved",
+    pending: "Pending version",
+    note: "Private reviewer note",
+    reason: "Family-facing correction reason",
+    inspect: "Review version",
+    save: "Save draft",
+    preview: "Preview approved release",
+    empty: "No reports generated. Lock the exam and generate reports first.",
+    loading: "Loading current report versions…",
+    language: "Report language",
+    remarks: "Remarks",
+    filter: "Readiness",
+    all: "All",
+    success: "Saved. The current versions are shown below.",
+    reviewer: "Last reviewer",
+    request: "Request correction",
+    delivery: "Delivery",
+  },
+  ar: {
+    title: "مراجعة التقارير",
+    blocked: "محظور",
+    eligible: "جاهز",
+    approved: "معتمد",
+    changed: "الأقسام المعدلة",
+    approve: "اعتماد النسخ المحددة",
+    review: "إكمال مراجعة الفصل",
+    publish: "نشر النسخ المعتمدة",
+    send: "إدراج الإرسال",
+    generate: "إنشاء التقارير",
+    prior: "آخر نسخة معتمدة",
+    pending: "النسخة قيد المراجعة",
+    note: "ملاحظة داخلية للمراجع",
+    reason: "سبب التصحيح للأسرة",
+    inspect: "مراجعة النسخة",
+    save: "حفظ المسودة",
+    preview: "معاينة النسخة المعتمدة",
+    empty: "لا توجد تقارير. أقفل الامتحان ثم أنشئ التقارير.",
+    loading: "جار تحميل النسخ الحالية…",
+    language: "لغة التقرير",
+    remarks: "الملاحظات",
+    filter: "الجاهزية",
+    all: "الكل",
+    success: "تم الحفظ. تظهر النسخ الحالية أدناه.",
+    reviewer: "آخر مراجع",
+    request: "طلب تصحيح",
+    delivery: "الإرسال",
+  },
+  ur: {
+    title: "رپورٹ کا جائزہ",
+    blocked: "رکاوٹ",
+    eligible: "تیار",
+    approved: "منظور شدہ",
+    changed: "تبدیل شدہ حصے",
+    approve: "منتخب نسخے منظور کریں",
+    review: "جماعت کا جائزہ مکمل کریں",
+    publish: "منظور شدہ نسخے شائع کریں",
+    send: "ترسیل قطار میں ڈالیں",
+    generate: "رپورٹس بنائیں",
+    prior: "آخری منظور شدہ نسخہ",
+    pending: "زیر جائزہ نسخہ",
+    note: "جائزہ لینے والے کا نجی نوٹ",
+    reason: "خاندان کے لیے تصحیح کی وجہ",
+    inspect: "نسخہ دیکھیں",
+    save: "مسودہ محفوظ کریں",
+    preview: "منظور شدہ نسخہ دیکھیں",
+    empty: "کوئی رپورٹ نہیں۔ پہلے امتحان لاک کریں اور رپورٹس بنائیں۔",
+    loading: "موجودہ نسخے لوڈ ہو رہے ہیں…",
+    language: "رپورٹ کی زبان",
+    remarks: "تبصرے",
+    filter: "تیاری",
+    all: "سب",
+    success: "محفوظ ہو گیا۔ موجودہ نسخے نیچے ہیں۔",
+    reviewer: "آخری جائزہ لینے والا",
+    request: "تصحیح کی درخواست",
+    delivery: "ترسیل",
+  },
+};
+const button =
+  "rounded-lg border px-3 py-2 text-sm disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2";
 export function ReportCardPipeline({
   exam,
   campusId,
@@ -44,271 +152,581 @@ export function ReportCardPipeline({
   campusId?: string;
   onChanged?: () => void;
 }) {
-  const tr = useUiText();
-  const [reportCards, setReportCards] = useState<ReportCard[]>([]);
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const isLocked = exam.isLocked || exam.status === "LOCKED";
-
+  const [cards, setCards] = useState<Card[]>([]),
+    [loading, setLoading] = useState(true),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState("");
+  const locale = useLocale().language;
+  const [canReview, setCanReview] = useState(false),
+    [selected, setSelected] = useState<string[]>([]),
+    [filter, setFilter] = useState("all");
+  const [active, setActive] = useState<string | null>(null),
+    [note, setNote] = useState(""),
+    [reason, setReason] = useState(""),
+    [language, setLanguage] = useState("en"),
+    [remark, setRemark] = useState("");
+  const [canEdit, setCanEdit] = useState(false);
+  const [reviewerFilter, setReviewerFilter] = useState("");
+  const t = copy[locale];
   const load = useCallback(async () => {
     setLoading(true);
+    setSelected([]);
+    setActive(null);
     try {
-      if (!isLocked) {
-        setReportCards([]);
-        setAnalytics(null);
-        return;
-      }
-      const sp = new URLSearchParams({ examId: exam.id });
-      if (campusId) sp.set("campusId", campusId);
-      const res = await fetch(`/api/reports?${sp.toString()}`).then((r) => r.json());
-      if (!res.success) throw new Error(res.error || "Failed to load report cards");
-      setReportCards(res.reportCards || []);
-      setAnalytics(res.analytics || null);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load report cards");
+      const q = new URLSearchParams({ examId: exam.id });
+      if (campusId) q.set("campusId", campusId);
+      const r = await fetch(`/api/reports?${q}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setCards(d.reportCards);
+      setCanReview(d.canReview);
+      setCanEdit(d.canEdit);
+    } catch (e) {
+      setCards([]);
+      setMessage(e instanceof Error ? e.message : "Failed to load reports");
     } finally {
       setLoading(false);
     }
-  }, [exam.id, campusId, isLocked]);
-
+  }, [exam.id, campusId]);
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
-
-  const runAction = async (action: string) => {
-    setBusy(action);
+  async function action(action: string) {
+    setBusy(true);
+    setMessage("");
     try {
-      const sp = new URLSearchParams();
-      if (campusId) sp.set("campusId", campusId);
-      const res = await fetch(`/api/reports?${sp.toString()}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: exam.id, action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Action failed");
-      toast.success(
-        action === "generate"
-          ? `Generated ${data.generated ?? reportCards.length} report cards`
-          : action === "publish"
-          ? "All report cards published"
-          : action === "send"
-          ? `Sent ${data.sent ?? 0} report cards`
-          : "Report cards reviewed"
+      const r = await fetch(
+        `/api/reports${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            examId: exam.id,
+            action,
+            versions: cards
+              .filter((c) => selected.includes(c.id))
+              .map((c) => ({ reportCardId: c.id, versionId: c.review.id })),
+            reviewerNote: note,
+            correctionReason: reason,
+          }),
+        },
       );
+      const d = await r.json();
+      if (!r.ok)
+        throw new Error(
+          typeof d.error === "string" ? d.error : "Action failed",
+        );
+      setMessage(t.success);
       await load();
       onChanged?.();
-    } catch (e: any) {
-      toast.error(e?.message || "Action failed");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Action failed");
+      await load();
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
-  };
-
-  const canGenerate = isLocked;
-  const canReview = reportCards.length > 0 && exam.status === "LOCKED";
-  const canPublish = exam.status === "PRINCIPAL_REVIEWED";
-  const canSend = exam.status === "PUBLISHED";
-
-  const downloadPdf = async (reportCardId: string) => {
-    setBusy(`pdf-${reportCardId}`);
-    try {
-      const res = await fetch(`/api/reports/download?reportCardId=${reportCardId}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "PDF unavailable");
-      window.open(data.pdfUrl, "_blank");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load PDF");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const gateFor = (step: string) => {
-    if (step === "generate") return canGenerate;
-    if (step === "review") return canReview;
-    if (step === "publish") return canPublish;
-    if (step === "send") return canSend;
-    return false;
-  };
-
-  const stepState = (step: string): "done" | "active" | "todo" => {
-    if (step === "generate") return reportCards.length > 0 ? "done" : isLocked ? "active" : "todo";
-    if (step === "review")
-      return exam.status === "PRINCIPAL_REVIEWED" || exam.status === "PUBLISHED"
-        ? "done"
-        : canReview
-        ? "active"
-        : "todo";
-    if (step === "publish")
-      return exam.status === "PUBLISHED" ? "done" : canPublish ? "active" : "todo";
-    if (step === "send") return canSend ? "active" : exam.status === "PUBLISHED" ? "active" : "todo";
-    return "todo";
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-3 animate-skeleton-in">
-        <div className="h-16 w-full rounded-3xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-64 w-full rounded-3xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-      </div>
-    );
   }
-
+  const current = cards.find((c) => c.id === active);
+  async function save(requestCorrection = false) {
+    if (!current) return;
+    setBusy(true);
+    try {
+      const key =
+        language === "ar"
+          ? "remarksAr"
+          : language === "ur"
+            ? "remarksUr"
+            : "remarksEn";
+      const r = await fetch(`/api/reports/${current.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(requestCorrection
+            ? { requestCorrection: true, versionId: current.review.id }
+            : { [key]: remark, reportLanguage: language }),
+          reviewerNote: note,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      await load();
+      setMessage(t.success);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const blocked = cards.filter((c) => c.review.blockers.length).length;
   return (
-    <div className="space-y-5">
-      {/* Pipeline */}
-      <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-5 shadow-sm">
-        <p className="mb-4 text-sm font-black text-[#1d1b20]"><UiText>{"Pipeline"}</UiText></p>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const enabled = gateFor(s.key);
-            const state = stepState(s.key);
-            return (
-              <React.Fragment key={s.key}>
-                <div className="flex flex-1 items-center gap-2 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] px-3 py-2.5">
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-                      state === "done"
-                        ? "bg-emerald-500 text-white"
-                        : state === "active"
-                        ? "bg-[#8127cf] text-white"
-                        : "bg-[#f3f4f9] text-ink-subtle"
-                    )}
-                  >
-                    {state === "done" ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                  </div>
-                  <span className="text-[11px] font-bold text-[#1d1b20]">{s.label}</span>
-                </div>
-                {i < STEPS.length - 1 ? (
-                  <div className="hidden h-0.5 w-4 bg-[#cfc2d6]/30 md:block" />
-                ) : null}
-              </React.Fragment>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {STEPS.map((s) => {
-            const enabled = gateFor(s.key);
-            return (
-              <BrandButton
-                key={s.key}
-                variant={
-                  s.key === "send"
-                    ? "soft"
-                    : s.key === "publish"
-                    ? "gradient"
-                    : "dark"
-                }
-                icon={busy === s.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <s.icon className="h-4 w-4" />}
-                disabled={!enabled || busy !== null}
-                onClick={() => runAction(s.key)}
-              >
-                {s.label}
-              </BrandButton>
-            );
-          })}
-        </div>
-        {!isLocked ? (
-          <div className="mt-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[11px] font-semibold text-amber-600">
-            <AlertTriangle className="h-4 w-4 shrink-0" /><UiText>{"Lock the exam (from the Marks tab / card) before generating report cards."}</UiText></div>
-        ) : null}
-      </div>
-
-      {/* Analytics summary */}
-      {analytics ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            { label: tr("Class Avg"), value: `${Math.round(analytics.classAverage || 0)}%` },
-            { label: tr("Passed"), value: analytics.passCount ?? 0 },
-            { label: tr("Failed"), value: analytics.failCount ?? 0 },
-            { label: tr("Students"), value: analytics.totalStudents ?? reportCards.length },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm"
-            >
-              <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                {s.label}
-              </p>
-              <p className="mt-1 text-xl font-black text-[#1d1b20]">{s.value}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Per-student list */}
-      <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-5 shadow-sm">
-        <p className="mb-3 text-sm font-black text-[#1d1b20]"><UiText>{"Students ("}</UiText>{reportCards.length})
-        </p>
-        {reportCards.length === 0 ? (
-          <div className="py-10 text-center">
-            <FilePlus2 className="mx-auto mb-3 h-10 w-10 text-ink-subtle" />
-            <p className="text-sm font-bold text-ink-subtle"><UiText>{"No report cards yet"}</UiText></p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {reportCards.map((rc) => {
-              const status = rc.status || "DRAFT";
-              const sent = rc.isSent || rc.deliveryStatus === "SENT";
-              const published = status === "PUBLISHED" || status === "SENT";
-              return (
-                <div
-                  key={rc.id}
-                  className="rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/30 p-4"
+    <section
+      dir={locale === "en" ? "ltr" : "rtl"}
+      className="space-y-4 min-w-0"
+      aria-label={t.title}
+    >
+      <h3 className="text-lg font-semibold">
+        {t.title} · {exam.title}
+      </h3>
+      <p className="text-sm">
+        {exam.class?.name} {exam.class?.section}
+      </p>
+      <p role="status" aria-live="polite" className="text-sm">
+        {sectionLabel(message, locale)}
+      </p>
+      {loading ? (
+        <p>{t.loading}</p>
+      ) : (
+        <>
+          <p>
+            {t.blocked}: {blocked} · {t.eligible}: {cards.length - blocked} ·{" "}
+            {t.approved}: {cards.filter((c) => c.review.approvedAt).length}
+          </p>
+          {!cards.length && <p>{t.empty}</p>}
+          {canReview && cards.some((c) => c.review.predecessorId) && (
+            <>
+              <label className="block">
+                {t.reason}
+                <textarea
+                  className="block w-full rounded border p-2"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={1000}
+                />
+              </label>
+            </>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {canReview && (
+              <>
+                <button
+                  className={button}
+                  disabled={busy}
+                  onClick={() => action("generate")}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-[#1d1b20]">
-                        {rc.student?.fullName || "Student"}
-                      </p>
-                      <p className="text-[10px] font-semibold text-ink-subtle"><UiText>{"Roll"}</UiText>{rc.student?.rollNo || "—"}
-                      </p>
-                    </div>
-                    <span className="text-lg font-black text-[#8127cf]">{rc.grade || "—"}</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <Badge done={reportCards.length > 0} label={tr("Generated")} />
-                    <Badge done={published} label={tr("Published")} />
-                    <Badge done={sent} label={tr("Sent")} />
-                  </div>
-                  {rc.percentage != null ? (
-                    <p className="mt-2 text-[11px] font-bold text-ink-muted">
-                      {Math.round(rc.percentage)}%
-                      {rc.rank != null ? ` · Rank #${rc.rank}` : ""}
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => downloadPdf(rc.id)}
-                    disabled={busy !== null}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#8127cf]/20 bg-white py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] disabled:opacity-50 cursor-pointer"
-                  >
-                    {busy === `pdf-${rc.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}<UiText>{"Download PDF"}</UiText></button>
-                </div>
-              );
-            })}
+                  {t.generate}
+                </button>
+                <button
+                  className={button}
+                  disabled={
+                    busy ||
+                    !selected.length ||
+                    (!reason.trim() &&
+                      cards.some(
+                        (c) =>
+                          selected.includes(c.id) &&
+                          c.review.predecessorId &&
+                          !c.review.approvedAt,
+                      ))
+                  }
+                  onClick={() => action("approve")}
+                >
+                  {t.approve}
+                </button>
+                <button
+                  className={button}
+                  disabled={
+                    busy ||
+                    !cards.length ||
+                    cards.some((c) => !c.review.approvedAt)
+                  }
+                  onClick={() => action("review")}
+                >
+                  {t.review}
+                </button>
+              </>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+          <label className="block text-sm">
+            {t.filter}
+            <select
+              className="block rounded border p-2"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="all">{t.all}</option>
+              <option value="blocked">{t.blocked}</option>
+              <option value="eligible">{t.eligible}</option>
+            </select>
+          </label>
+          <label className="block text-sm">
+            {t.reviewer}
+            <select
+              className="block rounded border p-2"
+              value={reviewerFilter}
+              onChange={(e) => setReviewerFilter(e.target.value)}
+            >
+              <option value="">{t.all}</option>
+              {[
+                ...new Map(
+                  cards
+                    .filter((c) => c.review.lastReviewerId)
+                    .map((c) => [
+                      c.review.lastReviewerId!,
+                      c.review.reviewerName || c.review.lastReviewerId!,
+                    ]),
+                ).entries(),
+              ].map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ul className="space-y-3">
+            {cards
+              .filter(
+                (c) =>
+                  !reviewerFilter || c.review.lastReviewerId === reviewerFilter,
+              )
+              .filter(
+                (c) =>
+                  filter === "all" ||
+                  (filter === "blocked"
+                    ? c.review.blockers.length
+                    : !c.review.blockers.length),
+              )
+              .map((c) => (
+                <li key={c.id} className="rounded-xl border p-3 space-y-2">
+                  <div className="flex items-center flex-wrap gap-2">
+                    {canReview && (
+                      <input
+                        aria-label={`${t.approve}: ${c.student?.fullName} v${c.review.number}`}
+                        type="checkbox"
+                        disabled={
+                          busy ||
+                          !!c.review.blockers.length ||
+                          !!c.review.publishedAt
+                        }
+                        checked={selected.includes(c.id)}
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked
+                              ? [...selected, c.id]
+                              : selected.filter((id) => id !== c.id),
+                          )
+                        }
+                      />
+                    )}
+                    <strong>{c.student?.fullName}</strong>
+                    <bdi>v{c.review.number}</bdi>
+                    <span>
+                      {c.review.blockers.length
+                        ? t.blocked
+                        : c.review.approvedAt
+                          ? t.approved
+                          : t.eligible}
+                    </span>
+                  </div>
+                  <p className="text-sm">
+                    {t.changed}:{" "}
+                    {c.review.changedSections
+                      .map((label) => sectionLabel(label, locale))
+                      .join(", ")}
+                  </p>
+                  {c.review.blockers.map((b) => (
+                    <p key={b} className="text-sm">
+                      {sectionLabel(b, locale)}
+                    </p>
+                  ))}
+                  {!!c.review.delivery?.length && (
+                    <p className="text-sm">
+                      {t.delivery}:{" "}
+                      {c.review.delivery
+                        .map((d) => `${sectionLabel(d.channel, locale)}: ${sectionLabel(d.status, locale)}`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                  {c.review.reviewerName && (
+                    <p className="text-xs">
+                      {t.reviewer}:{" "}
+                      {c.review.reviewerName || c.review.approvedBy} ·{" "}
+                      {c.review.lastReviewedAt}
+                    </p>
+                  )}
+                  <button
+                    className={button}
+                    onClick={() => {
+                      setActive(c.id);
+                      setLanguage(c.review.language);
+                      setNote(c.review.reviewerNote || "");
+                      setRemark(
+                        c.review.language === "ar"
+                          ? c.review.snapshot.reportCard.remarksAr || ""
+                          : c.review.language === "ur"
+                            ? c.review.snapshot.reportCard.remarksUr || ""
+                            : c.review.snapshot.reportCard.remarksEn || "",
+                      );
+                    }}
+                  >
+                    {t.inspect} <bdi>v{c.review.number}</bdi>
+                  </button>
+                  {!!c.review.history?.length && (
+                    <details>
+                      <summary>
+                        {locale === "ar"
+                          ? "سجل النسخ المعتمدة"
+                          : locale === "ur"
+                            ? "منظور شدہ نسخوں کی تاریخ"
+                            : "Approved version history"}
+                      </summary>
+                      <ul>
+                        {c.review.history.map((v) => (
+                          <li key={v.id}>
+                            <a
+                              className="underline"
+                              href={`/api/reports/download?reportCardId=${c.id}&versionId=${v.id}&redirect=1`}
+                              target="_blank"
+                              rel="noopener"
+                            >
+                              <bdi>v{v.number}</bdi> ·{" "}
+                              {v.publishedAt ? sectionLabel("Published", locale) : t.approved}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  {c.review.approvedAt && (
+                    <a
+                      className={button}
+                      target="_blank"
+                      rel="noopener"
+                      href={`/api/reports/download?reportCardId=${c.id}&versionId=${c.review.id}&redirect=1`}
+                    >
+                      {t.preview}
+                    </a>
+                  )}
+                </li>
+              ))}
+          </ul>
+          {current && (
+            <div
+              className="rounded-xl border p-4 space-y-3"
+              aria-label={`${t.inspect} v${current.review.number}`}
+            >
+              <h4 className="font-semibold">
+                {current.student?.fullName} ·{" "}
+                <bdi>v{current.review.number}</bdi>
+              </h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  { title: t.prior, snapshot: current.review.priorSnapshot },
+                  { title: t.pending, snapshot: current.review.snapshot },
+                ].map(({ title, snapshot }) => (
+                  <div key={title}>
+                    <h5 className="font-semibold">{title}</h5>
+                    {snapshot ? (
+                      <>
+                        <p>
+                          <bdi>
+                            {snapshot.reportCard.percentage}% ·{" "}
+                            {snapshot.reportCard.grade}
+                          </bdi>
+                        </p>
+                        {snapshot.overall && (
+                          <p>
+                            <bdi>
+                              {snapshot.overall.overallPercentage}% ·{" "}
+                              {snapshot.overall.overallGrade}
+                            </bdi>
+                          </p>
+                        )}
+                        <ul>
+                          {snapshot.marks.map((m) => (
+                            <li key={m.subject}>
+                              {m.subject}:{" "}
+                              <bdi>
+                                {m.obtained}/{m.total}
+                              </bdi>
+                            </li>
+                          ))}
+                        </ul>
+                        {snapshot.weightConfig && (
+                          <details>
+                            <summary>
+                              {locale === "ar"
+                                ? "قواعد التقييم"
+                                : locale === "ur"
+                                  ? "گریڈنگ کے اصول"
+                                  : "Grading rules"}
+                            </summary>
+                            <dl className="text-sm">
+                              {snapshot.weightConfig.thresholds &&
+                                Object.entries(
+                                  snapshot.weightConfig.thresholds,
+                                ).map(([grade, threshold]) => (
+                                  <div key={grade}>
+                                    <dt>
+                                      <bdi>{grade.toUpperCase()}</bdi>
+                                    </dt>
+                                    <dd>
+                                      <bdi>{threshold}%</bdi>
+                                    </dd>
+                                  </div>
+                                ))}
+                              {Object.entries(snapshot.weightConfig)
+                                .filter(([, v]) => typeof v === "number")
+                                .map(([key, value]) => (
+                                  <div key={key}>
+                                    <dt>{sectionLabel(key.replace(/([A-Z])/g, " $1"), locale)}</dt>
+                                    <dd>
+                                      <bdi>{String(value)}</bdi>
+                                    </dd>
+                                  </div>
+                                ))}
+                            </dl>
+                          </details>
+                        )}
+                        <p dir="auto" className="whitespace-pre-wrap">
+                          {snapshot.reportCard.remarksEn}
+                        </p>
+                        <p dir="rtl">{snapshot.reportCard.remarksAr}</p>
+                        <p dir="rtl">{snapshot.reportCard.remarksUr}</p>
+                      </>
+                    ) : (
+                      <p>—</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {canEdit && (
+                <>
+                  <label className="block">
+                    {t.language}
+                    <select
+                      className="block rounded border p-2"
+                      value={language}
+                      onChange={(e) => {
+                        const l = e.target.value;
+                        setLanguage(l);
+                        setRemark(
+                          l === "ar"
+                            ? current.review.snapshot.reportCard.remarksAr || ""
+                            : l === "ur"
+                              ? current.review.snapshot.reportCard.remarksUr ||
+                                ""
+                              : current.review.snapshot.reportCard.remarksEn ||
+                                "",
+                        );
+                      }}
+                    >
+                      <option value="en">English</option>
+                      <option value="ar">العربية</option>
+                      <option value="ur">اردو</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    {t.remarks}
+                    <textarea
+                      className="block w-full rounded border p-2"
+                      dir={language === "en" ? "ltr" : "rtl"}
+                      value={remark}
+                      onChange={(e) => setRemark(e.target.value)}
+                    />
+                  </label>
+                  {canReview && (
+                    <label className="block">
+                      {t.note}
+                      <textarea
+                        className="block w-full rounded border p-2"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                      />
+                    </label>
+                  )}
+                  <button
+                    className={button}
+                    disabled={busy}
+                    onClick={() => save()}
+                  >
+                    {t.save}
+                  </button>
+                  {canReview && (
+                    <button
+                      className={button}
+                      disabled={busy || !note.trim()}
+                      onClick={() => save(true)}
+                    >
+                      {t.request}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {canReview && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={button}
+                  disabled={
+                    busy ||
+                    !cards.length ||
+                    cards.some((c) => !c.review.approvedAt)
+                  }
+                  onClick={() => action("publish")}
+                >
+                  {t.publish}
+                </button>
+                <button
+                  className={button}
+                  disabled={busy || !cards.some((c) => c.review.publishedAt)}
+                  onClick={() => action("send")}
+                >
+                  {t.send}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
-function Badge({ done, label }: { done: boolean; label: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider",
-        done ? "bg-emerald-50 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
-      )}
-    >
-      <CheckCircle2 className="h-2.5 w-2.5" />
-      {label}
-    </span>
-  );
+function sectionLabel(value: string, language: keyof typeof copy): string {
+  if (language === "en") return value;
+  const labels: Record<string, [string, string]> = {
+    Published: ["منشور", "شائع شدہ"],
+    EMAIL: ["البريد الإلكتروني", "ای میل"],
+    WHATSAPP: ["واتساب", "واٹس ایپ"],
+    SENT: ["تم الإرسال", "بھیج دیا گیا"],
+    PENDING: ["قيد الانتظار", "زیر انتظار"],
+    FAILED: ["فشل الإرسال", "ترسیل ناکام"],
+    "quiz Weight": ["وزن الاختبارات القصيرة", "مختصر امتحان کا وزن"],
+    "class Test Weight": ["وزن اختبار الفصل", "جماعتی امتحان کا وزن"],
+    "mid Term Weight": ["وزن امتحان منتصف الفصل", "وسط مدتی امتحان کا وزن"],
+    "final Weight": ["وزن الامتحان النهائي", "آخری امتحان کا وزن"],
+    "This report changed during review. Reload and review the new version.": ["تغير التقرير أثناء المراجعة. أعد التحميل وراجع النسخة الجديدة.", "جائزے کے دوران رپورٹ بدل گئی۔ دوبارہ لوڈ کرکے نئے نسخے کا جائزہ لیں۔"],
+    "Select an eligible version to approve.": ["حدد نسخة جاهزة للاعتماد.", "منظوری کے لیے تیار نسخہ منتخب کریں۔"],
+    "Enter a family-facing correction reason before approving.": ["أدخل سبب التصحيح للأسرة قبل الاعتماد.", "منظوری سے پہلے خاندان کے لیے تصحیح کی وجہ لکھیں۔"],
+    "Enter a family-facing correction reason.": ["أدخل سبب التصحيح للأسرة.", "خاندان کے لیے تصحیح کی وجہ لکھیں۔"],
+    "The correction reason changed. Request a new review before approving.": ["تغير سبب التصحيح. اطلب مراجعة جديدة قبل الاعتماد.", "تصحیح کی وجہ بدل گئی۔ منظوری سے پہلے نیا جائزہ طلب کریں۔"],
+    "The correction reason changed after approval. Review a new version.": ["تغير سبب التصحيح بعد الاعتماد. راجع نسخة جديدة.", "منظوری کے بعد تصحیح کی وجہ بدل گئی۔ نئے نسخے کا جائزہ لیں۔"],
+    "Every report needs approval of its current version.": ["تحتاج النسخة الحالية لكل تقرير إلى اعتماد.", "ہر رپورٹ کے موجودہ نسخے کی منظوری ضروری ہے۔"],
+    "Principal review is required before publishing.": ["مراجعة المدير مطلوبة قبل النشر.", "اشاعت سے پہلے پرنسپل کا جائزہ ضروری ہے۔"],
+    "Generate reports first.": ["أنشئ التقارير أولاً.", "پہلے رپورٹس بنائیں۔"],
+    "Failed to load reports": ["تعذر تحميل التقارير", "رپورٹس لوڈ نہیں ہو سکیں"],
+    "Action failed": ["تعذر إكمال الإجراء", "کارروائی ناکام ہوئی"],
+    "Save failed": ["تعذر الحفظ", "محفوظ نہیں ہو سکا"],
+    Marks: ["الدرجات", "نمبر"],
+    "Grading rules and weighted results": [
+      "قواعد التقييم والنتائج الموزونة",
+      "گریڈنگ کے اصول اور وزنی نتائج",
+    ],
+    Remarks: ["الملاحظات", "تبصرے"],
+    Language: ["اللغة", "زبان"],
+    "Document identity or attendance": [
+      "بيانات التقرير أو الحضور",
+      "رپورٹ کی شناخت یا حاضری",
+    ],
+    "Exam must be locked": ["يجب إقفال الامتحان", "امتحان لاک ہونا ضروری ہے"],
+  };
+  if (value.includes("; ")) return value.split("; ").map((part) => sectionLabel(part, language)).join("؛ ");
+  if (labels[value]) return labels[value][language === "ar" ? 0 : 1];
+  if (value.startsWith("Missing marks:"))
+    return `${language === "ar" ? "درجات مفقودة:" : "نامکمل نمبر:"} ${value.slice(14)}`;
+  if (value.startsWith("Missing ") && value.endsWith(" remarks"))
+    return `${language === "ar" ? "ملاحظات مفقودة:" : "تبصرے درکار:"} ${value.slice(8, -8)}`;
+  return value;
 }

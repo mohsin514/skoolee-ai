@@ -1,3 +1,4 @@
+import { assertModuleRead, errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -229,6 +230,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  try { await assertModuleRead(user, "exams"); } catch (error) { return errorResponse(error); }
   const billingBlocked = await billingAccessResponse(user.schoolId);
   if (billingBlocked) return billingBlocked;
 
