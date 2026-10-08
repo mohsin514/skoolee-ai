@@ -149,7 +149,6 @@ export const MODAL_TONES = {
     eyebrow: "text-[#8127cf]",
     orb: "from-[#8127cf]/12",
     rule: "border-[#cfc2d6]/20",
-    ring: "focus-visible:ring-[#8127cf]/40",
   },
   emerald: {
     wash: "from-emerald-50/70 via-white to-emerald-50/40",
@@ -157,7 +156,6 @@ export const MODAL_TONES = {
     eyebrow: "text-emerald-600",
     orb: "from-emerald-400/12",
     rule: "border-emerald-200/50",
-    ring: "focus-visible:ring-emerald-500/40",
   },
   amber: {
     wash: "from-amber-50/70 via-white to-amber-50/40",
@@ -165,7 +163,6 @@ export const MODAL_TONES = {
     eyebrow: "text-amber-600",
     orb: "from-amber-400/12",
     rule: "border-amber-200/50",
-    ring: "focus-visible:ring-amber-500/40",
   },
   rose: {
     wash: "from-rose-50/70 via-white to-rose-50/40",
@@ -173,7 +170,6 @@ export const MODAL_TONES = {
     eyebrow: "text-rose-600",
     orb: "from-rose-400/12",
     rule: "border-rose-200/50",
-    ring: "focus-visible:ring-rose-500/40",
   },
   sky: {
     wash: "from-sky-50/70 via-white to-sky-50/40",
@@ -181,7 +177,6 @@ export const MODAL_TONES = {
     eyebrow: "text-sky-600",
     orb: "from-sky-400/12",
     rule: "border-sky-200/50",
-    ring: "focus-visible:ring-sky-500/40",
   },
 } as const;
 
@@ -598,7 +593,6 @@ export function ModalSurface({
           "sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
           width,
           closing ? "animate-sheet-exit sm:animate-modal-exit" : "animate-sheet-enter sm:animate-modal-enter",
-          "focus:outline-none",
           className,
         )}
       >
@@ -821,8 +815,7 @@ function ModalChrome({
                     aria-label="Close dialog"
                     title="Close (Esc)"
                     className={cn(
-                      "group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-90 focus-visible:outline-none focus-visible:ring-4",
-                      t.ring,
+                      "group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-90",
                     )}
                   >
                     <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />

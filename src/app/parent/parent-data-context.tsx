@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 interface ReportCard {
@@ -56,6 +56,7 @@ interface FeeItem {
 
 export interface ParentData {
   navigationAccess: Record<string, boolean>;
+  access: { learningRecords: boolean; attendance: boolean; finances: boolean; communication: boolean; pickup: boolean };
   student: {
     fullName: string;
     rollNo: string;
@@ -115,35 +116,28 @@ const ParentDataContext = createContext<ParentDataContextType>({
   selectChild: () => {},
 });
 
-const parentCache = new Map<string, { data: ParentData; ts: number }>();
-const CACHE_TTL = 60_000;
-
 export function ParentDataProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const token = searchParams.get("token");
   // A guardian with siblings switches between them, and each child's payload
   // has to cache separately or the switch would serve the previous child.
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const cacheKey = `parent-${token || "session"}-${selectedStudentId || "default"}`;
-
-  const [data, setData] = useState<ParentData | null>(() => {
-    const cached = parentCache.get(cacheKey);
-    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null;
-  });
+  const [data, setData] = useState<ParentData | null>(null);
   const [loading, setLoading] = useState(data === null);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (data === null) setLoading(true);
+    setLoading(true);
+    setData(null);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (token) params.set("token", token);
       if (selectedStudentId) params.set("studentId", selectedStudentId);
-      const res = await fetch(`/api/parent/data?${params}`);
+      const res = await fetch(`/api/parent/data?${params}`, { cache: "no-store" });
       const json = await res.json();
       if (json.success) {
-        parentCache.set(cacheKey, { data: json.data, ts: Date.now() });
         setData(json.data);
       } else {
         setError(json.error || "Access denied");
@@ -154,17 +148,11 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [token, cacheKey, data, selectedStudentId]);
+  }, [token, selectedStudentId]);
 
   useEffect(() => {
-    const cached = parentCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.data);
-      setLoading(false);
-      return;
-    }
     loadData();
-  }, [loadData, cacheKey]);
+  }, [loadData, pathname]);
 
   const selectChild = useCallback((studentId: string) => {
     setSelectedStudentId(studentId);

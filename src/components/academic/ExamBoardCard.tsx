@@ -122,7 +122,6 @@ export function ExamBoardCard({
       }}
       className={cn(
         "group relative rounded-2xl border bg-white shadow-sm outline-none transition-all",
-        "focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
         compact ? "p-3" : "p-4",
         dragging
           ? "scale-[0.98] rotate-[0.6deg] border-[#8127cf]/40 opacity-50"

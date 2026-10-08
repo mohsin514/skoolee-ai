@@ -471,7 +471,7 @@ export function QuickCreateClass({
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grade 8"
                     autoFocus
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-base font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-base font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle"
                   />
                 </label>
               </div>
@@ -487,7 +487,7 @@ export function QuickCreateClass({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                   />
                 </label>
               </div>
@@ -665,7 +665,7 @@ export function QuickCreateClass({
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
                         placeholder="A, B, C  ·  or  A-D  ·  or  1-4"
-                        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#0d9488]/40 focus:shadow-[0_0_0_3px_rgba(13,148,136,0.08)]"
+                        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                       />
                     </label>
 
@@ -743,7 +743,7 @@ export function QuickCreateClass({
                         onChange={(e) => {
                           if (e.target.value) applyCopySubjects(e.target.value);
                         }}
-                        className="h-12 w-full cursor-pointer appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                        className="h-12 w-full cursor-pointer appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none transition-all"
                       >
                         <option value="">Select a class...</option>
                         {copyableClasses.map((cls: any) => (
@@ -778,7 +778,7 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Subject name — or paste a whole list"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                     />
                   </div>
                   <div className="w-20">
@@ -793,7 +793,7 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Marks"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-center text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40"
+                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-center text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                     />
                   </div>
                   <button

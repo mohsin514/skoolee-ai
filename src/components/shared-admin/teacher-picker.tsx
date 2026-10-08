@@ -281,7 +281,7 @@ export function TeacherPicker({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="flex h-14 w-full cursor-pointer items-center justify-between rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-left transition-all duration-200 hover:border-[#cfc2d6]/40 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="sk-field-trigger flex h-14 w-full cursor-pointer items-center justify-between rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-left transition-all duration-200 hover:border-[#cfc2d6]/40 focus:bg-white"
           >
             {value ? (
               <span className="flex min-w-0 items-center gap-3">

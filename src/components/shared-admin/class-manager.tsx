@@ -255,7 +255,7 @@ function SettingsDrawer({
         aria-modal="true"
         aria-label={`${classLabel(section)} settings`}
         tabIndex={-1}
-        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter focus:outline-none"
+        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter"
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between border-b border-[#cfc2d6]/15 px-6 py-5">
@@ -460,7 +460,7 @@ function AddSectionPanel({
         autoFocus
         disabled={busy}
         placeholder="B  ·  or  B-D"
-        className="mt-2 h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3 text-xs font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+        className="mt-2 h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3 text-xs font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:bg-white"
       />
 
       {names.length > 0 ? (
@@ -494,7 +494,7 @@ function AddSectionPanel({
             value={cloneFromId}
             onChange={(e) => setCloneFromId(e.target.value)}
             disabled={busy}
-            className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none"
           >
             <option value="">Start empty</option>
             {sections
@@ -516,7 +516,7 @@ function AddSectionPanel({
           value={teacherId}
           onChange={(e) => setTeacherId(e.target.value)}
           disabled={busy}
-          className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+          className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none"
         >
           <option value="">Assign later</option>
           {teachers.map((t: any) => (

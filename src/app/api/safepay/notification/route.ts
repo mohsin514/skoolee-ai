@@ -6,6 +6,7 @@ import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { ANNUAL_DISCOUNT, normalizePlan } from "@/config/plans";
 import { recordPayment } from "@/lib/fees/payment";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
+import { decodePlanContractMetadata } from "@/config/commercial-contract";
 
 const ANNUAL_PERIOD_DAYS = 365;
 
@@ -52,6 +53,7 @@ async function handleNotification(req: NextRequest) {
       const plan = (data.metadata?.plan) as string | undefined;
       const kind = (data.metadata?.kind) as string | undefined;
       const billingPeriod = (data.metadata?.billingPeriod) as string | undefined;
+      const quotedContract = decodePlanContractMetadata(data.metadata?.commercialContract, normalizePlan(plan || ""));
 
       // Fee payment — settle the OnlinePaymentOrder idempotently
       if (kind === "FEE" && orderRef) {
@@ -90,8 +92,8 @@ async function handleNotification(req: NextRequest) {
         // layer: only a real payment for the selected plan can activate it.
         const planType = normalizePlan(plan);
         const isAnnual = billingPeriod === "annual";
-        const snapshot = await getBillingSnapshot(schoolId);
-        const planPrice = (snapshot.plans[planType] as { price?: number | null } | undefined)?.price;
+        const snapshot = quotedContract ? null : await getBillingSnapshot(schoolId);
+        const planPrice = quotedContract?.price ?? (snapshot?.plans[planType] as { price?: number | null } | undefined)?.price;
         const paid = parsePaidAmount(data.amount ?? data.order?.amount);
 
         if (planPrice == null) {
@@ -114,7 +116,7 @@ async function handleNotification(req: NextRequest) {
           console.warn(`[safepay] no amount reported for ${orderRef}; relying on signature only`);
         }
 
-        await activatePlan(schoolId, planType, prisma, isAnnual ? ANNUAL_PERIOD_DAYS : undefined);
+        await activatePlan(schoolId, planType, prisma, isAnnual ? ANNUAL_PERIOD_DAYS : undefined, quotedContract);
       }
     }
 

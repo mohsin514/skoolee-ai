@@ -123,7 +123,7 @@ function DialogBody({ children }: { children: React.ReactNode }) {
 
       <button
         type="button"
-        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
         onClick={requestClose}
       >
         <X className="h-4 w-4" />

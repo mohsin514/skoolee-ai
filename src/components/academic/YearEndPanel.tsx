@@ -282,7 +282,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     value={archiveConfirm}
                     onChange={(e) => setArchiveConfirm(e.target.value)}
                     placeholder={activeCycle?.label}
-                    className="w-full rounded-xl border border-[#cfc2d6]/30 px-4 py-3 text-sm font-bold outline-none focus:border-rose-400"
+                    className="w-full rounded-xl border border-[#cfc2d6]/30 px-4 py-3 text-sm font-bold outline-none"
                   />
                 </label>
               </div>

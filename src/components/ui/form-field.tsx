@@ -72,7 +72,7 @@ export function FormField({
             // aria-hidden because the requirement is already conveyed to
             // assistive tech by `aria-required` on the control itself; without
             // this the label is read as "Email star".
-            <span aria-hidden="true" className="ms-0.5 text-red-500">
+            <span aria-hidden="true" className="ms-0.5 text-destructive">
               *
             </span>
           ) : null}
@@ -92,9 +92,9 @@ export function FormField({
           // `role="alert"` so the message is announced when it appears after a
           // blur or a failed submit, rather than only on next focus.
           role="alert"
-          className="flex items-start gap-1 text-sm font-bold text-destructive"
+          className="flex items-start gap-1 text-sm font-semibold text-destructive"
         >
-          <AlertCircle aria-hidden="true" className="mt-px h-3 w-3 shrink-0" />
+          <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <span>{error}</span>
         </p>
       ) : null}
@@ -117,9 +117,9 @@ export function FieldError({ id, children }: { id?: string; children?: React.Rea
     <p
       id={id}
       role="alert"
-      className="flex items-start gap-1 text-sm font-bold text-destructive"
+      className="flex items-start gap-1 text-sm font-semibold text-destructive"
     >
-      <AlertCircle aria-hidden="true" className="mt-px h-3 w-3 shrink-0" />
+      <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <span>{children}</span>
     </p>
   );
@@ -151,11 +151,11 @@ export function FormErrorSummary({
     <div
       role="alert"
       className={cn(
-        "rounded-xl border border-red-200 bg-red-50/80 px-3.5 py-3 text-red-900",
+        "rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text",
         className
       )}
     >
-      <p className="flex items-center gap-1.5 text-xs font-black">
+      <p className="flex items-center gap-1.5 text-sm font-bold">
         <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />
         {entries.length === 1
           ? "There is 1 problem with this form"
@@ -167,7 +167,7 @@ export function FormErrorSummary({
             <button
               type="button"
               onClick={() => { if (onFocusField) onFocusField(field); else document.getElementById(`field-${field}`)?.focus(); }}
-              className="text-start text-sm font-bold underline decoration-red-300 underline-offset-2 hover:decoration-red-600"
+              className="min-h-6 text-start text-sm font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current"
             >
               {message}
             </button>

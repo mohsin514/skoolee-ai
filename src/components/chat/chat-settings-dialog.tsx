@@ -237,7 +237,7 @@ function TimeField({
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-xs font-bold text-ink focus:border-[#8127cf]/40 focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+        className="mt-1 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-xs font-bold text-ink"
       />
     </div>
   );

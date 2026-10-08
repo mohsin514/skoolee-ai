@@ -215,7 +215,7 @@ export default function AIPage() {
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search drafts…"
                     aria-label="Search saved AI drafts"
-                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
                   />
                   {query ? (
                     <button data-field-affix="end" type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
@@ -234,7 +234,6 @@ export default function AIPage() {
                         aria-pressed={featureFilter === f}
                         className={cn(
                           "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                          "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                           featureFilter === f
                             ? "border-[#8127cf] bg-[#8127cf] text-white"
                             : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
@@ -348,7 +347,7 @@ function InsightRow({ insight }: { insight: any }) {
             onClick={copy}
             title="Copy this draft"
             aria-label={`Copy the ${featureLabel(insight.feature)} draft`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
           >
             {copied ? <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
@@ -358,7 +357,7 @@ function InsightRow({ insight }: { insight: any }) {
             aria-expanded={open}
             title={open ? "Collapse" : "Read the full draft"}
             aria-label={open ? "Collapse this draft" : "Read the full draft"}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
           </button>

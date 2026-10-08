@@ -580,6 +580,40 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        // Creating or selecting an account is not consent to connect every
+        // child. Keep the legacy primary-parent column for compatibility, but
+        // create one pending child-specific invitation with no rights until
+        // staff reviews the grants and the signed-in account accepts it.
+        if (parentUserId) {
+          const account = await tx.user.findFirst({
+            where: { id: parentUserId, schoolId: user.schoolId, role: "PARENT" },
+            select: { id: true, email: true, fullName: true, phone: true },
+          });
+          if (account) {
+            const relationId = randomUUID();
+            const relationship = ["mother", "father", "step-parent", "grandparent", "legal guardian", "aunt", "uncle", "sibling", "other"].includes(student.guardianRelationship || "")
+              ? student.guardianRelationship!
+              : "other";
+            const invitedAt = new Date();
+            await tx.guardianRelationship.create({ data: {
+              id: relationId, schoolId: user.schoolId, campusId: targetClass.campusId,
+              studentId: createdStudent.id, createdByUserId: user.userId,
+              fullName: student.guardianName || account.fullName,
+              email: account.email.trim().toLocaleLowerCase("en-US"),
+              phone: student.guardianPhone || student.guardianWhatsapp || account.phone,
+              relationship, status: "INVITED", validFrom: invitedAt,
+              invitationExpiresAt: new Date(invitedAt.getTime() + 14 * 24 * 60 * 60 * 1000),
+              accessVersions: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, permissions: {
+                learningRecords: false, attendance: false, finances: false, communication: false, pickup: false,
+                consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false },
+              }, effectiveFrom: invitedAt, reason: "Awaiting explicit school review of guardian permissions.", createdByUserId: user.userId } },
+              accessEvents: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, actor: { connect: { id: user.userId } },
+                action: "INVITED", reason: "Admission created a pending child-specific guardian link; no access is granted before review and acceptance.",
+                afterState: { status: "INVITED", permissions: "pending staff review" }, effectiveAt: invitedAt } },
+            } });
+          }
+        }
+
         await tx.studentTimelineEvent.create({
           data: {
             studentId: createdStudent.id,

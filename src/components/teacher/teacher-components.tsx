@@ -204,7 +204,7 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white hover:border-[#8127cf]/20" />
     </label>
   );
 }
@@ -216,7 +216,7 @@ export function FormSelect({ label, value, children, required, onChange }: { lab
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemSelect value={value} onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20">
+        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white hover:border-[#8127cf]/20">
         {children}
       </SystemSelect>
     </label>
@@ -283,7 +283,7 @@ export function ConfigField({ label, value, onChange }: { label: string; value: 
           const n = Number(e.target.value);
           if (e.target.value !== "" && Number.isFinite(n) && n >= 0 && n <= 100) onChange(n);
         }}
-        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
+        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white hover:border-[#8127cf]/20" />
     </div>
   );
 }
@@ -460,7 +460,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights</p>
             <button type="button" onClick={evenSplit}
               title="Split 100% evenly across the four exam types"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white">
               <RefreshCw className="h-3 w-3" /> Even split
             </button>
           </div>
@@ -649,7 +649,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                     <tr key={grade.studentId} tabIndex={0} role="link"
                       aria-label={`Open the report card for ${grade.studentName}`}
                       title={`Open ${grade.studentName}'s report card`}
-                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-visible:bg-[#fbf0fe]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8127cf]/40"
+                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-visible:bg-[#fbf0fe]/50 focus-inset"
                       onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -714,14 +714,14 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           <div className="flex flex-wrap gap-2">
             {phone ? (
               <a href={`tel:${phone}`} title={`Call ${student.guardianName || "guardian"}`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
                 <Phone className="h-3.5 w-3.5" /> Call guardian
               </a>
             ) : null}
             {whatsapp ? (
               <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
                 title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
               </a>
             ) : null}

@@ -5,7 +5,9 @@ import {
   canManageOperations,
   errorResponse,
   requireAuthUser,
+  assertSharedModuleRead,
 } from "@/lib/api/scope";
+import { studentScope } from "@/lib/auth/policy";
 
 export async function GET(
   req: NextRequest,
@@ -14,9 +16,10 @@ export async function GET(
   try {
     const user = await requireAuthUser();
     const { invoiceId } = await params;
+    await assertSharedModuleRead(user, "fees");
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, campus: { schoolId: user.schoolId } },
+      where: { id: invoiceId, student: studentScope(user, "finances") },
       include: {
         student: {
           select: {
@@ -38,6 +41,13 @@ export async function GET(
     });
     if (!invoice) throw new ApiError("Invoice not found", 404);
 
+    if (user.role === "PARENT") {
+      return Response.json({ success: true, data: {
+        ...invoice,
+        student: { ...invoice.student, guardianName: null, guardianPhone: null },
+        payments: invoice.payments.map(({ recorder: _recorder, ...payment }) => payment),
+      } }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     return Response.json({ success: true, data: invoice });
   } catch (error) {
     return errorResponse(error, "[fees/invoices/detail] GET failed");

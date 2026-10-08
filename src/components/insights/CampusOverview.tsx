@@ -177,7 +177,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
               <button
                 type="button"
                 onClick={onAddStudent}
-                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#1f1a23] shadow-sm transition-all hover:bg-[#fbf0fe] focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#1f1a23] shadow-sm transition-all hover:bg-[#fbf0fe] focus-on-dark"
               >
                 <GraduationCap className="h-4 w-4" /> Add student
               </button>
@@ -186,7 +186,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
               <button
                 type="button"
                 onClick={onAddClass}
-                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus-on-dark"
               >
                 <BookOpen className="h-4 w-4" /> Add class
               </button>

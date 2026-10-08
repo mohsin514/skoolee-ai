@@ -404,7 +404,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
               placeholder="Search schools by name, email, slug..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle"
             />
           </InputGroup>
           <SystemSelect
@@ -673,7 +673,7 @@ function UsersView() {
               placeholder="Search by name, email, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle"
             />
           </InputGroup>
           <SystemSelect
@@ -1437,7 +1437,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                   placeholder="Default"
                   value={vals.price}
                   onChange={(e) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
                 />
               </InputGroup>
             </div>
@@ -1471,7 +1471,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                 if (e.target.value) loadPricing(e.target.value);
                 setPricingMessage("");
               }}
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
             >
               <option value="">Select a school...</option>
               {stats?.schools?.map((s: { id: string; name: string }) => (
@@ -1495,7 +1495,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                     placeholder="Default"
                     value={vals.price}
                     onChange={(e) => setPricingValues(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
                   />
                 </InputGroup>
               </div>
@@ -1672,7 +1672,7 @@ function PaymentSettingsView() {
               value={bankForm.bankName}
               onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
               placeholder="e.g. HBL, Meezan Bank"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
             />
           </div>
           <div>
@@ -1681,7 +1681,7 @@ function PaymentSettingsView() {
               value={bankForm.accountTitle}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
               placeholder="Full name or business name"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
             />
           </div>
           <div>
@@ -1690,7 +1690,7 @@ function PaymentSettingsView() {
               value={bankForm.accountNumber}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
               placeholder="IBAN or account number"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
             />
           </div>
           <div>
@@ -1699,7 +1699,7 @@ function PaymentSettingsView() {
               value={bankForm.iban}
               onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
               placeholder="PK...XXXX"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
             />
           </div>
         </div>
@@ -2020,7 +2020,7 @@ function ChangePasswordModal({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password..."
-                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
               />
               <button data-field-affix="end"
                 type="button"
@@ -2061,7 +2061,7 @@ function ChangePasswordModal({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter password..."
-              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-2 text-xs font-bold text-rose-500 flex items-center gap-1.5">

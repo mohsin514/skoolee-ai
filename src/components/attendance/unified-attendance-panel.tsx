@@ -164,7 +164,7 @@ export function UnifiedAttendancePanel() {
               </svg>
               <SystemInput type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
-                className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
+                className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all" />
             </InputGroup>
           </div>
 

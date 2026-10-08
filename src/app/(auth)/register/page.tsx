@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
+import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 
 type RegistrationType = 'school_group' | 'single_campus';
 
@@ -29,6 +30,7 @@ interface FormState {
   password: string;
   confirmPassword: string;
   schoolName: string;
+  country: Country;
   regId: string;
   autoId: boolean;
   acceptedTerms: boolean;
@@ -73,9 +75,9 @@ const PANEL_COPY: Record<RegistrationType, { headline: string; accent: string; b
   },
   single_campus: {
     headline: "Set up your school",
-    accent: "in an afternoon.",
-    body: "Free for up to 100 students, live the same day. AI report cards, fees, attendance and WhatsApp parent updates — one login.",
-    caption: "No consultants. No six-month rollout.",
+    accent: "with a clear plan.",
+    body: "Start with up to 50 students, 2 teacher accounts, one campus and 100 AI credits per month. Compare the current plan limits before you register.",
+    caption: "Unused AI credits expire at the calendar month reset.",
   },
 };
 
@@ -123,6 +125,7 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
     schoolName: '',
+    country: "PK",
     regId: '',
     autoId: true,
     acceptedTerms: false,
@@ -241,6 +244,7 @@ export default function RegisterPage() {
           phone: formData.phone.trim(),
           password: formData.password,
           schoolName: formData.schoolName.trim(),
+          country: formData.country,
           regId: formData.regId.trim(),
         }),
       });
@@ -369,7 +373,7 @@ export default function RegisterPage() {
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
-              Start in minutes
+              Plan your account
             </span>
           </div>
 
@@ -580,6 +584,18 @@ export default function RegisterPage() {
                         value={formData.schoolName} onChange={(v) => set('schoolName', v)}
                         icon={Building}
                       />
+                      <label htmlFor="country" className="block space-y-1.5 text-sm font-semibold text-ink">
+                        <span>Institution country</span>
+                        <select
+                          id="country"
+                          value={formData.country}
+                          onChange={(event) => set("country", event.target.value as Country)}
+                          className="h-12 w-full rounded-2xl border border-[#cfc2d6]/40 bg-white px-4 text-sm font-semibold text-[#1f1a23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30"
+                        >
+                          {COUNTRIES.map((country) => <option key={country} value={country}>{({ PK: "Pakistan", SA: "Saudi Arabia", AE: "United Arab Emirates", KW: "Kuwait", OTHER: "Other" })[country]}</option>)}
+                        </select>
+                        <span className="block text-xs font-medium text-ink-muted">Default billing currency: {currencyForCountry(formData.country)}. Prices keep their published currency; no conversion is applied.</span>
+                      </label>
                       <div className="space-y-1.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-3.5">
                         <div className="flex items-center justify-between gap-2 px-1">
                           <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
@@ -610,7 +626,7 @@ export default function RegisterPage() {
                             value={formData.regId}
                             placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
                             onChange={e => set('regId', e.target.value.toUpperCase())}
-                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
+                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none"
                           />
                           {formData.autoId && (
                             <button data-field-affix="end"
@@ -702,7 +718,7 @@ export default function RegisterPage() {
                           />
                           <span
                             aria-hidden
-                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                               formData.acceptedTerms
                                 ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
                                 : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
@@ -942,8 +958,8 @@ function InputField({
           onKeyUp={trackCaps}
           onKeyDown={trackCaps}
           onBlur={onCapsChange ? () => onCapsChange(false) : undefined}
-          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-            error ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+            error ? "bg-rose-50" : "bg-[#fbf0fe]"
           } ${onToggleReveal ? "pr-11" : "pr-4"} ${className}`}
         />
         {onToggleReveal && (

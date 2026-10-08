@@ -16,6 +16,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { getDownloadUrl } from "@/lib/storage/s3";
 import {
   canCreateAnnouncement,
@@ -235,12 +236,13 @@ function serialiseConversation(
  * conversations exist.
  */
 async function requireMembership(user: AuthUser, conversationId: string) {
-  const row = await prisma.conversation.findUnique({
+  const loaded = await prisma.conversation.findUnique({
     where: { id: conversationId },
     include: conversationInclude,
   });
 
-  if (!row) throw new ApiError("Conversation not found", 404);
+  if (!loaded) throw new ApiError("Conversation not found", 404);
+  const row = await currentClassMembers(loaded);
 
   const me = memberOf(row, user.userId);
   if (!me) {
@@ -251,6 +253,27 @@ async function requireMembership(user: AuthUser, conversationId: string) {
   }
 
   return { row, me };
+}
+
+/** Remove guardians whose current child grant no longer permits messaging. */
+async function currentClassMembers(row: ConversationRow): Promise<ConversationRow> {
+  if (row.kind !== "CLASS") return row;
+  if (!row.classId) return { ...row, members: row.members.filter((member) => member.user.role !== "PARENT") };
+  const parentIds = row.members.filter((member) => member.user.role === "PARENT").map((member) => member.userId);
+  if (!parentIds.length) return row;
+  const activeLinks = await prisma.guardianRelationship.findMany({
+    where: {
+      schoolId: row.schoolId,
+      guardianUserId: { in: parentIds },
+      guardian: { role: "PARENT", isActive: true },
+      student: { classId: row.classId, status: "active" },
+      ...liveGuardianRelationshipWhere(null, "communication"),
+    },
+    select: { guardianUserId: true },
+    distinct: ["guardianUserId"],
+  });
+  const activeIds = new Set(activeLinks.flatMap((link) => link.guardianUserId ? [link.guardianUserId] : []));
+  return { ...row, members: row.members.filter((member) => member.user.role !== "PARENT" || activeIds.has(member.userId)) };
 }
 
 /** The people a message should be delivered to. */
@@ -313,7 +336,9 @@ export async function listConversations(
   // findMany does not preserve the ordering of an `in` list, so restore the
   // pinned-then-recent order the membership query established.
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const ordered = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
+  const loaded = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
+  const checked = await Promise.all(loaded.map(currentClassMembers));
+  const ordered = checked.filter((row) => memberOf(row, user.userId));
 
   const online = await whoIsOnline(
     ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)
@@ -550,7 +575,7 @@ async function classAudience(classId: string, includeGuardians: boolean): Promis
     prisma.subject.findMany({ where: { classId, teacherId: { not: null } }, select: { teacherId: true } }),
     prisma.student.findMany({
       where: { classId, status: "active" },
-      select: { studentUserId: true, parentUserId: true },
+      select: { studentUserId: true, guardianRelationships: { where: liveGuardianRelationshipWhere(null, "communication"), select: { guardianUserId: true } } },
     }),
   ]);
 
@@ -561,7 +586,7 @@ async function classAudience(classId: string, includeGuardians: boolean): Promis
   for (const s of subjects) if (s.teacherId) ids.add(s.teacherId);
   for (const s of roster) {
     if (s.studentUserId) ids.add(s.studentUserId);
-    if (includeGuardians && s.parentUserId) ids.add(s.parentUserId);
+    if (includeGuardians) for (const relation of s.guardianRelationships) if (relation.guardianUserId) ids.add(relation.guardianUserId);
   }
   return [...ids];
 }
@@ -713,13 +738,14 @@ export async function sendMessage(
 
   const view = await serialiseMessage(created);
 
-  await publishToUsers(recipientIds(row), {
+  const currentRow = await currentClassMembers(row);
+  await publishToUsers(recipientIds(currentRow), {
     type: "message",
     conversationId,
     payload: view,
   });
 
-  await notifyAbsentMembers(user, row, view, settings);
+  await notifyAbsentMembers(user, currentRow, view, settings);
 
   return view;
 }
@@ -743,6 +769,7 @@ async function notifyAbsentMembers(
   settings: ChatSettings
 ): Promise<void> {
   try {
+    row = await currentClassMembers(row);
     const candidates = row.members.filter((m) => m.userId !== user.userId && !m.isMuted);
     if (candidates.length === 0) return;
 

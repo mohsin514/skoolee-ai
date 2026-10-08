@@ -431,7 +431,7 @@ export function CreateClassWizard({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grade 8"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                   />
                 </label>
               </div>
@@ -443,7 +443,7 @@ export function CreateClassWizard({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                   />
                 </label>
               </div>
@@ -569,7 +569,7 @@ export function CreateClassWizard({
                     onChange={(e) => setSectionsInput(e.target.value)}
                     onBlur={syncSectionsFromInput}
                     placeholder="A, B, C"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
                   />
                 </label>
                 <p className="mt-2 pl-2 text-[10px] font-bold text-ink-muted">
@@ -688,7 +688,7 @@ export function CreateClassWizard({
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
                             placeholder="e.g. Mathematics"
-                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
                           />
                         </label>
                         <label className="block">
@@ -697,7 +697,7 @@ export function CreateClassWizard({
                             type="number"
                             value={subject.totalMarks}
                             onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
-                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white"
+                            className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white"
                           />
                         </label>
                       </div>
@@ -787,7 +787,7 @@ export function CreateClassWizard({
                         onChange={(e) => updateSubject(subject.key, { topicsText: e.target.value })}
                         rows={3}
                         placeholder={"One topic per line, e.g.\nReal numbers\nLinear equations\nPerimeter & area"}
-                        className="w-full resize-none rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+                        className="w-full resize-none rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
                       />
                     </div>
                   ))}

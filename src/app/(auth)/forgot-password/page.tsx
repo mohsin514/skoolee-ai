@@ -227,8 +227,8 @@ export default function ForgotPasswordPage() {
                           type="email"
                           autoComplete="email"
                           placeholder="admin@horizon.edu"
-                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                            requestForm.formState.errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                          className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+                            requestForm.formState.errors.email ? "bg-rose-50" : "bg-[#fbf0fe]"
                           }`}
                           {...requestForm.register("email")}
                         />
@@ -320,8 +320,8 @@ export default function ForgotPasswordPage() {
                         type="password"
                         autoComplete="new-password"
                         placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                          resetForm.formState.errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+                          resetForm.formState.errors.password ? "bg-rose-50" : "bg-[#fbf0fe]"
                         }`}
                         {...resetForm.register("password")}
                       />
@@ -344,8 +344,8 @@ export default function ForgotPasswordPage() {
                         type="password"
                         autoComplete="new-password"
                         placeholder="••••••••"
-                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                          resetForm.formState.errors.confirmPassword ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                        className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+                          resetForm.formState.errors.confirmPassword ? "bg-rose-50" : "bg-[#fbf0fe]"
                         }`}
                         {...resetForm.register("confirmPassword")}
                       />

@@ -1,6 +1,7 @@
 import { loadCampusLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { studentScope } from "@/lib/auth/policy";
 import { assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { findTimetableRoomClashes, syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 import { roomCapacity } from "@/lib/academic/room-capacity";
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : { parentUserId: user.userId },
+            : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));

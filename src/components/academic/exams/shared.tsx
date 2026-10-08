@@ -293,6 +293,6 @@ export function Field({
 }
 
 export const inputClass =
-  "h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-colors focus:border-[#8127cf]/50 focus:ring-4 focus:ring-[#8127cf]/12";
+  "h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-colors";
 
 export const selectClass = cn(inputClass, "cursor-pointer");

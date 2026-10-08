@@ -333,7 +333,7 @@ function SchoolDialog({
               disabled
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
-              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white"
             >
               {zones.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </SystemSelect>
@@ -465,7 +465,7 @@ function CampusDialog({
               id="c-board"
               value={form.board}
               onChange={(e) => set("board", e.target.value)}
-              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white"
             >
               {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
             </SystemSelect>
@@ -558,7 +558,7 @@ function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+          className="h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white"
         />
       </InputGroup>
     </div>

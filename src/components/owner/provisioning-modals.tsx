@@ -95,7 +95,7 @@ function Field({
 }
 
 const inputCls =
-  "h-11 w-full rounded-xl border-0 bg-[#f3f4f9] px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25";
+  "h-11 w-full rounded-xl border-0 bg-[#f3f4f9] px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white";
 
 function ErrorBanner({ message }: { message: string }) {
   return (

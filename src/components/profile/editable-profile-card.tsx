@@ -274,7 +274,7 @@ function ProfileInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-ink-subtle hover:border-[#8127cf]/20 focus:border-[#8127cf]/35 focus:bg-white"
+        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-ink-subtle hover:border-[#8127cf]/20 focus:bg-white"
       />
     </label>
   );

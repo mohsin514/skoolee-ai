@@ -377,7 +377,7 @@ export default function AttendancePage() {
                 <button key={status} type="button"
                   onClick={() => markAllAttendance(status, new Set(visibleRows.map((r) => r.id)))}
                   title={`Mark ${visibleRows.length} shown student${visibleRows.length === 1 ? "" : "s"} as ${label.toLowerCase()}`}
-                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25", STATUS_CONFIG[status].chipClass)}>
+                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]", STATUS_CONFIG[status].chipClass)}>
                   <Icon className="w-3.5 h-3.5" />
                   All {label}
                   {rosterQuery ? <span className="opacity-60">({visibleRows.length})</span> : null}
@@ -385,7 +385,7 @@ export default function AttendancePage() {
               ))}
               <button type="button" onClick={copyFromPrevious} disabled={copyingPrevious}
                 title="Copy attendance from previous day"
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] bg-[#fbf0fe] text-[#8127cf] border-[#8127cf]/15 hover:bg-[#f3eeff] hover:border-[#8127cf]/30 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] bg-[#fbf0fe] text-[#8127cf] border-[#8127cf]/15 hover:bg-[#f3eeff] hover:border-[#8127cf]/30 disabled:opacity-50">
                 {copyingPrevious ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                 Copy Yesterday
               </button>
@@ -399,7 +399,7 @@ export default function AttendancePage() {
                   onChange={(e) => setRosterQuery(e.target.value)}
                   placeholder="Find a student…"
                   aria-label="Search this roster"
-                  className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                  className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
                 />
                 {rosterQuery ? (
                   <button data-field-affix="end" type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
@@ -412,7 +412,7 @@ export default function AttendancePage() {
               <button type="button" onClick={() => setKeyboardMode((v) => !v)} aria-pressed={keyboardMode}
                 title="Show the keyboard shortcuts for marking a roster without the mouse"
                 className={cn(
-                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all active:scale-[0.95] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
+                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all active:scale-[0.95]",
                   keyboardMode
                     ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
                     : "border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
@@ -510,7 +510,7 @@ export default function AttendancePage() {
                     aria-label={`Attendance for ${student.fullName}`}
                     className={cn(
                       "group relative grid grid-cols-1 gap-3 px-5 py-3.5 outline-none transition-colors sm:grid-cols-[1fr_240px] sm:items-center",
-                      "hover:bg-[#fbf0fe]/20 focus-visible:bg-[#fbf0fe]/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8127cf]/40",
+                      "hover:bg-[#fbf0fe]/20 focus-visible:bg-[#fbf0fe]/50 focus-inset",
                       changed && "bg-amber-50/40",
                     )}
                   >

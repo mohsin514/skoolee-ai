@@ -497,7 +497,7 @@ function LayerChip({ label, color, active, onClick }: { label: string; color: st
       // shift, so the state has to be exposed for assistive tech too.
       aria-pressed={active}
       className={cn(
-        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30",
+        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-all",
         active ? "border-[#cfc2d6]/30 bg-white text-[#1d1b20]" : "border-[#cfc2d6]/15 bg-[#faf7fc] text-ink-subtle"
       )}
     >
@@ -651,13 +651,13 @@ function DayPopover({
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
-              <SystemInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
+              <SystemInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none" />
             </label>
             <label className="block">
               <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
               {/* The picker itself now refuses a date before the start. */}
               <SystemInput type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
-                className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/30 focus:border-[#8127cf]/60"}`} />
+                className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300" : "border-[#cfc2d6]/30"}`} />
             </label>
           </div>
           <SystemInput
@@ -666,7 +666,7 @@ function DayPopover({
             onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}
             placeholder={tr("Holiday name")}
             aria-label={tr("Holiday name for {0}", [dayLabel])}
-            className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none focus:border-[#8127cf]/60"
+            className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none"
           />
           {blockedReason ? (
             <p className="text-[10px] font-semibold text-amber-700">{blockedReason}</p>

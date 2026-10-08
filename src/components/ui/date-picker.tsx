@@ -120,7 +120,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
         <div className="relative overflow-hidden bg-gradient-to-br from-[#542080] via-[#7020b9] to-[#8127cf] px-5 pb-5 pt-5 text-white sm:px-6">
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="text-xs font-semibold tracking-wide text-white/85">{label}</p><h2 className="mt-1 text-lg font-bold">{copy.title}</h2></div>
-            <Button variant="ghost" size="icon" aria-label={copy.close} onClick={() => setOpen(false)} className="-me-2 -mt-2 shrink-0 text-white hover:bg-white/15 hover:text-white focus-visible:outline-white"><X /></Button>
+            <Button variant="ghost" size="icon" aria-label={copy.close} onClick={() => setOpen(false)} className="-me-2 -mt-2 shrink-0 text-white hover:bg-white/15 hover:text-white focus-on-dark"><X /></Button>
           </div>
           <div className="relative mt-4 flex items-center gap-3">
             <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/10 text-3xl font-semibold tabular-nums shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">{selectedDate ? formatNumber(selectedDate.getDate()) : <CalendarDays className="h-6 w-6" />}</span>
