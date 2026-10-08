@@ -8,12 +8,10 @@ import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 import { transliterateToUrdu } from "@/lib/urdu";
 import { assertNoPII, Pseudonymizer } from "./pseudonymize";
+import { AI_POLICY_VERSION, AI_SOURCE_VERSION } from "./evaluation";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
 
-// Providers that run off our own infrastructure. Everything else is a remote
-// third party and only ever receives pseudonymized, PII-scanned text.
-const LOCAL_PROVIDERS = new Set<AIProvider>(["ollama"]);
 type ChatRole = "system" | "user" | "assistant";
 
 interface ChatMessage {
@@ -45,6 +43,7 @@ interface OllamaResponse {
 }
 
 const PROVIDERS: AIProvider[] = ["pollinations", "openai", "ollama"];
+const AI_TIMEOUT_MS = boundedInteger(process.env.AI_TIMEOUT_MS, 20_000, 1_000, 120_000);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || process.env.AI_MODEL || "gpt-4o-mini";
 const POLLINATIONS_MODEL = process.env.POLLINATIONS_MODEL || process.env.AI_MODEL || "openai";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || process.env.AI_MODEL || "llama3.2";
@@ -56,16 +55,24 @@ const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
   ""
 );
 
+function boundedInteger(value: string | undefined, fallback: number, min: number, max: number) {
+  if (!value) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error("AI gateway policy has an invalid numeric limit");
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error("AI gateway policy has an invalid numeric limit");
+  }
+  return parsed;
+}
+
 let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error(
-      "OPENAI_API_KEY is not configured. Set AI_PROVIDER=pollinations for the free no-key provider, or add a valid OpenAI key."
-    );
+    throw new Error("Approved AI provider credentials are not configured");
   }
 
-  openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: AI_TIMEOUT_MS, maxRetries: 0 });
   return openaiClient;
 }
 
@@ -73,12 +80,19 @@ function normalizeProvider(value: string | undefined): AIProvider | "auto" {
   const provider = value?.trim().toLowerCase();
   if (!provider || provider === "auto") return "auto";
   if (PROVIDERS.includes(provider as AIProvider)) return provider as AIProvider;
-  return "auto";
+  throw new Error("AI gateway policy is invalid; generation is disabled until an approved provider is configured");
 }
 
 function providerOrder() {
   const configuredProvider = normalizeProvider(process.env.AI_PROVIDER);
-  if (configuredProvider !== "auto") return [configuredProvider];
+  if (configuredProvider !== "auto") {
+    if (configuredProvider === "pollinations" && process.env.AI_ALLOW_PUBLIC_PROVIDER !== "true") {
+      throw new Error("AI gateway policy blocks the public provider destination");
+    }
+    if (configuredProvider === "ollama") validateOllamaDestination();
+    if (configuredProvider === "pollinations") validatePollinationsDestination();
+    return [configuredProvider];
+  }
 
   // Default to OpenAI: it is contractually bound (DPA, no training on API
   // data by default). The free public pollinations endpoint is deliberately
@@ -90,12 +104,38 @@ function providerOrder() {
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
+  if (!configuredOrder.length || configuredOrder.some((item) => !PROVIDERS.includes(item as AIProvider))) {
+    throw new Error("AI gateway policy is invalid; generation is disabled until an approved provider order is configured");
+  }
+  if (new Set(configuredOrder).size !== configuredOrder.length) {
+    throw new Error("AI gateway policy contains duplicate providers");
+  }
+  if (configuredOrder.includes("pollinations") && process.env.AI_ALLOW_PUBLIC_PROVIDER !== "true") {
+    throw new Error("AI gateway policy blocks the public provider destination");
+  }
+  if (configuredOrder.includes("ollama")) validateOllamaDestination();
+  if (configuredOrder.includes("pollinations")) validatePollinationsDestination();
+  return configuredOrder as AIProvider[];
+}
 
-  const ordered = configuredOrder.filter((item): item is AIProvider =>
-    PROVIDERS.includes(item as AIProvider)
-  );
+function validatePollinationsDestination() {
+  let url: URL;
+  try { url = new URL(POLLINATIONS_API_URL); } catch { throw new Error("AI gateway policy has an invalid public provider destination"); }
+  const approvedHosts = new Set(["gen.pollinations.ai", "text.pollinations.ai"]);
+  if (url.protocol !== "https:" || !approvedHosts.has(url.hostname) || url.username || url.password) {
+    throw new Error("AI gateway policy blocks this public provider destination");
+  }
+}
 
-  return ordered.length ? ordered : PROVIDERS;
+function validateOllamaDestination() {
+  let url: URL;
+  try { url = new URL(OLLAMA_BASE_URL); } catch { throw new Error("AI gateway policy has an invalid Ollama destination"); }
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+  const isLocal = url.protocol === "http:" && localHosts.has(url.hostname);
+  const isApprovedRemote = url.protocol === "https:" && !!process.env.AI_APPROVED_OLLAMA_HOSTS?.split(",").map((host) => host.trim().toLowerCase()).includes(url.host.toLowerCase());
+  if (url.username || url.password || url.search || url.hash || (!isLocal && !isApprovedRemote)) {
+    throw new Error("AI gateway policy blocks this Ollama destination; approve its exact HTTPS host or use a loopback address");
+  }
 }
 
 function modelForProvider(provider: AIProvider) {
@@ -119,17 +159,17 @@ export function getAIModel() {
   return modelLabel(provider);
 }
 
+export function validateAIGatewayPolicy() {
+  return { providers: providerOrder(), timeoutMs: AI_TIMEOUT_MS, promptVersion: AI_PROMPT_VERSION };
+}
+
 function estimateTokens(messages: ChatMessage[], output = "") {
   const text = `${messages.map((message) => message.content).join("\n")}\n${output}`;
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function trimProviderError(text: string) {
-  return text.replace(/\s+/g, " ").slice(0, 240);
+function requestSignal() {
+  return AbortSignal.timeout(AI_TIMEOUT_MS);
 }
 
 async function parseTextResponse(response: Response) {
@@ -153,15 +193,7 @@ function extractText(payload: OpenAICompatibleResponse) {
 }
 
 async function failFromResponse(provider: AIProvider, response: Response) {
-  const body = trimProviderError(await response.text().catch(() => ""));
-  throw new Error(
-    `${provider} returned ${response.status}${body ? `: ${body}` : ""}`
-  );
-}
-
-async function responseErrorSummary(response: Response) {
-  const body = trimProviderError(await response.text().catch(() => ""));
-  return `${response.status}${body ? `: ${body}` : ""}`;
+  throw new Error(`${provider} returned HTTP ${response.status}`);
 }
 
 async function completeWithOpenAI({
@@ -173,12 +205,19 @@ async function completeWithOpenAI({
   temperature: number;
   maxTokens: number;
 }): Promise<ProviderResult> {
+  if (process.env.OPENAI_BASE_URL) {
+    let url: URL;
+    try { url = new URL(process.env.OPENAI_BASE_URL); } catch { throw new Error("AI gateway policy has an invalid OpenAI destination"); }
+    if (url.protocol !== "https:" || url.hostname !== "api.openai.com") {
+      throw new Error("AI gateway policy blocks this OpenAI destination");
+    }
+  }
   const response = await getOpenAIClient().chat.completions.create({
     model: OPENAI_MODEL,
     messages,
     temperature,
     max_tokens: maxTokens,
-  });
+  }, { timeout: AI_TIMEOUT_MS });
 
   const text = response.choices[0]?.message?.content?.trim() || "";
   if (!text) throw new Error("OpenAI returned an empty response");
@@ -208,15 +247,13 @@ async function completeWithPollinations({
     headers.Authorization = `Bearer ${process.env.POLLINATIONS_API_KEY}`;
   }
 
-  const urls =
-    process.env.POLLINATIONS_API_URL || process.env.POLLINATIONS_API_KEY
-      ? [POLLINATIONS_API_URL]
-      : [POLLINATIONS_PUBLIC_FALLBACK_URL];
+  const urls = [POLLINATIONS_API_URL || POLLINATIONS_PUBLIC_FALLBACK_URL];
 
   const failures: string[] = [];
 
   for (const url of urls) {
     const response = await fetch(url, {
+      signal: requestSignal(),
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -228,7 +265,7 @@ async function completeWithPollinations({
     });
 
     if (!response.ok) {
-      failures.push(`${url} -> ${await responseErrorSummary(response)}`);
+      failures.push(`${url} -> HTTP ${response.status}`);
       continue;
     }
 
@@ -258,7 +295,9 @@ async function completeWithOllama({
   temperature: number;
   maxTokens: number;
 }): Promise<ProviderResult> {
+  validateOllamaDestination();
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    signal: requestSignal(),
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
@@ -295,13 +334,10 @@ async function completeWithProvider(
     maxTokens: number;
   }
 ) {
-  // Last line of defence before data leaves our infrastructure: if any
-  // message still carries a phone/email/CNIC, refuse the send. Local
-  // providers (Ollama) run on our own boxes, so they are exempt.
-  if (!LOCAL_PROVIDERS.has(provider)) {
-    for (const message of input.messages) {
-      assertNoPII(message.content, `${provider} request`);
-    }
+  // Apply the same full-payload scanner to every destination, including a
+  // custom Ollama host. A provider label is not proof of local processing.
+  for (const message of input.messages) {
+    assertNoPII(message.content, `${provider} request`);
   }
 
   switch (provider) {
@@ -330,13 +366,13 @@ async function completeChat({
     try {
       return await completeWithProvider(provider, { messages, temperature, maxTokens });
     } catch (error) {
-      failures.push(`${provider}: ${trimProviderError(errorMessage(error))}`);
+      failures.push(`${provider}: ${error instanceof Error && error.name === "AbortError" ? "request timed out" : "request failed"}`);
       if (normalizeProvider(process.env.AI_PROVIDER) !== "auto") break;
     }
   }
 
   throw new Error(
-    `AI provider failed. Tried ${providerOrder().join(", ")}. ${failures.join(" | ")}`
+    `AI provider request failed. ${failures.join(" | ")}`
   );
 }
 
@@ -436,7 +472,13 @@ export async function consumeAICreditAndLog<T = null>(
         tokensUsed: input.tokensUsed,
         approvalStatus: input.approvalStatus || "DRAFT",
         output: input.output,
-        metadata: input.metadata,
+        metadata: {
+          ...(input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+            ? input.metadata as Record<string, Prisma.InputJsonValue>
+            : {}),
+          policyVersion: AI_POLICY_VERSION,
+          sourceVersion: AI_SOURCE_VERSION,
+        },
       },
     });
 

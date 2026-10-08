@@ -127,11 +127,16 @@ const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PK_PHONE_RE = /(?:\+?92[\s-]?|0)3\d{2}[\s-]?\d{7}\b/g;
 // CNIC: 13 digits, usually 5-7-1.
 const CNIC_RE = /\b\d{5}[\s-]?\d{7}[\s-]?\d\b/g;
+// Broader reviewed patterns catch international numbers and national IDs
+// outside Pakistan while avoiding ordinary marks and dates where possible.
+const INTERNATIONAL_PHONE_RE = /(?:\+\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d|\b00\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d)/g;
+const NATIONAL_PHONE_RE = /\b0\d{9,14}\b/g;
+const GENERIC_NATIONAL_ID_RE = /\b\d{10,18}\b/g;
 
 /** Returns a de-duplicated list of PII-looking substrings found in `text`. */
 export function scanForPII(text: string): string[] {
   const hits = new Set<string>();
-  for (const re of [EMAIL_RE, PK_PHONE_RE, CNIC_RE]) {
+  for (const re of [EMAIL_RE, INTERNATIONAL_PHONE_RE, NATIONAL_PHONE_RE, PK_PHONE_RE, CNIC_RE, GENERIC_NATIONAL_ID_RE]) {
     for (const m of text.matchAll(re)) hits.add(m[0]);
   }
   return [...hits];
