@@ -10,6 +10,7 @@ const db=new PrismaClient();
 test("permanent identity, historic sources, original currency, boundaries, no-overlap and tenant protection", async()=>{
  try {
  assert.throws(()=>dateOnly("2026-02-30")); assert.throws(()=>dateOnly("01/02/2026"));
+ await assert.rejects(()=>db.student.delete({where:{id:"pupil-main"}}),/Foreign key/);
  await assert.rejects(()=>db.student.update({where:{id:"pupil-main"},data:{id:"new-id"}}),/immutable/);
  await assert.rejects(()=>db.student.update({where:{id:"pupil-main"},data:{rollNo:"changed"}}),/review/);
  const published = await db.reportVersion.findUniqueOrThrow({where:{id:"identity-version"}});

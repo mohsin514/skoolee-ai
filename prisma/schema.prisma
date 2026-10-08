@@ -992,7 +992,7 @@ model Student {
   enrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   consolidatedIntoId String? @map("consolidated_into_id")
-  consolidatedInto Student? @relation("ConsolidatedIdentity", fields: [consolidatedIntoId], references: [id], onDelete: Restrict)
+  consolidatedInto Student? @relation("ConsolidatedIdentity", fields: [consolidatedIntoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   identityAliases Student[] @relation("ConsolidatedIdentity")
   id                   String    @id @default(uuid())
   schoolId             String    @default("") @map("school_id")
@@ -3211,9 +3211,9 @@ model ChatSetting {
 model StudentEnrollment {
   id String @id @default(uuid())
   schoolId String @default("") @map("school_id")
-  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId String @map("student_id")
-  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
   campusId String @map("campus_id")
   classId String @map("class_id")
   campusName String @map("campus_name")
@@ -3235,9 +3235,9 @@ model StudentEnrollment {
 model EnrollmentProposal {
   id String @id @default(uuid())
   schoolId String @default("") @map("school_id")
-  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId String @map("student_id")
-  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
   campusId String @map("campus_id")
   fromEnrollmentId String @map("from_enrollment_id")
   targetClassId String @map("target_class_id")
