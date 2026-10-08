@@ -42,6 +42,7 @@ interface BillingSnapshot {
     aiCreditsUsed: number;
     aiCreditsLimit: number;
     stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
   };
   limits: PlanDetails;
   planEndsAt?: string | null;
@@ -91,13 +92,13 @@ export function PlansPanel() {
     loadData();
   }, [loadData]);
 
-  const startCheckout = async (plan: "BASIC" | "PRO") => {
+  const startCheckout = useCallback(async (plan: "BASIC" | "PRO", period = billingPeriod) => {
     setIsPlanAction(plan);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billingPeriod }),
+        body: JSON.stringify({ plan, billingPeriod: period }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Checkout failed");
@@ -116,7 +117,16 @@ export function PlansPanel() {
       toast.error(error instanceof Error ? error.message : "Checkout failed");
       setIsPlanAction(null);
     }
-  };
+  }, [billingPeriod]);
+
+  useEffect(() => {
+    const proceed = (event: Event) => {
+      const detail = (event as CustomEvent<{ plan: "BASIC" | "PRO"; billingPeriod: BillingPeriod }>).detail;
+      void startCheckout(detail.plan, detail.billingPeriod);
+    };
+    window.addEventListener("subscription-proceed-checkout", proceed);
+    return () => window.removeEventListener("subscription-proceed-checkout", proceed);
+  }, [startCheckout]);
 
   const submitPaymentNotification = async () => {
     if (!pendingPlan) return;
@@ -125,7 +135,7 @@ export function PlansPanel() {
       const res = await fetch("/api/billing/payment-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: pendingPlan, receiptRef }),
+        body: JSON.stringify({ plan: pendingPlan, billingPeriod, idempotencyKey: crypto.randomUUID(), receiptRef }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to notify");
@@ -372,12 +382,12 @@ export function PlansPanel() {
                           disabled={!!isPlanAction || !canCheckout}
                           onClick={() => {
                             if (plan.type === "BASIC" || plan.type === "PRO") {
-                              startCheckout(plan.type);
+                              window.dispatchEvent(new CustomEvent("subscription-plan-review", { detail: { plan: plan.type, billingPeriod } }));
                             }
                           }}
                         >
                           {isPlanAction === plan.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
-                          Upgrade
+                          {billing.school.stripeSubscriptionId ? "Review change" : "Upgrade"}
                         </Button>
                       )}
                     </div>

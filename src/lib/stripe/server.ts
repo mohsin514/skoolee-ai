@@ -148,7 +148,9 @@ export async function createCheckoutSessionWithTransfer(
   schoolId: string,
   plan: Exclude<PlanType, "FREE" | "ENTERPRISE">,
   connectedAccountId: string | null,
-  contractMetadata: string
+  contractMetadata: string,
+  changeRequestId: string,
+  idempotencyKey: string
 ): Promise<string> {
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
@@ -158,13 +160,13 @@ export async function createCheckoutSessionWithTransfer(
     cancel_url: `${appUrl()}/dashboard/billing?canceled=true`,
     client_reference_id: schoolId,
     allow_promotion_codes: true,
-    metadata: { schoolId, plan, commercialContract: contractMetadata },
+    metadata: { schoolId, plan, commercialContract: contractMetadata, subscriptionChangeRequestId: changeRequestId },
     subscription_data: {
-      metadata: { schoolId, plan, commercialContract: contractMetadata },
+      metadata: { schoolId, plan, commercialContract: contractMetadata, subscriptionChangeRequestId: changeRequestId },
       ...(connectedAccountId ? { transfer_data: { destination: connectedAccountId } } : {}),
     },
   };
 
-  const session = await requireStripe().checkout.sessions.create(sessionParams);
+  const session = await requireStripe().checkout.sessions.create(sessionParams, { idempotencyKey });
   return session.url || "";
 }

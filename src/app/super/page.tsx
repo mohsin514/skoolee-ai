@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
+import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { addCampus } from "@/app/actions/addCampus";
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
@@ -424,6 +425,7 @@ const bottomItems: RoleNavItem[] = [];
               </div>
             </div>
             <div className="p-6">
+              <SubscriptionLifecyclePanel />
               <PlansPanel />
             </div>
           </div>

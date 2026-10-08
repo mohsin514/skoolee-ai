@@ -31,6 +31,7 @@ const GLOBAL = [
   "PendingRegistration",
   "PasswordReset",
   "SuperAdminAuditLog",
+  "StripeWebhookReceipt", // Provider event receipts are globally unique and contain no tenant payload.
 ];
 
 const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");

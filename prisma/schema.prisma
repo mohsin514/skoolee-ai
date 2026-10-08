@@ -39,6 +39,7 @@ model School {
   workflowEffects      WorkflowEffect[]
   importBatches        ImportBatch[]
   checkoutIntents      OnboardingCheckoutIntent[]
+  subscriptionRequests SubscriptionRequest[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
   id                   String    @id @default(uuid())
   name                 String
@@ -54,6 +55,10 @@ model School {
   plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
+  subscriptionLifecycleState String @default("TRIAL") @map("subscription_lifecycle_state")
+  cancellationEffectiveAt DateTime? @map("cancellation_effective_at")
+  graceEndsAt           DateTime? @map("grace_ends_at")
+  lastStripeEventCreated Int? @map("last_stripe_event_created")
   lastPaymentAt        DateTime? @map("last_payment_at") // last successful SafePay charge
   aiCreditsUsed        Int       @default(0) @map("ai_credits_used")
   aiCreditsLimit       Int       @default(100) @map("ai_credits_limit")
@@ -290,6 +295,42 @@ model OnboardingCheckoutIntent {
   @@map("onboarding_checkout_intents")
 }
 
+model SubscriptionRequest {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  requestedById  String   @map("requested_by_id")
+  requestedBy    User     @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  idempotencyKey String   @map("idempotency_key")
+  kind           String
+  state          String   @default("PENDING_REVIEW")
+  requestedPlan  String?  @map("requested_plan")
+  effectiveAt    DateTime? @map("effective_at")
+  details        Json
+  reviewedById   String?  @map("reviewed_by_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  @@unique([schoolId, requestedById, idempotencyKey])
+  @@index([schoolId, state, createdAt])
+  @@map("subscription_requests")
+}
+
+// Durable provider receipt. Event IDs are globally unique at Stripe; failed
+// receipts remain available for retry and operator investigation.
+model StripeWebhookReceipt {
+  eventId       String   @id @map("event_id")
+  eventType     String   @map("event_type")
+  eventCreated  Int      @map("event_created")
+  state         String   @default("PROCESSING")
+  attemptCount  Int      @default(1) @map("attempt_count")
+  error         String?  @db.Text
+  receivedAt    DateTime @default(now()) @map("received_at")
+  processedAt   DateTime? @map("processed_at")
+  @@index([state, receivedAt])
+  @@map("stripe_webhook_receipts")
+}
+
 // ─── 1d. ROLE PERMISSIONS MATRIX ─────────────────────────
 // Server-side capability matrix per role per module. APP_OWNER and
 // SUPER_ADMIN are fixed (always allowed, never editable) so a school
@@ -425,6 +466,7 @@ model User {
 
   preferredLanguage String? @map("preferred_language")
   isInstitutionOwner Boolean @default(false) @map("is_institution_owner")
+  subscriptionRequests SubscriptionRequest[]
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
   canManageMemberships Boolean @default(false) @map("can_manage_memberships")
   accessVersion Int @default(0) @map("access_version")

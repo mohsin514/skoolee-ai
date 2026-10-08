@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canPurchaseSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
@@ -10,6 +10,7 @@ import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { dashboardPathForRole } from "@/lib/roles";
 import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
+import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,12 +36,22 @@ function periodLabel(price: number | null | undefined, billingPeriod: BillingPer
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canPurchaseSubscription(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageSubscription(user)) throw new ApiError("Insufficient permissions", 403);
 
     const parsed = checkoutSchema.safeParse(await req.json());
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
+
+    const existingContract = await prisma.school.findUnique({
+      where: { id: user.schoolId },
+      select: { stripeSubscriptionId: true, subscriptionLifecycleState: true },
+    });
+    if (existingContract?.stripeSubscriptionId && existingContract.subscriptionLifecycleState !== "ENDED") {
+      throw new ApiError("This institution already has a provider subscription. Review plan capacity and effective dates in Billing & plan before changing it.", 409);
+    }
+    const approvedChange = await findApprovedPlanChange(user.schoolId, parsed.data.plan, parsed.data.billingPeriod);
+    if (!approvedChange) throw new ApiError("Review and approve this plan change in Billing & plan before starting checkout.", 409);
 
     const paymentConfig = await getPaymentConfig();
 
@@ -78,15 +89,27 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const url = await createCheckoutSessionWithTransfer(
-        customerId,
-        priceId,
-        school.id,
-        parsed.data.plan,
-        paymentConfig.stripe?.connectedAccountId || null,
-        encodePlanContractMetadata(createPlanContract(parsed.data.plan))
-      );
-      if (!url) throw new ApiError("Stripe did not return a checkout URL", 502);
+      if (approvedChange.state === "REVIEWED_APPROVED") await markPlanChangeCheckoutStarted(user.schoolId, approvedChange.id, user.userId);
+      let url: string;
+      try {
+        url = await createCheckoutSessionWithTransfer(
+          customerId,
+          priceId,
+          school.id,
+          parsed.data.plan,
+          paymentConfig.stripe?.connectedAccountId || null,
+          encodePlanContractMetadata(createPlanContract(parsed.data.plan)),
+          approvedChange.id,
+          `subscription-change-${approvedChange.id}`
+        );
+      } catch (error) {
+        await restorePlanChangeApproval(user.schoolId, approvedChange.id, user.userId);
+        throw error;
+      }
+      if (!url) {
+        await restorePlanChangeApproval(user.schoolId, approvedChange.id, user.userId);
+        throw new ApiError("Stripe did not return a checkout URL", 502);
+      }
 
       return Response.json({ success: true, method: "stripe", url });
     }
@@ -112,7 +135,7 @@ export async function POST(req: NextRequest) {
       const price = periodPrice(planDetail.price, parsed.data.billingPeriod);
       const priceLabel = periodLabel(planDetail.price, parsed.data.billingPeriod);
 
-      const orderRef = `SKL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+      const orderRef = `SKL-${approvedChange.id}`.toUpperCase();
       const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
       const merchantId = process.env.SAFEPAY_MERCHANT_ID;
