@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { getPlanLimits, normalizePlan } from "@/config/plans";
+import { createPlanContract, decodePlanContractMetadata } from "@/config/commercial-contract";
 import { stripe } from "@/lib/stripe/server";
 import {
   applySchoolPlan,
@@ -64,13 +65,18 @@ async function syncSubscription(subscription: Stripe.Subscription) {
   const customerId = stringId(subscription.customer);
   const status = stripeStatusToSchoolStatus(subscription.status);
   const limits = getPlanLimits(plan);
+  const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true } });
+  const termsChanged = !current || normalizePlan(current.plan) !== plan || !current.commercialContract;
+  const encodedContract = subscription.metadata?.commercialContract;
+  const quotedContract = decodePlanContractMetadata(encodedContract, plan);
+  if (termsChanged && encodedContract && !quotedContract) throw new Error("Invalid commercial contract in Stripe subscription metadata");
 
   await prisma.school.update({
     where: { id: schoolId },
     data: {
       plan,
       status,
-      aiCreditsLimit: limits.aiCredits,
+      ...(termsChanged ? { aiCreditsLimit: quotedContract?.aiCredits ?? limits.aiCredits, commercialContract: quotedContract ?? createPlanContract(plan) } : {}),
       stripeSubscriptionId: subscription.id,
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
@@ -123,12 +129,16 @@ async function handleWebhook(req: NextRequest) {
       const subscriptionId = stringId(session.subscription);
       const customerId = stringId(session.customer);
       const requestedPlan = normalizePlan(session.metadata?.plan);
+      const encodedContract = session.metadata?.commercialContract;
+      const quotedContract = decodePlanContractMetadata(encodedContract, requestedPlan);
+      if (encodedContract && !quotedContract) throw new Error("Invalid commercial contract in Stripe checkout metadata");
 
       if (schoolId && subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const pricePlan = planFromStripePriceId(subscriptionPriceId(subscription));
         const plan = (pricePlan || requestedPlan) as PlanType;
-        await applySchoolPlan(schoolId, plan, stripeStatusToSchoolStatus(subscription.status), subscription.id);
+        const matchingContract = plan === requestedPlan ? quotedContract : null;
+        await applySchoolPlan(schoolId, plan, stripeStatusToSchoolStatus(subscription.status), subscription.id, matchingContract);
         if (customerId) {
           await prisma.school.update({ where: { id: schoolId }, data: { stripeCustomerId: customerId } });
         }

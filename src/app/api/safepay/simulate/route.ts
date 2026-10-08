@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
 import { activatePlan } from "@/lib/billing/entitlements";
+import { decodePlanContractMetadata } from "@/config/commercial-contract";
+import { normalizePlan } from "@/config/plans";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,9 +31,11 @@ async function handleWebhook(req: NextRequest) {
   }
 
   try {
-    const { orderRef, schoolId, plan, billingPeriod } = await req.json();
+    const { orderRef, schoolId, plan, billingPeriod, contract } = await req.json();
     if (orderRef && schoolId && plan) {
-      await activatePlan(schoolId, plan as any, prisma, billingPeriod === "annual" ? 365 : undefined);
+      const planType = normalizePlan(plan);
+      const quotedContract = decodePlanContractMetadata(contract, planType);
+      await activatePlan(schoolId, planType, prisma, billingPeriod === "annual" ? 365 : undefined, quotedContract);
       return Response.json({ success: true });
     }
 
@@ -89,6 +93,7 @@ export async function GET(req: NextRequest) {
   const kind = searchParams.get("kind");
   const invoiceId = searchParams.get("invoiceId");
   const billingPeriod = searchParams.get("billingPeriod");
+  const contract = searchParams.get("contract");
 
   const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const payUrl = new URL("/safepay", req.url);
@@ -99,6 +104,7 @@ export async function GET(req: NextRequest) {
   if (kind) payUrl.searchParams.set("kind", kind);
   if (invoiceId) payUrl.searchParams.set("invoiceId", invoiceId);
   if (billingPeriod) payUrl.searchParams.set("billingPeriod", billingPeriod);
+  if (contract) payUrl.searchParams.set("contract", contract);
 
   return NextResponse.redirect(payUrl);
 }

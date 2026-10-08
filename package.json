@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && tsx scripts/check-commercial-contract.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
@@ -24,6 +24,9 @@
     "app:desktop:build": "tauri build",
     "app:icons": "tauri icon public/icon-1024.png",
     "test:report-versions": "node --import tsx --test tests/report-versions/version.test.ts",
+    "test:commercial": "node --import tsx --test tests/commercial/contract.test.ts",
+    "test:commercial:db": "node --import tsx --test tests/commercial/contract.database.test.ts",
+    "check:commercial": "tsx scripts/check-commercial-contract.ts",
     "test:locale": "node --import tsx --test tests/locale/package.test.ts",
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",
     "test:corrections": "node --import tsx --test tests/corrections/domain.test.ts tests/corrections/integration.test.ts"

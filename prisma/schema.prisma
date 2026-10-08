@@ -56,6 +56,7 @@ model School {
   stripeCustomerId     String?   @unique @map("stripe_customer_id")
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
   planPricing          Json?     @map("plan_pricing") // Owner-defined plan pricing overrides
+  commercialContract   Json?     @map("commercial_contract") // Versioned terms retained for this school's current plan
   city                 String
   address              String?
   regId                String    @unique @map("reg_id") // Unique Institutional Identity

@@ -57,6 +57,9 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <Link href="/privacy" className="hidden text-ink hover:text-[#8127cf] sm:block">
               Trust
             </Link>
+            <Link href="/pricing" className="text-ink hover:text-[#8127cf]">
+              Pricing
+            </Link>
             <Link href="/login" className="text-ink hover:text-[#8127cf]">
               Login
             </Link>
@@ -101,8 +104,9 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
               <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <span className="ml-auto text-xs font-bold text-ink-subtle">Live school dashboard</span>
+              <span className="ml-auto text-xs font-bold text-ink-subtle">Illustrative dashboard</span>
             </div>
+            <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">Synthetic example data. This is not a customer result or measured outcome.</p>
             <div className="grid gap-3">
               <div className="rounded-lg bg-[#f6f8fb] p-4">
                 <p className="text-xs font-bold uppercase tracking-normal text-[#8127cf]">AI remark draft</p>
