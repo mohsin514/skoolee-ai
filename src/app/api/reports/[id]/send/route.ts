@@ -1,3 +1,4 @@
+import { assertModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -24,6 +25,7 @@ export async function POST(
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
+    await assertModuleRead(user, "reports");
     const { id } = await params;
 
     const reportCard = await prisma.reportCard.findFirst({

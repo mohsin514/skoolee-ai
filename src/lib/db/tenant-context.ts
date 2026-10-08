@@ -16,6 +16,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export interface TenantContext {
   schoolId: string;
   userId?: string;
+  campusId?: string | null;
+  role?: string;
   /**
    * Set only by runUnscoped(). While true the guard steps aside, so the
    * caller is responsible for scoping. Every use needs a stated reason.
@@ -120,14 +122,14 @@ export async function resolveTenantFromRequest(): Promise<TenantContext | null> 
 
     const userId = typeof payload.userId === "string" ? payload.userId : undefined;
 
-    // The platform operator administers every school, so their requests are
-    // legitimately cross-tenant. Authorization for those routes is still the
-    // role check in requirePlatformOwner().
-    if (payload.role === "APP_OWNER") {
-      return { schoolId, userId, unscoped: true, reason: `platform owner ${userId}` };
+    if (!userId) return null;
+    const { resolveCurrentPrincipal } = await import("@/lib/auth/principal");
+    const principal = await resolveCurrentPrincipal({ userId, schoolId, role: payload.role });
+    if (!principal) return null;
+    if (principal.role === "APP_OWNER") {
+      return { schoolId, userId, unscoped: true, reason: "current platform operator" };
     }
-
-    return { schoolId, userId };
+    return { schoolId, userId, campusId: principal.campusId, role: principal.role };
   } catch {
     return null;
   }

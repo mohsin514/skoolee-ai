@@ -1,5 +1,4 @@
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
 
@@ -419,33 +418,6 @@ async function storeToS3(key: string, pdfBuffer: Buffer): Promise<string> {
   return getDownloadUrl(key, 86400);
 }
 
-/**
- * Write the PDF next to the app and return a public path.
- *
- * Only possible where the filesystem is writable. On a serverless host the
- * bundle lives in a read-only directory, so this throws ENOENT on the very
- * first `mkdir` — which is exactly how report card downloads died in
- * production while working perfectly on a developer's laptop (§84).
- *
- * Returning null rather than throwing lets the caller carry on: the PDF is
- * already rendered in memory, and it can be served from there.
- */
-async function storeToLocalDisk(
-  examId: string,
-  filename: string,
-  pdfBuffer: Buffer,
-): Promise<string | null> {
-  try {
-    const dir = path.join(process.cwd(), "public", "generated", "reports", examId);
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, filename), pdfBuffer);
-    return `/generated/reports/${examId}/${filename}`;
-  } catch {
-    // Read-only filesystem (serverless). Not an error — just no cached copy.
-    return null;
-  }
-}
-
 /** The rendered bytes, with no attempt to store them anywhere. */
 export async function renderReportCardPdfBuffer(
   reportCardId: string,
@@ -466,8 +438,6 @@ export async function renderReportCardPdfBuffer(
 export async function generateReportCardPdf(reportCardId: string): Promise<string | null> {
   const payload = await getReportCardPdfPayload(reportCardId);
   const pdfBuffer = await renderToBuffer(<ReportCardDocument payload={payload} />);
-  const safeRollNo = payload.reportCard.student.rollNo.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
-  const filename = `${safeRollNo || payload.reportCard.studentId}-${payload.reportCard.id}.pdf`;
 
   if (isS3Configured()) {
     const { reportCardKey } = await import("@/lib/storage/s3");
@@ -479,5 +449,5 @@ export async function generateReportCardPdf(reportCardId: string): Promise<strin
     return storeToS3(key, pdfBuffer);
   }
 
-  return storeToLocalDisk(payload.reportCard.examId, filename, pdfBuffer);
+  return `/api/reports/download?reportCardId=${reportCardId}&redirect=1`;
 }

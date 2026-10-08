@@ -1,3 +1,4 @@
+import { assertModuleRead, assertPermission } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
   if (!examId) return Response.json({ error: "examId required" }, { status: 400 });
 
   try {
+    await assertModuleRead(user, "reports");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
     if (exam._count.reportCards === 0) {
@@ -118,6 +120,7 @@ export async function POST(req: NextRequest) {
   const { examId, action } = parsed.data;
 
   try {
+    await assertPermission(user, "reports", "edit");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
 

@@ -1,3 +1,5 @@
+import { studentScope, AccessDenied } from "@/lib/auth/policy";
+import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -14,16 +16,12 @@ export async function GET(
   try {
     const user = await requireAuthUser();
     const { studentId } = await params;
+    await assertSharedModuleRead(user, "fees");
 
     const student = await prisma.student.findFirst({
       where: {
         id: studentId,
-        campus: { schoolId: user.schoolId },
-        ...(user.role !== "SUPER_ADMIN" && user.role !== "PARENT"
-          ? { campusId: user.campusId ?? undefined }
-          : {}),
-        ...(user.role === "PARENT" ? { parentUserId: user.userId } : {}),
-        ...(user.role === "STUDENT" ? { studentUserId: user.userId } : {}),
+        ...studentScope(user),
       },
       include: {
         class: { select: { id: true, name: true, section: true } },
@@ -36,7 +34,7 @@ export async function GET(
       },
     });
 
-    if (!student) throw new ApiError("Student not found", 404);
+    if (!student) throw new AccessDenied("student", "view", user);
 
     const totalDue = student.invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
     const totalPaid = student.invoices.reduce((sum, inv) => sum + inv.totalAmountPaid, 0);
