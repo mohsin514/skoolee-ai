@@ -494,11 +494,10 @@ export async function POST(req: NextRequest) {
         }
 
         const admissionYear = new Date().getFullYear();
-        // admissionNo is unique within the institution, so derive its sequence from
-        // the whole school — not just this campus. Counting per-campus made
-        // every campus's first student collide on ADM-YYYY-0001.
-        const admissionCount = await tx.student.count({});
-        const admissionNo = `ADM-${admissionYear}-${String(admissionCount + 1).padStart(4, "0")}`;
+        // Campus-scoped registrars cannot count a whole institution, and a
+        // count is unsafe under concurrent imports. Allocate a non-sequential
+        // institution identifier without reading or matching another pupil.
+        const admissionNo = `ADM-${admissionYear}-${randomUUID().replaceAll("-", "").toUpperCase()}`;
 
         // Sibling-group resolution:
         // 1. explicit siblingGroupId wins;

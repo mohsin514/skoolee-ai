@@ -1,0 +1,63 @@
+name: Student enrollment invariants
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+permissions:
+  contents: read
+jobs:
+  enrollment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: sko217
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['55417:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:55417/sko217
+      DIRECT_URL: postgresql://postgres@127.0.0.1:55417/sko217
+      AUTH_SECRET: local-sko217-fixture
+      NEXT_PUBLIC_APP_URL: http://localhost:3217
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate && pnpm exec prisma migrate deploy
+      - run: node --import tsx tests/enrollment/fixture.ts
+      - run: node --import tsx --test tests/enrollment/domain.test.ts
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Start isolated synthetic app
+        run: |
+          pnpm exec next start --port 3217 > /tmp/sko217-app.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:3217/login >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sko217-app.log
+          exit 1
+      - run: node --import tsx tests/enrollment/browser-check.ts
+      - run: node --import tsx tests/enrollment/source-check.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-enrollment-evidence
+          path: |
+            /tmp/sko217-evidence
+            /tmp/sko217-app.log
+          retention-days: 7
