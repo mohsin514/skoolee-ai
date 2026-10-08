@@ -11,7 +11,7 @@ const dbUrl=new URL(process.env.DATABASE_URL||'http://invalid');
 if(dbUrl.hostname!=='127.0.0.1'||dbUrl.port!=='55419'||dbUrl.pathname!=='/sko219')throw new Error('Dedicated local database required');
 const db=new PrismaClient();const school=randomUUID(),campus=randomUUID();
 const browser=await chromium.launch({headless:true});
-await mkdir('docs/verification/sko-219',{recursive:true});
+await mkdir('test-results/sko-219',{recursive:true});
 try {
  await db.school.create({data:{id:school,name:'Synthetic one-campus group',slug:school,regId:school,contactEmail:`${school}@example.invalid`,city:'Synthetic',status:'ACTIVE',plan:'PRO',registrationKind:'GROUP'}});
  await db.campus.create({data:{id:campus,schoolId:school,name:'North campus',city:'Synthetic',regId:campus}});
@@ -25,16 +25,27 @@ try {
   assert.equal(await page.getByRole('heading',{name:'Invite to institution'}).count(),owner?1:0);
   if(owner) {
    for(const [name,width,height] of [['desktop',1440,1000],['tablet',768,1024],['phone',390,844]] as const) {
-    await page.setViewportSize({width,height});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);await page.screenshot({path:`docs/verification/sko-219/${name}.png`,fullPage:true});
+    await page.setViewportSize({width,height});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);await page.screenshot({path:`test-results/sko-219/${name}.png`,fullPage:true});
    }
-   await page.getByRole('button',{name:'العربية',exact:true}).click();assert.equal(await page.locator('main').getAttribute('dir'),'rtl');await page.screenshot({path:'docs/verification/sko-219/rtl.png',fullPage:true});
+   await page.getByRole('button',{name:'العربية',exact:true}).click();assert.equal(await page.locator('main').getAttribute('dir'),'rtl');await page.screenshot({path:'test-results/sko-219/rtl.png',fullPage:true});
    await page.getByLabel('Email',{exact:true}).fill('synthetic@example.invalid');await page.getByLabel('Work role').selectOption('TEACHER');await page.getByRole('button',{name:'Review invitation'}).focus();await page.keyboard.press('Enter');await page.getByRole('button',{name:'Send reviewed invitation'}).waitFor();
   }
   console.log(`PASS ${role}: scoped membership view; invitation controls ${owner?'visible':'absent'}`);await context.close();
  }
- const token=randomUUID();await db.staffInvitation.create({data:{schoolId:school,campusId:campus,email:`${token}@example.invalid`,role:'TEACHER',token,expiresAt:new Date(Date.now()+3600000),invitedBy:'Synthetic owner'}});
- const context=await browser.newContext({viewport:{width:390,height:844}});const page=await context.newPage();page.on("pageerror", error => console.error("BROWSER", error));await page.goto(`http://localhost:3219/accept-invite?token=${token}`);await page.getByRole('heading',{name:'Synthetic one-campus group'}).waitFor();await page.screenshot({path:'docs/verification/sko-219/accept-phone.png',fullPage:true});
- await page.getByLabel('Your full name').fill('Synthetic Teacher');await page.getByLabel('Password',{exact:true}).fill('Synthetic219Password');await page.getByLabel('Confirm Password').fill('Synthetic219Password');await page.getByRole('button',{name:'Activate Account'}).click();await page.waitForURL('**/login?invite=accepted');assert.equal((await db.user.findFirstOrThrow({where:{email:`${token}@example.invalid`}})).onboardingComplete,true);console.log('PASS mobile invitation acceptance, named scope and keyboard review');await context.close();
+ const token=randomUUID();await db.staffInvitation.create({data:{schoolId:school,campusId:campus,email:`${token}@example.invalid`,role:'TEACHER',token,expiresAt:new Date(Date.now()+3600000),invitedBy:'Synthetic owner',canPurchaseSubscription:true,canManageMemberships:true}});
+ const context=await browser.newContext({viewport:{width:390,height:844}});const page=await context.newPage();page.on("pageerror", error => console.error("BROWSER", error));await page.goto(`http://localhost:3219/accept-invite?token=${token}`);await page.getByRole('heading',{name:'Synthetic one-campus group'}).waitFor();
+ for(const language of ['en','ar','ur'] as const){
+  await page.locator('select[aria-label]').selectOption(language);await page.waitForFunction(lang=>document.querySelector('main')?.getAttribute('lang')===lang,language);
+  assert.equal(await page.locator('main').getAttribute('dir'),language==='en'?'ltr':'rtl');
+  const body=await page.locator('body').innerText();
+  assert.match(body,language==='en'?/Subscription purchasing is explicitly delegated\./:language==='ar'?/تم تفويض شراء الاشتراك صراحةً\./:/سبسکرپشن خریدنے کی اجازت واضح طور پر دی گئی ہے۔/);
+  assert.match(body,language==='en'?/Membership management is explicitly delegated within this scope\./:language==='ar'?/تم تفويض إدارة العضويات ضمن هذا النطاق\./:/اس دائرہ کار میں رکنیت کے انتظام کی اجازت واضح طور پر دی گئی ہے۔/);
+  assert.equal(await page.getByRole('button',{name:language==='en'?'Password: show':language==='ar'?'كلمة المرور: إظهار':'پاس ورڈ: دکھائیں'}).count(),1);
+  for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${language} invitation overflow at ${width}px`);}
+  await page.setViewportSize({width:390,height:844});await page.screenshot({path:`test-results/sko-219/accept-${language}.png`,fullPage:true});
+ }
+ await page.locator('select[aria-label]').selectOption('en');
+ await page.getByLabel('Your full name').fill('Synthetic Teacher');await page.getByLabel('Password',{exact:true}).fill('Synthetic219Password');await page.getByLabel('Confirm Password').fill('Synthetic219Password');await page.getByRole('button',{name:'Activate account'}).click();await page.waitForURL('**/login?invite=accepted');assert.equal((await db.user.findFirstOrThrow({where:{email:`${token}@example.invalid`}})).onboardingComplete,true);console.log('PASS mobile invitation acceptance; en/ar/ur direction, delegated scope, four widths and no overflow');await context.close();
 } finally {await browser.close();await db.school.deleteMany({where:{id:school}});await db.$disconnect();}
 
 }

@@ -1,0 +1,28 @@
+# Done Skoolee AI UI audit — SKO-208 through SKO-213
+
+Audit date: 2026-10-08. Checkout: `codex/audit-done-001-008` at base `1fb17aa`.
+
+This is a scoped audit record, not a claim that every mapped product screen passed a current browser review. Browser evidence is from an isolated localhost Next app and disposable PostgreSQL database containing synthetic-only records. No `.env`, production records, remote database, external delivery, merge, or deploy was used. The three invitation screenshots in this directory are current screenshots from the tested local build. They include the Next development indicator, which is not part of the production UI. Checked-in screenshots elsewhere in the repository are historical and are not counted as current validation.
+
+| Issue | Specified screen/page routes | Current evidence and disposition |
+| --- | --- | --- |
+| SKO-208 | Staff task queue and form-pattern reference: `/design-system` and `/design-system?patterns=application` | **Pass with snapshot drift note.** Existing Playwright checks exercised form validation, draft/stale recovery, keyboard dialog recovery, Arabic RTL, tokens/contrast, access failure/retry, dropdown/calendar focus and selection, and reduced-motion-aware shared patterns. The Home/End test had expected Sunday-based dates although English locale starts Monday; expectations are corrected. One full-workspace screenshot assertion still differs by 0.01 ratio (540 pixels); not accepted or rewritten as a new baseline. The two design-system routes were exercised at desktop; phone was exercised for the family/dialog flow. Tablet and Urdu on these reference screens remain **unverified**. Shared UI primitives in PR #36 were not edited. |
+| SKO-207 | Issue describes internal authorization decision and test-matrix references; no security-debug console or new operator screen is specified | **No product UI screen.** The operational references are outside the product UI audit; direct-link authorization behavior is covered by existing authorization tests but was not rerun in this browser session. |
+| SKO-219 | Membership role/scope list `/memberships`; invite acceptance `/accept-invite` | **Partial.** Synthetic local browser run visited membership list for all eleven configured roles and verified invite control visibility by owner role. Desktop layout was captured; invitation acceptance was completed end-to-end with a synthetic invite. Acceptance copy/direction/delegation was checked in en/ar/ur at 320, 390, 768, and 1440px with no horizontal overflow. Current captures: `accept-invite-en.png`, `accept-invite-ar.png`, `accept-invite-ur.png`. `/memberships` itself remains English/Arabic-only and was not inspected at all viewport/locale combinations; Urdu is a confirmed localization gap there. Keyboard review only covered invitation form submission by keyboard on membership invite review. |
+| SKO-209 | Membership/account scope `/memberships`; MFA enrollment/recovery `/protect-account` | Membership screen evidence is as above. `/protect-account` was **not revalidated in a current browser**; historical coverage under `docs/verification/sko-209/` is not counted. Current en/ar/ur, desktop/tablet/phone and keyboard/focus outcomes are **unverified**. |
+| SKO-210 | Principal report review and exact-version approval: `/principal` | **Unverified in current browser.** Historical images and browser JSON under `docs/qa/evidence/sko-210/` predate this audit and are not a current pass. Required en/ar/ur, desktop/tablet/phone and keyboard/focus review remains outstanding. |
+| SKO-211 | Public plan/pricing and checkout surfaces (`/pricing`, `/onboarding/package`); contract/evidence review is an internal operational reference | **Unverified in current browser** for pricing and package selection across locales/viewports/states. Internal contract evidence has no specified product UI panel. |
+| SKO-212 | Recovery rehearsal/readiness and result are optional operational runbook screens | **No product UI screen.** Recovery operations are not represented as a user-facing product route in this issue scope. |
+| SKO-213 | Request correction and correction history: `/corrections` | **Unverified in current browser.** Historical screenshots under `docs/qa/evidence/sko-213/` are not a current pass. Required en/ar/ur, desktop/tablet/phone and keyboard/focus review remains outstanding. |
+
+## Changes in this audit
+
+- The invitation acceptance page now supports English, Arabic, and Urdu, applies RTL to both Arabic and Urdu, uses logical positioning for the password controls, and displays both independently delegated permissions from the invitation. Password requirements and invitation errors expose accessible status/alert semantics and localized names. The screen uses shared semantic tokens for its primary surface and status states.
+- The membership role label/permission preview helpers include Urdu, while the `/memberships` screen itself still lacks Urdu UI copy; that uncovered gap is intentionally disclosed above.
+- The design-system keyboard reference assertion now follows the configured Monday-first English week. No date-picker implementation defect was found.
+
+## Checks run
+
+- Synthetic local membership and invite browser flow: all 11 membership roles, invite UI visibility, invitation completion, en/ar/ur, direction and delegation assertions, and no overflow at 320/390/768/1440px.
+- Design-system Playwright suite: 8 checks passed; the staff-workspace snapshot assertion remains different by 0.01 ratio. The focused Home/End date-picker keyboard test passed after correcting the locale expectation.
+- TypeScript check, scoped ESLint, and `git diff --check` passed before final cleanup. No build or remote/service-backed test is claimed.
