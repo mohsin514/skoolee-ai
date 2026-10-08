@@ -1,4 +1,6 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
+import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
+import { localePackageSchema } from "@/lib/locale/package";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,
@@ -123,7 +125,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
     }),
     prisma.reportCard.findMany({
       where: { examId },
-      select: { studentId: true, status: true, isSent: true, deliveryStatus: true },
+      select: { studentId: true, status: true, isSent: true, deliveryStatus: true, localeSnapshot: true, generatedAt: true },
     }),
   ]);
 
@@ -182,11 +184,14 @@ export async function generateReportCardsForLockedExam(examId: string) {
 
   const resultByStudent = new Map(results.map((result) => [result.student.id, result]));
   const now = new Date();
+  const localeAt = await loadLocaleTimeline(exam.schoolId, exam.campusId);
+  const localeSnapshot = localeAt(now);
 
   const reportCards = await prisma.$transaction(
     students.map((student) => {
       const result = resultByStudent.get(student.id)!;
       const existing = existingByStudent.get(student.id);
+      const previousLocale = localePackageSchema.safeParse(existing?.localeSnapshot);
       const status = existing?.isSent
         ? "SENT"
         : existing?.status === "PUBLISHED"
@@ -196,6 +201,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
       return prisma.reportCard.upsert({
         where: { studentId_examId: { studentId: student.id, examId } },
         update: {
+          localeSnapshot: previousLocale.success ? previousLocale.data : localeAt(existing?.generatedAt || now),
           totalMarks: result.totalMarks,
           obtainedMarks: result.obtainedMarks,
           percentage: result.percentage,
@@ -207,6 +213,8 @@ export async function generateReportCardsForLockedExam(examId: string) {
           generatedAt: now,
         },
         create: {
+          localeSnapshot,
+          reportLanguage: localeSnapshot.language,
           campusId: exam.campusId,
           studentId: student.id,
           examId,
@@ -325,10 +333,11 @@ export async function getExamAnalytics(examId: string) {
   };
 }
 
-export async function getReportCardPdfPayload(reportCardId: string) {
-  const reportCard = await prisma.reportCard.findUnique({
+export async function getLiveReportCardPayload(reportCardId: string, db: TxClient = prisma) {
+  const reportCard = await db.reportCard.findUnique({
     where: { id: reportCardId },
     include: {
+      enrollment: true,
       campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
       exam: {
         select: {
@@ -355,7 +364,13 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     reportCard.student.class = reportCard.exam.class;
   }
 
-  const marks = await prisma.mark.findMany({
+  if (reportCard.enrollment) {
+    reportCard.student.rollNo = reportCard.enrollment.rollNo;
+    reportCard.student.class = { id: reportCard.enrollment.classId, name: reportCard.enrollment.className, section: null, academicYear: reportCard.enrollment.academicYear };
+    reportCard.campus.name = reportCard.enrollment.campusName;
+  }
+
+  const marks = await db.mark.findMany({
     where: { examId: reportCard.examId, studentId: reportCard.studentId },
     include: { subject: { select: { name: true, totalMarks: true } } },
     orderBy: { subject: { name: "asc" } },
@@ -368,8 +383,8 @@ export async function getReportCardPdfPayload(reportCardId: string) {
   const classId = reportCard.exam.classId;
   if (classId) {
     try {
-      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear);
-      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear);
+      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear, db);
+      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db);
       overall = {
         overallPercentage: grade.overallPercentage,
         overallGrade: grade.overallGrade,
@@ -383,16 +398,20 @@ export async function getReportCardPdfPayload(reportCardId: string) {
         academicYear: reportCard.exam.academicYear,
         weightConfig,
         ...(isAggregateFinal ? { excludeExamId: reportCard.examId } : {}),
-      });
-    } catch {}
+      }, db);
+    } catch (error) { throw error; }
   }
 
+  const storedLocale = localePackageSchema.safeParse(reportCard.localeSnapshot);
+  const locale = storedLocale.success ? storedLocale.data : await getLocalePackage(reportCard.schoolId, reportCard.campusId, reportCard.generatedAt, undefined, db);
   return {
+    locale: { ...locale, language: reportCard.reportLanguage as "en" | "ar" | "ur" },
     reportCard,
     weightConfig,
     subjectDistribution,
     overall,
     marks: marks.map((mark) => ({
+      subjectId: mark.subjectId,
       subject: mark.subject.name,
       obtained: mark.marksObtained,
       total: mark.subject.totalMarks,
@@ -401,7 +420,15 @@ export async function getReportCardPdfPayload(reportCardId: string) {
       // would print "F" against a paper the pupil never sat.
       grade: mark.isAbsent
         ? "ABS"
-        : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
+        : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
     })),
   };
+}
+
+/** Every artifact is rendered from an approved immutable snapshot. */
+export async function getReportCardPdfPayload(reportCardId: string, versionId?: string) {
+  const { getArtifactVersion } = await import("./report-versions");
+  const version = await getArtifactVersion(reportCardId, versionId);
+  return { ...(version.snapshot as unknown as Awaited<ReturnType<typeof getLiveReportCardPayload>>),
+    versionInfo: { number: version.number, documentIdentity: version.documentIdentity, correctionReason: version.correctionReason, predecessorId: version.predecessorId } };
 }

@@ -1,3 +1,4 @@
+import { assertModuleRead, errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -128,11 +129,20 @@ export async function POST(req: NextRequest) {
     // and "A" on the report card for the identical score.
     const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
 
-    const existingMarks = await prisma.mark.findMany({ where: { examId } });
+    const { savedCount, changed } = await prisma.$transaction(async (tx) => {
+    const existingMarks = await tx.mark.findMany({ where: { examId } });
     const existingByKey = new Map(
       existingMarks.map((mark) => [`${mark.studentId}:${mark.subjectId}`, mark])
     );
 
+    if (body.expectedMarks && typeof body.expectedMarks === "object") {
+      for (const entry of entries) {
+        const key = `${entry.studentId}:${entry.subjectId}`;
+        const actual = existingByKey.get(key);
+        const expected = body.expectedMarks[key];
+        if ((actual ? String(actual.marksObtained) : "") !== String(expected ?? "")) throw new Error("RECORD_CHANGED");
+      }
+    }
     let changed = 0;
     let savedCount = 0;
 
@@ -147,11 +157,11 @@ export async function POST(req: NextRequest) {
       const oldMark = existingByKey.get(key);
 
       const mark = oldMark
-        ? await prisma.mark.update({
+        ? await tx.mark.update({
             where: { id: oldMark.id },
             data: { marksObtained: obtained, isAbsent: absent, grade, enteredBy: user.userId },
           })
-        : await prisma.mark.create({
+        : await tx.mark.create({
             data: {
               campusId: exam.campusId,
               examId,
@@ -173,7 +183,7 @@ export async function POST(req: NextRequest) {
 
       if (didChange) {
         changed += 1;
-        await prisma.auditLog.create({
+        await tx.auditLog.create({
           data: {
             tableName: "marks",
             recordId: mark.id,
@@ -189,11 +199,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (exam.status === "ACTIVE") {
-      await prisma.exam.update({
+      await tx.exam.update({
         where: { id: examId },
         data: { status: "MARKS_ENTRY", marksEntryAt: new Date() },
       });
     }
+
+      return { savedCount, changed };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     notify("MARKS_ENTERED", {
       schoolId: user.schoolId,
@@ -208,6 +221,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: true, count: savedCount, changed });
   } catch (error: any) {
+    if (error?.message === "RECORD_CHANGED" || error?.code === "P2034") return Response.json({ conflict: true, error: "This marks sheet changed. Review your draft against the current server values before saving." }, { status: 409 });
     console.error("Marks POST error:", error);
     return Response.json({ error: error?.message || "Internal server error" }, { status: 500 });
   }
@@ -216,6 +230,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  try { await assertModuleRead(user, "exams"); } catch (error) { return errorResponse(error); }
   const billingBlocked = await billingAccessResponse(user.schoolId);
   if (billingBlocked) return billingBlocked;
 

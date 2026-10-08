@@ -1,4 +1,7 @@
 'use client';
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { FormErrorSummary } from "@/components/ui/form-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -96,6 +99,13 @@ export default function TeacherOnboardingPage() {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [teachesAll, setTeachesAll] = useState(false);
   const [draft, setDraft] = useState("");
+  const [baseline, setBaseline] = useState(EMPTY_FORM);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const recovery = useFormDraft({ record: "onboarding:teacher", schema: 1, enabled: !loading,
+    values: { ...form, specialties, teachesAll }, baseline: { ...baseline, specialties: [] as string[], teachesAll: false },
+    fields: ["fullName", "phone", "gender", "qualification", "specialization", "experience", "joiningDate", "city", "province", "specialties", "teachesAll"], section: String(step),
+    apply: ({ specialties: nextSpecialties, teachesAll: nextAll, ...next }, savedStep) => { setForm(next); setSpecialties(nextSpecialties); setTeachesAll(nextAll); setStep(Math.min(2, Math.max(0, Number(savedStep) || 0))); },
+  });
 
   const brandRef = useRef<HTMLElement>(null);
 
@@ -125,11 +135,8 @@ export default function TeacherOnboardingPage() {
       if (session.redirect) { router.replace(dashboardPathForRole(session.role)); return; }
       if (session.error) { router.replace('/login'); return; }
       if (session.user) {
-        setForm((p) => ({
-          ...p,
-          fullName: session.user!.fullName || '',
-          phone: session.user!.phone || '',
-        }));
+        const initial = { ...EMPTY_FORM, fullName: session.user.fullName || '', phone: session.user.phone || '' };
+        setForm(initial); setBaseline(initial);
       }
       setLoading(false);
     };
@@ -168,6 +175,7 @@ export default function TeacherOnboardingPage() {
 
   const goNext = () => {
     if (step === 0 && !canStep0) {
+      setErrors({ profile: "Your name and phone number are required." });
       toast.error("Your name and phone number are required.");
       return;
     }
@@ -176,8 +184,10 @@ export default function TeacherOnboardingPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     if (!canSubmit) {
       setStep(0);
+      setErrors({ profile: "Your name and phone number are required." });
       toast.error("Your name and phone number are required.");
       return;
     }
@@ -193,6 +203,7 @@ export default function TeacherOnboardingPage() {
         subjectSpecialties: teachesAll ? [] : specialties,
         teachesAllSubjects: teachesAll,
       });
+      recovery.markSaved();
       toast.success('Profile completed! Welcome to Skoolee.');
       router.push('/teacher');
     } catch (err) {
@@ -424,6 +435,8 @@ export default function TeacherOnboardingPage() {
             </div>
 
             <form onSubmit={handleSubmit} noValidate>
+              <DraftRecovery draft={recovery} saving={saving} excluded="National ID, date of birth, home address and emergency contacts are not stored in device drafts." />
+              <FormErrorSummary errors={errors} onFocusField={() => { setStep(0); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("form input")?.focus()); }} />
               {/* Step 0 — Personal Info */}
               {step === 0 && (
                 <div className="space-y-4">
@@ -601,6 +614,7 @@ export default function TeacherOnboardingPage() {
 
                 {step < STEPS.length - 1 ? (
                   <button
+                    key="next-step"
                     type="button"
                     disabled={step === 0 && !canStep0}
                     onClick={goNext}
@@ -611,6 +625,7 @@ export default function TeacherOnboardingPage() {
                   </button>
                 ) : (
                   <button
+                    key="complete-profile"
                     type="submit"
                     disabled={!canSubmit || saving}
                     className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
@@ -681,15 +696,18 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-invalid={!!error}
+          aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+          aria-required={required}
+          dir={["email", "tel"].includes(type) ? "ltr" : undefined}
           className={`h-12 w-full rounded-2xl border-0 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
             Icon ? "pl-10" : "pl-4"
           } pr-4 ${error ? "bg-rose-50" : "bg-[#fbf0fe]"} ${inputClassName}`}
         />
       </InputGroup>
       {error
-        ? <p className="px-1 text-xs font-bold text-rose-500">{error}</p>
+        ? <p id={`${id}-error`} role="alert" className="px-1 text-xs font-bold text-destructive">{error}</p>
         : hint
-        ? <p className="px-1 text-[10px] font-bold text-ink-subtle">{hint}</p>
+        ? <p id={`${id}-hint`} className="px-1 text-sm font-bold text-ink-subtle">{hint}</p>
         : null}
     </div>
   );

@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       const siblings = await prisma.student.findMany({
         where: {
           siblingGroupId: student.siblingGroupId,
+          consolidatedIntoId: null,
           campus: { schoolId: user.schoolId },
         },
         select: {
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
 
     const where = search
       ? {
+          consolidatedIntoId: null,
           siblingGroupId: { not: null },
           campus: { schoolId: user.schoolId },
           OR: [
@@ -56,7 +58,8 @@ export async function GET(req: NextRequest) {
             { admissionNo: { contains: search, mode: "insensitive" as const } },
           ],
         }
-      : { siblingGroupId: { not: null }, campus: { schoolId: user.schoolId } };
+      : { consolidatedIntoId: null,
+          siblingGroupId: { not: null }, campus: { schoolId: user.schoolId } };
 
     const students = await prisma.student.findMany({
       where,

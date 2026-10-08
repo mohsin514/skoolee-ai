@@ -568,7 +568,7 @@ export default function StudentsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[220px_220px_1fr] md:items-end">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-end">
               <div className="space-y-1">
                 <Label htmlFor="attendance-date">Date</Label>
                 <Input id="attendance-date" type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
@@ -592,7 +592,7 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               {[
                 ["Total", attendanceSummary.total],
                 ["Present", attendanceSummary.present],

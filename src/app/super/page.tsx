@@ -40,6 +40,7 @@ import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 import { addCampus } from "@/app/actions/addCampus";
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -420,6 +421,7 @@ const bottomItems: RoleNavItem[] = [];
             </div>
             <div className="p-6">
               <InstitutionSettingsPanel onSaved={refetch} />
+              <div className="mt-6"><LocaleSettingsPanel /></div>
             </div>
           </div>
         ) : activeView === "fees" ? (

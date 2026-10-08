@@ -7,6 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "worker:outbox": "tsx src/workers/outbox-worker.ts",
+    "test:outbox": "node --import tsx --test tests/outbox/outbox.test.ts",
+    "test:outbox:api": "node --import tsx --test tests/outbox/api.test.ts",
     "test:logout": "node --import tsx --test \"tests/logout/*.test.ts\"",
     "test:logout:remote": "TEST_TARGET=remote node --import tsx --test \"tests/logout/*.test.ts\"",
     "test:e2e": "playwright test",
@@ -19,7 +22,10 @@
     "app:ios": "cap sync ios && cap open ios",
     "app:desktop:dev": "tauri dev",
     "app:desktop:build": "tauri build",
-    "app:icons": "tauri icon public/icon-1024.png"
+    "app:icons": "tauri icon public/icon-1024.png",
+    "test:report-versions": "node --import tsx --test tests/report-versions/version.test.ts",
+    "test:locale": "node --import tsx --test tests/locale/package.test.ts",
+    "test:locale:db": "node --import tsx --test tests/locale/database.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

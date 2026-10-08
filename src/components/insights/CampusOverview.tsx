@@ -9,6 +9,8 @@
  * stalled on their way to a parent.
  */
 
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { localeTag, minorUnits } from "@/lib/locale/package";
 import { useMemo } from "react";
 import {
   Activity,
@@ -70,13 +72,15 @@ interface CampusOverviewProps {
 }
 
 export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: CampusOverviewProps) {
+  const locale = useLocale();
+  const money = (value: number) => new Intl.NumberFormat(localeTag(locale), { style: "currency", currency: data?.invoiceSummary?.currency ?? "PKR", minimumFractionDigits: minorUnits(data?.invoiceSummary?.currency ?? "PKR"), maximumFractionDigits: minorUnits(data?.invoiceSummary?.currency ?? "PKR") }).format(value);
   const students: any[] = data?.students ?? [];
   const classes: any[] = data?.classes ?? [];
 
   const derived = useMemo(() => {
     const onRoll = students.filter(isOnRoll);
     const strengths = classStrength(classes);
-    const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? []);
+    const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? [], data?.invoiceSummary?.currency);
     const enrolment = enrolmentTrend(students, 12);
     const staff = staffMix([
       ...(data?.teachers ?? []),

@@ -1,3 +1,7 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { localeTag } from "@/lib/locale/package";
+import { translateUi } from "@/lib/locale/ui-messages";
+import { renderLocaleInvoice, renderLocaleReceipt } from "@/lib/locale/invoice-pdf";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/db/prisma";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
@@ -196,6 +200,10 @@ export async function generateClassGradesPdf(classId: string) {
   });
   if (!cls) throw new Error("Class not found");
 
+  const locale = await getLocalePackage(cls.schoolId, cls.campusId);
+  const t = (source: string) => translateUi(source, locale.language);
+  const number = (value: number) => new Intl.NumberFormat(localeTag(locale),{useGrouping:false}).format(value);
+  const rtl = locale.language !== "en";
   const results = await calculateWeightedGradeForClass(classId, cls.campusId, cls.academicYear);
   const passed = results.filter((r) => r.passed).length;
   const className = [cls.name, cls.section].filter(Boolean).join(" ");
@@ -207,37 +215,37 @@ export async function generateClassGradesPdf(classId: string) {
   const rollNoMap = new Map(students.map((s) => [s.id, s.rollNo]));
 
   return renderToBuffer(
-    <Document>
-      <Page size="A4" style={styles.page}>
+    <Document language={locale.language}>
+      <Page size="A4" style={[styles.page,{fontFamily:`Receipt-${locale.language}`,direction:rtl?"rtl":"ltr",textAlign:rtl?"right":"left"}]}>
         <Header campus={cls.campus} />
-        <Text style={styles.title}>Final Grades — {className} ({cls.academicYear})</Text>
+        <Text style={styles.title}>{t("Final Grades")}</Text><Text style={{fontSize:12,marginBottom:8}}>{className}</Text><Text style={styles.muted}>{number(cls.academicYear)}</Text>
         <Text style={[styles.muted, { marginBottom: 12 }]}>
-          Students: {results.length} &middot; Pass: {passed} &middot; Fail: {results.length - passed}
+          {t("Students")}: {number(results.length)} · {t("Passed")}: {number(passed)} · {t("Failed")}: {number(results.length - passed)}
         </Text>
         <View style={styles.table}>
-          <View style={[styles.row, styles.th]}>
-            <Text style={[styles.cell, styles.flex1, styles.center]}>Rank</Text>
-            <Text style={[styles.cell, styles.flex2]}>Student</Text>
-            <Text style={[styles.cell, styles.flex1, styles.center]}>Roll No</Text>
+          <View style={[styles.row, styles.th,{flexDirection:rtl?"row-reverse":"row"}]}>
+            <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Rank")}</Text>
+            <Text style={[styles.cell, styles.flex2]}>{t("Student")}</Text>
+            <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Roll No")}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>%</Text>
-            <Text style={[styles.cell, styles.flex1, styles.center]}>Grade</Text>
-            <Text style={[styles.cell, styles.flex1, styles.center]}>Status</Text>
+            <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Grade")}</Text>
+            <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Status")}</Text>
           </View>
           {results.map((r, i) => {
-            const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : styles.row;
+            const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : [styles.row];
             return (
-              <View key={r.studentId} style={rowStyle}>
-                <Text style={[styles.cell, styles.flex1, styles.center]}>#{r.rank}</Text>
+              <View key={r.studentId} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
+                <Text style={[styles.cell, styles.flex1, styles.center]}>#{number(r.rank)}</Text>
                 <Text style={[styles.cell, styles.flex2]}>{r.studentName}</Text>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>{rollNoMap.get(r.studentId) || "-"}</Text>
-                <Text style={[styles.cell, styles.flex1, styles.center]}>{r.overallPercentage}%</Text>
+                <Text style={[styles.cell, styles.flex1, styles.center]}>{number(r.overallPercentage)}%</Text>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>{r.overallGrade}</Text>
-                <Text style={[styles.cell, styles.flex1, styles.center]}>{r.passed ? "PASS" : "FAIL"}</Text>
+                <Text style={[styles.cell, styles.flex1, styles.center]}>{t(r.passed ? "Passed" : "Failed")}</Text>
               </View>
             );
           })}
         </View>
-        <Footer />
+        <View style={styles.footer}><Text>SkooleeAI</Text><Text>{t("Authorized signature")}: ____________________</Text></View>
       </Page>
     </Document>
   );
@@ -247,6 +255,7 @@ export async function generateInvoicePdf(invoiceId: string) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
+      enrollment: true,
       campus: {
         select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
       },
@@ -257,84 +266,12 @@ export async function generateInvoicePdf(invoiceId: string) {
   });
   if (!invoice) throw new Error("Invoice not found");
 
-  const cls = invoice.student.class;
-  const money = (n: number) => `Rs. ${n.toLocaleString()}`;
-
-  return renderToBuffer(
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <Header campus={invoice.campus} />
-        <Text style={styles.title}>Fee Invoice</Text>
-        <View style={[styles.grid, { marginTop: 8 }]}>
-          <View style={styles.panel}>
-            <Text style={styles.label}>Student</Text>
-            <Text style={styles.value}>{invoice.student.fullName}</Text>
-            <Text style={styles.label}>Roll No</Text>
-            <Text style={styles.value}>{invoice.student.rollNo}</Text>
-            <Text style={styles.label}>Class</Text>
-            <Text style={styles.value}>{[cls?.name, cls?.section].filter(Boolean).join(" ")}</Text>
-          </View>
-          <View style={styles.panelLast}>
-            <Text style={styles.label}>Invoice No</Text>
-            <Text style={styles.value}>{invoice.invoiceNumber || "-"}</Text>
-            <Text style={styles.label}>Invoice Date</Text>
-            <Text style={styles.value}>{invoice.invoiceDate.toLocaleDateString()}</Text>
-            <Text style={styles.label}>Due Date</Text>
-            <Text style={styles.value}>{invoice.dueDate.toLocaleDateString()}</Text>
-            <Text style={styles.label}>Status</Text>
-            <Text style={[styles.value, { textTransform: "uppercase" }]}>{invoice.status}</Text>
-          </View>
-        </View>
-
-        <View style={styles.table}>
-          <View style={[styles.row, styles.th]}>
-            <Text style={[styles.cell, styles.flex2]}>Description</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>Amount</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Monthly Fee</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.monthlyFee)}</Text>
-          </View>
-          {invoice.oneTimeFees > 0 ? (
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.flex2]}>One-time Fees</Text>
-              <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.oneTimeFees)}</Text>
-            </View>
-          ) : null}
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Subtotal</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.subtotal)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Discount</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.discountAmount)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Late Fee</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.lateFeeAmount)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.cell, styles.flex2]}>Tax</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.taxAmount)}</Text>
-          </View>
-          <View style={[styles.row, styles.lastRow]}>
-            <Text style={[styles.cell, styles.flex2]}>Total</Text>
-            <Text style={[styles.cell, styles.flex1, styles.right]}>{money(invoice.totalAmount)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.line}>
-          <Text style={styles.muted}>Total Paid</Text>
-          <Text>{money(invoice.totalAmountPaid)}</Text>
-        </View>
-        <View style={[styles.lineBold, styles.lineTotal]}>
-          <Text>Balance Due</Text>
-          <Text>{money(invoice.balanceDue)}</Text>
-        </View>
-        <Footer />
-      </Page>
-    </Document>
-  );
+  if (invoice.enrollment) {
+    invoice.student.rollNo = invoice.enrollment.rollNo;
+    invoice.student.class = { name: invoice.enrollment.className, section: null };
+    invoice.campus.name = invoice.enrollment.campusName;
+  }
+  return renderLocaleInvoice(invoice);
 }
 
 export async function generatePaymentPdf(paymentId: string) {
@@ -348,88 +285,17 @@ export async function generatePaymentPdf(paymentId: string) {
         include: { class: { select: { name: true, section: true } } },
       },
       invoice: {
-        select: { invoiceNumber: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, dueDate: true },
+        select: { enrollment: true, currency: true, localeSnapshot: true, invoiceNumber: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, dueDate: true },
       },
       recorder: { select: { fullName: true } },
     },
   });
   if (!payment) throw new Error("Payment not found");
 
-  const cls = payment.student.class;
-  const money = (n: number) => `Rs. ${n.toLocaleString()}`;
-
-  return renderToBuffer(
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <Header campus={payment.campus} />
-        <Text style={styles.title}>Payment Receipt</Text>
-        <View style={[styles.grid, { marginTop: 8 }]}>
-          <View style={styles.panel}>
-            <Text style={styles.label}>Student</Text>
-            <Text style={styles.value}>{payment.student.fullName}</Text>
-            <Text style={styles.label}>Roll No</Text>
-            <Text style={styles.value}>{payment.student.rollNo}</Text>
-            <Text style={styles.label}>Class</Text>
-            <Text style={styles.value}>{[cls?.name, cls?.section].filter(Boolean).join(" ")}</Text>
-          </View>
-          <View style={styles.panelLast}>
-            <Text style={styles.label}>Receipt No</Text>
-            <Text style={styles.value}>{payment.receiptNo || "-"}</Text>
-            <Text style={styles.label}>Payment Date</Text>
-            <Text style={styles.value}>{payment.paymentDate.toLocaleDateString()}</Text>
-            <Text style={styles.label}>Method</Text>
-            <Text style={[styles.value, { textTransform: "uppercase" }]}>{payment.paymentMethod}</Text>
-            <Text style={styles.label}>Reference</Text>
-            <Text style={styles.value}>{payment.referenceNumber || "-"}</Text>
-          </View>
-        </View>
-
-        <View style={styles.line}>
-          <Text style={styles.muted}>Invoice No</Text>
-          <Text>{payment.invoice.invoiceNumber || "-"}</Text>
-        </View>
-        <View style={styles.line}>
-          <Text style={styles.muted}>Invoice Total</Text>
-          <Text>{money(payment.invoice.totalAmount)}</Text>
-        </View>
-        <View style={[styles.lineBold, { marginTop: 6 }]}>
-          <Text>Amount Paid</Text>
-          <Text>{money(payment.amount)}</Text>
-        </View>
-        {payment.fineAmount > 0 ? (
-          <View style={styles.line}>
-            <Text style={styles.muted}>Fine</Text>
-            <Text>{money(payment.fineAmount)}</Text>
-          </View>
-        ) : null}
-        {payment.discountAmount > 0 ? (
-          <View style={styles.line}>
-            <Text style={styles.muted}>Discount</Text>
-            <Text>- {money(payment.discountAmount)}</Text>
-          </View>
-        ) : null}
-        {payment.note ? (
-          <View style={styles.line}>
-            <Text style={styles.muted}>Note</Text>
-            <Text>{payment.note}</Text>
-          </View>
-        ) : null}
-        <View style={styles.line}>
-          <Text style={styles.muted}>Total Paid to Date</Text>
-          <Text>{money(payment.invoice.totalAmountPaid)}</Text>
-        </View>
-        <View style={styles.line}>
-          <Text style={styles.muted}>Balance Due</Text>
-          <Text>{money(payment.invoice.balanceDue)}</Text>
-        </View>
-        {payment.recorder?.fullName ? (
-          <View style={[styles.line, { marginTop: 6 }]}>
-            <Text style={styles.muted}>Recorded By</Text>
-            <Text>{payment.recorder.fullName}</Text>
-          </View>
-        ) : null}
-        <Footer />
-      </Page>
-    </Document>
-  );
+  if (payment.invoice.enrollment) {
+    payment.student.rollNo = payment.invoice.enrollment.rollNo;
+    payment.student.class = { name: payment.invoice.enrollment.className, section: null };
+    payment.campus.name = payment.invoice.enrollment.campusName;
+  }
+  return renderLocaleReceipt(payment);
 }

@@ -927,9 +927,6 @@ button:disabled,
   box-shadow: var(--field-focus-ring);
   outline: none;
 }
-/* Like the production login: the active field lifts to white so the soft
-   purple glow reads clearly; tinted fills return on blur. */
-.sk-input-group:focus-within:not(:has([aria-invalid="true"])) { background-color: #fff; }
 /* Buttons styled as a field (e.g. the teacher picker) focus like one. */
 .sk-field-trigger:focus {
   border-color: var(--field-focus-border);
@@ -975,4 +972,12 @@ button:disabled,
 .sk-input-group:focus-within > [data-field-affix] svg,
 [data-date-field]:focus-within > button {
   color: var(--field-icon-focus);
+}
+
+/* Browser printing uses the same shaped Arabic DOM and values as the preview. */
+@media print {
+  body:has(#locale-print-sample) * { visibility: hidden; }
+  body:has(#locale-print-sample) #locale-print-sample,
+  body:has(#locale-print-sample) #locale-print-sample * { visibility: visible; }
+  #locale-print-sample { position: absolute; inset: 0; width: 100%; padding: 20mm; border: 0; background: white; font-family: Arial, sans-serif; }
 }

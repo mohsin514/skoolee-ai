@@ -1,9 +1,10 @@
+import { localePackageSchema, parseMoney } from "@/lib/locale/package";
+import { assertPermission } from "@/lib/permissions";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { bankImportSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -45,10 +46,13 @@ function levenshteinDistance(a: string, b: string): number {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const selectedCurrency = localePackageSchema.shape.currency.safeParse(formData.get("currency"));
+    if (!selectedCurrency.success) throw new ApiError("Currency is required", 400);
+    const currency = selectedCurrency.data;
     const accountName = formData.get("accountName") as string;
     const statementFrom = formData.get("statementFrom") as string;
     const statementTo = formData.get("statementTo") as string;
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
       const cols = parseCSVLine(line);
       return {
         date: cols[dateIdx] ?? "",
-        amount: parseFloat(cols[amountIdx]?.replace(/[^0-9.-]/g, "") || "0"),
+        amount: parseMoney((cols[amountIdx] || "0").replace(/,/g, ""), currency).minor,
         description: cols[descIdx] ?? "",
       };
     }).filter((t) => t.amount > 0);
@@ -90,6 +94,7 @@ export async function POST(req: NextRequest) {
     const pendingInvoices = await prisma.invoice.findMany({
       where: {
         campusId,
+        currency,
         status: { in: ["PENDING", "PARTIAL", "OVERDUE"] },
         balanceDue: { gt: 0 },
       },
@@ -100,6 +105,7 @@ export async function POST(req: NextRequest) {
 
     const matched: Array<{
       amount: number;
+      currency: string;
       date: string;
       description: string;
       matchedInvoiceId: string | null;
@@ -109,6 +115,7 @@ export async function POST(req: NextRequest) {
 
     const unmatched: Array<{
       amount: number;
+      currency: string;
       date: string;
       description: string;
       matchedInvoiceId: null;
@@ -138,7 +145,7 @@ export async function POST(req: NextRequest) {
         );
         if (distance < 5) score += Math.max(0, 30 - distance * 6);
 
-        if (Math.abs(tx.amount - inv.balanceDue) <= 0.01) score += 40;
+        if (tx.amount === inv.balanceDue) score += 40;
         else if (tx.amount <= inv.balanceDue && tx.amount >= inv.balanceDue * 0.5) score += 20;
 
         if (score > bestScore) {
@@ -149,7 +156,8 @@ export async function POST(req: NextRequest) {
 
       if (bestMatch && bestScore >= 50) {
         matched.push({
-          amount: Math.round(tx.amount * 100),
+          amount: tx.amount,
+          currency,
           date: tx.date,
           description: tx.description,
           matchedInvoiceId: bestMatch.id,
@@ -158,7 +166,8 @@ export async function POST(req: NextRequest) {
         });
       } else {
         unmatched.push({
-          amount: Math.round(tx.amount * 100),
+          amount: tx.amount,
+          currency,
           date: tx.date,
           description: tx.description,
           matchedInvoiceId: null,

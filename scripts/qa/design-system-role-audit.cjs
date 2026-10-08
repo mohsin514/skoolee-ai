@@ -47,12 +47,13 @@ async function visit(page, path) {
     const login = await context.request.post(origin + '/api/auth/login', { data: { email: users[role].email, password } });
     assert.equal(login.status(), 200, `Login ${role}`);
     // Prove the app is connected to this fixture database, not merely another local server.
-    const session = await context.request.get(origin + '/api/auth/session');
-    assert((await session.text()).includes(users[role].id), 'App/database fixture mismatch');
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await visit(page, path);
+    // Browser fetch honors Secure cookies on trustworthy loopback in production.
+    const session = await page.evaluate(async () => (await fetch('/api/auth/session')).json());
+    assert.equal(session.user?.id, users[role].id, 'App/database fixture mismatch');
     assert.equal(new URL(page.url()).pathname, path);
     await expect(page.getByRole('navigation', { name: 'Primary navigation', exact: true })).toBeVisible();
     await expect(page.locator('nav[aria-label="Primary navigation"] [aria-current="page"]').first()).toBeVisible();

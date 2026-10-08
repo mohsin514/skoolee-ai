@@ -9,6 +9,8 @@
  * gaps are stated in words rather than left to a colour.
  */
 
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { localeTag, minorUnits } from "@/lib/locale/package";
 import { useMemo, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -68,6 +70,9 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
   const campuses: any[] = data?.campuses ?? [];
   const summary = data?.networkSummary ?? {};
 
+  const locale = useLocale();
+  const currency = data?.currency ?? "PKR";
+  const money = (value: number) => new Intl.NumberFormat(localeTag(locale), {style:"currency",currency,minimumFractionDigits:minorUnits(currency),maximumFractionDigits:minorUnits(currency)}).format(value);
   const derived = useMemo(() => {
     const rows = campusRows(campuses);
     const students = networkStudents(campuses);

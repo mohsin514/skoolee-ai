@@ -1,4 +1,7 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -2671,6 +2674,36 @@ const STUDENT_STATUS_CHANGES = {
 
 type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
 
+function studentDraftValues(record: any): Record<string, string> {
+  return {
+      fullName: record.fullName || "",
+      nameUr: record.nameUr || "",
+      rollNo: record.rollNo || "",
+      dateOfBirth: record.dateOfBirth ? new Date(record.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: record.gender || "",
+      bloodType: record.bloodType || "",
+      nationality: record.nationality || "",
+      phone: record.phone || "",
+      guardianName: record.guardianName || "",
+      guardianNameUr: record.guardianNameUr || "",
+      guardianPhone: record.guardianPhone || "",
+      guardianEmail: record.guardianEmail || "",
+      guardianRelationship: record.guardianRelationship || "",
+      guardianOccupation: record.guardianOccupation || "",
+      city: record.city || "",
+      province: record.province || "",
+      postalCode: record.postalCode || "",
+      address: record.address || "",
+      medicalNotes: record.medicalNotes || "",
+      specialNeeds: record.specialNeeds || "",
+      allergies: record.allergies || "",
+      medications: record.medications || "",
+      previousSchool: record.previousSchool || "",
+      categoryId: record.category?.id || "",
+      groupId: record.group?.id || "",
+  };
+}
+
 export function StudentDetailModal({
   student: summary,
   busy,
@@ -2691,6 +2724,7 @@ export function StudentDetailModal({
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   // The roster carries a summary; address, medical notes, allergies,
   // medications and special needs live only on the full record and are fetched
   // when a profile is actually opened. Render the summary immediately and merge
@@ -2786,38 +2820,19 @@ export function StudentDetailModal({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  useEffect(() => {
-    setEdits({
-      fullName: student.fullName || "",
-      nameUr: student.nameUr || "",
-      rollNo: student.rollNo || "",
-      dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
-      gender: student.gender || "",
-      bloodType: student.bloodType || "",
-      nationality: student.nationality || "",
-      phone: student.phone || "",
-      guardianName: student.guardianName || "",
-      guardianNameUr: student.guardianNameUr || "",
-      guardianPhone: student.guardianPhone || "",
-      guardianEmail: student.guardianEmail || "",
-      guardianRelationship: student.guardianRelationship || "",
-      guardianOccupation: student.guardianOccupation || "",
-      city: student.city || "",
-      province: student.province || "",
-      postalCode: student.postalCode || "",
-      address: student.address || "",
-      medicalNotes: student.medicalNotes || "",
-      specialNeeds: student.specialNeeds || "",
-      allergies: student.allergies || "",
-      medications: student.medications || "",
-      previousSchool: student.previousSchool || "",
-      categoryId: student.category?.id || "",
-      groupId: student.group?.id || "",
-    });
-    // Reseeds when the full record lands. saveEdits writes every string field
-    // as `edits[f] || null`, so seeding once from the summary and saving would
-    // erase address, medical notes, allergies and medications outright.
-  }, [student.id, full]);
+  const baseline = studentDraftValues(student);
+  const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
+    values: edits, baseline,
+    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
+    apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
+    current: async () => {
+      const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
+      return studentDraftValues(result.data);
+    },
+  });
+  useEffect(() => { setEdits(studentDraftValues(student)); }, [student.id, full]);
 
   const ed = (field: string) => edits[field] || "";
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
@@ -2837,8 +2852,18 @@ export function StudentDetailModal({
     if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
     updates.categoryId = edits.categoryId || null;
     updates.groupId = edits.groupId || null;
-    await onUpdate(student.id, updates);
-    setEditing(false);
+    updates.expectedValues = pupilDraft.baseline;
+    try {
+      await onUpdate(student.id, updates);
+      // Some legacy callers catch their own request failure. Verify durability
+      // before deleting the only recoverable copy of the input.
+      const response = await fetch(`/api/students/${student.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
+      const saved = studentDraftValues(result.data);
+      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
+      pupilDraft.markSaved(); setFull(result.data); setEditing(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed. Your draft is retained."); }
   };
 
   const formatDob = (d: any) => {
@@ -2883,6 +2908,7 @@ export function StudentDetailModal({
       }
       tone={isActive ? "violet" : "amber"}
       onClose={onClose}
+      dirty={pupilDraft.dirty}
       headerActions={
         sequence && onNavigate ? (
           <ModalPager
@@ -2965,6 +2991,7 @@ export function StudentDetailModal({
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
+      <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
       {detailError ? (
         <p
           role="alert"
@@ -3105,7 +3132,7 @@ export function StudentDetailModal({
           ) : (
             <div className="mt-4 space-y-3">
               <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(student.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(student.gender)} />
               <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
               <DetailRow label="Nationality" value={student.nationality || "N/A"} />
@@ -3636,6 +3663,7 @@ export function TeacherDetailModal({
   onClose: () => void;
   onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -4033,7 +4061,7 @@ export function TeacherDetailModal({
               <DetailRow label="Email" value={teacher.email || "N/A"} />
               <DetailRow label="Phone" value={teacher.phone || "N/A"} />
               <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
-              <DetailRow label="Date of Birth" value={formatDate(teacher.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(teacher.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
             </div>
           )}
@@ -4083,7 +4111,7 @@ export function TeacherDetailModal({
                 value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
               />
               <DetailRow label="Experience" value={teacher.experience || "N/A"} />
-              <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
+              <DetailRow label="Joining Date" value={formatCalendarDate(teacher.joiningDate)} />
             </div>
           )}
         </div>
@@ -5052,6 +5080,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
     ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : null;
   const inviteName = invite.profile?.fullName || null;
+  const deliveryFailed = invite.deliveryStatus === "failed";
 
   return (
     <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
@@ -5068,9 +5097,10 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
-              <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
+              <StatusPill status={deliveryFailed ? "Delivery failed" : expired ? "Expired" : formatStatus(invite.role)} />
             </div>
             <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            {deliveryFailed && <p role="status" className="mt-2 text-xs text-rose-700">Email could not be delivered. Resend to try again.</p>}
             {expiryLabel ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />

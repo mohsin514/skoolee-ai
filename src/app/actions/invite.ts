@@ -1,9 +1,12 @@
 'use server'
 
+import { invitationContext } from "@/lib/auth/invitation-context";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { ApiError } from "@/lib/api/scope";
+import { authRateLimit } from "@/lib/auth/rate-limit";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -47,10 +50,12 @@ const InviteProfileSchema = z.object({
 });
 
 const InviteSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   fullName: z.string().optional(),
-  role: z.enum(['CAMPUS_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'LIBRARIAN', 'RECEPTIONIST']),
+  role: z.enum(['CAMPUS_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'LIBRARIAN', 'RECEPTIONIST', 'STUDENT', 'PARENT']),
   campusId: z.string().uuid().optional(),
+  canPurchaseSubscription: z.boolean().optional(),
+  canManageMemberships: z.boolean().optional(),
   profile: InviteProfileSchema.optional(),
 });
 
@@ -114,6 +119,8 @@ function originFromHost(host?: string | null, proto?: string | null) {
 }
 
 async function getRequestBaseUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) return cleanBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+  if (process.env.NODE_ENV === "production") throw new ApiError("Invitation delivery is unavailable. Contact your administrator.", 503);
   const headerStore = await headers();
   const origin = cleanBaseUrl(headerStore.get("origin"));
   const refererOrigin = cleanBaseUrl(originFromReferer(headerStore.get("referer")));
@@ -129,28 +136,27 @@ async function getRequestBaseUrl() {
   const requestBaseUrl = [origin, refererOrigin, forwardedOrigin, hostOrigin].find(Boolean);
   if (requestBaseUrl) return requestBaseUrl;
 
-  if (process.env.NODE_ENV !== "production") {
-    return `http://localhost:${process.env.PORT || "3000"}`;
-  }
-
-  return undefined;
+  return `http://localhost:${process.env.PORT || "3000"}`;
 }
 
 export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   const session = await getAuthUser();
-  const canInvite = session && (session.role === 'SUPER_ADMIN' || isCampusAdminRole(session.role) || session.role === 'PRINCIPAL');
+  const canInvite = session && (session.isInstitutionOwner || session.canManageMemberships);
   if (!canInvite) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
+  if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
-  const valid = InviteSchema.parse(data);
+  const parsed = InviteSchema.safeParse(data);
+  if (!parsed.success) throw new ApiError("Review the email, work role and campus scope", 400);
+  const valid = parsed.data;
   // Honour an explicitly supplied campusId (e.g. inviting the admin/principal for a
   // newly created campus). Fall back to the caller's own campus only when omitted.
   const targetCampusId = valid.campusId || session.campusId;
 
   // Non-super callers may only invite staff into their own campus.
-  if ((isCampusAdminRole(session.role) || session.role === 'PRINCIPAL') && targetCampusId !== session.campusId) {
+  if (!session.isInstitutionOwner && targetCampusId !== session.campusId) {
     throw new ApiError("You can only invite staff to your own campus", 403);
   }
 
@@ -163,17 +169,15 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   if (!targetCampus) throw new ApiError('Campus not found', 404);
   if (targetCampus.schoolId !== session.schoolId) throw new ApiError('Campus is outside your school', 403);
 
-  let canInviteStandaloneAdmin = false;
-  if (valid.role === 'CAMPUS_ADMIN' && session.role !== 'SUPER_ADMIN') {
-    const campusCount = await prisma.campus.count({ where: { schoolId: session.schoolId } });
-    canInviteStandaloneAdmin =
-      isCampusAdminRole(session.role) &&
-      campusCount === 1 &&
-      session.campusId === targetCampusId;
-
-    if (!canInviteStandaloneAdmin) {
-      throw new ApiError('Only the school owner can invite campus admins', 403);
-    }
+  const canInviteStandaloneAdmin = session.isInstitutionOwner === true;
+  if ((valid.canPurchaseSubscription || valid.canManageMemberships) && !session.isInstitutionOwner) {
+    throw new ApiError("Only an institution owner can delegate purchasing or membership management", 403);
+  }
+  if (["PARENT", "STUDENT"].includes(valid.role) && (valid.canPurchaseSubscription || valid.canManageMemberships)) {
+    throw new ApiError("Family memberships cannot receive administrative delegations", 400);
+  }
+  if (valid.role === "CAMPUS_ADMIN" && !session.isInstitutionOwner) {
+    throw new ApiError("Only an institution owner can invite campus administrators", 403);
   }
 
   // FINDING-D: identity is tenant-scoped, so an invite only cares whether this
@@ -263,6 +267,9 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
       token,
       expiresAt,
       profile: valid.profile ?? Prisma.JsonNull,
+      invitedBy: session.fullName || session.email,
+      canPurchaseSubscription: valid.canPurchaseSubscription ?? false,
+      canManageMemberships: valid.canManageMemberships ?? false,
     }
   });
 
@@ -277,7 +284,13 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
   const campus = await prisma.campus.findUnique({ where: { id: targetCampusId } });
   const baseUrl = await getRequestBaseUrl();
-  await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, baseUrl);
+  try {
+    await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, baseUrl);
+    await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "sent", lastDeliveryAt: new Date() } });
+  } catch {
+    await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "failed", lastDeliveryAt: new Date() } });
+    throw new ApiError("Invitation saved, but email could not be delivered. Use Resend Invite to try again.", 503);
+  }
 
   const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
 
@@ -295,10 +308,11 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
 export async function removeStaff(userId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
+  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
+  if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
   if (userId === session.userId) {
     throw new ApiError("You can't remove your own account", 403);
@@ -306,24 +320,28 @@ export async function removeStaff(userId: string) {
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true, schoolId: true, campusId: true, fullName: true },
+    select: { id: true, role: true, schoolId: true, campusId: true, fullName: true, isInstitutionOwner: true, canManageMemberships: true, canPurchaseSubscription: true },
   });
 
   if (!target || target.schoolId !== session.schoolId) {
     throw new ApiError("Staff member not found", 404);
   }
 
-  if (isCampusAdminRole(session.role) && target.campusId !== session.campusId) {
+  if (!session.isInstitutionOwner && target.campusId !== session.campusId) {
     throw new ApiError("Staff member is outside your campus", 403);
   }
 
-  if (target.role === "ADMIN" && session.role !== "SUPER_ADMIN") {
+  if (target.isInstitutionOwner) {
     throw new ApiError("The campus owner account cannot be revoked", 403);
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { isActive: false },
+  if (!session.isInstitutionOwner && (target.canManageMemberships || target.canPurchaseSubscription || isCampusAdminRole(target.role))) {
+    throw new ApiError("Only an owner can revoke delegated administrators", 403);
+  }
+  await prisma.$transaction(async tx => {
+    await tx.user.update({ where: { id: userId }, data: { isActive: false, accessVersion: { increment: 1 } } });
+    await tx.loginSession.updateMany({ where: { userId }, data: { isActive: false } });
+    await tx.auditLog.create({ data: { tableName: "membership", recordId: userId, userId: session.userId, oldValue: { isActive: true, role: target.role, campusId: target.campusId }, newValue: { isActive: false } } });
   });
 
   notify("STAFF_REMOVED", {
@@ -339,10 +357,11 @@ export async function removeStaff(userId: string) {
 
 export async function cancelInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
+  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
+  if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
   const invite = await prisma.staffInvitation.findUnique({
     where: { id: inviteId },
@@ -353,23 +372,25 @@ export async function cancelInvitation(inviteId: string) {
     throw new ApiError("Invitation not found", 404);
   }
 
-  if (isCampusAdminRole(session.role) && invite.campusId !== session.campusId) {
+  if (!session.isInstitutionOwner && invite.campusId !== session.campusId) {
     throw new ApiError("Invitation is outside your campus", 403);
   }
 
-  await prisma.staffInvitation.update({
-    where: { id: inviteId },
-    data: { status: 'cancelled' },
+  const cancelled = await prisma.staffInvitation.updateMany({
+    where: { id: inviteId, status: 'pending', token: invite.token },
+    data: { status: 'cancelled', token: randomUUID() },
   });
+  if (cancelled.count !== 1) throw new ApiError('Invitation is no longer pending', 409);
   return { success: true };
 }
 
 export async function resendInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (session.role !== 'SUPER_ADMIN' && !isCampusAdminRole(session.role) && session.role !== 'PRINCIPAL')) {
+  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
+  if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
   const invite = await prisma.staffInvitation.findUnique({
     where: { id: inviteId },
@@ -380,7 +401,7 @@ export async function resendInvitation(inviteId: string) {
     throw new ApiError("Invitation not found", 404);
   }
 
-  if (isCampusAdminRole(session.role) && invite.campusId !== session.campusId) {
+  if (!session.isInstitutionOwner && invite.campusId !== session.campusId) {
     throw new ApiError("Invitation is outside your campus", 403);
   }
 
@@ -393,10 +414,11 @@ export async function resendInvitation(inviteId: string) {
   expiresAt.setHours(expiresAt.getHours() + 48);
 
   const updatedInvite = await prisma.staffInvitation.update({
-    where: { id: invite.id },
+    where: { id: invite.id, status: "pending", token: invite.token },
     data: { token, expiresAt },
   });
 
+  try {
   await sendInviteEmail(
     updatedInvite.email,
     updatedInvite.role,
@@ -404,11 +426,22 @@ export async function resendInvitation(inviteId: string) {
     token,
     await getRequestBaseUrl()
   );
+  await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "sent", lastDeliveryAt: new Date() } });
+  } catch {
+    await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "failed", lastDeliveryAt: new Date() } });
+    throw new ApiError("Email could not be delivered. Use Resend Invite to try again.", 503);
+  }
 
   return { success: true };
 }
 
-export async function acceptInvite(token: string, password: string) {
+export async function acceptInvite(token: string, password: string, fullName?: string, expectedContext?: string) {
+  return runUnscoped("accept exact secret invitation before account exists", () => acceptInvitation(token, password, fullName, expectedContext));
+}
+
+async function acceptInvitation(token: string, password: string, fullName?: string, expectedContext?: string) {
+  if (typeof token !== "string" || token.length > 128 || !(await authRateLimit(`invite-accept:${token}`, { limit: 5, windowMs: 300_000 })).ok) throw new ApiError("Unable to accept. Wait five minutes and try again.", 429);
+  if (typeof password !== "string" || password.length > 72) throw new ApiError("Password must be between 8 and 72 characters", 400);
   if (password.length < 8) throw new ApiError("Password must be at least 8 characters", 400);
 
   const invite = await prisma.staffInvitation.findUnique({
@@ -416,6 +449,7 @@ export async function acceptInvite(token: string, password: string) {
   });
 
   if (!invite) throw new ApiError('Invalid invite token', 400);
+  if (expectedContext !== invitationContext(invite)) throw new ApiError('Invitation details changed. Reload and review the school, campus and role before accepting.', 409);
   if (invite.status === 'accepted') throw new ApiError('Invite already used', 409);
   if (invite.status === 'cancelled') throw new ApiError('Invite cancelled', 409);
   if (new Date() > invite.expiresAt) throw new ApiError('Invite expired', 410);
@@ -446,12 +480,15 @@ export async function acceptInvite(token: string, password: string) {
   const storedProfile = (invite.profile as Record<string, unknown> | null) || {};
   const text = (key: string) => (typeof storedProfile[key] === "string" ? (storedProfile[key] as string) : null);
   const id = (key: string) => text(key) || null;
-  const placeholderName = text("fullName") || invite.email.split("@")[0].replace(/[._-]/g, " ");
+  const placeholderName = fullName?.trim().slice(0, 160) || text("fullName") || invite.email.split("@")[0].replace(/[._-]/g, " ");
 
-  const user = await prisma.$transaction(async (tx) => {
+  const user = await runWithTenantContext({ schoolId: campus.schoolId }, () => prisma.$transaction(async (tx) => {
+    const claimed = await tx.staffInvitation.updateMany({ where: { id: invite.id, token, campusId: invite.campusId, role: invite.role, canManageMemberships: invite.canManageMemberships, canPurchaseSubscription: invite.canPurchaseSubscription, status: "pending", expiresAt: { gt: new Date() } }, data: { status: "accepted" } });
+    if (claimed.count !== 1) throw new ApiError("Invitation is no longer active", 409);
+    if (existingUser) await tx.loginSession.updateMany({ where: { userId: existingUser.id }, data: { isActive: false, logoutAt: new Date() } });
     const acceptedUser = existingUser
       ? await tx.user.update({
-          where: { id: existingUser.id },
+          where: { id: existingUser.id, isActive: false, accessVersion: existingUser.accessVersion },
           data: {
             password: passwordHash,
             fullName: placeholderName,
@@ -474,6 +511,10 @@ export async function acceptInvite(token: string, password: string) {
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
+            canPurchaseSubscription: invite.canPurchaseSubscription,
+            canManageMemberships: invite.canManageMemberships,
+            isInstitutionOwner: false,
+            accessVersion: existingUser ? existingUser.accessVersion + 1 : 0,
             onboardingComplete: true,
             isActive: true,
           },
@@ -502,6 +543,10 @@ export async function acceptInvite(token: string, password: string) {
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
+            canPurchaseSubscription: invite.canPurchaseSubscription,
+            canManageMemberships: invite.canManageMemberships,
+            isInstitutionOwner: false,
+            accessVersion: 0,
             onboardingComplete: true,
             isActive: true,
           }
@@ -542,12 +587,13 @@ export async function acceptInvite(token: string, password: string) {
     const manager = reportsToId
       ? await tx.user.findFirst({
           where: { id: reportsToId, schoolId: campus.schoolId, isActive: true },
-          select: { id: true, fullName: true },
+          select: { id: true, fullName: true, isInstitutionOwner: true, canManageMemberships: true, canPurchaseSubscription: true },
         })
       : null;
 
     const joinedAt = text("joiningDate") ? new Date(text("joiningDate")!) : new Date();
 
+    if (!["STUDENT", "PARENT"].includes(invite.role)) {
     await tx.staffProfile.upsert({
       where: { userId: acceptedUser.id },
       create: {
@@ -602,8 +648,10 @@ export async function acceptInvite(token: string, password: string) {
       });
     }
 
+    }
+    await tx.auditLog.create({ data: { tableName: "membership", recordId: acceptedUser.id, userId: acceptedUser.id, newValue: { action: "invitation.accepted", role: invite.role, campusId: invite.campusId, isInstitutionOwner: false, canPurchaseSubscription: invite.canPurchaseSubscription, canManageMemberships: invite.canManageMemberships } } });
     return acceptedUser;
-  });
+  }));
 
   notify("INVITE_ACCEPTED", {
     schoolId: campus.schoolId,

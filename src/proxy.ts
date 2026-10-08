@@ -22,7 +22,8 @@ import {
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",
-  "/accept-invite", "/forgot-password",
+  "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
+  "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
@@ -31,6 +32,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
   "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
+  "/api/reports/download", // Route authenticates session or a single-child capability.
   "/api/parent/data",
   "/api/parent/timetable",
   "/api/parent/exam-datesheet",
@@ -63,6 +65,18 @@ function isPublic(pathname: string) {
 }
 
 export async function proxy(req: NextRequest) {
+  let normalizedPath: string;
+  try {
+    normalizedPath = req.nextUrl.pathname;
+    for (let i = 0; i < 3 && normalizedPath.includes("%"); i++) normalizedPath = decodeURIComponent(normalizedPath);
+    const segments: string[] = [];
+    for (const part of normalizedPath.replace(/\\/g, "/").split("/")) {
+      if (part === "..") segments.pop();
+      else if (part && part !== ".") segments.push(part);
+    }
+    normalizedPath = `/${segments.join("/")}`;
+  } catch { return new NextResponse(null, { status: 400 }); }
+  if (normalizedPath === "/generated/reports" || normalizedPath.startsWith("/generated/reports/")) return new NextResponse(null, { status: 404 });
   const { pathname } = req.nextUrl;
 
   // Synthetic component reference only; the page also refuses production access.
@@ -143,8 +157,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
-    if (!onboardingComplete && !pathname.startsWith("/onboarding") && !pathname.startsWith("/api")) {
-      return NextResponse.redirect(new URL("/onboarding", req.url));
+    const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
+    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith("/api")) {
+      return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";

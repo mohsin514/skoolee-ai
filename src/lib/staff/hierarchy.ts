@@ -54,7 +54,7 @@ const MAX_CHAIN_DEPTH = 64;
  * working around it.
  */
 function inTenant<T>(user: AuthUser, fn: (tx: TxClient) => Promise<T>): Promise<T> {
-  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId }, () =>
+  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () =>
     tenantTransaction(fn)
   );
 }

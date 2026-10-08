@@ -1,3 +1,5 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -37,6 +39,8 @@ export async function GET(req: NextRequest) {
     });
     if (!student) throw new ApiError("Student not found", 404);
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, student.campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new ApiError("Invalid currency", 400);
     // Resolve current-year obligation
     const assignment = await prisma.feeGroupAssignment.findFirst({
       where: { campusId: student.campusId, classId: student.classId, academicYear: year },
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     });
 
     let resolved = null;
-    if (assignment) {
+    if (assignment && assignment.feeGroup.currency === currency) {
       const lines = assignment.feeGroup.lines.map((line) => ({
         id: line.id,
         typeName: line.feeType.name,
@@ -60,12 +64,12 @@ export async function GET(req: NextRequest) {
       const categoryDiscounts = student.categoryId
         ? await prisma.feeDiscount.findMany({
             where: { campusId: student.campusId, categoryId: student.categoryId },
-            select: { id: true, name: true, code: true, type: true, value: true },
+            select: { id: true, name: true, code: true, type: true, value: true, currency: true },
           })
         : [];
       const explicit = await prisma.feeDiscountAssignment.findMany({
         where: { studentId: student.id },
-        include: { discount: { select: { id: true, name: true, code: true, type: true, value: true } } },
+        include: { discount: { select: { id: true, name: true, code: true, type: true, value: true, currency: true } } },
       });
       const seen = new Set(categoryDiscounts.map((d) => d.id));
       const discounts = [
@@ -79,12 +83,13 @@ export async function GET(req: NextRequest) {
         where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: year } },
       });
 
+      if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carry && carry.balance !== 0 && carry.currency !== currency)) throw new ApiError("Currencies cannot be combined in a fee statement", 409);
       resolved = resolveStudentFees(lines, discounts, carry?.balance ?? 0);
     }
 
     // Invoice history
     const invoices = await prisma.invoice.findMany({
-      where: { studentId: student.id },
+      where: { studentId: student.id, currency },
       orderBy: { invoiceDate: "desc" },
       include: {
         payments: { orderBy: { paymentDate: "desc" } },
@@ -95,6 +100,7 @@ export async function GET(req: NextRequest) {
       const paid = inv.totalAmountPaid;
       return {
         id: inv.id,
+        currency: inv.currency,
         invoiceNumber: inv.invoiceNumber,
         invoiceDate: inv.invoiceDate.toISOString().split("T")[0],
         dueDate: inv.dueDate.toISOString().split("T")[0],
@@ -134,7 +140,8 @@ export async function GET(req: NextRequest) {
         academicYear: year,
         resolved,
         invoices: statement,
-        totals: { totalDue, totalPaid, balance: totalDue - totalPaid, totalFines },
+        currency,
+        totals: { currency, totalDue, totalPaid, balance: totalDue - totalPaid, totalFines },
       },
     });
   } catch (error) {

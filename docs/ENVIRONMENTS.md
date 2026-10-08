@@ -44,9 +44,10 @@ For each project, collect:
 
 ...and put them in BOTH the GitHub Environment secrets and the Vercel project.
 
-Because each DB starts **empty**, the first deploy applies all 26 migrations
-cleanly via `prisma migrate deploy` — no hand-backfill of `_prisma_migrations`
-(the local-DB quirk noted in project memory) is needed on the new envs.
+Empty databases provision from the verified versioned baseline using `prisma migrate
+deploy`. Existing schema-push databases must complete the reviewed adoption process
+in [the recovery runbook](recovery/RUNBOOK.md) first. The archived legacy baseline
+was not executable SQL; do not attempt to replay it or reset an existing environment.
 
 ## Environment variables
 
@@ -68,46 +69,42 @@ project. `NEXT_PUBLIC_APP_URL` also differs (each Vercel project has its own URL
 Values that legitimately stay the same across envs: `OPENAI_API_KEY`, SMTP, and
 (optionally) `AUTH_SECRET` — though a distinct `AUTH_SECRET` per env is safer.
 
-## Git-driven deploy automation
+## Development deployment
 
-A single workflow, `.github/workflows/deploy.yml`, wires "push a branch → that
-environment updates":
+Push or merge into `dev` to deploy through the existing Vercel Git integration.
+`vercel.json` enables Git deployment for `dev` only; all other branches retain
+controlled deployment. No GitHub Vercel CLI secrets or per-release approval
+variables are needed for development. The `skoolee-ai-dev` project must remain
+connected to this repository with Production Branch `dev` and its existing runtime
+variables. If Git integration was disabled in the dashboard, re-enable it for that
+project. A manual GitHub workflow rerun only verifies; to deploy an already merged
+commit, use Vercel's deployment UI for the latest `dev` commit.
 
-1. You push (or merge) to `dev` / `staging` / `qa` / `production` / `demo`.
-2. GitHub Actions binds the run to the matching **GitHub Environment**, reads that
-   env's `DATABASE_URL` / `DIRECT_URL` secrets, and runs `pnpm prisma migrate
-   deploy` against that env's own Supabase DB (migrations use `DIRECT_URL`).
-3. Vercel's Git integration builds and deploys that env's Vercel project from the
-   same push (Production Branch = the env branch).
+Recovery CI still runs on development pushes, independently of the Vercel build;
+a green GitHub development job is not proof of a successful Vercel deployment.
+Check the Vercel deployment status. Other connected projects may create previews
+for `dev`; their production branch must never be changed to `dev`.
 
-So the DB schema is migrated **before** the new build serves traffic, per env.
+This workflow does **not** automatically modify the development database. For a
+schema-dependent change, provision an isolated dev database or complete reviewed
+baseline adoption, then apply its versioned migrations to the confirmed dev
+connection before deploying that change. Do not use `db push`, reset, or mark a
+baseline applied merely to bypass a migration error. Code-only fixes can deploy
+without the release approval setup introduced in SKO-212.
 
-You can also run it on demand: Actions → "Migrate & Deploy" → Run workflow →
-pick an environment.
+## Controlled deployment: staging, QA, production and demo
 
-### One-time secret setup (GitHub)
+`.github/workflows/deploy.yml` verifies synthetic recovery before touching these
+environments. It requires a reviewed exact SHA, evidence link and forward-recovery
+decision, applies versioned migrations, checks migration status/schema drift,
+builds that exact checkout and promotes its prebuilt Vercel artifact. Missing
+configuration now produces named error messages rather than an unexplained exit 1.
 
-Settings → Environments → create `dev`, `staging`, `qa`, `production`, `demo`.
-For each, add secrets:
-
-| Secret         | Value                                              |
-|----------------|----------------------------------------------------|
-| `DATABASE_URL` | that env's Supabase **pooler** URI (port 6543)     |
-| `DIRECT_URL`   | that env's Supabase **direct** URI (port 5432)     |
-
-Add required reviewers on the `production` environment to gate prod migrations.
-
-### If you want CI to trigger Vercel too (no Git integration)
-
-Uncomment the `deploy:` job in `deploy.yml` and add `VERCEL_TOKEN`,
-`VERCEL_ORG_ID`, and a per-env `VERCEL_PROJECT_ID`.
-
-## Vercel setup
-
-See `scripts/setup-vercel-envs.sh` for a scripted path (needs the Vercel CLI and a
-login), or follow the manual runbook in that file's header comment. Once a Vercel
-project's Production branch is set to the matching git branch, every push to that
-branch triggers a deploy.
+Keep Git-triggered deployments for these branches disabled. Confirm provider
+settings and cancel old queued deployments during rollout. Follow [the recovery
+runbook](recovery/RUNBOOK.md) for required secrets, per-release approvals, baseline
+adoption and incident authorization. Manual dispatch must select the branch
+matching the requested environment. Remote settings are not configured by this PR.
 
 ## Deploy flow
 

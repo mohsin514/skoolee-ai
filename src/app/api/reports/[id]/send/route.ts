@@ -1,3 +1,4 @@
+import { assertPermission, errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -24,10 +25,11 @@ export async function POST(
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
+    await assertPermission(user, "reports", "edit");
     const { id } = await params;
 
     const reportCard = await prisma.reportCard.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
+      where: { id, campus: { schoolId: user.schoolId }, ...(user.role === "TEACHER" ? { exam: { class: { OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } } } : {}) },
       include: {
         exam: { select: { campusId: true, status: true, publishedAt: true } },
         student: { select: { id: true } },
@@ -43,66 +45,14 @@ export async function POST(
     if (reportCard.exam.status !== "PUBLISHED") {
       return Response.json({ error: "Publish report cards before sending" }, { status: 409 });
     }
-    if (reportCard.isSent) {
-      return Response.json({ success: true, alreadySent: true });
-    }
-
     const communications = await sendReportCardPublishedNotifications({
       reportCardId: id,
       createdById: user.userId,
-      approvedData: true,
     });
 
-    const channels: string[] = [];
-    const errors: string[] = [];
-
-    for (const communication of communications) {
-      if (communication.status === "SENT") {
-        channels.push(communication.channel);
-      } else if (communication.failedReason) {
-        errors.push(`${communication.channel}: ${communication.failedReason}`);
-      } else if (communication.status !== "PENDING") {
-        errors.push(`${communication.channel}: ${communication.status}`);
-      }
-    }
-
-    if (channels.length === 0 && communications.every((communication) => communication.status === "NO_RECIPIENT")) {
-      await prisma.reportCard.update({
-        where: { id },
-        data: {
-          deliveryStatus: "NO_CONTACT",
-          deliveryError: "No parent WhatsApp or email on file",
-        },
-      });
-      return Response.json({ error: "No parent WhatsApp or email on file for this student" }, { status: 400 });
-    }
-
-    if (channels.length > 0) {
-      await prisma.reportCard.update({
-        where: { id },
-        data: {
-          isSent: true,
-          status: "SENT",
-          sentVia: channels.length === 2 ? "BOTH" : channels[0],
-          sentAt: new Date(),
-          deliveryStatus: "SENT",
-          deliveryError: errors.length ? errors.join("; ") : null,
-        },
-      });
-      return Response.json({ success: true, sent: 1 });
-    }
-
-    const blocked = communications.some((communication) => communication.status === "BLOCKED");
-    await prisma.reportCard.update({
-      where: { id },
-      data: {
-        deliveryStatus: blocked ? "BLOCKED" : "FAILED",
-        deliveryError: errors.join("; ") || "Delivery failed",
-      },
-    });
-    return Response.json({ error: errors.join("; ") || "Delivery failed" }, { status: 400 });
+    return Response.json({ success: true, queued: communications.filter(c => c.status === "PENDING").length, communications });
   } catch (error) {
     console.error("[reports/[id]/send] POST failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
+    return errorResponse(error, "Delivery unavailable");
   }
 }

@@ -7,12 +7,9 @@ import { Button } from "@/components/ui/button";
 import { FeeManagementPanel, type FeeManagementPanelHandle } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 
-interface BillingPageProps {
-  embedded?: boolean;
-  hideHeader?: boolean;
-}
-
-export default function BillingPage({ embedded = false, hideHeader = false }: BillingPageProps = {}) {
+export default function BillingPage() {
+  const embedded = false;
+  const hideHeader = false;
   const feePanelRef = useRef<FeeManagementPanelHandle>(null);
   const [feeReady, setFeeReady] = useState(false);
 

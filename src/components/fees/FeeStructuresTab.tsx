@@ -1,4 +1,7 @@
 "use client";
+
+import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -20,7 +23,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure } from "./fee-types";
-import { API, classLabel, formatPKR } from "./fee-utils";
+import { API, classLabel, formatPKR, paisaToRupees, rupeesToPaisa } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
@@ -77,6 +80,8 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 }
 
 function LegacyStructuresTab({ campusId }: { campusId?: string }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +102,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       if (sJson.success) setStructures(sJson.data);
       if (cJson.success) setClasses(cJson.data);
     } catch {
-      toast.error("Failed to load fee structures");
+      toast.error(tr("Failed to load fee structures"));
     } finally {
       setLoading(false);
     }
@@ -112,13 +117,13 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/structure/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Structure deactivated");
+        toast.success(tr(json.message || "Structure deactivated"));
         loadData();
       } else {
-        toast.error(json.error || "Failed to deactivate");
+        toast.error(tr(json.error || "Failed to deactivate"));
       }
     } catch {
-      toast.error("Failed to deactivate structure");
+      toast.error(tr("Failed to deactivate structure"));
     }
   };
 
@@ -165,21 +170,16 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Fee Structures</h3>
+          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Structures"}</UiText></h3>
           <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            {activeStructures.length} active · {unassignedClasses.length} classes without fees
-          </p>
+            {activeStructures.length}<UiText>{"active ·"}</UiText>{unassignedClasses.length}<UiText>{"classes without fees"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}>
-          New Structure
-        </BrandButton>
+        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}><UiText>{"New Structure"}</UiText></BrandButton>
       </div>
 
       {unassignedClasses.length > 0 && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-1">
-            Classes Without Fee Structure
-          </p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
           <p className="text-xs font-bold text-amber-800">
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
           </p>
@@ -189,12 +189,10 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       {activeStructures.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title="No fee structures yet"
-          description="Create your first fee structure to start managing fees."
+          title={tr("No fee structures yet")}
+          description={tr("Create your first fee structure to start managing fees.")}
           action={
-            <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}>
-              Create Fee Structure
-            </BrandButton>
+            <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}><UiText>{"Create Fee Structure"}</UiText></BrandButton>
           }
         />
       ) : (
@@ -212,9 +210,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3">
-            Inactive Structures
-          </h4>
+          <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive Structures"}</UiText></h4>
           <div className="space-y-2 opacity-60">
             {inactiveStructures.map((fs) => (
               <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 px-4 py-3 border border-[#cfc2d6]/10">
@@ -223,12 +219,10 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
-                    {formatPKR(fs.monthlyFee)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
+                    {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
-                <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100">
-                  Inactive
-                </span>
+                <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100"><UiText>{"Inactive"}</UiText></span>
               </div>
             ))}
           </div>
@@ -257,6 +251,8 @@ function StructureCard({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const oneTimeFees = fs.oneTimeFeesJson ?? {};
   const discountRules = fs.discountRulesJson ?? {};
@@ -270,8 +266,7 @@ function StructureCard({
           <p className="text-sm font-black text-[#1f1a23]">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
-            Since {new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
+          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -291,36 +286,36 @@ function StructureCard({
           </button>
           <ConfirmAction
             open={confirmOpen}
-            title="Deactivate Structure"
-            description={`This will deactivate the fee structure for ${classLabel(fs.class.name, fs.class.section)}. Existing invoices won't be affected.`}
+            title={tr("Deactivate Structure")}
+            description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
             onConfirm={() => { setConfirmOpen(false); onDeactivate(); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
-            confirmLabel="Deactivate"
+            confirmLabel={tr("Deactivate")}
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Monthly</p>
-          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee)}</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Monthly"}</UiText></p>
+          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
         {oneTimeTotal > 0 && (
           <div className="rounded-xl bg-blue-50/50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle">One-Time</p>
-            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal)}</p>
+            <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
+            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal, fs.currency)}</p>
           </div>
         )}
         <div className="rounded-xl bg-amber-50/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Late Fee</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Late Fee"}</UiText></p>
           <p className="text-sm font-black text-amber-600">
-            {fs.lateFeePercentage}%{fs.compoundLateFee ? " cpd" : ""}
+            {fs.lateFeePercentage}%{fs.compoundLateFee ? tr(" cpd") : ""}
           </p>
         </div>
         {(fs.taxPercentage ?? 0) > 0 && (
           <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle">Tax</p>
+            <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Tax"}</UiText></p>
             <p className="text-sm font-black text-gray-600">{fs.taxPercentage}%</p>
           </div>
         )}
@@ -331,12 +326,12 @@ function StructureCard({
           {Object.entries(oneTimeFees).map(([name, amount]) => (
             <div key={name} className="flex items-center justify-between text-[10px] font-bold text-ink-muted px-1">
               <span>{name}</span>
-              <span>{formatPKR(amount)}</span>
+              <span>{formatPKR(amount, fs.currency)}</span>
             </div>
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
             <div key={name} className="flex items-center justify-between text-[10px] font-bold text-emerald-600/70 px-1">
-              <span>{name} discount</span>
+              <span>{name}<UiText>{"discount"}</UiText></span>
               <span>-{pct}%</span>
             </div>
           ))}
@@ -359,8 +354,11 @@ function StructureModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const tr = useUiText();
+  const [currency, setCurrency] = useState(editing?.currency || "");
+  useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => toast.error(tr("Currency could not be loaded"))); }, [campusId, editing]);
   const [classId, setClassId] = useState(editing?.classId ?? "");
-  const [monthlyFee, setMonthlyFee] = useState(editing ? String(editing.monthlyFee / 100) : "");
+  const [monthlyFee, setMonthlyFee] = useState(editing ? String(paisaToRupees(editing.monthlyFee, editing.currency)) : "");
   const [installmentType, setInstallmentType] = useState(editing?.installmentType ?? "11-month");
   const [lateFeePct, setLateFeePct] = useState(String(editing?.lateFeePercentage ?? 2.0));
   const [compoundLateFee, setCompoundLateFee] = useState(editing?.compoundLateFee ?? true);
@@ -369,7 +367,7 @@ function StructureModal({
     editing?.oneTimeFeesJson
       ? Object.entries(editing.oneTimeFeesJson).map(([name, amount]) => ({
           name,
-          amount: String(amount / 100),
+          amount: String(paisaToRupees(amount, editing.currency)),
         }))
       : []
   );
@@ -384,15 +382,15 @@ function StructureModal({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!classId || !monthlyFee) {
-      toast.error("Class and monthly fee required");
+    if (!classId || !monthlyFee || !currency) {
+      toast.error(tr("Class and monthly fee required"));
       return;
     }
     setSaving(true);
 
     const otfObj: Record<string, number> = {};
     for (const row of oneTimeFees) {
-      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = Math.round(parseFloat(row.amount) * 100);
+      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = rupeesToPaisa(row.amount, currency);
     }
     const drObj: Record<string, number> = {};
     for (const row of discountRules) {
@@ -400,9 +398,10 @@ function StructureModal({
     }
 
     const payload = {
+      currency,
       campusId: campusId || "",
       classId,
-      monthlyFee: Math.round(parseFloat(monthlyFee) * 100),
+      monthlyFee: rupeesToPaisa(monthlyFee, currency),
       installmentType,
       lateFeePercentage: parseFloat(lateFeePct),
       compoundLateFee,
@@ -411,7 +410,7 @@ function StructureModal({
       discountRulesJson: Object.keys(drObj).length > 0 ? JSON.stringify(drObj) : undefined,
       activeFrom: editing
         ? new Date(editing.activeFrom).toISOString().split("T")[0]
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+        : new Date().toISOString().split("T")[0],
     };
 
     try {
@@ -424,13 +423,13 @@ function StructureModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee structure saved");
+        toast.success(tr(json.message || "Fee structure saved"));
         onSaved();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save fee structure");
+      toast.error(tr("Failed to save fee structure"));
     } finally {
       setSaving(false);
     }
@@ -441,24 +440,24 @@ function StructureModal({
 
   return (
     <Modal
-      title={editing ? "Edit Fee Structure" : "New Fee Structure"}
-      eyebrow="Fees"
-      subtitle="Sets what a class is billed each cycle, plus any standing discounts."
+      title={editing ? tr("Edit Fee Structure") : tr("New Fee Structure")}
+      eyebrow={tr("Fees")}
+      subtitle={tr("Sets what a class is billed each cycle, plus any standing discounts.")}
       icon={editing ? Edit3 : Plus}
       size="sm"
       onClose={onClose}
       footer={
         <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {saving ? "Saving..." : editing ? "Update Structure" : "Create Structure"}
+          {saving ? tr("Saving...") : editing ? tr("Update Structure") : tr("Create Structure")}
         </BrandButton>
       }
     >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Class</label>
+            <label className={labelClass}><UiText>{"Class"}</UiText></label>
             <SystemSelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
-              <option value="">Select class...</option>
+              <option value=""><UiText>{"Select class..."}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
@@ -467,60 +466,56 @@ function StructureModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Monthly Fee (PKR)</label>
+              <label className={labelClass}>{tr("Monthly Fee")} (<bdi>{currency}</bdi>)</label>
               <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Installment Plan</label>
+              <label className={labelClass}><UiText>{"Installment Plan"}</UiText></label>
               <SystemSelect value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
-                <option value="11-month">11 Months (Jul-May)</option>
-                <option value="6-month">6 Months</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="one-time">One Time</option>
+                <option value="11-month"><UiText>{"11 Months (Jul-May)"}</UiText></option>
+                <option value="6-month"><UiText>{"6 Months"}</UiText></option>
+                <option value="quarterly"><UiText>{"Quarterly"}</UiText></option>
+                <option value="one-time"><UiText>{"One Time"}</UiText></option>
               </SystemSelect>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelClass}>Late Fee %</label>
+              <label className={labelClass}><UiText>{"Late Fee %"}</UiText></label>
               <SystemInput type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Compound</label>
+              <label className={labelClass}><UiText>{"Compound"}</UiText></label>
               <button
                 type="button"
                 onClick={() => setCompoundLateFee(!compoundLateFee)}
                 className={`w-full h-11 rounded-2xl border px-4 text-sm font-bold transition-colors cursor-pointer ${compoundLateFee ? "border-[#8127cf]/30 bg-[#fbf0fe] text-[#8127cf]" : "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted"}`}
               >
-                {compoundLateFee ? "Yes" : "No"}
+                {compoundLateFee ? tr("Yes") : tr("No")}
               </button>
             </div>
             <div>
-              <label className={labelClass}>Tax %</label>
+              <label className={labelClass}><UiText>{"Tax %"}</UiText></label>
               <SystemInput type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
             </div>
           </div>
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                One-Time Fees
-              </p>
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"One-Time Fees"}</UiText></p>
               <button
                 type="button"
                 onClick={() => setOneTimeFees([...oneTimeFees, { name: "", amount: "" }])}
                 className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              >
-                + Add Fee
-              </button>
+              ><UiText>{"+ Add Fee"}</UiText></button>
             </div>
             <div className="space-y-2">
               {oneTimeFees.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <SystemInput
                     type="text"
-                    placeholder="Fee name"
+                    placeholder={tr("Fee name")}
                     value={row.name}
                     onChange={(e) => {
                       const copy = [...oneTimeFees];
@@ -531,7 +526,7 @@ function StructureModal({
                   />
                   <SystemInput
                     type="number"
-                    placeholder="Amount"
+                    placeholder={tr("Amount")}
                     value={row.amount}
                     onChange={(e) => {
                       const copy = [...oneTimeFees];
@@ -550,32 +545,26 @@ function StructureModal({
                 </div>
               ))}
               {oneTimeFees.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic">
-                  e.g. Admission Fee, Lab Fee, Books
-                </p>
+                <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"e.g. Admission Fee, Lab Fee, Books"}</UiText></p>
               )}
             </div>
           </div>
 
           <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                Discount Rules
-              </p>
+              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Discount Rules"}</UiText></p>
               <button
                 type="button"
                 onClick={() => setDiscountRules([...discountRules, { name: "", pct: "" }])}
                 className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              >
-                + Add Discount
-              </button>
+              ><UiText>{"+ Add Discount"}</UiText></button>
             </div>
             <div className="space-y-2">
               {discountRules.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <SystemInput
                     type="text"
-                    placeholder="Discount name"
+                    placeholder={tr("Discount name")}
                     value={row.name}
                     onChange={(e) => {
                       const copy = [...discountRules];
@@ -609,9 +598,7 @@ function StructureModal({
                 </div>
               ))}
               {discountRules.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic">
-                  e.g. Sibling 10%, Staff Child 25%
-                </p>
+                <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"e.g. Sibling 10%, Staff Child 25%"}</UiText></p>
               )}
             </div>
           </div>

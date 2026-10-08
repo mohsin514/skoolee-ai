@@ -1,3 +1,5 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -19,6 +21,8 @@ export async function GET(req: NextRequest) {
         ? null
         : await resolveCampusId(user, requestedCampusId);
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
     const campusWhere = {
       schoolId: user.schoolId,
       ...(campusId ? { id: campusId } : {}),
@@ -31,14 +35,14 @@ export async function GET(req: NextRequest) {
 
     const [invoices, payments] = await Promise.all([
       prisma.invoice.findMany({
-        where: { campusId: { in: campusIds } },
+        where: { currency, campusId: { in: campusIds } },
         select: {
-          studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
+          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
           student: { select: { class: { select: { id: true, name: true, section: true } } } },
         },
       }),
       prisma.payment.findMany({
-        where: { campusId: { in: campusIds } },
+        where: { invoice: { currency }, campusId: { in: campusIds } },
         select: { paymentMethod: true, amount: true },
       }),
     ]);
@@ -52,9 +56,9 @@ export async function GET(req: NextRequest) {
     }>();
 
     for (const inv of invoices) {
-      const key = inv.student.class.id;
+      const key = inv.enrollment?.classId || inv.student.class.id;
       const cls = classMap.get(key) ?? {
-        className: `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
+        className: inv.enrollment?.className || `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
         studentIds: new Set<string>(),
         totalDue: 0,
         totalPaid: 0,
@@ -71,6 +75,7 @@ export async function GET(req: NextRequest) {
 
     const byClass = Array.from(classMap.values())
       .map((c) => ({
+        currency,
         className: c.className,
         totalStudents: c.studentIds.size,
         totalDue: c.totalDue,
@@ -94,6 +99,7 @@ export async function GET(req: NextRequest) {
 
     const byMethod = Array.from(methodMap.entries())
       .map(([method, vals]) => ({
+        currency,
         method,
         count: vals.count,
         total: vals.total,
@@ -103,7 +109,8 @@ export async function GET(req: NextRequest) {
 
     return Response.json({
       success: true,
-      data: { byClass, byMethod },
+      data: {
+        currency, byClass, byMethod },
     });
   } catch (error) {
     return errorResponse(error, "[fees/reports/collection] GET failed");

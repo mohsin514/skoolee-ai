@@ -1,10 +1,12 @@
 'use server'
 
+import { getAuthUser } from "@/lib/auth";
+
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
 
-import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
@@ -59,13 +61,12 @@ async function requireSession(): Promise<Session> {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("Unauthorized");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
   const schoolId = String(payload.schoolId);
 
-  // These actions read the JWT directly rather than going through
-  // getAuthUser(), so they must bind tenant context themselves before any
-  // query — otherwise the guard refuses it, correctly.
-  enterTenantContext({ schoolId, userId: String(payload.userId || "") });
+  // Carry the current principal into transactional tenant work.
+  enterTenantContext({ schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
   await assertSchoolOperational(schoolId);
 
   return {
@@ -112,10 +113,13 @@ async function assertCanEditCampus(session: Session, campusId: string) {
   throw new Error("You can only edit the campus you administer.");
 }
 
+function recordRevision(record: unknown) { return createHash("sha256").update(JSON.stringify(record)).digest("hex"); }
+
 export interface InstitutionSettings {
   canEditSchool: boolean;
   editableCampusIds: string[];
   school: {
+    revision: string;
     id: string;
     name: string;
     regId: string;
@@ -130,6 +134,7 @@ export interface InstitutionSettings {
     timezone: string;
   };
   campuses: {
+    revision: string;
     id: string;
     name: string;
     regId: string;
@@ -173,6 +178,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
     canEditSchool,
     editableCampusIds,
     school: {
+      revision: recordRevision(school),
       id: school.id,
       name: school.name,
       regId: school.regId,
@@ -187,6 +193,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       timezone: school.timezone,
     },
     campuses: campuses.map((c) => ({
+      revision: recordRevision(c),
       id: c.id,
       name: c.name,
       regId: c.regId,
@@ -218,6 +225,7 @@ function patchText(value: string | null | undefined) {
 }
 
 export interface SchoolDetailsInput {
+  expectedRevision?: string;
   name: string;
   tagline?: string;
   city: string;
@@ -238,8 +246,15 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   // An unrecognised zone keeps whatever is stored rather than failing the save
   // or silently resetting the tenant to the schema default.
   const timezone = safeTimezone(input.timezone);
+  if (input.timezone !== undefined) {
+    const current = await prisma.school.findUniqueOrThrow({ where: { id: session.schoolId }, select: { timezone: true } });
+    if (!timezone || timezone !== current.timezone) throw new Error("Preview timezone changes in Language and regional settings before applying them.");
+  }
 
-  const school = await prisma.school.update({
+  const school = await prisma.$transaction(async (tx) => {
+    const current = await tx.school.findUnique({ where: { id: session.schoolId } });
+    if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
+    return tx.school.update({
     where: { id: session.schoolId },
     data: {
       name,
@@ -255,10 +270,13 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     },
   });
 
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
   return { success: true, school: { id: school.id, name: school.name, timezone: school.timezone } };
 }
 
 export interface CampusDetailsInput {
+  expectedRevision?: string;
   campusId: string;
   name: string;
   city: string;
@@ -285,7 +303,10 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
     ? undefined
     : assertPhone(optionalText(input.phone), "Phone number");
 
-  const campus = await prisma.campus.update({
+  const campus = await prisma.$transaction(async (tx) => {
+    const current = await tx.campus.findUnique({ where: { id: campusId } });
+    if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
+    return tx.campus.update({
     where: { id: campusId },
     data: {
       name,
@@ -301,6 +322,8 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
       logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
     },
   });
+
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   return { success: true, campus: { id: campus.id, name: campus.name } };
 }

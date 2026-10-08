@@ -5,7 +5,7 @@ setInterval(() => {
   for (const [key, entry] of hits) {
     if (entry.resetAt <= now) hits.delete(key);
   }
-}, 60_000);
+}, 60_000).unref();
 
 export function rateLimit(
   key: string,

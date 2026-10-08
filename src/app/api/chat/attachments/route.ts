@@ -1,3 +1,4 @@
+import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     // Presigning for a thread the caller is not in would let them write into
     // another conversation's prefix.
     const membership = await prisma.conversationMember.findFirst({
-      where: { conversationId, userId: user.userId, leftAt: null },
+      where: { conversationId, userId: user.userId, leftAt: null, conversation: campusScope(user) },
       select: { id: true },
     });
     if (!membership) throw new ApiError("Conversation not found", 404);

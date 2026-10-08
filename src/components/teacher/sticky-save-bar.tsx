@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,17 @@ export function StickySaveBar({
   children?: ReactNode;
 }) {
   const visible = dirtyCount > 0 || forceShow;
+  const barRef = useRef<HTMLDivElement>(null);
+  const [docked, setDocked] = useState(true);
+  useEffect(() => {
+    if (!visible || !barRef.current) return;
+    const measure = () => setDocked((barRef.current?.clientHeight ?? 0) < (window.visualViewport?.height ?? innerHeight) * 0.22);
+    const observer = new ResizeObserver(measure);
+    observer.observe(barRef.current);
+    window.visualViewport?.addEventListener("resize", measure);
+    measure();
+    return () => { observer.disconnect(); window.visualViewport?.removeEventListener("resize", measure); };
+  }, [visible]);
 
   // ⌘S / Ctrl+S is what anyone doing an hour of data entry reaches for.
   useEffect(() => {
@@ -72,9 +83,10 @@ export function StickySaveBar({
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none sticky bottom-3 z-30 flex justify-center px-2"
+      className={cn("pointer-events-none z-30 flex justify-center px-2", docked ? "sticky bottom-3" : "relative mt-4")}
     >
       <div
+        ref={barRef}
         className={cn(
           "sk-rise pointer-events-auto flex w-full max-w-3xl flex-wrap items-center gap-3 rounded-[22px] border px-4 py-3 backdrop-blur-xl",
           "shadow-[0_8px_24px_-8px_rgba(31,26,35,0.28),0_24px_60px_-24px_rgba(129,39,207,0.55)]",

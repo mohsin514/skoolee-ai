@@ -1,4 +1,5 @@
 "use client";
+import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
 import { pageCardSurface } from "@/components/ui/page-card";
 
@@ -679,7 +680,7 @@ export default function PrincipalDashboard() {
         {activeView === "report-cards" ? (
           <div className="space-y-8">
             <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} />
-            <ReportCardsPanel reports={data.recentReportCards} />
+
           </div>
         ) : null}
         {activeView === "ai" ? <AIPanel features={principalAIFeatures} insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} title="Principal AI" /> : null}
@@ -867,7 +868,7 @@ function ReportsPanel({ data, busyAction, editingReportId, editedRemarks, onRunA
   data: any; busyAction: string | null; editingReportId: string | null; editedRemarks: { en: string; ur: string };
   onRunAction: (examId: string, action: ReportAction, successMessage: string) => void; onGenerateRemarks: (examId: string) => void; onEdit: (report: any) => void; onCancelEdit: () => void; onRemarkChange: (value: { en: string; ur: string }) => void; onSaveRemark: (report: any, approve?: boolean) => void;
 }) {
-  return (<div className="grid grid-cols-1 xl:grid-cols-[0.8fr_1.2fr] gap-8"><div className="space-y-4"><PanelTitle icon={ShieldCheck} title="Exam Review Actions" />{data.reviewExams.map((exam: any, i: number) => (<div key={exam.id} className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/35 p-5" style={{ animationDelay: `${i * 60}ms` }}><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-black text-[#1f1a23]">{exam.title}</h3><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{exam.term} - {classLabel(exam.class)}</p></div><StatusPill status={exam.status} /></div><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton label="Generate" icon={FileText} busy={busyAction === `generate-${exam.id}`} onClick={() => onRunAction(exam.id, "generate", "Report cards generated")} /><ActionButton label="PDFs" icon={FileText} busy={busyAction === `pdf-${exam.id}`} onClick={() => onRunAction(exam.id, "pdf", "PDFs generated")} /><ActionButton label="AI Remarks" icon={Sparkles} busy={busyAction === `ai-remarks-${exam.id}`} onClick={() => onGenerateRemarks(exam.id)} /><ActionButton label="Review" icon={ShieldCheck} busy={busyAction === `review-${exam.id}`} onClick={() => onRunAction(exam.id, "review", "Exam marked as principal reviewed")} /><ActionButton label="Publish" icon={Upload} busy={busyAction === `publish-${exam.id}`} onClick={() => onRunAction(exam.id, "publish", "Reports published")} /><div className="col-span-2"><ActionButton label="Send To Parents" icon={Send} busy={busyAction === `send-${exam.id}`} onClick={() => onRunAction(exam.id, "send", "Delivery attempted")} /></div></div></div>))}{data.reviewExams.length === 0 ? (<p className="rounded-[24px] bg-[#fbf0fe]/50 p-5 text-sm font-semibold text-ink-muted">No locked exams are ready for principal review.</p>) : null}</div><div className="space-y-4"><PanelTitle icon={FileText} title="Report Card Remarks" />{data.recentReportCards.map((report: any) => (<ReportReviewCard key={report.id} report={report} busy={busyAction === `remark-${report.id}`} editing={editingReportId === report.id} editedRemarks={editedRemarks} onEdit={() => onEdit(report)} onCancel={onCancelEdit} onChange={onRemarkChange} onSave={() => onSaveRemark(report)} onApprove={() => onSaveRemark(report, true)} />))}{data.recentReportCards.length === 0 ? (<EmptyState icon={FileText} title="No report cards" description="Generated report cards will appear here for remark approval." />) : null}</div></div>);
+  return <div className="space-y-6">{data.reviewExams.map((exam: any) => <div key={exam.id} className="rounded-xl border p-4"><ReportCardPipeline exam={exam} campusId={data.campusId} /></div>)}{!data.reviewExams.length && <p>No locked exams are ready for review.</p>}</div>;
 }
 
 function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; totals: { sent: number; failed: number; blocked: number; noContact: number }; busy: boolean; onRunAutomation: () => void; }) {

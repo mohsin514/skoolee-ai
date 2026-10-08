@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { assertFeesRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 export async function GET(
   req: NextRequest,
@@ -7,6 +7,7 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthUser();
+    await assertFeesRead(user);
     const { jobId } = await params;
 
     const match = jobId.match(/^invoice-gen-(\d{4}-\d{2})$/);

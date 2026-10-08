@@ -266,8 +266,8 @@ export default function ForgotPasswordPage() {
                   </div>
                   <h3 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Check your inbox</h3>
                   <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
-                    We&apos;ve sent an encrypted, single-use link to your registered email.
-                    It expires shortly — no worries if it lapses, you can start again.
+                    If an eligible account exists, a single-use link will be sent. Check your inbox and spam folder.
+                    If it does not arrive, try again in five minutes or contact your school administrator.
                   </p>
                   <Link href="/login" className="text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
                     Back to login

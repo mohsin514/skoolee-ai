@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      let currency = "PKR";
       let monthlyFee = 0;
       let oneTimeTotal = 0;
       let subtotal = 0;
@@ -116,6 +118,7 @@ export async function POST(req: NextRequest) {
       let lateFeeAmount = 0;
 
       if (assignment) {
+        currency = assignment.feeGroup.currency;
         const lines = assignment.feeGroup.lines.map((line) => ({
           id: line.id,
           typeName: line.feeType.name,
@@ -127,12 +130,12 @@ export async function POST(req: NextRequest) {
         const categoryDiscounts = student.categoryId
           ? await prisma.feeDiscount.findMany({
               where: { campusId, categoryId: student.categoryId },
-              select: { id: true, name: true, code: true, type: true, value: true },
+              select: { id: true, name: true, code: true, type: true, value: true, currency: true },
             })
           : [];
         const explicitAssignments = await prisma.feeDiscountAssignment.findMany({
           where: { studentId: student.id },
-          include: { discount: { select: { id: true, name: true, code: true, type: true, value: true } } },
+          include: { discount: { select: { id: true, name: true, code: true, type: true, value: true, currency: true } } },
         });
         const seen = new Set(categoryDiscounts.map((d) => d.id));
         const discounts = [
@@ -146,6 +149,9 @@ export async function POST(req: NextRequest) {
           where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: year } },
         });
 
+        if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carryForward && carryForward.balance !== 0 && carryForward.currency !== currency)) {
+          results.push({ studentId: student.id, status: "error", error: "Currencies cannot be combined. Review the discount or carry-forward." }); continue;
+        }
         const resolved = resolveStudentFees(lines, discounts, carryForward?.balance ?? 0);
 
         const monthlyLine = assignment.feeGroup.lines.find((l) => l.feeType.code === "MONTHLY_TUITION");
@@ -162,6 +168,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        currency = feeStructure.currency;
         const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
         oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
 
@@ -182,6 +189,7 @@ export async function POST(req: NextRequest) {
             where: { studentId: student.id, status: { in: ["PENDING", "OVERDUE"] } },
             orderBy: { dueDate: "desc" },
           });
+          if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
             const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
             if (daysOverdue > 0) {
@@ -199,10 +207,13 @@ export async function POST(req: NextRequest) {
 
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
 
+      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
       const invoice = await prisma.invoice.create({
         data: {
           campusId,
           studentId: student.id,
+          currency,
+          localeSnapshot,
           invoiceNumber: generateInvoiceNumber(campusId, year, sequence++),
           invoiceDate,
           dueDate,

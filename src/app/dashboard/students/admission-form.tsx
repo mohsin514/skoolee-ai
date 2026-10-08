@@ -1,8 +1,12 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { FormField, FormErrorSummary } from "@/components/ui/form-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -300,6 +304,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     ...(initialPrefill || {}),
     classId: (initialClassId && classes.some((cls) => cls.id === initialClassId) ? initialClassId : classes[0]?.id) || "",
   }));
+  const [baseline, setBaseline] = useState(form);
+  const draft = useFormDraft({ record: `admission:new:${initialClassId || "default"}`, schema: 1,
+    values: form, baseline,
+    fields: ["fullName", "nameUr", "dateOfBirth", "gender", "nationality", "phone", "classId", "rollNo", "previousSchool", "guardianName", "guardianNameUr", "guardianRelationship", "guardianPhone", "guardianWhatsapp", "guardianOccupation", "address", "city", "province", "postalCode", "categoryId", "groupId", "siblingStudentId"],
+    section: String(step), apply: (next, savedStep) => { setForm(next); setStep(Math.min(3, Math.max(0, Number(savedStep) || 0))); },
+  });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
@@ -351,6 +361,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       const data = await res.json();
       if (!controller.signal.aborted && !rollNoManuallyEdited.current) {
         setForm((prev) => ({ ...prev, rollNo: data.rollNo }));
+        setBaseline((prev) => ({ ...prev, rollNo: data.rollNo }));
       }
     } catch {
     } finally {
@@ -492,6 +503,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
       if (!res.ok) throw new Error(data.error || "Could not add student");
 
+      draft.markSaved();
       toast.success(data.message || "Student added successfully");
 
       if (data.guardianInviteFailures?.length) {
@@ -518,6 +530,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       step={step}
       onStepChange={setStep}
       onClose={onClose}
+      dirty={draft.dirty}
       onBack={goBack}
       onNext={goNext}
       onSubmit={handleSubmit}
@@ -525,6 +538,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       submitting={isSubmitting}
       submittingLabel="Creating…"
     >
+          <DraftRecovery draft={draft} saving={isSubmitting} excluded="Health notes, allergies, medications, special needs and login emails are never stored in a device draft." />
+          <FormErrorSummary errors={errors} onFocusField={(field) => {
+            const targetStep = ["guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
+            setStep(targetStep);
+            requestAnimationFrame(() => document.getElementById(`field-${field}`)?.focus());
+          }} />
           {step === 0 && (
             <StepPersonalInfo
               form={form}
@@ -587,7 +606,7 @@ function StepPersonalInfo({
     <div className="space-y-5">
       <FormSection icon={User} title="Identity" hint="The student's name as it should appear on records and report cards.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Full Name (English) *" error={errors.fullName}>
+        <FieldGroup name="fullName" label="Full Name (English) *" error={errors.fullName}>
           <Input
             value={form.fullName}
             onChange={(e) => onUpdate("fullName", e.target.value)}
@@ -623,6 +642,7 @@ function StepPersonalInfo({
           </div>
         </FieldGroup>
         <FieldGroup
+          name="dateOfBirth"
           label="Date of Birth"
           error={errors.dateOfBirth}
           hint={age !== null ? `Age: ${age} years old` : undefined}
@@ -651,7 +671,7 @@ function StepPersonalInfo({
 
       <FormSection icon={GraduationCap} title="Placement" hint="Which class the student joins, and the roll number they are given.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Class *" error={errors.classId}>
+        <FieldGroup name="classId" label="Class *" error={errors.classId}>
           <Select
             value={selectedGroupKey}
             onChange={(e) => onSelectClassGroup(e.target.value)}
@@ -680,7 +700,7 @@ function StepPersonalInfo({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
+        <FieldGroup name="rollNo" label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
           <InputGroup className="relative">
             <Input
               value={form.rollNo}
@@ -716,12 +736,13 @@ function StepPersonalInfo({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FieldGroup label="Student Phone">
           <Input
+            type="tel"
             value={form.phone}
             onChange={(e) => onUpdate("phone", e.target.value)}
             placeholder="+92 300 1234567"
           />
         </FieldGroup>
-        <FieldGroup label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
+        <FieldGroup name="studentEmail" label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
           <Input
             type="email"
             value={form.studentEmail}
@@ -1009,8 +1030,9 @@ function StepGuardianDetails({
 
       <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
+        <FieldGroup name="guardianPhone" label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
           <Input
+            type="tel"
             value={form.guardianPhone}
             onChange={(e) => onUpdate("guardianPhone", e.target.value)}
             placeholder="+92 300 1234567"
@@ -1018,6 +1040,7 @@ function StepGuardianDetails({
         </FieldGroup>
         <FieldGroup label="Guardian WhatsApp (if different)">
           <Input
+            type="tel"
             value={form.guardianWhatsapp}
             onChange={(e) => onUpdate("guardianWhatsapp", e.target.value)}
             placeholder="+92 300 1234567"
@@ -1025,7 +1048,7 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
-      <FieldGroup label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
+      <FieldGroup name="guardianEmail" label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
         <Input
           type="email"
           value={form.guardianEmail}
@@ -1053,7 +1076,7 @@ function StepAddressMedical({
     <div className="space-y-5">
       <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records. This information is required.">
         <>
-          <FieldGroup label="Street Address *" error={errors.address}>
+          <FieldGroup name="address" label="Street Address *" error={errors.address}>
             <Input
               value={form.address}
               onChange={(e) => onUpdate("address", e.target.value)}
@@ -1061,7 +1084,7 @@ function StepAddressMedical({
             />
           </FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FieldGroup label="City *" error={errors.city}>
+            <FieldGroup name="city" label="City *" error={errors.city}>
               <Input
                 value={form.city}
                 onChange={(e) => onUpdate("city", e.target.value)}
@@ -1098,7 +1121,7 @@ function StepAddressMedical({
         hint="Anything staff must know in an emergency. Visible to teachers and the school office. This information is required."
       >
         <>
-          <FieldGroup label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
+          <FieldGroup name="medicalNotes" label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
             <Textarea
               value={form.medicalNotes}
               onChange={(e) => onUpdate("medicalNotes", e.target.value)}
@@ -1153,6 +1176,7 @@ function StepReview({
   siblings: any[];
   onEditStep: (step: number) => void;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const classDisplay = selectedClass
     ? [selectedClass.name, selectedClass.section].filter(Boolean).join(" - ")
     : "Not selected";
@@ -1188,7 +1212,7 @@ function StepReview({
           label="Date of Birth"
           value={
             form.dateOfBirth
-              ? `${new Date(form.dateOfBirth).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}${age !== null ? ` (${age} yrs)` : ""}`
+              ? `${formatCalendarDate(form.dateOfBirth)}${age !== null ? ` (${age} yrs)` : ""}`
               : ""
           }
         />
@@ -1273,24 +1297,19 @@ function StepReview({
 
 
 function FieldGroup({
+  name: suppliedName,
   label,
   error,
   hint,
   children,
 }: {
+  name?: string;
   label: string;
   error?: string;
   hint?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</Label>
-      {children}
-      {error && <p className="text-xs font-semibold text-rose-500">{error}</p>}
-      {hint && !error && <p className="text-xs font-medium text-ink-muted">{hint}</p>}
-    </div>
-  );
+  const generatedName = useId();
+  const name = suppliedName ?? generatedName;
+  return <FormField name={name} label={label} error={error} hint={hint}>{children}</FormField>;
 }
-
-

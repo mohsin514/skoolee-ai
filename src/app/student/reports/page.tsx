@@ -123,6 +123,8 @@ function ReportCard({ report, index }: { report: any; index: number }) {
           <span className="h-3 w-[1px] bg-[#cfc2d6]/20" />
           <span className="text-[10px] font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
         </div>
+        <p className="mt-2 text-sm" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi>v{report.version}</bdi></p>
+        {report.correctionReason && <p className="mt-2 rounded border p-3 text-sm" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</p>}
         {report.remarksEn ? (
           <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-3">
             <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">

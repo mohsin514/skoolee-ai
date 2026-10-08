@@ -32,7 +32,7 @@ export default function ParentResultsPage() {
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const { reportCards, marksByExam } = data;
-  const publishedCount = reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT").length;
+  const publishedCount = reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT" || r.status === "CORRECTED").length;
 
   return (
     <ParentPage
@@ -75,10 +75,12 @@ export default function ParentResultsPage() {
                       </div>
                     </div>
 
-                    {rc.remarksEn && (
+                    <p className="mt-3 text-sm" dir="auto">{rc.language === "ar" ? "النسخة المنشورة" : rc.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi>v{rc.version}</bdi></p>
+                    {rc.correctionReason && <p className="mt-2 rounded border p-3 text-sm" dir="auto">{rc.language === "ar" ? "تصحيح:" : rc.language === "ur" ? "تصحیح:" : "Correction:"} {rc.correctionReason}</p>}
+                    {(rc.remarksEn || rc.remarksAr || rc.remarksUr) && (
                       <div className="mt-3 p-3 rounded-xl bg-[#fbf0fe]/30 border border-[#cfc2d6]/5">
                         <p className="text-[10px] font-bold text-ink-subtle uppercase mb-1">Teacher Remarks</p>
-                        <p className="text-xs text-ink leading-relaxed">{rc.remarksEn}</p>
+                        <p className="text-xs text-ink leading-relaxed">{rc.language === "ar" ? rc.remarksAr : rc.language === "ur" ? rc.remarksUr : rc.remarksEn}</p>
                       </div>
                     )}
 

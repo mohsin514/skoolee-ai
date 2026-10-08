@@ -1,8 +1,11 @@
 'use server';
 
+import { assertInitialInstitutionSetup } from "@/lib/auth/principal";
+import { getAuthUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { assertEmail, assertPhone, parseDateOnly, parseEstablishedYear, safeTimezone } from "@/lib/school/details";
@@ -21,11 +24,12 @@ export async function getOnboardingSession() {
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
+    const payload = await getAuthUser();
+    if (!payload) throw new Error("Unauthorized");
+    if (payload.onboardingComplete || !payload.isInstitutionOwner) return { redirect: true, role: payload.role as string };
 
-    // Decodes the JWT directly, so bind tenant context before any query.
-    enterTenantContext({ schoolId: String(payload.schoolId), userId: String(payload.userId || "") });
+    // Bind the current principal for the rest of this action.
+    enterTenantContext({ schoolId: payload.schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
 
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
@@ -84,11 +88,14 @@ export async function finishOnboarding(
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("No session found");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
+  await assertInitialInstitutionSetup(payload);
+  if (payload.role === "ADMIN" && campuses.length > 1) throw new Error("Permission Denied");
   const userId = String(payload.userId);
   const schoolId = String(payload.schoolId);
-  // Decodes the JWT directly, so bind tenant context before any query.
-  enterTenantContext({ schoolId, userId });
+  // Bind the current principal for the rest of this action.
+  enterTenantContext({ schoolId, userId, campusId: payload.campusId, role: payload.role === "ADMIN" ? undefined : payload.role, reason: "verified first-time institution owner setup" });
   await assertPlanCapacity({ schoolId, metric: "campuses", increment: campuses.length });
 
   // ── Basic validation ─────────────────────────────
@@ -201,7 +208,9 @@ export async function finishOnboarding(
 
   // 4. Re-issue Session
   const newToken = await new SignJWT({
+    mfaVerified: payload.mfaVerified === true,
     userId: updatedUser.id,
+      accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,
     fullName: updatedUser.fullName,
     role: updatedUser.role,

@@ -1,8 +1,10 @@
 'use server';
 
+import { getAuthUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { enterTenantContext } from "@/lib/db/tenant-context";
@@ -20,11 +22,12 @@ export async function getTeacherOnboardingSession() {
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const payload = await getAuthUser();
+    if (!payload) throw new Error("Unauthorized");
     if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
     if (payload.role !== "TEACHER") return { redirect: true, role: payload.role as string };
 
-    enterTenantContext({ schoolId: String(payload.schoolId), userId: String(payload.userId || "") });
+    enterTenantContext({ schoolId: payload.schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
 
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
@@ -74,12 +77,13 @@ export async function completeTeacherOnboarding(data: {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("No session found");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
   if (payload.role !== "TEACHER") throw new Error("Only teachers can complete this onboarding");
   if (payload.onboardingComplete) throw new Error("Onboarding already completed");
 
   const userId = String(payload.userId);
-  enterTenantContext({ schoolId: String(payload.schoolId), userId });
+  enterTenantContext({ schoolId: payload.schoolId, userId, campusId: payload.campusId, role: payload.role });
   await assertSchoolOperational(String(payload.schoolId));
 
   const updatedUser = await prisma.user.update({
@@ -111,7 +115,9 @@ export async function completeTeacherOnboarding(data: {
   });
 
   const newToken = await new SignJWT({
+    mfaVerified: payload.mfaVerified === true,
     userId: updatedUser.id,
+      accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,
     fullName: updatedUser.fullName,
     role: updatedUser.role,

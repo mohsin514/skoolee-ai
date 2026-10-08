@@ -1,16 +1,17 @@
+import { defaultLocale, formatMoney, minorUnits, parseMoney } from "@/lib/locale/package";
 import type { InvoiceStatus } from "./fee-types";
 import { csvCell } from "@/lib/csv";
 
-export function formatPKR(paisa: number): string {
-  return `Rs ${(paisa / 100).toLocaleString("en-PK")}`;
+export function formatPKR(paisa: number, currency = "PKR"): string {
+  return formatMoney({ minor: paisa, currency }, defaultLocale);
 }
 
-export function paisaToRupees(paisa: number): number {
-  return paisa / 100;
+export function paisaToRupees(paisa: number, currency = "PKR"): number {
+  return paisa / (10 ** minorUnits(currency));
 }
 
-export function rupeesToPaisa(rupees: number): number {
-  return Math.round(rupees * 100);
+export function rupeesToPaisa(rupees: number | string, currency = "PKR"): number {
+  return parseMoney(String(rupees), currency).minor;
 }
 
 export function statusBadgeClass(status: InvoiceStatus | string): string {

@@ -1,16 +1,17 @@
+import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { publishedReportsWhere } from "@/lib/auth/policy";
+import { errorResponse } from "@/lib/api/scope";
 import { loadPermissionMap } from "@/lib/permissions";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
-import { enterTenantContext } from "@/lib/db/tenant-context";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
-import { resolveParentScope } from "@/lib/parent/resolve-child";
+import { withParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { studentId, children } = await resolveParentScope(req);
+    return await withParentScope(req, async ({ studentId, children }) => {
     if (!studentId) {
       return Response.json({ error: "Invalid or expired access" }, { status: 401 });
     }
@@ -23,18 +24,10 @@ export async function GET(req: NextRequest) {
         // A report card sits in GENERATED/REVIEWED while the office is still
         // checking it. Families only ever see one the school has released.
         reportCards: {
-          where: { status: { in: ["PUBLISHED", "SENT"] } },
+          where: publishedReportsWhere,
           orderBy: { generatedAt: "desc" },
           include: {
             exam: { select: { id: true, title: true, term: true, academicYear: true } },
-          },
-        },
-        // Same rule for raw marks: nothing before the exam is published.
-        marks: {
-          where: { exam: { status: "PUBLISHED" } },
-          include: {
-            subject: { select: { name: true, totalMarks: true } },
-            exam: { select: { title: true, term: true } },
           },
         },
         attendance: {
@@ -66,14 +59,7 @@ export async function GET(req: NextRequest) {
     const presentCount = attendanceSummary.present;
     const attendanceRate = attendanceSummary.rate;
 
-    const marksByExam = new Map<string, { examTitle: string; term: string; marks: typeof student.marks }>();
-    for (const m of student.marks) {
-      const key = m.examId;
-      if (!marksByExam.has(key)) {
-        marksByExam.set(key, { examTitle: m.exam.title, term: m.exam.term, marks: [] });
-      }
-      marksByExam.get(key)!.marks.push(m);
-    }
+    const released = await Promise.all(student.reportCards.map(async r => familyVersion(await getPublishedVersion(r.id))));
 
     return Response.json({
       success: true,
@@ -92,32 +78,10 @@ export async function GET(req: NextRequest) {
           academicYear: student.class.academicYear,
         },
         campus: { ...student.campus, schoolId: undefined },
-        reportCards: student.reportCards.map((r) => ({
-          id: r.id,
-          examTitle: r.exam.title,
-          term: r.exam.term,
-          academicYear: r.exam.academicYear,
-          percentage: r.percentage,
-          grade: r.grade,
-          rank: r.rank,
-          obtainedMarks: r.obtainedMarks,
-          totalMarks: r.totalMarks,
-          remarksEn: r.remarksEn,
-          remarksUr: r.remarksUr,
-          pdfUrl: r.pdfUrl,
-          status: r.status,
+        reportCards: released.map(r => ({ ...r,
+          pdfUrl: `/api/reports/download?reportCardId=${r.id}&versionId=${r.versionId}&redirect=1${req.nextUrl.searchParams.get("token") ? `&token=${encodeURIComponent(req.nextUrl.searchParams.get("token")!)}` : ""}`,
         })),
-        marksByExam: [...marksByExam.entries()].map(([examId, data]) => ({
-          examId,
-          examTitle: data.examTitle,
-          term: data.term,
-          marks: data.marks.map((m) => ({
-            subject: m.subject.name,
-            obtained: m.marksObtained,
-            total: m.subject.totalMarks,
-            grade: m.grade,
-          })),
-        })),
+        marksByExam: released.map(r => ({ examId: r.examId, examTitle: r.examTitle, term: r.term, marks: r.marks })),
         attendance: {
           rate: attendanceRate,
           total: totalAttendance,
@@ -135,6 +99,7 @@ export async function GET(req: NextRequest) {
         fees: student.invoices.map((inv) => ({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
+          currency: inv.currency,
           totalAmount: inv.totalAmount,
           paid: inv.totalAmountPaid,
           balance: inv.balanceDue,
@@ -143,7 +108,8 @@ export async function GET(req: NextRequest) {
         })),
       },
     });
-  } catch {
-    return Response.json({ error: "Failed to load data" }, { status: 500 });
+    });
+  } catch (error) {
+    return errorResponse(error, "Failed to load data");
   }
 }

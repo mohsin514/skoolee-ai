@@ -84,6 +84,7 @@ const SORTS: Record<string, { label: string; compare: (a: Student, b: Student) =
 interface Student {
   id: string;
   fullName?: string;
+  admissionNo?: string | null;
   rollNo?: string;
   profileImageUrl?: string | null;
   guardianName?: string | null;
@@ -234,6 +235,8 @@ export function StudentsPanel({
       if (onlyNoLogin && student.studentUser?.email) return false;
       if (!q) return true;
       return Boolean(
+        student.id.toLowerCase().includes(q) ||
+        student.admissionNo?.toLowerCase().includes(q) ||
         student.fullName?.toLowerCase().includes(q) ||
           student.rollNo?.toLowerCase().includes(q) ||
           student.guardianName?.toLowerCase().includes(q) ||
@@ -390,7 +393,7 @@ export function StudentsPanel({
     }
     actions.push({
       key: "move",
-      label: "Move to section",
+      label: "Review enrollment changes",
       icon: ArrowRightLeft,
       accent: "#0d9488",
       onRun: () => setBulkMove(true),
@@ -500,6 +503,11 @@ export function StudentsPanel({
           </span>
         </button>
       ),
+    },
+    {
+      key: "identity",
+      label: "Pupil ID",
+      render: (s) => <a className="block max-w-40 truncate text-xs text-purple-700 underline" href={`/pupils/${s.id}`} title={s.id} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a>,
     },
     {
       key: "classOrder",
@@ -816,15 +824,10 @@ export function StudentsPanel({
       ) : null}
 
       {bulkMove ? (
-        <BulkMoveModal
-          count={selected.size}
-          classes={classes}
-          busy={busy}
-          onClose={() => setBulkMove(false)}
-          onApply={(classId) =>
-            runBulkPatch({ classId }, (n) => `${n} student${n === 1 ? "" : "s"} moved`)
-          }
-        />
+        <Modal onClose={() => setBulkMove(false)} title="Review enrollment changes">
+          <p className="mb-4">Review each pupil’s permanent identity, effective date and preserved records before changing placement.</p>
+          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="text-purple-700 underline" href={`/pupils/${student.id}`}>{student.fullName} · <bdi>{student.id}</bdi></a></li>)}</ul>
+        </Modal>
       ) : null}
 
       <ConfirmAction
@@ -957,7 +960,7 @@ function StudentCard({
             </div>
             {/* Reaching a guardian used to mean opening the student, reading a
                 number and typing it into a phone. */}
-            <ContactActions student={student} />
+            <div><ContactActions student={student} /><a className="mt-2 block break-all text-xs text-purple-700 underline" href={`/pupils/${student.id}`} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} aria-label={`Enrollment history for ${student.fullName}, ${student.id}`}><bdi>{student.id}</bdi></a></div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2">
@@ -1105,86 +1108,3 @@ function BulkTagModal({
   );
 }
 
-function BulkMoveModal({
-  count,
-  classes,
-  busy,
-  onClose,
-  onApply,
-}: {
-  count: number;
-  classes: { id: string; name?: string; section?: string | null }[];
-  busy: boolean;
-  onClose: () => void;
-  onApply: (classId: string) => void;
-}) {
-  const groups = useMemo(() => groupClasses(classes), [classes]);
-  const [groupKey, setGroupKey] = useState("");
-  const [classId, setClassId] = useState("");
-  const sections = groups.find((g) => g.key === groupKey)?.sections || [];
-
-  return (
-    <BulkSheet
-      title="Move to a section"
-      subtitle={`${count} student${count === 1 ? "" : "s"} selected`}
-      busy={busy}
-      onClose={onClose}
-      footer={
-        <>
-          <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
-            Cancel
-          </BrandButton>
-          <BrandButton
-            variant="gradient"
-            onClick={() => onApply(classId)}
-            disabled={busy || !classId}
-            className="flex-1"
-          >
-            Move {count}
-          </BrandButton>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Class</span>
-          <SystemSelect
-            value={groupKey}
-            onChange={(e) => {
-              setGroupKey(e.target.value);
-              setClassId("");
-            }}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none"
-          >
-            <option value="">Select class</option>
-            {groups.map((g) => (
-              <option key={g.key} value={g.key}>
-                {g.name} · {g.academicYear}
-              </option>
-            ))}
-          </SystemSelect>
-        </label>
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Section</span>
-          <SystemSelect
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-            disabled={!groupKey}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none disabled:opacity-50"
-          >
-            <option value="">Select section</option>
-            {sections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.section ? `Section ${c.section}` : "Whole class"}
-              </option>
-            ))}
-          </SystemSelect>
-        </label>
-      </div>
-      <p className="mt-3 text-[11px] font-semibold leading-relaxed text-amber-700">
-        Each student is re-issued a roll number in the new section. Students already in the chosen
-        section are left alone.
-      </p>
-    </BulkSheet>
-  );
-}

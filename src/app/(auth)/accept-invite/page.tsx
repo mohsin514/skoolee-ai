@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
+import { roleLabel, type UserRole } from "@/lib/roles";
+import { membershipPreview } from "@/lib/membership-access";
 import { acceptInvite } from "@/app/actions/invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +26,15 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import { Label } from "@/components/ui/label";
 
 export default function AcceptInvitePage() {
+  const [language, setLanguage] = useState<"en" | "ar">("en");
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [inviteStatus, setInviteStatus] = useState<"pending" | "accepted" | "cancelled" | "expired" | "invalid" | null>(null);
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(true);
+  const [details, setDetails] = useState<{ contextKey: string; role: UserRole; institutionName: string; campusName: string; invitedBy: string; expiresAt: string; canPurchaseSubscription: boolean; canManageMemberships: boolean } | null>(null);
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +69,7 @@ export default function AcceptInvitePage() {
           setInviteMessage("This invitation link is invalid or no longer available.");
         } else {
           setInviteStatus(data.status || "invalid");
+          if (data.status === "pending") setDetails(data);
           if (data.status === "expired") {
             setInviteMessage("This invitation has expired. Please request a new invite.");
           } else if (data.status === "cancelled") {
@@ -115,8 +121,8 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      await acceptInvite(token, password);
-      toast.success("Invitation accepted. Please log in.");
+      await acceptInvite(token, password, fullName, details?.contextKey);
+      toast.success(`Invitation accepted. Sign in to your ${details ? roleLabel(details.role, language) : "assigned"} workspace.`);
       await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
     } catch (error) {
@@ -129,7 +135,7 @@ export default function AcceptInvitePage() {
   };
 
   return (
-    <main className="grid min-h-screen grid-cols-1 overflow-hidden bg-[#fff7fe] font-sans text-[#1f1a23] md:grid-cols-2">
+    <main dir={language === "ar" ? "rtl" : "ltr"} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-[#fff7fe] font-sans text-[#1f1a23] md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
         <div className="absolute inset-0 z-10 bg-[#8127cf]/10 mix-blend-multiply" />
         <img
@@ -166,6 +172,7 @@ export default function AcceptInvitePage() {
                 <MailCheck className="h-3.5 w-3.5" />
                 Invitation link
               </div>
+              <button type="button" onClick={() => setLanguage(language === "en" ? "ar" : "en")}>{language === "en" ? "العربية" : "English"}</button>
               <h1 className="text-2xl font-black tracking-normal text-[#1f1a23]">Accept Invitation</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 Set your password to activate your campus account.
@@ -181,6 +188,7 @@ export default function AcceptInvitePage() {
                 {inviteStatus && inviteStatus !== "pending" ? (
                   <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-sm font-bold text-rose-600 mb-5">
                     {inviteMessage || "This invitation is no longer valid."}
+                    {inviteStatus === "expired" && <button type="button" disabled={loading} className="block min-h-11 underline" onClick={async () => { setLoading(true); try { await fetch("/api/invite/reissue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }); setInviteMessage("If the invitation is still available, a new link will be sent. Check your inbox and spam folder, or contact your administrator."); } finally { setLoading(false); } }}>Request a new link</button>}
                   </div>
                 ) : null}
                 {inviteLoading ? (
@@ -188,7 +196,17 @@ export default function AcceptInvitePage() {
                     Validating invitation status...
                   </div>
                 ) : null}
+                {details && <section className="mb-5 space-y-2 rounded-xl border p-4" aria-label="Your invitation scope">
+                  <h2 className="font-bold">{details.institutionName}</h2>
+                  <p>{roleLabel(details.role, language)} · {details.campusName}</p>
+                  <p>Invited by <bdi>{details.invitedBy || "your institution administrator"}</bdi></p>
+                  <p>Expires: <time dateTime={details.expiresAt}>{new Date(details.expiresAt).toLocaleString()}</time></p>
+                  <ul className="list-inside list-disc">{membershipPreview(details.role, false, false, language).tasks.map(task => <li key={task}>{task}</li>)}</ul>
+                  <p>{membershipPreview(details.role, details.canPurchaseSubscription, details.canManageMemberships, language).purchasing}</p>
+                  <p>This membership does not grant institution ownership. You will enter your assigned workspace after signing in.</p>
+                </section>}
                 <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2"><Label htmlFor="fullName">Your full name</Label><Input id="fullName" autoComplete="name" required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} /></div>
                 {validationError && (
                   <div className="rounded-3xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
