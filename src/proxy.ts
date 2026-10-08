@@ -21,7 +21,7 @@ import {
 } from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
-  "/", "/login", "/register", "/register-split", "/sign-up",
+  "/", "/login", "/register", "/register-split", "/sign-up", "/pricing",
   "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
   "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
   "/parent",

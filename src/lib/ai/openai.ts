@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { getPlanLimits } from "@/config/plans";
+import { getPlanLimits, normalizePlan } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
@@ -368,7 +369,7 @@ export class AICreditError extends Error {
 export async function getAICreditSnapshot(schoolId: string) {
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { aiCreditsUsed: true, aiCreditsLimit: true, plan: true, status: true },
+    select: { aiCreditsUsed: true, aiCreditsLimit: true, plan: true, status: true, commercialContract: true },
   });
 
   if (school && !isSchoolOperational(school.status)) {
@@ -376,7 +377,7 @@ export async function getAICreditSnapshot(schoolId: string) {
   }
 
   const used = school?.aiCreditsUsed || 0;
-  const limit = getPlanLimits(school?.plan).aiCredits;
+  const limit = school ? getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits : getPlanLimits("FREE").aiCredits;
 
   return {
     used,
@@ -403,7 +404,7 @@ export async function consumeAICreditAndLog<T = null>(
   return prisma.$transaction(async (tx) => {
     const school = await tx.school.findUnique({
       where: { id: input.schoolId },
-      select: { aiCreditsUsed: true, plan: true, status: true },
+      select: { aiCreditsUsed: true, plan: true, status: true, commercialContract: true },
     });
 
     if (!school) {
@@ -414,7 +415,7 @@ export async function consumeAICreditAndLog<T = null>(
       throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
     }
 
-    if (school.aiCreditsUsed + credits > getPlanLimits(school.plan).aiCredits) {
+    if (school.aiCreditsUsed + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) {
       throw new AICreditError("AI credit limit reached");
     }
 

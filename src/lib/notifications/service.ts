@@ -6,7 +6,8 @@ import { notificationHtml } from "@/lib/locale/notification-catalog";
 import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { canUseFeature } from "@/config/plans";
+import { normalizePlan } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
@@ -283,7 +284,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     input.channel === "WHATSAPP"
       ? await prisma.school.findUnique({
           where: { id: input.target.schoolId },
-          select: { plan: true, status: true },
+          select: { plan: true, status: true, commercialContract: true },
         })
       : null;
   const subscriptionBlockedReason =
@@ -291,7 +292,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
       ? "Subscription suspended. Open billing to update your plan or payment method."
       : null;
   const planBlockedReason =
-    school && !canUseFeature(school.plan, "whatsappEnabled")
+    school && !getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).whatsappEnabled
       ? "WhatsApp messaging is not included in the current plan"
       : null;
   const dataBlockedReason =

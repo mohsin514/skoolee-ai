@@ -8,6 +8,7 @@ import { createTenantSchema } from "@/lib/db/tenant";
 import bcrypt from "bcryptjs";
 import { rateLimit } from "@/lib/rate-limit";
 import { enterUnscoped } from "@/lib/db/tenant-context";
+import { createPlanContract } from "@/config/commercial-contract";
 
 export async function POST(req: NextRequest) {
   try {
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
             city,
             contactEmail,
             status: "TRIAL",
+            commercialContract: createPlanContract("FREE"),
             regId: regId || genRegId('SKL')
           },
         });
@@ -128,6 +130,7 @@ export async function POST(req: NextRequest) {
             city,
             contactEmail: finalEmail,
             status: "TRIAL",
+            commercialContract: createPlanContract("FREE"),
             regId: regId || genRegId('SKL')
           },
         });

@@ -15,6 +15,7 @@ function SafePayForm() {
   const kind = params.get("kind") || "";
   const invoiceId = params.get("invoiceId") || "";
   const billingPeriod = params.get("billingPeriod") || "monthly";
+  const contract = params.get("contract") || "";
   const amountLabel = params.get("amountLabel") || "PKR 0/mo";
 
   const [cardNumber, setCardNumber] = useState("");
@@ -61,7 +62,7 @@ function SafePayForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan, billingPeriod }
+          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan, billingPeriod, contract }
         ),
       });
       const data = await res.json();

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
+import { createPlanContract } from "@/config/commercial-contract";
 
 export async function GET(
   _req: NextRequest,
@@ -66,7 +67,10 @@ export async function PATCH(
       if (!VALID_PLANS.includes(plan)) {
         throw new ApiError("plan must be one of: " + VALID_PLANS.join(", "), 400);
       }
+      const commercialContract = createPlanContract(plan);
       updateData.plan = plan;
+      updateData.commercialContract = commercialContract;
+      updateData.aiCreditsLimit = commercialContract.aiCredits;
     }
 
     if (status) {
