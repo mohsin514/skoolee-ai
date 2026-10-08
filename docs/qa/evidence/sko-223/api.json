@@ -1,0 +1,44 @@
+[
+  {
+    "action": "pdf",
+    "status": 202,
+    "persistedJob": true
+  },
+  {
+    "action": "send",
+    "status": 200,
+    "persistedJob": true
+  },
+  {
+    "action": "bank import",
+    "status": 202,
+    "persistedJob": true
+  },
+  {
+    "check": "cross-campus read/retry",
+    "status": 404
+  },
+  {
+    "check": "cross-tenant read/retry",
+    "status": 404
+  },
+  {
+    "check": "read-only cancellation denial",
+    "role": "ACCOUNTANT",
+    "status": 403
+  },
+  {
+    "check": "read-only cancellation denial",
+    "role": "LIBRARIAN",
+    "status": 403
+  },
+  {
+    "check": "read-only cancellation denial",
+    "role": "RECEPTIONIST",
+    "status": 403
+  },
+  {
+    "check": "unsigned provider callbacks rejected",
+    "status": 401
+  }
+]

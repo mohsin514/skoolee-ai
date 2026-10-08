@@ -27,6 +27,8 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  activityJobs ActivityJob[]
+  deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
   corrections Correction[]
   studentEnrollments StudentEnrollment[]
@@ -227,6 +229,7 @@ model WorkflowJob {
   startedAt DateTime? @map("started_at")
   finishedAt DateTime? @map("finished_at")
   effects WorkflowEffect[]
+  activityItems ActivityItem[]
   @@unique([id, schoolId])
   @@index([state, leaseUntil])
   @@map("workflow_jobs")
@@ -271,6 +274,7 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  activityJobs ActivityJob[]
   corrections Correction[]
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
   localePolicies LocalePolicy[]
@@ -2298,6 +2302,7 @@ model NotificationTemplate {
 }
 
 model ParentCommunication {
+  deliveryReceipts DeliveryReceipt[]
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3435,6 +3440,65 @@ model EnrollmentProposal {
   @@map("enrollment_proposals")
 }
 // Shared authentication counters: keys are hashed and contain no plaintext identifiers.
+model ActivityJob {
+  id                String         @id
+  school            School         @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campus            Campus         @relation(fields: [campusId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  schoolId          String         @map("school_id")
+  campusId          String         @map("campus_id")
+  classId           String?        @map("class_id")
+  actorId           String         @map("actor_id")
+  kind              String
+  identity          String
+  sourceId          String         @map("source_id")
+  sourceLabel       String         @map("source_label")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  cancelRequestedAt DateTime?      @map("cancel_requested_at")
+  items             ActivityItem[]
+
+  @@unique([schoolId, identity])
+  @@unique([id, schoolId])
+  @@index([schoolId, campusId, createdAt], map: "activity_jobs_scope")
+  @@map("activity_jobs")
+}
+
+model ActivityItem {
+  id              String       @id
+  workflow        WorkflowJob? @relation(fields: [workflowId, schoolId], references: [id, schoolId], onDelete: NoAction, onUpdate: NoAction)
+  schoolId        String       @map("school_id")
+  jobId           String       @map("job_id")
+  job             ActivityJob  @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade, onUpdate: NoAction)
+  referenceId     String       @map("reference_id")
+  label           String
+  versionId       String?      @map("version_id")
+  workflowId      String?      @map("workflow_id")
+  communicationId String?      @map("communication_id")
+  payload         Json?
+  state           String       @default("queued")
+  reason          String?
+  result          Json?
+  updatedAt       DateTime     @default(now()) @map("updated_at")
+
+  @@unique([jobId, referenceId])
+  @@index([jobId, schoolId], map: "activity_items_job")
+  @@map("activity_items")
+}
+
+model DeliveryReceipt {
+  id                String              @id
+  school            School              @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  communication     ParentCommunication @relation(fields: [communicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  schoolId          String              @map("school_id")
+  communicationId   String              @map("communication_id")
+  providerMessageId String              @map("provider_message_id")
+  state             String
+  occurredAt        DateTime            @map("occurred_at")
+  receivedAt        DateTime            @default(now()) @map("received_at")
+
+  @@unique([communicationId, state, occurredAt])
+  @@map("delivery_receipts")
+}
+
 model AuthAttempt {
   key String @id
   count Int @default(1)

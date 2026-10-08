@@ -3,7 +3,7 @@ import { runAsCurrentActor } from "@/lib/auth/job-policy";
 import { assertCommunicationTarget } from "@/lib/auth/communication-policy";
 import { getPublishedVersion } from "@/lib/academic/report-versions";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
-import { sendEmailMessage } from "@/lib/email";
+import { sendEmailMessage, hasEmailProviderConfig } from "@/lib/email";
 import { WorkflowStopped, type WorkflowContext } from "./outbox";
 
 /** Delivery content is already frozen; recheck actor, recipient and version before the fenced external effect. */
@@ -44,6 +44,10 @@ export async function reportDeliveryWorkflow(
           throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");
       };
       await authorize();
+      if (c.status === "SENT") return;
+      if (!deliver && process.env.DISABLE_OUTBOUND_MESSAGES === "true") throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
+      if (!deliver && c.channel === "WHATSAPP" && (!process.env.WHATSAPP_PHONE_NUMBER_ID || !process.env.WHATSAPP_ACCESS_TOKEN)) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
+      if (!deliver && c.channel === "EMAIL" && !hasEmailProviderConfig()) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
       await ctx.external(`deliver:${c.id}`, authorize, async () => {
         const result = deliver
           ? await deliver(c)
