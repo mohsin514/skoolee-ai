@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -101,7 +103,7 @@ export default function AcceptInvitePage() {
       toast.error(errorMsg);
       return;
     }
-    
+
     // Check individual password requirements
     const unmetRequirements = passwordChecks.filter(check => !check.met);
     if (unmetRequirements.length > 0) {
@@ -197,8 +199,8 @@ export default function AcceptInvitePage() {
                   <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Password
                   </Label>
-                  <div className="relative flex items-center">
-                    <Lock className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
+                    <Lock data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -210,7 +212,7 @@ export default function AcceptInvitePage() {
                       placeholder="Create a secure password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-12 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />
-                    <button
+                    <button data-field-affix="end"
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       className="absolute right-4 cursor-pointer text-ink transition-colors hover:text-[#8127cf]"
@@ -218,15 +220,15 @@ export default function AcceptInvitePage() {
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
-                  </div>
+                  </InputGroup>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Confirm Password
                   </Label>
-                  <div className="relative flex items-center">
-                    <ShieldCheck className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
+                    <ShieldCheck data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
@@ -238,7 +240,7 @@ export default function AcceptInvitePage() {
                       placeholder="Repeat password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />
-                  </div>
+                  </InputGroup>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 rounded-3xl bg-[#fbf0fe] p-4">

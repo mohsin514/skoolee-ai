@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -21,6 +23,9 @@ import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { ROOM_TYPES, floorLabel, roomCapacity } from "@/lib/academic/room-capacity";
 import { Field, Panel, StepEmpty, inputClass, selectClass } from "@/components/academic/exams/shared";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /**
  * Rooms, with the two facts a seating plan needs (§79).
@@ -218,15 +223,15 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
       {rooms.length > 6 ? (
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <input
+        <InputGroup className="relative max-w-sm">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+          <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find a room, block or wing…"
             className={cn(inputClass, "pl-9")}
           />
-        </div>
+        </InputGroup>
       ) : null}
 
       {loading ? (
@@ -515,7 +520,7 @@ function RoomEditor({
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Room number">
-              <input
+              <SystemInput
                 className={inputClass}
                 value={draft.roomNumber}
                 onChange={(e) => set("roomNumber", e.target.value)}
@@ -523,7 +528,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Building / block" hint="Optional">
-              <input
+              <SystemInput
                 className={inputClass}
                 value={draft.building}
                 onChange={(e) => set("building", e.target.value)}
@@ -531,7 +536,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Floor">
-              <select
+              <SystemSelect
                 className={selectClass}
                 value={String(draft.floor)}
                 onChange={(e) => set("floor", Number(e.target.value))}
@@ -541,10 +546,10 @@ function RoomEditor({
                     {floorLabel(f)}
                   </option>
                 ))}
-              </select>
+              </SystemSelect>
             </Field>
             <Field label="Wing" hint="Optional">
-              <input
+              <SystemInput
                 className={inputClass}
                 value={draft.wing}
                 onChange={(e) => set("wing", e.target.value)}
@@ -552,7 +557,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Room type">
-              <select
+              <SystemSelect
                 className={selectClass}
                 value={draft.roomType}
                 onChange={(e) => {
@@ -565,10 +570,10 @@ function RoomEditor({
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </SystemSelect>
             </Field>
             <Field label="Note" hint="Optional">
-              <input
+              <SystemInput
                 className={inputClass}
                 value={draft.note}
                 onChange={(e) => set("note", e.target.value)}
@@ -578,8 +583,8 @@ function RoomEditor({
           </div>
 
           <label className="mt-3 flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3.5 py-2.5">
-            <input
-              type="checkbox"
+            <SystemCheckbox
+
               checked={draft.isExamHall}
               onChange={(e) => set("isExamHall", e.target.checked)}
               className="h-4 w-4 cursor-pointer accent-[#8127cf]"
@@ -603,7 +608,7 @@ function RoomEditor({
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Rows of benches">
-              <input
+              <SystemInput
                 type="number"
                 min={0}
                 max={60}
@@ -613,7 +618,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Benches per row">
-              <input
+              <SystemInput
                 type="number"
                 min={0}
                 max={60}
@@ -623,7 +628,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Seats per bench" hint="In a normal lesson">
-              <input
+              <SystemInput
                 type="number"
                 min={1}
                 max={10}
@@ -633,7 +638,7 @@ function RoomEditor({
               />
             </Field>
             <Field label="Seats per bench in an exam" hint="Usually 1">
-              <input
+              <SystemInput
                 type="number"
                 min={1}
                 max={draft.seatsPerBench}
@@ -650,7 +655,7 @@ function RoomEditor({
                 label="Total seats"
                 hint="Used only when no bench layout is recorded. Fill in the layout above and this is worked out for you."
               >
-                <input
+                <SystemInput
                   type="number"
                   min={0}
                   className={cn(inputClass, "max-w-40")}

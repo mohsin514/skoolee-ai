@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -230,7 +232,7 @@ function UrduInput({
       </div>
 
       {showKeyboard && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-2.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel absolute left-0 right-0 top-full z-50 mt-1.5 p-2.5">
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-bold text-ink-muted">اردو کی بورڈ</span>
             <button
@@ -679,14 +681,14 @@ function StepPersonalInfo({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
-          <div className="relative">
+          <InputGroup className="relative">
             <Input
               value={form.rollNo}
               onChange={(e) => onUpdate("rollNo", e.target.value)}
               placeholder="NUR-Y-001"
               className="pr-10"
             />
-            <button
+            <button data-field-affix="end"
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
               onClick={onRegenerateRollNo}
@@ -698,7 +700,7 @@ function StepPersonalInfo({
                 <RefreshCw className="h-4 w-4" />
               )}
             </button>
-          </div>
+          </InputGroup>
         </FieldGroup>
         <FieldGroup label="Previous School">
           <Input
@@ -874,8 +876,8 @@ function GuardianPicker({
         to their brothers and sisters.
       </p>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+      <InputGroup className="relative">
+        <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -884,9 +886,9 @@ function GuardianPicker({
           aria-label="Search existing guardians"
         />
         {loading ? (
-          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8127cf]" />
+          <Loader2 data-field-affix="end" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8127cf]" />
         ) : null}
-      </div>
+      </InputGroup>
 
       {open && search.trim().length >= 2 ? (
         <div className="mt-3 space-y-2">

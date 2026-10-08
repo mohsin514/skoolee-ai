@@ -12,7 +12,7 @@ const Table = React.forwardRef<
   <div className="relative w-full overflow-auto rounded-[24px] border border-[#cfc2d6]/15 bg-white">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("sk-data-table w-full caption-bottom text-sm", className)}
       {...props}
     />
   </div>

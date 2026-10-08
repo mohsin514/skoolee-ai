@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Input as SystemInput } from "@/components/ui/input";
 
 export function UnifiedAttendancePanel() {
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
@@ -155,14 +158,14 @@ export function UnifiedAttendancePanel() {
                 </button>
               ) : null}
             </div>
-            <div className="relative">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle">
+            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
+              <svg data-field-affix="start" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
-              <input type="text" placeholder="Search teachers..." value={teacherSearch}
+              <SystemInput type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
                 className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] transition-all" />
-            </div>
+            </InputGroup>
           </div>
 
           {teacherLoading ? (
@@ -188,7 +191,7 @@ export function UnifiedAttendancePanel() {
                 { label: "On Leave", value: teacherSummary.leave, icon: Clock, tone: "bg-amber-50 text-amber-600" },
                 { label: "Attendance Rate", value: `${tRate}%`, icon: Award, tone: "bg-[#1f1a23] text-white" },
               ].map((stat, i) => (
-                <div key={stat.label} className="sk-rise group bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${i * 60}ms` }}>
+                <div key={stat.label} className="sk-panel sk-rise group p-5" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="relative flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{stat.label}</p>
@@ -212,7 +215,7 @@ export function UnifiedAttendancePanel() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="sk-rise lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise lg:col-span-2 p-6" style={{ animationDelay: "160ms" }}>
               <div className="flex items-center justify-between gap-4 mb-5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Daily Roster &mdash; {dateLabel}</p>
                 <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? "s" : ""}</span>
@@ -285,7 +288,7 @@ export function UnifiedAttendancePanel() {
               )}
             </div>
 
-            <div className="sk-rise bg-white rounded-[30px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "240ms" }}>
+            <div className="sk-panel sk-rise p-6" style={{ animationDelay: "240ms" }}>
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center"><Award className="h-4 w-4 text-[#8127cf]" /></div>
                 <div>

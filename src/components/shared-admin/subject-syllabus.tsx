@@ -5,6 +5,7 @@ import { BookMarked, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EmptyInline } from "@/components/shared-admin";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type TopicStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 
@@ -217,7 +218,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
               ) : <EmptyInline text="No syllabus topics yet. Add the first topic below." />}
 
               <div className="flex gap-2 pt-1">
-                <input
+                <SystemInput
                   type="text"
                   value={topicTitle}
                   onChange={(e) => setTopicTitle(e.target.value)}

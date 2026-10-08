@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,6 +42,7 @@ import { EditableProfileCard, type EditableProfile } from "@/components/profile/
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -199,10 +202,10 @@ export function RoleHeader({
     if (!notification.isRead) {
       markAsRead([notification.id]);
     }
-    
+
     // Close the dropdown
     setNotifOpen(false);
-    
+
     // Navigate to the link if available
     if (notification.link) {
       router.push(notification.link);
@@ -511,7 +514,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Current Password
             </label>
-            <input
+            <SystemInput
               type={showPasswords ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -524,22 +527,22 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               New Password
             </label>
-            <div className="relative">
-              <input
+            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
+              <SystemInput
                 type={showPasswords ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
                 className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
-              <button
+              <button data-field-affix="end"
                 type="button"
                 onClick={() => setShowPasswords(!showPasswords)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            </div>
+            </InputGroup>
             {newPassword && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex gap-1 flex-1">
@@ -567,7 +570,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               Confirm New Password
             </label>
-            <input
+            <SystemInput
               type={showPasswords ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

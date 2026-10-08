@@ -21,6 +21,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ModalSurface } from "@/components/ui/modal";
 import { TeacherPicker, useTeacherAvailability, type PickerTeacher } from "@/components/shared-admin/teacher-picker";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 interface WizardSection {
   key: string;
@@ -423,7 +426,7 @@ export function CreateClassWizard({
               <div className="rounded-3xl bg-[#fbf0fe]/50 p-5 border border-[#cfc2d6]/25">
                 <label className="block">
                   <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Class Name</span>
-                  <input
+                  <SystemInput
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -435,7 +438,7 @@ export function CreateClassWizard({
               <div className="rounded-3xl bg-[#fbf0fe]/50 p-5 border border-[#cfc2d6]/25">
                 <label className="block">
                   <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Academic Year</span>
-                  <input
+                  <SystemInput
                     type="number"
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
@@ -521,7 +524,7 @@ export function CreateClassWizard({
               </div>
 
               {!hasSections ? (
-                <div className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="sk-panel p-5">
                   <p className="mb-3 text-sm font-black text-[#1f1a23]">
                     {name.trim() || "This class"}
                     {teachingMode === "SINGLE" ? (
@@ -560,7 +563,7 @@ export function CreateClassWizard({
                   <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     Sections <span className="text-ink-subtle">(comma separated)</span>
                   </span>
-                  <input
+                  <SystemInput
                     type="text"
                     value={sectionsInput}
                     onChange={(e) => setSectionsInput(e.target.value)}
@@ -579,7 +582,7 @@ export function CreateClassWizard({
               {(sections.length > 0 || sectionNames.length > 0) ? (
                 <div className="space-y-3">
                   {sections.map((section) => (
-                    <div key={section.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={section.key} className="sk-panel p-5">
                       <p className="mb-3 text-sm font-black text-[#1f1a23]">
                         Section {section.name}
                         {teachingMode === "SINGLE" ? (
@@ -631,7 +634,7 @@ export function CreateClassWizard({
                   </div>
                   <div className="flex items-center gap-2">
                     {copyableClasses.length > 0 ? (
-                      <select
+                      <SystemSelect
                         value={copyFromClassId}
                         onChange={(e) => applyCopySubjects(e.target.value)}
                         className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-3 text-[10px] font-black text-[#8127cf] outline-none"
@@ -642,7 +645,7 @@ export function CreateClassWizard({
                             {cls.name}{cls.section ? ` ${cls.section}` : ""} ({cls.subjects?.length} subjects)
                           </option>
                         ))}
-                      </select>
+                      </SystemSelect>
                     ) : null}
                     <button
                       type="button"
@@ -659,7 +662,7 @@ export function CreateClassWizard({
               {subjects.length > 0 ? (
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
-                    <div key={subject.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={subject.key} className="sk-panel p-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-black text-[#1f1a23]">Subject {index + 1}</p>
@@ -680,7 +683,7 @@ export function CreateClassWizard({
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
                         <label className="block">
                           <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject Name</span>
-                          <input
+                          <SystemInput
                             type="text"
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
@@ -690,7 +693,7 @@ export function CreateClassWizard({
                         </label>
                         <label className="block">
                           <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Total Marks</span>
-                          <input
+                          <SystemInput
                             type="number"
                             value={subject.totalMarks}
                             onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
@@ -777,9 +780,9 @@ export function CreateClassWizard({
               {subjects.length > 0 ? (
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
-                    <div key={subject.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={subject.key} className="sk-panel p-5">
                       <p className="mb-3 text-sm font-black text-[#1f1a23]">{subject.name.trim() || `Subject ${index + 1}`}</p>
-                      <textarea
+                      <SystemTextarea
                         value={subject.topicsText}
                         onChange={(e) => updateSubject(subject.key, { topicsText: e.target.value })}
                         rows={3}
@@ -835,7 +838,7 @@ export function CreateClassWizard({
               </div>
 
               {subjects.length > 0 ? (
-                <div className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="sk-panel p-5">
                   <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject summary</p>
                   <div className="space-y-2">
                     {subjects.map((subject, index) => (

@@ -91,7 +91,7 @@ export default function TeacherInsightsPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
           {/* Attendance Donut */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
@@ -141,7 +141,7 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Marks Progress Bar Chart */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
@@ -174,7 +174,7 @@ export default function TeacherInsightsPage() {
           </div>
 
           {/* Performance Summary */}
-          <div className="sk-rise bg-white rounded-[24px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
@@ -236,7 +236,7 @@ export default function TeacherInsightsPage() {
 
         {/* ── Class by class ── */}
         {classBreakdown.length > 0 ? (
-          <div className="sk-rise overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b border-[#cfc2d6]/12 px-4 py-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">

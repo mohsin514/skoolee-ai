@@ -5,7 +5,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const cardSurface = "rounded-[28px] border border-[#cfc2d6]/25 bg-white text-[#1f1a23] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-200";
+export const cardSurface = "sk-panel text-[#1f1a23] transition-all duration-200";
 
 const Card = React.forwardRef<
   HTMLDivElement,

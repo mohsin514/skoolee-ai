@@ -30,6 +30,9 @@ import {
   paymentMethodLabel,
   statusBadgeClass,
 } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 const STATUSES: { value: string; label: string }[] = [
   { value: "", label: "All" },
@@ -197,7 +200,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
           ))}
         </div>
 
-        <select
+        <SystemSelect
           value={classFilter}
           onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none focus:border-[#8127cf]/30"
@@ -206,9 +209,9 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
           {classes.map((c) => (
             <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <input
+        <SystemInput
           type="month"
           value={monthFilter}
           onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
@@ -216,7 +219,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         />
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
-          <input
+          <SystemInput
             type="text"
             placeholder="Search student or invoice #..."
             value={searchInput}
@@ -263,7 +266,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         />
       ) : (
         <>
-          <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise overflow-hidden">
             <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <span>Student</span>
               <span>Invoice</span>
@@ -615,20 +618,20 @@ function GenerateInvoicesModal({
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Month</label>
-            <input type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
+            <SystemInput type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Class (optional)</label>
-            <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
+            <SystemSelect value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
               <option value="">All Classes</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
-            </select>
+            </SystemSelect>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+            <SystemCheckbox
+
               checked={includeLateFees}
               onChange={(e) => setIncludeLateFees(e.target.checked)}
               className="accent-[#8127cf] w-4 h-4"

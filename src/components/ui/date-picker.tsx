@@ -2,7 +2,7 @@
 
 import { forwardRef, useLayoutEffect, useRef, useState, type InputHTMLAttributes } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { Input } from "./input";
+import { Input } from "./input-base";
 import { Button } from "./button";
 import { ModalSurface } from "./modal";
 import { cn } from "@/lib/utils";
@@ -37,9 +37,10 @@ const defaultMessages = {
 };
 export type DatePickerMessages = typeof defaultMessages;
 
-type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'min' | 'max'> & {
-  value: string;
-  onValueChange: (value: string) => void;
+type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'defaultValue' | 'type'> & {
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
   /** Names the calendar trigger and its selected-date summary. */
   label?: string;
   /** Display locale only; the submitted value remains an ISO Gregorian date. */
@@ -50,7 +51,11 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 
 };
 
 /** Editable native date field with a branded, keyboard-accessible calendar. */
-export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicker({ value, onValueChange, label = 'Effective date', locale = 'en-US', weekStartsOn = 0, messages, dir, className, disabled, readOnly, ...props }, ref) {
+export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicker({ value: suppliedValue, defaultValue, onValueChange, onChange, min, max, label = 'Effective date', locale = 'en-US', weekStartsOn = 0, messages, dir, className, disabled, readOnly, ...props }, ref) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [localValue, setLocalValue] = useState(defaultValue ?? '');
+  const value = suppliedValue ?? localValue;
+  const outOfRange = (date: Date) => (typeof min === 'string' && iso(date) < min) || (typeof max === 'string' && iso(date) > max);
   const copy = { ...defaultMessages, ...messages };
   const formatDate = (date: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, { ...options, calendar: 'gregory' }).format(date);
   const formatNumber = (value: number) => new Intl.NumberFormat(locale, { useGrouping: false }).format(value);
@@ -64,8 +69,24 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
   const year = cursor.getFullYear(), month = cursor.getMonth();
   const count = new Date(year, month + 1, 0).getDate();
   const offset = (new Date(year, month, 1).getDay() - weekStartsOn + 7) % 7;
-  const choose = (date: Date) => { onValueChange(iso(date)); setOpen(false); };
-  const focusDate = (date: Date) => {
+  const choose = (date: Date) => {
+    if (outOfRange(date)) return;
+    const input = inputRef.current;
+    if (input) {
+      // Use the native setter so React receives a genuine input event, including
+      // its name, validity, target and form association (react-hook-form too).
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, iso(date));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    setOpen(false);
+  };
+  const boundedDate = (date: Date) => {
+    const lower = typeof min === 'string' ? parse(min) : null;
+    const upper = typeof max === 'string' ? parse(max) : null;
+    return lower && date < lower ? lower : upper && date > upper ? upper : date;
+  };
+  const focusDate = (requested: Date) => {
+    const date = boundedDate(requested);
     pendingFocus.current = iso(date);
     setCursor(date);
   };
@@ -81,9 +102,17 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
     next.setDate(next.getDate() + days);
     focusDate(next);
   };
-  return <div dir={dir} lang={locale} className="relative min-w-0">
-    <Input {...props} ref={ref} dir={dir} lang={locale} type="date" value={value} disabled={disabled} readOnly={readOnly} onChange={(event) => onValueChange(event.target.value)} className={cn('sk-date pe-14', className)} />
-    <button type="button" disabled={disabled || readOnly} aria-label={copy.openCalendar(label)} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setCursor(parse(value) ?? new Date()); setOpen(true); }} className="absolute end-0.5 top-0.5 grid h-11 w-11 place-items-center rounded-[14px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"><CalendarDays aria-hidden="true" className="h-5 w-5" /></button>
+  return <div data-date-field="" dir={dir} lang={locale} className="relative min-w-0">
+    <Input {...props} min={min} max={max} ref={(node) => {
+      inputRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    }} dir={dir} lang={locale} type="date" value={suppliedValue} defaultValue={suppliedValue === undefined ? defaultValue : undefined} disabled={disabled} readOnly={readOnly} onChange={(event) => {
+      if (suppliedValue === undefined) setLocalValue(event.target.value);
+      onValueChange?.(event.target.value);
+      onChange?.(event);
+    }} className={cn('sk-date pe-14', className)} />
+    <button type="button" disabled={disabled || readOnly} aria-label={copy.openCalendar(label)} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setLocalValue(inputRef.current?.value ?? ""); setCursor(boundedDate(parse(inputRef.current?.value ?? value) ?? new Date())); setOpen(true); }} className="absolute end-0.5 top-0.5 grid h-11 w-11 place-items-center rounded-[14px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"><CalendarDays aria-hidden="true" className="h-5 w-5" /></button>
     {open && <ModalSurface onClose={() => setOpen(false)} ariaLabel={copy.dialogTitle} className="!max-w-sm">
       <div dir={dir} lang={locale} className="min-h-0 overflow-y-auto overscroll-contain">
         <div className="relative overflow-hidden bg-gradient-to-br from-[#542080] via-[#7020b9] to-[#8127cf] px-5 pb-5 pt-5 text-white sm:px-6">
@@ -115,10 +144,10 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
             {Array.from({ length: offset }, (_, i) => <span key={`blank-${i}`} />)}
             {Array.from({ length: count }, (_, i) => {
               const date = new Date(year, month, i + 1), key = iso(date), selected = key === value, isToday = key === today;
-              return <button type="button" key={key} data-date={key} aria-label={formatDate(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} aria-pressed={selected} aria-current={isToday ? 'date' : undefined} tabIndex={cursor.getDate() === i + 1 ? 0 : -1} onFocus={() => { if (iso(cursor) !== key) setCursor(date); }} onClick={() => choose(date)} className={cn('relative min-h-11 rounded-xl text-sm font-medium tabular-nums transition-[background-color,color,box-shadow] hover:bg-primary/10', selected && 'bg-primary font-bold text-white shadow-[0_5px_12px_-4px_rgba(129,39,207,0.5)] hover:bg-primary', !selected && isToday && 'bg-primary/5 font-bold text-primary ring-1 ring-inset ring-primary/25')}>{formatNumber(i + 1)}{isToday && <span aria-hidden="true" className={cn('absolute bottom-1 start-1/2 h-1 w-1 -translate-x-1/2 rounded-full rtl:translate-x-1/2', selected ? 'bg-white' : 'bg-primary')} />}</button>;
+              return <button type="button" key={key} data-date={key} aria-label={formatDate(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} disabled={outOfRange(date)} aria-pressed={selected} aria-current={isToday ? 'date' : undefined} tabIndex={cursor.getDate() === i + 1 ? 0 : -1} onFocus={() => { if (iso(cursor) !== key) setCursor(date); }} onClick={() => choose(date)} className={cn('disabled:cursor-not-allowed disabled:opacity-35 relative min-h-11 rounded-xl text-sm font-medium tabular-nums transition-[background-color,color,box-shadow] hover:bg-primary/10', selected && 'bg-primary font-bold text-white shadow-[0_5px_12px_-4px_rgba(129,39,207,0.5)] hover:bg-primary', !selected && isToday && 'bg-primary/5 font-bold text-primary ring-1 ring-inset ring-primary/25')}>{formatNumber(i + 1)}{isToday && <span aria-hidden="true" className={cn('absolute bottom-1 start-1/2 h-1 w-1 -translate-x-1/2 rounded-full rtl:translate-x-1/2', selected ? 'bg-white' : 'bg-primary')} />}</button>;
             })}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3"><Button variant="ghost" onClick={() => choose(new Date())} className="text-primary hover:text-primary">{copy.today}</Button><Button variant="outline" onClick={() => setOpen(false)}>{copy.cancel}</Button></div>
+          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3"><Button variant="ghost" disabled={outOfRange(new Date())} onClick={() => choose(new Date())} className="text-primary hover:text-primary">{copy.today}</Button><Button variant="outline" onClick={() => setOpen(false)}>{copy.cancel}</Button></div>
           <p className="sr-only">{copy.keyboardHelp}</p>
         </div>
       </div>

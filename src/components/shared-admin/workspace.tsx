@@ -1,4 +1,7 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, {
   useCallback,
@@ -21,6 +24,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -129,7 +135,7 @@ export function WorkspaceHeader({
 }) {
   const t = toneOf(tone);
   return (
-    <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
+    <div className="sk-panel sk-rise relative overflow-hidden px-4 py-4 sm:px-5">
       {/* A gradient rail reads as considered where a full gradient panel reads
           as decoration — and it costs no vertical space. */}
       <span
@@ -163,7 +169,7 @@ export function WorkspaceHeader({
               </span>
             </div>
             {summary ? (
-              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
+              <p className="break-words text-sm font-medium leading-relaxed text-ink-muted">
                 {summary}
               </p>
             ) : null}
@@ -275,9 +281,9 @@ export function WorkspaceToolbar({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+    <div className="sk-toolbar sticky top-0 z-20 flex flex-wrap items-center backdrop-blur-xl">
       {children}
-      {trailing ? <div className="ml-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
+      {trailing ? <div className="ms-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
     </div>
   );
 }
@@ -324,9 +330,9 @@ export function SearchField({
   }, [autoFocusKey]);
 
   return (
-    <div className={cn("relative min-w-[190px] flex-1", className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
-      <input
+    <InputGroup surfaceClassName="bg-[#faf7fc]" className={cn("relative min-w-[190px] flex-1", className)}>
+      <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
+      <SystemInput
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -335,7 +341,7 @@ export function SearchField({
         className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
       />
       {value ? (
-        <button
+        <button data-field-affix="end"
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
@@ -344,7 +350,7 @@ export function SearchField({
           <X className="h-3.5 w-3.5" />
         </button>
       ) : null}
-    </div>
+    </InputGroup>
   );
 }
 
@@ -362,7 +368,7 @@ export function ToolbarSelect({
 }) {
   return (
     <div className="relative">
-      <select
+      <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
@@ -373,8 +379,8 @@ export function ToolbarSelect({
             {l}
           </option>
         ))}
-      </select>
-      <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-[#8127cf]" />
+      </SystemSelect>
+
     </div>
   );
 }
@@ -400,7 +406,7 @@ export function ToolbarToggle({
     violet: { on: "border-[#8127cf]/40 bg-[#fbf0fe] text-[#8127cf]", badge: "bg-[#8127cf]" },
   } as const;
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={onClick}
       aria-pressed={active}
@@ -416,7 +422,7 @@ export function ToolbarToggle({
       {count ? (
         <span className={cn("rounded-full px-1.5 text-[9px] text-white", tones[tone].badge)}>{count}</span>
       ) : null}
-    </button>
+    </Button>
   );
 }
 
@@ -432,7 +438,7 @@ export function ViewSwitch({
   return (
     <div className="flex h-10 items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
       {options.map((o) => (
-        <button
+        <Button variant="outline"
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
@@ -447,7 +453,7 @@ export function ViewSwitch({
         >
           <o.icon className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{o.label}</span>
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -455,19 +461,19 @@ export function ViewSwitch({
 
 export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={onToggle}
       aria-label={dir === "asc" ? "Sort descending" : "Sort ascending"}
       title={dir === "asc" ? "Ascending" : "Descending"}
-      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+      className="w-10"
     >
       {dir === "asc" ? (
         <ArrowUpWideNarrow className="h-4 w-4" />
       ) : (
         <ArrowDownWideNarrow className="h-4 w-4" />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -509,7 +515,7 @@ export function SelectionBar({
         </span>
       ) : (
         actions.map((a) => (
-          <button
+          <Button variant="outline"
             key={a.key}
             type="button"
             disabled={busy || a.disabled}
@@ -529,16 +535,16 @@ export function SelectionBar({
                 {a.count}
               </span>
             ) : null}
-          </button>
+          </Button>
         ))
       )}
-      <button
+      <Button variant="outline"
         type="button"
         onClick={onClear}
-        className="ml-auto cursor-pointer rounded-2xl px-3 py-2 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
+        className=""
       >
         Clear
-      </button>
+      </Button>
     </div>
   );
 }
@@ -592,14 +598,14 @@ export function DataTable<T>({
   const pad = density === "compact" ? "px-3 py-2" : "px-4 py-3";
 
   return (
-    <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-sm custom-scrollbar">
-      <table className="w-full text-left" style={{ minWidth }}>
+    <div className="sk-panel overflow-x-auto custom-scrollbar">
+      <table className="sk-data-table" style={{ minWidth }}>
         <thead>
           <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
             {selectable ? (
               <th className={cn("w-10", pad)}>
-                <input
-                  type="checkbox"
+                <SystemCheckbox
+
                   checked={allSelected}
                   onChange={onToggleAll}
                   aria-label="Select everything in this list"
@@ -612,7 +618,7 @@ export function DataTable<T>({
                 key={c.key}
                 className={cn(
                   pad,
-                  "text-[9px] font-black uppercase tracking-wider text-ink-muted",
+                  "text-xs font-semibold text-ink-muted",
                   c.width,
                   c.align === "right" && "text-right",
                   c.align === "center" && "text-center",
@@ -650,16 +656,17 @@ export function DataTable<T>({
             return (
               <tr
                 key={id}
+                data-state={isSelected ? "selected" : undefined}
                 className={cn(
-                  "border-b border-[#cfc2d6]/5 transition-colors hover:bg-[#fbf0fe]/25",
-                  isSelected && "bg-[#fbf0fe]/40",
+                  "",
+
                   rowClassName?.(row),
                 )}
               >
                 {selectable ? (
                   <td className={pad}>
-                    <input
-                      type="checkbox"
+                    <SystemCheckbox
+
                       checked={Boolean(isSelected)}
                       onChange={() => onToggleSelect?.(id)}
                       aria-label="Select row"
@@ -733,7 +740,7 @@ export function Pagination({
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
           Per page
-          <select
+          <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
             className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40"
@@ -743,31 +750,31 @@ export function Pagination({
                 {n}
               </option>
             ))}
-          </select>
+          </SystemSelect>
         </label>
         {totalPages > 1 ? (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button variant="outline"
               type="button"
               onClick={() => onPage(Math.max(1, page - 1))}
               disabled={page <= 1}
               aria-label="Previous page"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-30"
+              className="w-10"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
+            </Button>
             <span className="min-w-[64px] text-center text-[10px] font-black uppercase tracking-wider text-ink-muted">
               {page} / {totalPages}
             </span>
-            <button
+            <Button variant="outline"
               type="button"
               onClick={() => onPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
               aria-label="Next page"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-30"
+              className="w-10"
             >
               <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -859,7 +866,7 @@ export function ModalPager({
         tone === "dark" ? "bg-white/12" : "bg-[#f3f4f9]",
       )}
     >
-      <button
+      <Button variant="outline"
         type="button"
         disabled={!prev}
         onClick={() => prev && onNavigate(prev.id)}
@@ -871,7 +878,7 @@ export function ModalPager({
         )}
       >
         <ChevronLeft className="h-4 w-4" />
-      </button>
+      </Button>
       <span
         className={cn(
           "px-1 text-[10px] font-black tabular-nums",
@@ -880,7 +887,7 @@ export function ModalPager({
       >
         {index + 1}/{sequence.length}
       </span>
-      <button
+      <Button variant="outline"
         type="button"
         disabled={!next}
         onClick={() => next && onNavigate(next.id)}
@@ -892,7 +899,7 @@ export function ModalPager({
         )}
       >
         <ChevronRight className="h-4 w-4" />
-      </button>
+      </Button>
     </div>
   );
 }

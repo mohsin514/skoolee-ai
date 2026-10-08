@@ -35,6 +35,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { cn } from "@/lib/utils";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 interface Designation {
   id: string;
@@ -512,7 +513,7 @@ function Toggle({
 }) {
   return (
     <label className="flex cursor-pointer items-start gap-2.5">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[#8127cf]" />
+      <SystemCheckbox  checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[#8127cf]" />
       <span className="min-w-0">
         <span className="block text-xs font-black text-ink">{label}</span>
         <span className="block text-[10px] font-semibold text-ink-muted">{hint}</span>

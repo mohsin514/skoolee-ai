@@ -22,6 +22,8 @@ import {
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { TeacherSubnav } from "@/components/teacher/teacher-page";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /* ── Pure helpers ── */
 
@@ -198,10 +200,10 @@ export function DetailRow({ label, value }: { label: string; value: ReactNode })
 export function FormInput({ label, value, placeholder, type = "text", required, onChange }: { label: string; value: string; placeholder: string; type?: string; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+      <span className="sk-field-label">
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
-      <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
+      <SystemInput type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20" />
     </label>
   );
@@ -210,13 +212,13 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
 export function FormSelect({ label, value, children, required, onChange }: { label: string; value: string; children: ReactNode; required?: boolean; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+      <span className="sk-field-label">
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}
+      <SystemSelect value={value} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white hover:border-[#8127cf]/20">
         {children}
-      </select>
+      </SystemSelect>
     </label>
   );
 }
@@ -266,8 +268,8 @@ export function ConfigField({ label, value, onChange }: { label: string; value: 
 
   return (
     <div>
-      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
-      <input type="number" min={0} max={100} value={text}
+      <span className="sk-field-label">{label}</span>
+      <SystemInput type="number" min={0} max={100} value={text}
         onFocus={() => { editing.current = true; }}
         onBlur={() => {
           editing.current = false;

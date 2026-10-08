@@ -31,6 +31,8 @@ import {
   paymentMethodLabel,
   statusBadgeClass,
 } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const METHODS = [
   { value: "", label: "All Methods" },
@@ -124,7 +126,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
+        <SystemSelect
           value={methodFilter}
           onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none focus:border-[#8127cf]/30"
@@ -132,16 +134,16 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
           {METHODS.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <input
+        <SystemInput
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
           className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none focus:border-[#8127cf]/30"
           placeholder="From"
         />
-        <input
+        <SystemInput
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
@@ -150,7 +152,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         />
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
-          <input
+          <SystemInput
             type="text"
             placeholder="Search by name, receipt #..."
             value={searchInput}
@@ -193,7 +195,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         />
       ) : (
         <>
-          <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise overflow-hidden">
             <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <span>Student</span>
               <span>Receipt</span>
@@ -496,7 +498,7 @@ function PaymentModal({
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Find Student</label>
               <div className="flex gap-2">
-                <input
+                <SystemInput
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -580,39 +582,39 @@ function PaymentModal({
             })()}
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Amount (PKR)</label>
-              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
+              <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Fine (PKR)</label>
-                <input type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
+                <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
               <div>
                 <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Discount (PKR)</label>
-                <input type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
+                <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
               </div>
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Payment Date</label>
-              <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
+              <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Method</label>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
+              <SystemSelect value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="CASH">Cash</option>
                 <option value="BANK">Bank Transfer</option>
                 <option value="CHEQUE">Cheque</option>
                 <option value="MOBILE_WALLET">Mobile Wallet</option>
                 <option value="SAFEPAY">SafePay / Card</option>
-              </select>
+              </SystemSelect>
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Reference (optional)</label>
-              <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction ID / Cheque #" className={inputClass} />
+              <SystemInput type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction ID / Cheque #" className={inputClass} />
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Note (optional)</label>
-              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. late fee waived" className={inputClass} />
+              <SystemInput type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. late fee waived" className={inputClass} />
             </div>
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}>Back</BrandButton>
@@ -689,16 +691,16 @@ function BankImportModal({
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">Account Name</label>
-            <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+            <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="School Savings Account" className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">From</label>
-              <input type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+              <SystemInput type="date" value={statementFrom} onChange={(e) => setStatementFrom(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
             <div>
               <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">To</label>
-              <input type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
+              <SystemInput type="date" value={statementTo} onChange={(e) => setStatementTo(e.target.value)} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />
             </div>
           </div>
           <div>

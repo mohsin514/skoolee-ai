@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Turning a marked exam into report cards families can read (§81).
@@ -549,7 +550,7 @@ export function ReportCardsPanel({
                       {c.grade ?? "—"}
                     </td>
                     <td className="px-2 py-2 min-w-[16rem]">
-                      <input
+                      <SystemInput
                         type="text"
                         defaultValue={remarkOf(c)}
                         disabled={published || c.isSent}

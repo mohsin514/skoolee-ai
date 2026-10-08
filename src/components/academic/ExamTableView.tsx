@@ -26,6 +26,7 @@ import {
   type ScheduleSummary,
 } from "@/lib/academic/exam-pipeline";
 import type { DetailTab } from "@/components/academic/ExamBoardCard";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 export type SortKey = "manual" | "title" | "class" | "progress" | "date" | "stage";
 
@@ -81,8 +82,8 @@ export function ExamTableView({
         <thead>
           <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
             <th className="w-10 px-4 py-3">
-              <input
-                type="checkbox"
+              <SystemCheckbox
+
                 checked={allSelected}
                 onChange={onToggleAll}
                 aria-label="Select every exam in this list"
@@ -141,8 +142,8 @@ export function ExamTableView({
                 )}
               >
                 <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
+                  <SystemCheckbox
+
                     checked={selected.has(exam.id)}
                     onChange={() => onToggleSelect(exam.id)}
                     aria-label={`Select ${exam.title}`}

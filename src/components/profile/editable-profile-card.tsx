@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { BrandButton } from "@/components/role-dashboard/BrandButton";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Input as SystemInput } from "@/components/ui/input";
 
 export type EditableProfile = {
   id?: string;
@@ -269,7 +270,7 @@ function ProfileInput({
   return (
     <label className="block">
       <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
-      <input
+      <SystemInput
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

@@ -30,6 +30,7 @@ import {
   type NextAction,
   type ScheduleSummary,
 } from "@/lib/academic/exam-pipeline";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /**
  * Where opening an exam should land.
@@ -145,8 +146,8 @@ export function ExamBoardCard({
           >
             <GripVertical className="h-4 w-4" />
           </span>
-          <input
-            type="checkbox"
+          <SystemCheckbox
+
             checked={selected}
             onChange={() => onToggleSelect()}
             onClick={(e) => e.stopPropagation()}

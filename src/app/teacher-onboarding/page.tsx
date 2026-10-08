@@ -1,4 +1,6 @@
 'use client';
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,6 +28,7 @@ import { getTeacherOnboardingSession, completeTeacherOnboarding } from '@/app/ac
 import { dashboardPathForRole } from '@/lib/roles';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select as SystemSelect } from "@/components/ui/select";
 
 const STEPS = ["Personal Info", "Professional", "Address & Emergency"] as const;
 
@@ -667,9 +670,9 @@ function Field({
       <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <div className="group relative flex items-center">
+      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
         {Icon && (
-          <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+          <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
         )}
         <Input
           id={id}
@@ -682,7 +685,7 @@ function Field({
             Icon ? "pl-10" : "pl-4"
           } pr-4 ${error ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"} ${inputClassName}`}
         />
-      </div>
+      </InputGroup>
       {error
         ? <p className="px-1 text-xs font-bold text-rose-500">{error}</p>
         : hint
@@ -702,14 +705,14 @@ function SelectField({ label, id, value, onChange, children }: {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">{label}</Label>
-      <select
+      <SystemSelect
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] px-4 text-sm font-bold text-[#1f1a23] shadow-none outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
       >
         {children}
-      </select>
+      </SystemSelect>
     </div>
   );
 }

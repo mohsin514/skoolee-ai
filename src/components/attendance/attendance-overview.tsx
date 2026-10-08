@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +23,7 @@ import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { downloadCSV } from "@/lib/csv";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -725,16 +728,16 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                   Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
                 </p>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
-                  <input
+                <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
+                  <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+                  <SystemInput
                     type="text"
                     placeholder="Search class..."
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
                     className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
                   />
-                </div>
+                </InputGroup>
               </div>
 
               {loadingMonthly ? (
@@ -993,16 +996,16 @@ function ClassDetailView({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Student Attendance &mdash; {formatMonthLabel(month)}
             </p>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
-              <input
+            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
+              <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+              <SystemInput
                 type="text"
                 placeholder="Search student..."
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
                 className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
               />
-            </div>
+            </InputGroup>
           </div>
 
           {filteredStudents.length === 0 ? (

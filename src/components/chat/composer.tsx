@@ -6,6 +6,7 @@ import { Check, ImageIcon, Loader2, Lock, Paperclip, Send, X } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
 import type { ChatMessageView } from "@/lib/chat/types";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 const MAX_LENGTH = 4000;
 
@@ -289,7 +290,7 @@ export function Composer({
         <label className="sr-only" htmlFor="chat-composer">
           Write a message
         </label>
-        <textarea
+        <SystemTextarea
           id="chat-composer"
           ref={textareaRef}
           rows={1}

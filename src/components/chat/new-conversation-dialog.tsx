@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDialogBehaviour } from "@/components/ui/modal";
@@ -10,6 +12,7 @@ import { useChat } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import { ChatPortal } from "./chat-portal";
 import type { DirectoryContact } from "@/lib/chat/types";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Grouping order — leadership first, families last, which is roughly how often
@@ -288,7 +291,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       <label className="sr-only" htmlFor="group-title">
                         Group name
                       </label>
-                      <input
+                      <SystemInput
                         id="group-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
@@ -323,15 +326,15 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   )}
                 </AnimatePresence>
 
-                <div className="relative">
-                  <Search
+                <InputGroup surfaceClassName="bg-white" className="relative">
+                  <Search data-field-affix="start"
                     className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
                     aria-hidden
                   />
                   <label className="sr-only" htmlFor="directory-search">
                     Search people
                   </label>
-                  <input
+                  <SystemInput
                     id="directory-search"
                     type="search"
                     value={query}
@@ -339,7 +342,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     placeholder="Search by name"
                     className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
                   />
-                </div>
+                </InputGroup>
               </div>
 
               {/* ── Directory ──

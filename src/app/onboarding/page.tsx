@@ -1,4 +1,6 @@
 'use client'
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,6 +36,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard is keyed by step *id*, not by number. A standalone school
@@ -276,7 +280,7 @@ export default function OnboardingWizard() {
       toast.error("Please fill in Campus Name, City, and Campus ID.");
       return;
     }
-    
+
     // Validate email format if provided
     if (newCampus.email && newCampus.email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -285,7 +289,7 @@ export default function OnboardingWizard() {
         return;
       }
     }
-    
+
     // Validate phone number format if provided
     if (newCampus.phone && newCampus.phone.trim()) {
       // Remove all non-digit characters to count actual digits
@@ -299,13 +303,13 @@ export default function OnboardingWizard() {
         return;
       }
     }
-    
+
     // Check for duplicate Campus ID (exclude the campus being edited)
     if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase() && c.id !== editingCampusId)) {
       toast.error("That Campus ID is already used by another campus.");
       return;
     }
-    
+
     if (editingCampusId) {
       // Update existing campus
       setCampuses(campuses.map(c => c.id === editingCampusId ? { ...newCampus, id: editingCampusId } : c));
@@ -393,7 +397,7 @@ export default function OnboardingWizard() {
       // Validate Campus ID is provided
       const campusRegId = campuses.length > 0 ? campuses[0].regId : (newCampus.regId || schoolData.regId);
       const campusAutoId = campuses.length > 0 ? campuses[0].autoId : (newCampus.autoId);
-      
+
       if (!campusRegId) {
         toast.error("Campus ID is required.");
         return;
@@ -624,27 +628,27 @@ export default function OnboardingWizard() {
 
                       <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-5">
-                          <InputField 
-                            label="Phone Number" 
-                            value={schoolData.phone} 
+                          <InputField
+                            label="Phone Number"
+                            value={schoolData.phone}
                             onChange={(v: string) => {
                               // Basic phone validation: allow digits, spaces, +, -, and parentheses
                               const cleaned = v.replace(/[^\d\s+\-()]/g, '');
                               setSchoolData({ ...schoolData, phone: cleaned });
-                            }} 
-                            placeholder="+92 300 0000000" 
+                            }}
+                            placeholder="+92 300 0000000"
                             icon={Phone}
                             type="tel"
                           />
-                          <InputField 
-                            label="Est. Year" 
-                            value={schoolData.establishedYear} 
+                          <InputField
+                            label="Est. Year"
+                            value={schoolData.establishedYear}
                             onChange={(v: string) => {
                               // Allow year input and validation
                               const year = v.replace(/[^\d]/g, '').slice(0, 4);
                               setSchoolData({ ...schoolData, establishedYear: year });
-                            }} 
-                            placeholder="e.g. 1998" 
+                            }}
+                            placeholder="e.g. 1998"
                             icon={CalendarDays}
                             type="number"
                             inputMode="numeric"
@@ -720,16 +724,16 @@ export default function OnboardingWizard() {
                           <InputField label="Head of Campus" value={newCampus.principalName ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
-                            <div className="relative group flex items-center">
-                              <GraduationCap className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                              <select
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+                              <GraduationCap data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                              <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                               >
                                 {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
-                              </select>
-                            </div>
+                              </SystemSelect>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -805,11 +809,11 @@ export default function OnboardingWizard() {
 
                       <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                         {campuses.map((c, i) => (
-                          <div 
-                            key={c.id} 
+                          <div
+                            key={c.id}
                             className={`p-4 rounded-[20px] border flex items-center justify-between group transition-all shadow-sm ${
-                              editingCampusId === c.id 
-                                ? 'bg-[#8127cf]/10 border-[#8127cf]/30' 
+                              editingCampusId === c.id
+                                ? 'bg-[#8127cf]/10 border-[#8127cf]/30'
                                 : 'bg-[#fbf0fe]/50 border-transparent hover:bg-white hover:border-[#8127cf]/10'
                             }`}
                           >
@@ -831,16 +835,16 @@ export default function OnboardingWizard() {
                               </div>
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={() => editCampus(c)} 
+                              <button
+                                onClick={() => editCampus(c)}
                                 className="text-[#8127cf] p-2 hover:bg-[#fbf0fe] rounded-lg cursor-pointer transition-colors"
                                 title="Edit campus"
                                 disabled={editingCampusId === c.id}
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
-                              <button 
-                                onClick={() => setCampusToDelete(c)} 
+                              <button
+                                onClick={() => setCampusToDelete(c)}
                                 className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
                                 title="Delete campus"
                               >
@@ -895,8 +899,8 @@ export default function OnboardingWizard() {
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Academic Year <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <CalendarDays className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
+                              <CalendarDays data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.academicYear}
                                 onChange={e => setAcademicYear(e.target.value)}
@@ -904,21 +908,21 @@ export default function OnboardingWizard() {
                                 inputMode="numeric"
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                            </div>
+                            </InputGroup>
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Session Name <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <Tag className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
+                              <Tag data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.sessionLabel}
                                 onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
                                 placeholder={sessionLabelFor(thisYear)}
                                 className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                              <button
+                              <button data-field-affix="end"
                                 type="button"
                                 aria-label="Reset session name"
                                 onClick={() => setSchoolData({ ...schoolData, sessionLabel: sessionLabelFor(Number(schoolData.academicYear) || thisYear) })}
@@ -926,7 +930,7 @@ export default function OnboardingWizard() {
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
                               </button>
-                            </div>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -952,16 +956,16 @@ export default function OnboardingWizard() {
 
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Time Zone</Label>
-                          <div className="relative group flex items-center">
-                            <Clock className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                            <select
+                          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+                            <Clock data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <SystemSelect
                               value={schoolData.timezone}
                               onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
                               className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                             >
                               {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </select>
-                          </div>
+                            </SystemSelect>
+                          </InputGroup>
                           <p className="text-[10px] font-bold text-ink-subtle ml-1">
                             Decides which calendar day an attendance mark or fee cutoff falls on.
                           </p>
@@ -1209,13 +1213,13 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
 function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
+      <Label className="sk-field-label">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <div className="relative group flex items-center">
-        <Icon className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+      <InputGroup>
+        {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
-          <textarea
+          <SystemTextarea
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
@@ -1232,7 +1236,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
-      </div>
+      </InputGroup>
     </div>
   );
 }

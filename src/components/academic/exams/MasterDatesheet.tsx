@@ -28,6 +28,8 @@ import {
   inputClass,
   selectClass,
 } from "@/components/academic/exams/shared";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /**
  * The master date sheet (§80).
@@ -687,7 +689,7 @@ function PlacePaperModal({
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Date">
-            <input
+            <SystemInput
               type="date"
               className={inputClass}
               value={date}
@@ -700,7 +702,7 @@ function PlacePaperModal({
             label="Exam period"
             hint={periods.length === 0 ? "No exam periods defined — set them under Daily Periods." : undefined}
           >
-            <select
+            <SystemSelect
               className={selectClass}
               value={periodId}
               onChange={(e) => setPeriodId(e.target.value)}
@@ -712,7 +714,7 @@ function PlacePaperModal({
                   Period {p.periodNumber} · {p.startTime}–{p.endTime}
                 </option>
               ))}
-            </select>
+            </SystemSelect>
           </Field>
         </div>
 

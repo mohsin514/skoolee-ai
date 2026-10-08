@@ -169,7 +169,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
         </BrandButton>
       </div>
 
-      <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel sk-rise overflow-hidden">
         <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
           <span>Student</span>
           <span>Guardian</span>
@@ -334,7 +334,7 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+      <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "80ms" }}>
         <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
           <span>Class</span>
           <span>Students</span>
@@ -445,7 +445,7 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
         {data.map((m, i) => (
           <div
             key={m.method}
-            className="sk-rise rounded-[20px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+            className="sk-panel sk-rise p-5 transition-all hover:-translate-y-0.5"
             style={{ animationDelay: `${i * 60}ms` }}
           >
             <div className="flex items-center justify-between mb-3">

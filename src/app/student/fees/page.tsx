@@ -143,7 +143,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
 
   return (
     <div className={cn(
-      "group relative rounded-[24px] bg-white border shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] overflow-hidden",
+      "sk-panel group relative transition-all duration-300 hover:-translate-y-1 overflow-hidden",
       statusStyle
     )}>
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />

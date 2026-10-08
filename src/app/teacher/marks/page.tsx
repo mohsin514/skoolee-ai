@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -21,6 +23,7 @@ import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { NavGuardPrompt } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
@@ -283,7 +286,7 @@ export default function MarksPage() {
         {/* Zero state — with no assessments the selector, sheet and save bar are
             all inert, so show the way forward instead of three dead controls. */}
         {!data.exams?.length ? (
-          <div className="sk-rise flex flex-col items-center justify-center rounded-[28px] border border-[#cfc2d6]/25 bg-white px-8 py-14 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise flex flex-col items-center justify-center px-8 py-14 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
               <Star className="h-8 w-8 text-white" />
             </div>
@@ -325,9 +328,9 @@ export default function MarksPage() {
             only one — with a filter in front of them, which is what the
             dropdown was really being used for once the list grew. */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-            <input
+          <InputGroup surfaceClassName="bg-white" className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
+            <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+            <SystemInput
               value={examQuery}
               onChange={(e) => setExamQuery(e.target.value)}
               placeholder="Find an assessment or class…"
@@ -335,12 +338,12 @@ export default function MarksPage() {
               className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
             />
             {examQuery ? (
-              <button type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
+              <button data-field-affix="end" type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
                 className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <X className="h-3 w-3" />
               </button>
             ) : null}
-          </div>
+          </InputGroup>
           <span className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">
             {visibleExams.length} of {data.exams.length} assessment{data.exams.length === 1 ? "" : "s"}
           </span>
@@ -417,7 +420,7 @@ export default function MarksPage() {
         )}
 
         {/* Marks table */}
-        <div className="sk-rise overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
+        <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "120ms" }}>
           {marksLoading ? (
             <div>
               <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">
@@ -514,7 +517,7 @@ export default function MarksPage() {
                           const isDirty = dirtyKeys.has(key);
                           return (
                             <td key={subject.id} className="px-3 py-3">
-                              <input type="number" min={0} max={max} value={value} disabled={isLocked}
+                              <SystemInput type="number" min={0} max={max} value={value} disabled={isLocked}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}

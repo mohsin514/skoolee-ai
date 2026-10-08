@@ -1,5 +1,7 @@
 "use client";
 
+import { pageCardSurface } from "@/components/ui/page-card";
+
 import { WorkspaceSubnav } from "@/components/nav/WorkspaceSubnav";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -77,7 +79,7 @@ export function StudentPage({
 }) {
   const t = toneOf(tone);
   return (
-    <section className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]">
+    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden

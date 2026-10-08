@@ -10,6 +10,7 @@ import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
 import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
+import { Input as SystemInput } from "@/components/ui/input";
 
 interface Cycle {
   id: string;
@@ -220,7 +221,7 @@ export function CycleManagementPanel({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Cycle Label</label>
-              <input
+              <SystemInput
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
@@ -230,7 +231,7 @@ export function CycleManagementPanel({
             </div>
             <div>
               <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Academic Year</label>
-              <input
+              <SystemInput
                 type="number"
                 value={newYear}
                 onChange={(e) => setNewYear(Number(e.target.value))}

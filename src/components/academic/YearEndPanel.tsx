@@ -20,6 +20,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
 
@@ -147,7 +148,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
   return (
     <div className="space-y-6">
       {/* ── Year Summary dashboard ── */}
-      <section className="overflow-hidden rounded-3xl border border-[#cfc2d6]/15 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)]">
+      <section className="sk-panel overflow-hidden border-[#cfc2d6]/15">
         <div className="flex flex-col gap-4 p-6 bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
@@ -277,7 +278,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                     Type <span className="font-black text-rose-600">{activeCycle?.label}</span> to confirm
                   </span>
-                  <input
+                  <SystemInput
                     value={archiveConfirm}
                     onChange={(e) => setArchiveConfirm(e.target.value)}
                     placeholder={activeCycle?.label}

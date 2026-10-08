@@ -54,9 +54,7 @@ export function InsightCard({
     <section
       aria-labelledby={headingId}
       className={cn(
-        "sk-rise group/card relative flex flex-col overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5",
-        "shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
-        "transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]",
+        "sk-panel sk-rise group/card relative flex flex-col overflow-hidden p-5",
         className,
       )}
       style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
@@ -69,11 +67,11 @@ export function InsightCard({
             </span>
           ) : null}
           <div className="min-w-0">
-            <h3 id={headingId} className="truncate text-sm font-black tracking-tight text-[#1f1a23]">
+            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-[#1f1a23]">
               {title}
             </h3>
             {subtitle ? (
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{subtitle}</p>
+              <p className="mt-1 text-xs font-medium text-ink-muted">{subtitle}</p>
             ) : null}
           </div>
         </div>
@@ -106,7 +104,7 @@ export function DataTable({ columns, rows }: TableTwin) {
   if (rows.length === 0) return <EmptyChart label="Nothing to tabulate yet" />;
   return (
     <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-[#cfc2d6]/25">
-      <table className="w-full border-collapse text-left">
+      <table className="sk-data-table border-collapse">
         <thead className="sticky top-0 bg-[#fbf0fe]">
           <tr>
             {columns.map((c, i) => (
