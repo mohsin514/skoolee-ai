@@ -1,3 +1,4 @@
+import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { defaultLocale } from "../../src/lib/locale/package";
 import { consume } from "../../src/lib/queue/outbox";
 import { reportDeliveryWorkflow } from "../../src/lib/queue/report-delivery";
@@ -88,7 +89,9 @@ before(async () => {
           onboardingComplete: true,
         },
       });
+    await raw.user.update({where:{id},data:{mfaEnabled:true}});
     const token = await new SignJWT({
+      mfaVerified: true,
       userId: id,
       schoolId,
       campusId,
@@ -97,6 +100,7 @@ before(async () => {
       fullName: `Synthetic ${role}`,
       onboardingComplete: true,
     })
+      .setJti(randomUUID())
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("2h")
@@ -105,6 +109,7 @@ before(async () => {
           process.env.AUTH_SECRET || "synthetic-sko210-local-validation-only",
         ),
       );
+    await raw.loginSession.create({data:{schoolId,userId:id,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+7200000)}});
     cookies.set(role, `skoolee_token=${token}`);
   }
   await raw.class.create({
