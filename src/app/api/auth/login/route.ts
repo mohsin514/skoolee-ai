@@ -132,6 +132,7 @@ async function handleLogin(req: NextRequest) {
     const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
     const token = await new SignJWT({
       userId: user.id,
+      accessVersion: user.accessVersion,
       email: user.email,
       fullName: user.fullName,
       role: user.role,

@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageBilling, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canPurchaseSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageBilling(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canPurchaseSubscription(user)) throw new ApiError("Insufficient permissions", 403);
 
     const { plan, receiptRef } = await req.json();
     if (!plan || !["BASIC", "PRO", "ENTERPRISE"].includes(plan)) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { clearDeviceDrafts } from "@/lib/drafts/store";
+
 import { RoleSidebar } from "@/components/role-dashboard/RoleSidebar";
 import { NavigationAccessProvider } from "@/components/nav/NavigationAccess";
 import {
@@ -34,7 +36,8 @@ const navItems = [
 export function Sidebar() {
   return <NavigationAccessProvider><RoleSidebar tagline="Campus Console" items={navItems} bottomItems={[{
     label: "Sign out", icon: LogOut, onClick: async () => {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
+      clearDeviceDrafts();
+    const response = await fetch("/api/auth/logout", { method: "POST" });
       if (response.ok) window.location.href = "/login";
     },
   }]} /></NavigationAccessProvider>;

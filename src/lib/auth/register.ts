@@ -118,6 +118,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
     const school = await tx.school.create({
       data: {
         name: valid.schoolName,
+        registrationKind: pending.registrationType === "school_group" ? "GROUP" : "STANDALONE",
         regId: valid.regId,
         slug: schoolSlug(valid.schoolName),
         contactEmail: valid.email,
@@ -134,6 +135,9 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         fullName: valid.fullName,
         phone,
         role,
+        isInstitutionOwner: true,
+        canPurchaseSubscription: true,
+        canManageMemberships: true,
         schoolId: school.id,
         onboardingComplete: false,
         isActive: false,

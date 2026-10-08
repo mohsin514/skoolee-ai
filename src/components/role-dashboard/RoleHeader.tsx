@@ -1,8 +1,9 @@
 "use client";
 
-import { UiText } from "@/components/locale/LocaleProvider";
+import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
+import { clearDeviceDrafts } from "@/lib/drafts/store";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -57,18 +58,16 @@ function resolveNotifIcon(name: string | null): LucideIcon {
   return (name && NOTIF_ICON_MAP[name]) || Bell;
 }
 
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
-  if (diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function relativeTime(dateStr: string, language: string, timeZone: string): string {
+  const date = new Date(dateStr);
+  if (!Number.isFinite(date.getTime())) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric: "auto" });
+  if (seconds < 60) return formatter.format(0, "second");
+  if (seconds < 3600) return formatter.format(-Math.floor(seconds / 60), "minute");
+  if (seconds < 86400) return formatter.format(-Math.floor(seconds / 3600), "hour");
+  if (seconds < 604800) return formatter.format(-Math.floor(seconds / 86400), "day");
+  return date.toLocaleDateString(language, { timeZone, month: "short", day: "numeric" });
 }
 
 interface RoleHeaderProps {
@@ -93,6 +92,8 @@ export function RoleHeader({
   actions,
 }: RoleHeaderProps) {
   const router = useRouter();
+  const t = useUiText();
+  const { language, timezone } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
@@ -109,13 +110,13 @@ export function RoleHeader({
   const displayAvatar = headerProfile?.profileImageUrl;
 
   const greeting = (() => {
-    const h = new Date().getHours();
+    const h = Number(new Intl.DateTimeFormat("en", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(new Date()));
     if (h < 12) return "Good morning";
     if (h < 17) return "Good afternoon";
     return "Good evening";
   })();
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const today = new Date().toLocaleDateString(language, { timeZone: timezone, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   useEffect(() => {
     const newest = liveNotifications[0];
@@ -153,12 +154,12 @@ export function RoleHeader({
       .then((data) => {
         if (!cancelled && data?.profile) setHeaderProfile(data.profile);
       })
-      .catch(() => { toast.error("Failed to load profile"); });
+      .catch(() => { toast.error(t("Failed to load profile")); });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (unreadCount > prevUnreadRef.current) {
@@ -197,6 +198,7 @@ export function RoleHeader({
   }, [menuOpen, notifOpen]);
 
   const handleLogout = async () => {
+    clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   };
@@ -230,7 +232,7 @@ export function RoleHeader({
               error on every dashboard load. The client value is the correct
               one; suppress the diff rather than degrade to a server guess. */}
           <div className="hidden sm:block">
-            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
+            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{t(greeting)}, <bdi>{displayName}</bdi></p>
             <p suppressHydrationWarning className="text-[9px] font-semibold text-ink-muted leading-tight mt-px">{today}</p>
           </div>
         </div>
@@ -247,20 +249,20 @@ export function RoleHeader({
               notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
               bellShake && "sk-shake"
             )}
-            title="View notifications"
+            title={t("View notifications")}
           >
             <Bell className="w-[18px] h-[18px]" />
             {unreadCount > 0 && (
-              <span className="sk-glow absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
+              <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
           </button>
 
           {notifOpen && (
-            <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+            <div className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
                 <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
-                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount}<UiText>{"new"}</UiText></span>
+                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount}{" "}<UiText>{"new"}</UiText></span>
                 )}
               </div>
               <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
@@ -279,7 +281,7 @@ export function RoleHeader({
                         type="button"
                         onClick={() => handleNotificationClick(n)}
                         className={cn(
-                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-left",
+                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-start",
                           !n.isRead && "bg-[#fbf0fe]/30"
                         )}
                       >
@@ -295,7 +297,7 @@ export function RoleHeader({
                             {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
                           </div>
                           <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
-                          <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt)}</p>
+                          <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt, language, timezone)}</p>
                         </div>
                       </button>
                     );
@@ -318,7 +320,7 @@ export function RoleHeader({
           type="button"
           onClick={() => setSettingsOpen(true)}
           className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
-          title="Account settings"
+          title={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
         </button>
@@ -328,9 +330,9 @@ export function RoleHeader({
           <button
             type="button"
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
-            title="Account menu"
+            title={t("Account menu")}
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/15 bg-white/85 p-1 pr-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white hover:shadow-lg active:scale-[0.98]",
+              "flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/15 bg-white/85 p-1 pe-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white hover:shadow-lg active:scale-[0.98]",
               menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
@@ -339,7 +341,7 @@ export function RoleHeader({
             <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
               <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
             </div>
-            <div className="hidden sm:block text-left">
+            <div className="hidden sm:block text-start">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
             <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
@@ -348,7 +350,7 @@ export function RoleHeader({
           {menuOpen && (
             <div
               role="menu"
-              className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
             >
               <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
                 <div className="flex items-center gap-3">
@@ -357,7 +359,7 @@ export function RoleHeader({
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
-                    <p className="truncate text-[11px] font-semibold text-ink-muted">{displayRole}</p>
+                    <p className="truncate text-[11px] font-semibold text-ink-muted">{t(displayRole)}</p>
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
                       <UserRound className="h-3 w-3" /><UiText>{"Active account"}</UiText></div>
                   </div>
@@ -402,9 +404,9 @@ export function RoleHeader({
 
       {settingsOpen && (
         <Modal
-          title="Account Settings"
-          eyebrow="Your account"
-          subtitle="Manage your profile details"
+          title={t("Account Settings")}
+          eyebrow={t("Your account")}
+          subtitle={t("Manage your profile details")}
           avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
           size="xl"
           onClose={() => setSettingsOpen(false)}
@@ -431,6 +433,7 @@ export function RoleHeader({
 }
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const t = useUiText();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -465,7 +468,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to change password");
-      toast.success("Password changed successfully");
+      toast.success(t("Password changed successfully"));
       onClose();
     } catch (err: any) {
       setError(err.message);
@@ -476,15 +479,15 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Change Password"
-      eyebrow="Security"
-      subtitle="Update your account password"
+      title={t("Change Password")}
+      eyebrow={t("Security")}
+      subtitle={t("Update your account password")}
       icon={KeyRound}
       tone="amber"
       size="xs"
       onClose={onClose}
       dirty={Boolean(currentPassword || newPassword) && !loading}
-      dirtyMessage="Your new password has not been saved yet. Leave without changing it?"
+      dirtyMessage={t("Your new password has not been saved yet. Leave without changing it?")}
       footer={
         <div className="flex gap-3">
           <button
@@ -497,37 +500,40 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {loading ? "Updating..." : "Update Password"}
+            {t(loading ? "Updating..." : "Update Password")}
           </button>
         </div>
       }
     >
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Current Password"}</UiText></label>
+            <label htmlFor="current-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Current Password"}</UiText></label>
             <SystemInput
               type={showPasswords ? "text" : "password"}
+              id="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
+              placeholder={t("Enter current password")}
               className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"New Password"}</UiText></label>
+            <label htmlFor="new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"New Password"}</UiText></label>
             <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
               <SystemInput
                 type={showPasswords ? "text" : "password"}
-                value={newPassword}
+                id="new-password"
+              value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+                placeholder={t("Enter new password")}
+                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pe-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
               <button data-field-affix="end"
                 type="button"
                 onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
+                aria-label={t(showPasswords ? "Hide passwords" : "Show passwords")}
+                className="absolute end-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -549,19 +555,20 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                 <span className={`text-[9px] font-black uppercase tracking-wider ${
                   strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
                 }`}>
-                  {strength.label}
+                  {t(strength.label)}
                 </span>
               </div>
             )}
           </div>
 
           <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Confirm New Password"}</UiText></label>
+            <label htmlFor="confirm-new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Confirm New Password"}</UiText></label>
             <SystemInput
               type={showPasswords ? "text" : "password"}
+              id="confirm-new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
+              placeholder={t("Re-enter new password")}
               className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
             />
             {confirmPassword && newPassword !== confirmPassword && (
@@ -573,19 +580,19 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
             {reqs.slice(0, 3).map((r, i) => (
               <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
+                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
               </div>
             ))}
             {reqs.slice(3).map((r, i) => (
               <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
+                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
               </div>
             ))}
           </div>
 
           {error && (
             <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-3">
-              <p className="text-[10px] font-bold text-rose-700">{error}</p>
+              <p className="text-[10px] font-bold text-rose-700">{t(error)}</p>
             </div>
           )}
         </div>
@@ -628,7 +635,7 @@ function MenuLink({
       role="menuitem"
     >
       <Icon className="h-4 w-4" />
-      {label}
+      <UiText>{label}</UiText>
     </Link>
   );
 }

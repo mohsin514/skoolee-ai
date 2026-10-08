@@ -193,6 +193,10 @@ export function canManageFrontDesk(user: AuthUser) {
   return canManageOperations(user) || user.role === "RECEPTIONIST";
 }
 
+export function canPurchaseSubscription(user: AuthUser) {
+  return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
+}
+
 export function canManageBilling(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role);
 }

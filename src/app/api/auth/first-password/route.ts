@@ -87,6 +87,7 @@ export async function PUT(req: NextRequest) {
     // otherwise the proxy would keep redirecting back to /first-login.
     const token = await new SignJWT({
       userId: user.id,
+      accessVersion: user.accessVersion,
       email: user.email,
       fullName: user.fullName,
       role: user.role,

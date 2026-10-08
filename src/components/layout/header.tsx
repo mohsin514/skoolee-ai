@@ -1,5 +1,7 @@
 "use client";
 
+import { clearDeviceDrafts } from "@/lib/drafts/store";
+
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -160,6 +162,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   }, [user?.fullName]);
 
   const signOut = async () => {
+    clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   };
@@ -352,6 +355,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                     label="Account settings"
                     onClick={() => setMenuOpen(false)}
                   />
+                  <AccountLink href="/memberships" icon={UserCheck} label="Memberships" onClick={() => setMenuOpen(false)} />
                   <AccountLink
                     href={billingHref}
                     icon={CreditCard}

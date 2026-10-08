@@ -23,6 +23,7 @@ import {
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",
   "/accept-invite", "/forgot-password",
+  "/api/invite/status", // Scoped by a secret invitation token before sign-in.
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
@@ -156,8 +157,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
-    if (!onboardingComplete && !pathname.startsWith("/onboarding") && !pathname.startsWith("/api")) {
-      return NextResponse.redirect(new URL("/onboarding", req.url));
+    const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
+    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith("/api")) {
+      return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";
