@@ -15,6 +15,7 @@ export interface AuthUser {
   canPurchaseSubscription?: boolean;
   canManageMemberships?: boolean;
   accessVersion?: number;
+  mfaVerified?: boolean;
   userId: string;
   email: string;
   fullName?: string;
@@ -51,7 +52,8 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     // request, so the repeated calls a single render makes cost one query.
     if (await isSessionRevoked(hashSessionToken(token))) return null;
 
-    return await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion });
+    const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
+    return principal ? { ...principal, mfaVerified: payload.mfaVerified === true } : null;
   } catch {
     return null;
   }

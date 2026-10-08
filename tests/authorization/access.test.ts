@@ -1,8 +1,10 @@
+import { reviewQueue, approveVersions, publishExam } from "../../src/lib/academic/report-versions";
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { hashSessionToken } from '../../src/lib/auth/session-cookie';
 import { SignJWT } from 'jose';
 import { prisma } from '../../src/lib/db/prisma';
 import { runWithTenantContext } from '../../src/lib/db/tenant-context';
@@ -37,10 +39,11 @@ before(async () => {
   for (const [id, schoolId] of [[campusA,schoolA],[campusB,schoolA],[foreignCampus,schoolB]]) await raw.campus.create({data:{id,schoolId,name:'Synthetic campus',city:'Synthetic',regId:id}});
   for (const role of USER_ROLES) {
     const userId=randomUUID();
-    const user: AuthUser={userId,schoolId:schoolA,campusId:campusA,role,email:`${userId}@example.invalid`,fullName:'Same pupil name',onboardingComplete:true};
-    await raw.user.create({data:{id:userId,schoolId:schoolA,campusId:campusA,role,email:user.email,fullName:user.fullName!,onboardingComplete:true}});
+    const user: AuthUser={mfaVerified:true,userId,schoolId:schoolA,campusId:campusA,role,email:`${userId}@example.invalid`,fullName:'Same pupil name',onboardingComplete:true};
+    await raw.user.create({data:{mfaEnabled:true,id:userId,schoolId:schoolA,campusId:campusA,role,email:user.email,fullName:user.fullName!,onboardingComplete:true}});
     actors.set(role,user);
     const token=await new SignJWT({...user}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+    await raw.loginSession.create({data:{schoolId:schoolA,userId,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
     cookies.set(role,`skoolee_token=${token}`);
   }
   for(const [id,campusId,schoolId] of [[classA,campusA,schoolA],[classB,campusB,schoolA],[foreignClass,foreignCampus,schoolB]]) await raw.class.create({data:{id,campusId,schoolId,name:'Synthetic class',academicYear:2026}});
@@ -50,10 +53,15 @@ before(async () => {
   ]) await raw.student.create({data:{id:id!,campusId:campusId!,classId:classId!,schoolId:schoolId!,fullName:'Same pupil name',rollNo:id!,gender:'MALE',parentUserId,studentUserId,guardianEmail:actors.get('PARENT')!.email}});
   const subject=await raw.subject.create({data:{schoolId:schoolA,campusId:campusA,classId:classA,name:'Synthetic math'}});
   for(const [id,status] of [[published,'PUBLISHED'],[draft,'DRAFT']]) {
-    await raw.exam.create({data:{id,schoolId:schoolA,campusId:campusA,classId:classA,title:status,term:'Term 1',academicYear:2026,status}});
+    await raw.exam.create({data:{id,schoolId:schoolA,campusId:campusA,classId:classA,title:status,term:'Term 1',academicYear:2026,status,isLocked:status==="PUBLISHED"}});
     await raw.mark.create({data:{schoolId:schoolA,campusId:campusA,examId:id,studentId:own,subjectId:subject.id,marksObtained:status==='DRAFT'?99:80}});
-    await raw.reportCard.create({data:{id:status==='DRAFT'?draftReport:publishedReport,schoolId:schoolA,campusId:campusA,examId:id,studentId:own,status:status==='DRAFT'?'GENERATED':'PUBLISHED'}});
+    await raw.reportCard.create({data:{id:status==='DRAFT'?draftReport:publishedReport,schoolId:schoolA,campusId:campusA,examId:id,studentId:own,status:status==='DRAFT'?'GENERATED':'PUBLISHED',remarksEn:status==='DRAFT'?null:'Synthetic approved report'}});
   }
+  await runWithTenantContext(ctx(actors.get('PRINCIPAL')!), async () => {
+    const [version] = await reviewQueue([publishedReport]);
+    await approveVersions([{reportCardId:publishedReport,versionId:version.id}],actors.get('PRINCIPAL')!.userId);
+    await publishExam(published,actors.get('PRINCIPAL')!.userId);
+  });
 });
 after(async()=>{ await rm("public/generated/reports/sko207-synthetic.pdf",{force:true}); await rm("public/sko207-control.txt",{force:true}); await raw.school.deleteMany({where:{id:{in:[schoolA,schoolB]}}}); await raw.$disconnect(); await prisma.$disconnect(); });
 

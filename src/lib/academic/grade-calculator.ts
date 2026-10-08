@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 
 export type ExamType = "QUIZ" | "CLASS_TEST" | "MID_TERM" | "FINAL" | "CUSTOM";
 
@@ -81,8 +81,8 @@ export interface SubjectBreakdown {
   grade: string;
 }
 
-export async function getOrCreateGradeWeightConfig(campusId: string, classId: string, academicYear: number): Promise<WeightConfig> {
-  const config = await prisma.gradeWeightConfig.findUnique({
+export async function getOrCreateGradeWeightConfig(campusId: string, classId: string, academicYear: number, db: TxClient = prisma): Promise<WeightConfig> {
+  const config = await db.gradeWeightConfig.findUnique({
     where: { classId_academicYear: { classId, academicYear } },
   });
   if (config) {
@@ -178,25 +178,26 @@ export async function calculateWeightedGrade(
   studentId: string,
   campusId: string,
   classId: string,
-  academicYear: number
+  academicYear: number,
+  db: TxClient = prisma
 ): Promise<WeightedGradeResult> {
   const [student, config] = await Promise.all([
-    prisma.student.findUnique({
+    db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
     }),
-    getOrCreateGradeWeightConfig(campusId, classId, academicYear),
+    getOrCreateGradeWeightConfig(campusId, classId, academicYear, db),
   ]);
 
   if (!student) throw new Error("Student not found");
 
-  const subjects = await prisma.subject.findMany({
+  const subjects = await db.subject.findMany({
     where: { classId, campusId },
     select: { id: true, name: true, totalMarks: true },
     orderBy: { name: "asc" },
   });
 
-  const exams = await prisma.exam.findMany({
+  const exams = await db.exam.findMany({
     where: { classId, campusId, academicYear, status: { notIn: ["DRAFT", "ACTIVE"] } },
     select: { id: true, title: true, examType: true, totalMarks: true, subjectId: true },
     orderBy: [{ examType: "asc" }, { title: "asc" }],
@@ -205,7 +206,7 @@ export async function calculateWeightedGrade(
   const examIds = exams.map((e) => e.id);
   const subjectIds = subjects.map((s) => s.id);
 
-  const marks = await prisma.mark.findMany({
+  const marks = await db.mark.findMany({
     where: { studentId, examId: { in: examIds }, subjectId: { in: subjectIds } },
     include: { subject: { select: { id: true, name: true, totalMarks: true } } },
   });
@@ -323,13 +324,13 @@ export async function buildSubjectDistribution(opts: {
   academicYear: number;
   weightConfig: WeightConfig;
   excludeExamId?: string;
-}) {
-  const subjects = await prisma.subject.findMany({
+}, db: TxClient = prisma) {
+  const subjects = await db.subject.findMany({
     where: { classId: opts.classId, campusId: opts.campusId },
     select: { id: true, name: true, totalMarks: true },
     orderBy: { name: "asc" },
   });
-  const exams = await prisma.exam.findMany({
+  const exams = await db.exam.findMany({
     where: {
       classId: opts.classId,
       campusId: opts.campusId,
@@ -339,7 +340,7 @@ export async function buildSubjectDistribution(opts: {
     select: { id: true, title: true, examType: true, subjectId: true },
     orderBy: [{ examType: "asc" }, { title: "asc" }],
   });
-  const marks = await prisma.mark.findMany({
+  const marks = await db.mark.findMany({
     where: {
       studentId: opts.studentId,
       examId: { in: exams.map((e) => e.id) },

@@ -33,7 +33,7 @@ export default function AcceptInvitePage() {
   const [inviteStatus, setInviteStatus] = useState<"pending" | "accepted" | "cancelled" | "expired" | "invalid" | null>(null);
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(true);
-  const [details, setDetails] = useState<{ role: UserRole; institutionName: string; campusName: string; invitedBy: string; expiresAt: string; canPurchaseSubscription: boolean; canManageMemberships: boolean } | null>(null);
+  const [details, setDetails] = useState<{ contextKey: string; role: UserRole; institutionName: string; campusName: string; invitedBy: string; expiresAt: string; canPurchaseSubscription: boolean; canManageMemberships: boolean } | null>(null);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -121,7 +121,7 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      await acceptInvite(token, password, fullName);
+      await acceptInvite(token, password, fullName, details?.contextKey);
       toast.success(`Invitation accepted. Sign in to your ${details ? roleLabel(details.role, language) : "assigned"} workspace.`);
       await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
@@ -188,6 +188,7 @@ export default function AcceptInvitePage() {
                 {inviteStatus && inviteStatus !== "pending" ? (
                   <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-sm font-bold text-rose-600 mb-5">
                     {inviteMessage || "This invitation is no longer valid."}
+                    {inviteStatus === "expired" && <button type="button" disabled={loading} className="block min-h-11 underline" onClick={async () => { setLoading(true); try { await fetch("/api/invite/reissue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }); setInviteMessage("If the invitation is still available, a new link will be sent. Check your inbox and spam folder, or contact your administrator."); } finally { setLoading(false); } }}>Request a new link</button>}
                   </div>
                 ) : null}
                 {inviteLoading ? (

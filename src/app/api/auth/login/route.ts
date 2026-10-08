@@ -1,3 +1,6 @@
+import { requiresMfa } from "@/lib/auth/mfa-crypto";
+import { startMfa } from "@/lib/auth/mfa-ticket";
+import { issueSession } from "@/lib/auth/issue-session";
 // ─────────────────────────────────────────────────────────────────
 // POST /api/auth/login  — Email + password login
 // POST /api/auth/logout — Clear session
@@ -6,16 +9,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validators/schemas";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
-import { logSuperAdminAction, hashToken, recordLoginSession } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { logSuperAdminAction } from "@/lib/audit";
+import { authRateLimit } from "@/lib/auth/rate-limit";
 import { runUnscoped } from "@/lib/db/tenant-context";
 
-import { JWT_SECRET } from "@/lib/auth/secret";
 import {
-  SESSION_COOKIE_NAME,
   SESSION_DAYS,
-  sessionCookieAttributes,
 } from "@/lib/auth/session-cookie";
 
 export async function POST(req: NextRequest) {
@@ -32,8 +31,9 @@ async function handleLogin(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const body = await req.json();
     const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
-    const { ok, remaining } = rateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
-    if (!ok) {
+    const { ok, remaining } = await authRateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
+    const ipLimit = await authRateLimit(`login-ip:${ip}`, { limit: 60, windowMs: 60_000 });
+    if (!ok || !ipLimit.ok) {
       return NextResponse.json(
         { error: "Too many login attempts. Please try again in a minute." },
         { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": String(remaining) } }
@@ -101,7 +101,7 @@ async function handleLogin(req: NextRequest) {
     }
 
     // A soft-deleted tenant is not a place anyone can sign in to.
-    const usable = matched.filter((c) => String(c.school?.status || "").toUpperCase() !== "DELETED");
+    const usable = matched.filter((c) => c.isActive && String(c.school?.status || "").toUpperCase() !== "DELETED");
     if (usable.length === 0) {
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
@@ -128,75 +128,8 @@ async function handleLogin(req: NextRequest) {
       return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
     }
 
-    // 3. Create JWT token
-    const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
-    const token = await new SignJWT({
-      userId: user.id,
-      accessVersion: user.accessVersion,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      schoolId: user.schoolId,
-      campusId: user.campusId,
-      schoolSlug: user.school?.slug,
-      schoolStatus: user.school?.status,
-      onboardingComplete: user.onboardingComplete,
-      mustChangePassword: user.mustChangePassword,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime(`${sessionDays}d`)
-      .sign(JWT_SECRET);
-
-    // 4. Track login session & audit log (fire-and-forget)
-    const sessionPromise = recordLoginSession({
-      userId: user.id,
-      schoolId: user.schoolId,
-      tokenHash: hashToken(token),
-      expiresAt,
-      ipAddress: ip,
-      userAgent: ua,
-    }).catch(() => {});
-
-    const updatePromise = prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    }).catch(() => {});
-
-    const auditPromise = user.role === "SUPER_ADMIN"
-      ? logSuperAdminAction({
-          userId: user.id,
-          action: "login",
-          status: "success",
-          ipAddress: ip,
-          userAgent: ua,
-          targetType: "user",
-          targetName: email,
-        }).catch(() => {})
-      : Promise.resolve();
-
-    Promise.all([sessionPromise, updatePromise, auditPromise]).catch(() => {});
-
-    // 5. Set cookie
-    const res = NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        schoolId: user.schoolId,
-        campusId: user.campusId,
-        schoolName: user.school?.name,
-        campusName: user.campus?.name,
-        schoolStatus: user.school?.status,
-        onboardingComplete: user.onboardingComplete,
-        mustChangePassword: user.mustChangePassword,
-      },
-    });
-
-    res.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieAttributes(sessionDays));
-
-    return res;
+    if (requiresMfa(user)) return startMfa(user, sessionDays);
+    return issueSession(user, sessionDays, false, req);
   } catch (error) {
     console.error("[auth/login]", error);
     return Response.json({ error: "Login failed" }, { status: 500 });

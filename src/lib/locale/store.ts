@@ -1,12 +1,12 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { localePatchSchema, resolvePackage, type Language } from "./package";
 
 /** Load once for calendars that resolve hundreds of date-only cells. */
-export async function loadLocaleTimeline(schoolId: string, campusId: string | null = null) {
+export async function loadLocaleTimeline(schoolId: string, campusId: string | null = null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {
   const [school, policies, legacyWeekends] = await Promise.all([
-    prisma.school.findUniqueOrThrow({ where: { id: schoolId }, select: { timezone: true } }),
-    prisma.localePolicy.findMany({ where: { schoolId, status: "ACTIVE", OR: [{ campusId: null }, ...(campusId ? [{ campusId }] : [])] }, orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }] }),
-    campusId ? prisma.weekend.findMany({ where: { schoolId, campusId }, select: { dayOfWeek: true } }) : Promise.resolve([]),
+    db.school.findUniqueOrThrow({ where: { id: schoolId }, select: { timezone: true } }),
+    db.localePolicy.findMany({ where: { schoolId, status: "ACTIVE", OR: [{ campusId: null }, ...(campusId ? [{ campusId }] : [])] }, orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }] }),
+    campusId ? db.weekend.findMany({ where: { schoolId, campusId }, select: { dayOfWeek: true } }) : Promise.resolve([]),
   ]);
   return (at = new Date(), personal?: Language | null) => {
     const active = policies.filter((p) => p.effectiveAt <= at);
@@ -15,8 +15,8 @@ export async function loadLocaleTimeline(schoolId: string, campusId: string | nu
     return resolvePackage({ timezone: school.timezone, ...(campusId ? { weekend: legacyWeekends.map((w) => w.dayOfWeek % 7) } : {}), ...localePatchSchema.parse(schoolPolicy?.settings || {}) }, localePatchSchema.parse(campusPolicy?.settings || {}), personal);
   };
 }
-export async function getLocalePackage(schoolId: string, campusId: string | null = null, at = new Date(), personal?: Language | null) {
-  return (await loadLocaleTimeline(schoolId, campusId))(at, personal);
+export async function getLocalePackage(schoolId: string, campusId: string | null = null, at = new Date(), personal?: Language | null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {
+  return (await loadLocaleTimeline(schoolId, campusId, db))(at, personal);
 }
 
 export async function loadCampusLocaleTimeline(campusId: string) {

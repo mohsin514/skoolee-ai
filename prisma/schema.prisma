@@ -103,6 +103,7 @@ model School {
   holidays                Holiday[]
   gradeWeightConfigs      GradeWeightConfig[]
   marks                   Mark[]
+  reportVersions          ReportVersion[]
   reportCards             ReportCard[]
   attendances             Attendance[]
   attendanceEditHistories AttendanceEditHistory[]
@@ -354,6 +355,15 @@ model Campus {
 
 // ─── 3. USERS ─────────────────────────────────────────────
 model User {
+  mfaSecret String? @map("mfa_secret")
+  mfaEnabled Boolean @default(false) @map("mfa_enabled")
+  mfaLastStep Int @default(-1) @map("mfa_last_step")
+  recoveryCodeHashes String[] @default([]) @map("recovery_code_hashes")
+  mfaPendingSecret String? @map("mfa_pending_secret")
+  mfaPendingTicket String? @map("mfa_pending_ticket")
+  mfaPendingExpiresAt DateTime? @map("mfa_pending_expires_at")
+  mfaPendingVerified Boolean @default(false) @map("mfa_pending_verified")
+
   preferredLanguage String? @map("preferred_language")
   isInstitutionOwner Boolean @default(false) @map("is_institution_owner")
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
@@ -1442,6 +1452,32 @@ model Mark {
 }
 
 // ─── 9. REPORT_CARDS ──────────────────────────────────────
+model ReportVersion {
+  id String @id @default(uuid())
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reportCardId String @map("report_card_id")
+  reportCard ReportCard @relation(fields: [reportCardId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  number Int
+  contentHash String @map("content_hash")
+  documentIdentity String @unique @map("document_identity")
+  documentBytes Bytes? @map("document_bytes")
+  language String @default("en")
+  snapshot Json
+  blockers Json
+  changedSections Json @map("changed_sections")
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  publishedAt DateTime? @map("published_at")
+  predecessorId String? @map("predecessor_id")
+  correctionReason String? @map("correction_reason")
+  reviewerNote String? @map("reviewer_note")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([reportCardId, number])
+  @@index([schoolId])
+  @@map("report_versions")
+}
+
 model ReportCard {
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
@@ -1464,6 +1500,12 @@ model ReportCard {
   attendanceTotal   Int       @default(0) @map("attendance_total")
   remarksEn         String?   @map("remarks_en") @db.Text
   remarksUr         String?   @map("remarks_ur") @db.Text
+  versions          ReportVersion[]
+  sourceRevision    Int @default(0) @map("source_revision")
+  currentVersionId  String? @map("current_version_id")
+  publishedVersionId String? @map("published_version_id")
+  reportLanguage    String @default("en") @map("report_language")
+  remarksAr         String? @map("remarks_ar") @db.Text
   remarksApproved   Boolean   @default(false) @map("remarks_approved")
   approvedBy        String?   @map("approved_by")
   approvedAt        DateTime? @map("approved_at")
@@ -1476,6 +1518,7 @@ model ReportCard {
   deliveryError     String?   @map("delivery_error") @db.Text
   generatedAt       DateTime  @default(now()) @map("generated_at")
 
+  @@unique([id, schoolId])
   @@unique([studentId, examId])
   @@index([schoolId])
   @@map("report_cards")
@@ -2283,6 +2326,8 @@ model StaffInvitation {
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
   canManageMemberships Boolean @default(false) @map("can_manage_memberships")
   invitedBy String? @map("invited_by")
+  deliveryStatus String @default("unknown") @map("delivery_status")
+  lastDeliveryAt DateTime? @map("last_delivery_at")
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3207,6 +3252,15 @@ model EnrollmentProposal {
   @@index([schoolId, studentId])
   @@map("enrollment_proposals")
 }
+// Shared authentication counters: keys are hashed and contain no plaintext identifiers.
+model AuthAttempt {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime @map("expires_at")
+  @@index([expiresAt])
+  @@map("auth_attempts")
+}
+
 // Append-only effective-dated locale policies. Campus rows contain only overrides.
 model LocalePolicy {
   status String @default("ACTIVE")

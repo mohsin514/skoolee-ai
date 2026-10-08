@@ -66,31 +66,11 @@ export async function PATCH(
       });
 
       if (item.relatedType === "REPORT_CARD") {
-        if (action === "approve") {
-          await tx.reportCard.update({
-            where: { id: item.relatedId },
-            data: {
-              remarksEn: stringFromDraft(item.draft, "remarkEn"),
-              remarksUr: stringFromDraft(item.draft, "remarkUr"),
-              remarksApproved: true,
-              approvedBy: user.userId,
-              approvedAt: now,
-              status: "REVIEWED",
-              pdfUrl: null,
-            },
-          });
-        } else {
-          await tx.reportCard.update({
-            where: { id: item.relatedId },
-            data: {
-              remarksApproved: false,
-              approvedBy: null,
-              approvedAt: null,
-              status: "GENERATED",
-              pdfUrl: null,
-            },
-          });
-        }
+        // AI draft review is not approval of the final document version.
+        await tx.reportCard.update({ where: { id: item.relatedId }, data: {
+          ...(action === "approve" ? { remarksEn: stringFromDraft(item.draft, "remarkEn"), remarksUr: stringFromDraft(item.draft, "remarkUr") } : {}),
+          remarksApproved: false, approvedBy: null, approvedAt: null, pdfUrl: null,
+        } });
       }
 
       if (item.relatedType === "AI_INSIGHT") {

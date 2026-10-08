@@ -6,7 +6,7 @@ import type { AuthUser } from "@/lib/auth";
 export const POLICY_VERSION = "2026-10-08.1";
 export const ACCESS_DENIED = "This account cannot access that record.";
 export const publishedMarksWhere = { exam: { status: "PUBLISHED" } };
-export const publishedReportsWhere = { status: { in: ["PUBLISHED", "SENT"] } };
+export const publishedReportsWhere = { publishedVersionId: { not: null }, exam: { status: "PUBLISHED" } };
 export const isFamily = (user: AuthUser) => user.role === "PARENT" || user.role === "STUDENT";
 
 export class AccessDenied extends Error {
