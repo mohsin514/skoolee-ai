@@ -4,6 +4,7 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { consume, dispatch, type Reference } from "../lib/queue/outbox";
 import { reportWorkflow } from "../lib/queue/report-workflow";
+import { expireSupportGrants } from "../lib/owner/support-expiry";
 
 // Dedicated service process: no request session, no inherited tenant, no dotenv loading.
 const db = new PrismaClient();
@@ -15,12 +16,18 @@ const worker = new Worker<Reference>("durable-workflows", job => consume(db, job
 })), { connection, concurrency: 5 });
 worker.on("error", () => console.error(JSON.stringify({ component: "workflow-worker", reason: "TRANSPORT_FAILURE" })));
 let closing = false;
+let nextSupportExpirySweep = 0;
 async function pump() {
   while (!closing) {
     try {
       await dispatch(db, (ref, jobId) => queue.add("reference", ref, { jobId, attempts: 1, removeOnComplete: true, removeOnFail: 100 }));
     } catch {
       console.error(JSON.stringify({ component: "outbox-dispatcher", reason: "DISPATCH_UNAVAILABLE" }));
+    }
+    if (Date.now() >= nextSupportExpirySweep) {
+      nextSupportExpirySweep = Date.now() + 15_000;
+      try { await expireSupportGrants(db); }
+      catch { console.error(JSON.stringify({ component: "support-expiry", reason: "EXPIRY_SWEEP_UNAVAILABLE" })); }
     }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
