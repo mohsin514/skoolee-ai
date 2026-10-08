@@ -1,6 +1,7 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { formatDateOnly, formatMoney, localePackageSchema, type Language } from "@/lib/locale/package";
 import { notificationHtml } from "@/lib/locale/notification-catalog";
+import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { canUseFeature } from "@/config/plans";
@@ -224,6 +225,10 @@ async function findExistingByIdempotency(idempotencyKey?: string) {
 }
 
 export async function sendTemplatedCommunication(input: SendTemplateInput) {
+  await assertCommunicationTarget(input.target, input.channel);
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    await assertPublishedCommunicationReport(input.relatedId || "", input.target.studentId);
+  }
   const existing = await findExistingByIdempotency(input.idempotencyKey);
   if (existing?.status === "SENT") return existing;
 
@@ -427,7 +432,7 @@ export async function sendReportCardPublishedNotifications({
   if (!reportCard) throw new Error("Report card not found");
 
   const dataApproved =
-    approvedData ??
+    approvedData !== false &&
     (reportCard.remarksApproved &&
       (reportCard.status === "PUBLISHED" || reportCard.status === "SENT") &&
       reportCard.exam.status === "PUBLISHED" &&

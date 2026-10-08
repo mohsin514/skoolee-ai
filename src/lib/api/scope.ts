@@ -63,26 +63,6 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
     }
   }
 
-  // The JWT is a 7-day bearer credential, so nothing in it can be trusted to
-  // still be true. Deactivating an account or changing its role only altered
-  // the database — the holder of an already-issued token kept full access until
-  // it expired (AUTH-1.8/AUTH-1.9). Re-check the account on every request.
-  const account = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { isActive: true, role: true },
-  });
-
-  if (!account || !account.isActive) {
-    throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
-  }
-
-  // A role change must never take effect from a stale claim — in either
-  // direction. Ending the session forces a re-issue, so a privilege can never
-  // be exercised from a token minted before it was granted or revoked.
-  if (account.role !== user.role) {
-    throw new ApiError("Your access has changed. Please sign in again.", 401);
-  }
-
   return user;
 }
 

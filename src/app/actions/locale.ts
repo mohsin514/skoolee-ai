@@ -22,9 +22,10 @@ async function session() {
 }
 async function context(user: Awaited<ReturnType<typeof session>>) {
   const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true, localeDelegatedFields: true } });
-  const groupOwner = await prisma.user.count({ where: { schoolId: user.schoolId, role: "SUPER_ADMIN", isActive: true } });
-  const grouped = campuses.length > 1 || groupOwner > 0;
-  const scopeCount = grouped ? Math.max(2, campuses.length) : campuses.length;
+  // School-level counts must not be narrowed by the current principal's campus guard.
+  const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { _count: { select: { campuses: true, users: { where: { role: "SUPER_ADMIN", isActive: true } } } } } });
+  const grouped = school._count.campuses > 1 || school._count.users > 0;
+  const scopeCount = grouped ? Math.max(2, school._count.campuses) : school._count.campuses;
   return { campuses, grouped, scopeCount, canManage: canManageSchool(user.role, scopeCount) };
 }
 export async function getLocaleSettings() {
@@ -84,8 +85,8 @@ export async function applyLocaleChange(token: string) {
       const current = await tx.user.findFirst({ where: { id: user.id, schoolId: user.schoolId, isActive: true } });
       if (!current || current.role !== user.role || current.campusId !== user.campusId) throw new Error("permission");
       const campusRows = await tx.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, localeDelegatedFields: true } });
-      const groupOwners = await tx.user.count({ where: { schoolId: user.schoolId, role: "SUPER_ADMIN", isActive: true } });
-      const scopeCount = groupOwners > 0 ? Math.max(2, campusRows.length) : campusRows.length;
+      const school = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { _count: { select: { campuses: true, users: { where: { role: "SUPER_ADMIN", isActive: true } } } } } });
+      const scopeCount = school._count.users > 0 ? Math.max(2, school._count.campuses) : school._count.campuses;
       const campus = campusRows.find((c) => c.id === change.campusId);
       assertDelegatedChanges(current.role, current.campusId, change.campusId, scopeCount, campus?.localeDelegatedFields || [], change.settings);
       const record = await tx.localePolicy.create({ data: { schoolId: user.schoolId, campusId: change.campusId, scopeKey: change.campusId || "school", settings: preview.settings, effectiveAt: new Date(preview.effectiveAt), createdBy: user.id, status: preview.currencyReview ? "FINANCE_REVIEW" : "ACTIVE" } });
