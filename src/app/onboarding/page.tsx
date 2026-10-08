@@ -20,6 +20,7 @@ import {
   CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw, Pencil,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from "next/link";
 import {
   finishOnboarding,
   getOnboardingSession,
@@ -186,6 +187,12 @@ export default function OnboardingWizard() {
       if (savedStep && flow.includes(savedStep as StepId)) setStep(savedStep as StepId);
     },
   });
+  useEffect(() => {
+    if (!session) return;
+    const requestedStep = new URLSearchParams(window.location.search).get("step");
+    if (requestedStep && flow.includes(requestedStep as StepId)) setStep(requestedStep as StepId);
+  }, [session, flow]);
+
   useEffect(() => {
     const loadSession = async () => {
       const res = await getOnboardingSession();
@@ -594,6 +601,12 @@ export default function OnboardingWizard() {
             {isStandalone ? 'Single Campus Setup' : 'Multi-Campus Setup'}
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href={`/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, campuses.length)}`}
+              className="inline-flex min-h-10 items-center rounded-lg border border-[#8127cf]/30 bg-white px-3 text-[10px] font-black uppercase text-[#8127cf] hover:bg-[#fbf0fe] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]"
+            >
+              Compare packages
+            </Link>
             {stepIndex > 0 && (
               <button onClick={goBack} className="text-[10px] font-black uppercase text-ink-subtle hover:text-[#8127cf] transition-all cursor-pointer">Go Back</button>
             )}

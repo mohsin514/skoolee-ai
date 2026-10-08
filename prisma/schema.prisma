@@ -35,6 +35,7 @@ model School {
   workflowEvents       WorkflowEvent[]
   workflowJobs         WorkflowJob[]
   workflowEffects      WorkflowEffect[]
+  checkoutIntents      OnboardingCheckoutIntent[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
   id                   String    @id @default(uuid())
   name                 String
@@ -247,6 +248,39 @@ model WorkflowEffect {
   @@map("workflow_effects")
 }
 
+// Durable subscription checkout state. Provider redirects and browser return
+// parameters are never authoritative for entitlement activation.
+model OnboardingCheckoutIntent {
+  id                 String   @id @default(uuid())
+  schoolId           String   @map("school_id")
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId             String   @map("user_id")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idempotencyKey     String   @map("idempotency_key")
+  plan               String
+  billingPeriod      String   @default("monthly") @map("billing_period")
+  catalogueVersion   String   @map("catalogue_version")
+  contractSnapshot   Json     @map("contract_snapshot")
+  expectedCampuses   Int      @map("expected_campuses")
+  expectedEnrollment Int      @map("expected_enrollment")
+  returnStep         String   @map("return_step")
+  provider           String   @default("NONE")
+  providerReference  String?  @map("provider_reference")
+  checkoutUrl        String?  @map("checkout_url") @db.Text
+  status             String   @default("PENDING")
+  amount             Int?
+  currency           String?
+  failureReason      String?  @map("failure_reason") @db.Text
+  settledAt          DateTime? @map("settled_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, userId, idempotencyKey])
+  @@index([schoolId, status, createdAt])
+  @@index([provider, providerReference])
+  @@map("onboarding_checkout_intents")
+}
+
 // ─── 1d. ROLE PERMISSIONS MATRIX ─────────────────────────
 // Server-side capability matrix per role per module. APP_OWNER and
 // SUPER_ADMIN are fixed (always allowed, never editable) so a school
@@ -415,6 +449,7 @@ model User {
   emergencyPhone                String?                  @map("emergency_phone")
   isActive                      Boolean                  @default(true) @map("is_active")
   onboardingComplete            Boolean                  @default(false) @map("onboarding_complete")
+  checkoutIntents               OnboardingCheckoutIntent[]
   mustChangePassword            Boolean                  @default(false) @map("must_change_password")
   createdAt                     DateTime                 @default(now()) @map("created_at")
   // Action Tracking

@@ -158,7 +158,7 @@ export async function proxy(req: NextRequest) {
     }
 
     const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
-    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith("/api")) {
+    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith(onboardingPath + "/") && !pathname.startsWith("/api")) {
       return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 

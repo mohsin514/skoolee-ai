@@ -495,6 +495,13 @@ CREATE POLICY tenant_isolation ON "notifications"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 
+ALTER TABLE "onboarding_checkout_intents" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "onboarding_checkout_intents" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "onboarding_checkout_intents";
+CREATE POLICY tenant_isolation ON "onboarding_checkout_intents"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "online_payment_orders" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "online_payment_orders" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "online_payment_orders";

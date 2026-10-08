@@ -194,6 +194,7 @@ export function canManageFrontDesk(user: AuthUser) {
 }
 
 export function canPurchaseSubscription(user: AuthUser) {
+  if (["APP_OWNER", "STUDENT", "PARENT"].includes(user.role)) return false;
   return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
 }
 
