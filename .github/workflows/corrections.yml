@@ -38,7 +38,6 @@ jobs:
         run: |
           pnpm exec next start --hostname 127.0.0.1 --port 3213 > /tmp/corrections-app.log 2>&1 &
           for i in $(seq 1 40); do curl -s http://127.0.0.1:3213/login >/dev/null && break; sleep 1; done
-          mkdir -p /private/tmp
           pnpm test:corrections
           pnpm exec playwright install --with-deps chromium
           node tests/corrections/browser.mjs

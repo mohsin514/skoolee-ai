@@ -1,6 +1,8 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium } from 'playwright';
 import { readFile,mkdir,writeFile } from 'node:fs/promises';
-const fixture=JSON.parse(await readFile('/private/tmp/sko213-fixture.json','utf8'));
+const fixture=JSON.parse(await readFile(join(tmpdir(), 'sko213-fixture.json'),'utf8'));
 const base='http://127.0.0.1:3213',out='docs/qa/evidence/sko-213';await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});const evidence=[];
 for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844]]){

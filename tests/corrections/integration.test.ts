@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { immutablePaymentPdf } from "../../src/lib/fees/receipt";
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -49,7 +51,7 @@ before(async () => {
         payments[currency] = result.payment.id;
     }
 });
-after(async () => { writeFileSync("/private/tmp/sko213-fixture.json", JSON.stringify({ schoolId, campusId, studentId, reportId, examId, markId, users, cookies, payments })); await raw.$disconnect(); await prisma.$disconnect(); });
+after(async () => { writeFileSync(join(tmpdir(), "sko213-fixture.json"), JSON.stringify({ schoolId, campusId, studentId, reportId, examId, markId, users, cookies, payments })); await raw.$disconnect(); await prisma.$disconnect(); });
 test("role matrix enforces direct API domain access", async () => { for (const role of USER_ROLES) {
     for (const kind of ["MARK", "PAYMENT"]) {
         const allowed = kind === "MARK" ? ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "PARENT", "STUDENT"] : ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT", "PARENT", "STUDENT"];
@@ -167,4 +169,20 @@ test("one partially allocated payment reverses across both affected invoices ato
     const entries = await raw.paymentAllocation.findMany({ where: { paymentId: applied.data.successorId } });
     assert.equal(entries.length, 2);
     assert.equal(entries.reduce((n, a) => n + a.amount + a.credit, 0), -25000);
+});
+
+test("immutable record deletion remains denied while full tenant cleanup completes", async () => {
+    const receipt = await raw.payment.findUniqueOrThrow({ where: { id: payments.KWD } });
+    await assert.rejects(raw.payment.delete({ where: { id: receipt.id } }), /cannot be deleted/);
+    await assert.rejects(raw.paymentAllocation.deleteMany({ where: { paymentId: receipt.id } }), /append-only/);
+    const sid = randomUUID();
+    await raw.school.create({ data: { id: sid, name: "Temporary cleanup", slug: sid, regId: sid, city: "Synthetic", contactEmail: `${sid}@example.invalid` } });
+    const campus = await raw.campus.create({ data: { schoolId: sid, name: "Cleanup", city: "Synthetic", regId: sid } });
+    const cls = await raw.class.create({ data: { schoolId: sid, campusId: campus.id, name: "Cleanup", academicYear: 2026 } });
+    const student = await raw.student.create({ data: { schoolId: sid, campusId: campus.id, classId: cls.id, fullName: "Synthetic cleanup", rollNo: "cleanup", gender: "MALE" } });
+    const c = await raw.correction.create({ data: { schoolId: sid, campusId: campus.id, studentId: student.id, kind: "MARK", sourceId: "synthetic-source", sourceVersion: "0", before: {}, after: {}, previewHash: "synthetic", reason: "Synthetic", publicExplanation: "Synthetic", requesterId: "synthetic-actor", requesterName: "Synthetic", separateApprover: true } });
+    await raw.correctionNote.create({ data: { schoolId: sid, campusId: campus.id, correctionId: c.id, text: "Synthetic private note" } });
+    await raw.school.delete({ where: { id: sid } });
+    assert.equal(await raw.correction.count({ where: { schoolId: sid } }), 0);
+    assert.equal(await raw.correctionNote.count({ where: { schoolId: sid } }), 0);
 });
