@@ -24,10 +24,10 @@ async function session() {
 }
 async function context(user: Awaited<ReturnType<typeof session>>) {
   const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true, localeDelegatedFields: true } });
-  // School-level counts must not be narrowed by the current principal's campus guard.
-  const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { _count: { select: { campuses: true, users: { where: { role: "SUPER_ADMIN", isActive: true } } } } } });
-  const grouped = school._count.campuses > 1 || school._count.users > 0;
-  const scopeCount = grouped ? Math.max(2, school._count.campuses) : school._count.campuses;
+  const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { registrationKind: true } });
+  // Explicit registration kind owns the hierarchy; campus counts never imply ownership.
+  const grouped = school.registrationKind !== "STANDALONE";
+  const scopeCount = grouped ? 2 : 1;
   return { campuses, grouped, scopeCount, canManage: canManageSchool(user.role, scopeCount) };
 }
 export async function getLocaleSettings() {
@@ -96,8 +96,8 @@ export async function applyLocaleChange(token: string) {
       const current = await tx.user.findFirst({ where: { id: user.id, schoolId: user.schoolId, isActive: true } });
       if (!current || current.role !== user.role || current.campusId !== user.campusId) throw new Error("permission");
       const campusRows = await tx.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, localeDelegatedFields: true } });
-      const school = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { _count: { select: { campuses: true, users: { where: { role: "SUPER_ADMIN", isActive: true } } } } } });
-      const scopeCount = school._count.users > 0 ? Math.max(2, school._count.campuses) : school._count.campuses;
+      const school = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { registrationKind: true } });
+      const scopeCount = school.registrationKind === "STANDALONE" ? 1 : 2;
       const campus = campusRows.find((c) => c.id === change.campusId);
       assertDelegatedChanges(current.role, current.campusId, change.campusId, scopeCount, campus?.localeDelegatedFields || [], change.settings);
       const record = await tx.localePolicy.create({ data: { schoolId: user.schoolId, campusId: change.campusId, scopeKey: change.campusId || "school", settings: preview.settings, effectiveAt: new Date(preview.effectiveAt), createdBy: user.id, status: preview.currencyReview ? "FINANCE_REVIEW" : "ACTIVE" } });
@@ -125,7 +125,7 @@ export async function reviewLocaleCurrency(id: string, approved: boolean) {
 
 export async function getEffectiveDisplayLocale() {
   const user = await session();
-  const personal = user.preferredLanguage === "en" || user.preferredLanguage === "ar" ? user.preferredLanguage : null;
+  const personal = user.preferredLanguage === "en" || user.preferredLanguage === "ar" || user.preferredLanguage === "ur" ? user.preferredLanguage : null;
   if (user.role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
   return runWithTenantContext(user, () => getLocalePackage(user.schoolId, user.campusId, new Date(), personal));
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/locale/LocaleProvider";
+
 import { useMemo, useState } from "react";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
 import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
@@ -8,10 +10,13 @@ import { FeesSkeleton, StudentErrorState } from "@/components/student/student-co
 import { useStudentData } from "../student-data-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatPKR } from "@/components/fees/fee-utils";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 
 export default function FeesPage() {
+  const tr = useUiText();
+  const { money } = useLocaleFormat();
+  const [selectedCurrency, setSelectedCurrency] = useState("");
   const { data, loading, error, refetch } = useStudentData();
   const [payingId, setPayingId] = useState<string | null>(null);
 
@@ -27,16 +32,20 @@ export default function FeesPage() {
       if (json.success && json.url) {
         window.location.href = json.url;
       } else {
-        toast.error(json.error || "Payment not available");
+        toast.error(json.error || tr("Payment not available"));
       }
     } catch {
-      toast.error("Could not start online payment");
+      toast.error(tr("Could not start online payment"));
     } finally {
       setPayingId(null);
     }
   };
 
-  const invoices = data?.user?.invoices ?? [];
+  const allInvoices = data?.user?.invoices ?? [];
+  const currencies: string[] = [...new Set<string>(allInvoices.map((invoice: any) => invoice.currency))];
+  const currency = currencies.includes(selectedCurrency) ? selectedCurrency : currencies[0] ?? "PKR";
+  const invoices = allInvoices.filter((invoice: any) => invoice.currency === currency);
+  const formatPKR = (amount: number) => money(amount, currency);
 
   // Invoice.totalAmountPaid / balanceDue are the columns the ledger maintains,
   // and the parent portal already reads them. Re-deriving the totals from the
@@ -61,33 +70,33 @@ export default function FeesPage() {
     <StudentPage
       tone="fees"
       icon={CreditCard}
-      eyebrow={<>{summary.outstanding ? `${formatPKR(summary.outstanding)} outstanding · ${summary.overdue} overdue` : "All fees cleared"}</>}
-      title="Fees"
-      summary="Invoices, payment progress, and outstanding balances."
+      eyebrow={<>{summary.outstanding ? `${formatPKR(summary.outstanding)} · ${tr("Outstanding")} · ${summary.overdue} ${tr("Overdue")}` : tr("All fees cleared")}</>}
+      title={tr("Fees")}
+      summary={tr("Invoices, payment progress, and outstanding balances.")}
     >
-      <div className="space-y-3">
+      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
-          <StatCard icon={Receipt} label="Total invoiced" value={formatPKR(summary.total)} sub={`${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`} />
+          <StatCard icon={Receipt} label={tr("Total invoiced")} value={formatPKR(summary.total)} sub={`${tr("Invoices")}: ${invoices.length}`} />
           <StatCard
             icon={CheckCircle2}
-            label="Paid"
+            label={tr("Paid")}
             value={formatPKR(summary.paid)}
-            sub={`${summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}% of total`}
+            sub={`${summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}% ${tr("of total")}`}
             tone="green"
             ring={summary.total ? Math.round((summary.paid / summary.total) * 100) : 0}
           />
-          <StatCard icon={Banknote} label="Outstanding" value={formatPKR(summary.outstanding)} sub={`${summary.pending} invoice${summary.pending > 1 ? "s" : ""} pending`} tone="rose" />
-          <StatCard icon={Calendar} label="Overdue" value={summary.overdue} sub={summary.overdue === 1 ? "1 overdue invoice" : `${summary.overdue} overdue invoices`} tone={summary.overdue ? "amber" : "purple"} />
+          <StatCard icon={Banknote} label={tr("Outstanding")} value={formatPKR(summary.outstanding)} sub={`${tr("Pending")}: ${summary.pending}`} tone="rose" />
+          <StatCard icon={Calendar} label={tr("Overdue")} value={summary.overdue} sub={`${tr("overdue invoices")}: ${summary.overdue}`} tone={summary.overdue ? "amber" : "purple"} />
         </div>
 
         <div className="sk-rise rounded-[32px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] p-7 shadow-xl relative overflow-hidden" style={{ animationDelay: "100ms" }}>
           <div className="absolute top-0 right-0 w-56 h-56 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
           <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <p className="text-[9px] font-bold text-white/60 uppercase tracking-wider">Total Outstanding</p>
+              <p className="text-[9px] font-bold text-white/60 uppercase tracking-wider"><UiText>{"Total Outstanding"}</UiText></p>
               <p className="mt-1 text-4xl font-bold tabular-nums text-white">{formatPKR(summary.outstanding)}</p>
               <p className="mt-1 text-xs font-semibold text-white/70">
-                {summary.paid > 0 ? `${Math.round((summary.paid / summary.total) * 100)}% paid · ${formatPKR(summary.paid)} cleared` : "No payments made yet"}
+                {summary.paid > 0 ? `${Math.round((summary.paid / summary.total) * 100)}% ${tr("paid")} · ${formatPKR(summary.paid)}` : tr("No payments made yet")}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -109,8 +118,8 @@ export default function FeesPage() {
         {invoices.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Invoices</h3>
-              <span className="text-[10px] font-semibold text-ink-subtle">{invoices.length} records</span>
+              <h3 className="text-sm font-black tracking-tight text-[#1d1b20]"><UiText>{"Invoices"}</UiText></h3>
+              <span className="text-[10px] font-semibold text-ink-subtle">{invoices.length}<UiText>{"records"}</UiText></span>
             </div>
             <div className="sk-rise grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ animationDelay: "160ms" }}>
               {invoices.map((invoice: any) => (
@@ -121,8 +130,8 @@ export default function FeesPage() {
         ) : (
           <StudentEmptyState
             icon={CreditCard}
-            title="No invoices yet"
-            description="Fee invoices will appear here once assigned to your profile."
+            title={tr("No invoices yet")}
+            description={tr("Fee invoices will appear here once assigned to your profile.")}
           />
         )}
       </div>
@@ -132,6 +141,9 @@ export default function FeesPage() {
 
 
 function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean; onPay: () => void }) {
+  const tr = useUiText();
+  const { money, date: formatDate } = useLocaleFormat();
+  const formatPKR = (amount: number) => money(amount, invoice.currency);
   const paid = invoice.totalAmountPaid || 0;
   const balance = Math.max(invoice.balanceDue || 0, 0);
   const progress = invoice.totalAmount ? Math.round(paid / invoice.totalAmount * 100) : 0;
@@ -150,9 +162,9 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
       <div className="relative p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            <p className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : "Fee invoice"}</p>
+            <p className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{invoice.invoiceNumber ? `${tr("Invoice")} ${invoice.invoiceNumber}` : tr("Fee invoice")}</p>
             <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
-              {invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "No due date"}
+              {invoice.dueDate ? `${tr("Due")} ${formatDate(invoice.dueDate)}` : tr("No due date")}
             </p>
           </div>
           <div className="relative">
@@ -177,7 +189,7 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
 
         <div className="flex items-baseline gap-1.5 mb-3">
           <span className="text-2xl font-bold tabular-nums text-[#1d1b20]">{formatPKR(balance)}</span>
-          <span className="text-[10px] font-semibold text-ink-subtle">of {invoice.totalAmount ? formatPKR(invoice.totalAmount) : "—"}</span>
+          <span className="text-[10px] font-semibold text-ink-subtle"><UiText>{"of"}</UiText>{invoice.totalAmount ? formatPKR(invoice.totalAmount) : "—"}</span>
         </div>
 
         <div className="h-2 w-full bg-[#f3f4f9] rounded-full overflow-hidden mb-3">
@@ -199,10 +211,10 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
               balance > 0 ? "bg-amber-50 text-amber-600 border-amber-200/50 group-hover:bg-amber-100" :
               "bg-[#fbf0fe] text-[#8127cf] border-[#cfc2d6]/20"
             )}>
-              {invoice.status === "PAID" ? "Paid" : isOverdue ? "Overdue" : balance > 0 ? `Pending` : invoice.status || "Pending"}
+              {invoice.status === "PAID" ? tr("Paid") : isOverdue ? tr("Overdue") : balance > 0 ? tr("Pending") : invoice.status || "Pending"}
             </span>
           </div>
-          {balance > 0 && (
+          {balance > 0 && invoice.currency === "PKR" && (
             <button
               type="button"
               onClick={onPay}
@@ -210,20 +222,15 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
             >
               {paying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wallet className="w-3 h-3" />}
-              {paying ? "Starting..." : "Pay Now"}
+              {paying ? tr("Starting...") : tr("Pay Now")}
             </button>
           )}
           {paid > 0 && balance <= 0 && (
-            <span className="text-[9px] font-semibold text-emerald-600">{formatPKR(paid)} paid</span>
+            <span className="text-[9px] font-semibold text-emerald-600">{formatPKR(paid)}<UiText>{"paid"}</UiText></span>
           )}
         </div>
       </div>
     </div>
   );
-}
-
-function formatDate(value?: string | Date | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 

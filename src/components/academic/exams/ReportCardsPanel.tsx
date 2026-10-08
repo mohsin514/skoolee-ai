@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -67,6 +69,7 @@ export function ReportCardsPanel({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,7 +116,7 @@ export function ReportCardsPanel({
         setProgress({ entered: pairs.size, expected: students.length * subjects.length });
       }
     } catch {
-      toast.error("Could not load report cards");
+      toast.error(tr("Could not load report cards"));
     } finally {
       setLoading(false);
     }
@@ -199,7 +202,7 @@ export function ReportCardsPanel({
   const approveOne = async (card: ReportCard, silent = false) => {
     const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
     if (!text) {
-      if (!silent) toast.error("Write a remark before approving it");
+      if (!silent) toast.error(tr("Write a remark before approving it"));
       return false;
     }
     if (!silent) setBusy(`approve-${card.id}`);
@@ -216,7 +219,7 @@ export function ReportCardsPanel({
           c.id === card.id ? { ...c, remarksEn: text, remarksApproved: true } : c,
         ),
       );
-      if (!silent) toast.success("Remark approved");
+      if (!silent) toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
       if (!silent) toast.error(e instanceof Error ? e.message : "Could not approve");
@@ -232,7 +235,7 @@ export function ReportCardsPanel({
       (c) => !c.remarksApproved && (remarks[c.id] ?? c.remarksEn ?? "").trim(),
     );
     if (pending.length === 0) {
-      toast.error("None of the outstanding cards have a remark written yet");
+      toast.error(tr("None of the outstanding cards have a remark written yet"));
       return;
     }
     setBusy("approve-all");
@@ -269,7 +272,7 @@ export function ReportCardsPanel({
     return [
       {
         key: "lock",
-        label: "Lock the marks",
+        label: tr("Lock the marks"),
         icon: Lock,
         blurb: "Freezes every mark and creates one report card per pupil.",
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
@@ -285,7 +288,7 @@ export function ReportCardsPanel({
       },
       {
         key: "review",
-        label: "Review",
+        label: tr("Review"),
         icon: ShieldCheck,
         blurb: "The principal signs the results off before families see them.",
         // The server refuses to review while any card lacks an approved
@@ -309,7 +312,7 @@ export function ReportCardsPanel({
         // Publishing refuses while any card lacks a PDF, and building them one
         // row at a time is not a workflow — so the bulk build is its own step.
         key: "pdf",
-        label: "Build the PDFs",
+        label: tr("Build the PDFs"),
         icon: FileText,
         blurb: "Renders every report card to a PDF, ready to publish and send.",
         state:
@@ -328,7 +331,7 @@ export function ReportCardsPanel({
       },
       {
         key: "publish",
-        label: "Publish",
+        label: tr("Publish"),
         icon: Upload,
         blurb: "Makes the report cards visible to parents and students.",
         state: published ? "done" : reviewed && pdfsMissing === 0 ? "ready" : "blocked",
@@ -344,7 +347,7 @@ export function ReportCardsPanel({
       },
       {
         key: "send",
-        label: "Send to families",
+        label: tr("Send to families"),
         icon: Send,
         blurb: "Delivers each report card over WhatsApp.",
         state: cards.length > 0 && cards.every((c) => c.isSent) ? "done" : published ? "ready" : "blocked",
@@ -369,8 +372,8 @@ export function ReportCardsPanel({
   return (
     <div className="space-y-4">
       <Panel
-        title="From marks to report cards"
-        subtitle="Four steps, in order. Each one says what is holding it up."
+        title={tr("From marks to report cards")}
+        subtitle={tr("Four steps, in order. Each one says what is holding it up.")}
         icon={FileText}
       >
         <ol className="space-y-2.5">
@@ -428,9 +431,7 @@ export function ReportCardsPanel({
                 </div>
 
                 {step.state === "done" ? (
-                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                    Done
-                  </span>
+                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
                 ) : (
                   <button
                     type="button"
@@ -461,8 +462,8 @@ export function ReportCardsPanel({
         title={`Report cards (${cards.length})`}
         subtitle={
           isLocked
-            ? "One per pupil. Open any of them to check before publishing."
-            : "They appear here the moment the marks are locked."
+            ? tr("One per pupil. Open any of them to check before publishing.")
+            : tr("They appear here the moment the marks are locked.")
         }
         icon={FileText}
         actions={
@@ -473,31 +474,28 @@ export function ReportCardsPanel({
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
-                  title="Approve every remark that has been written"
+                  title={tr("Approve every remark that has been written")}
                   className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6f1fb5] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
                 >
                   {busy === "approve-all" ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}
-                  Approve all ({needingRemarks})
+                  )}<UiText>{"Approve all ("}</UiText>{needingRemarks})
                 </button>
               ) : null}
               <button
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
-                title="Rebuild every report card from the marks as they stand now"
+                title={tr("Rebuild every report card from the marks as they stand now")}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-[#1f1a23] transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
               >
                 {busy === "generate" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                Rebuild
-              </button>
+                )}<UiText>{"Rebuild"}</UiText></button>
             </>
           ) : null
         }
@@ -506,7 +504,7 @@ export function ReportCardsPanel({
         {cards.length === 0 ? (
           <StepEmpty
             icon={FileText}
-            title={isLocked ? "No report cards yet" : "Nothing to show until the marks are locked"}
+            title={isLocked ? tr("No report cards yet") : tr("Nothing to show until the marks are locked")}
             body={
               isLocked
                 ? "The exam is locked but no cards were built. Use Rebuild to create them from the marks on file."
@@ -554,7 +552,7 @@ export function ReportCardsPanel({
                         type="text"
                         defaultValue={remarkOf(c)}
                         disabled={published || c.isSent}
-                        placeholder="e.g. Steady progress — keep it up."
+                        placeholder={tr("e.g. Steady progress — keep it up.")}
                         onChange={(e) =>
                           setRemarks((r) => ({ ...r, [c.id]: e.target.value }))
                         }
@@ -571,23 +569,21 @@ export function ReportCardsPanel({
                       {c.remarksApproved ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" />
-                          {c.isSent ? "Sent" : "Approved"}
+                          {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
                       ) : (
                         <button
                           type="button"
                           disabled={!!busy || published}
                           onClick={() => approveOne(c)}
-                          title="Approve this remark so the results can be reviewed"
+                          title={tr("Approve this remark so the results can be reviewed")}
                           className="inline-flex h-7 items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf]/20 disabled:opacity-50 enabled:cursor-pointer"
                         >
                           {busy === `approve-${c.id}` ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle2 className="h-3 w-3" />
-                          )}
-                          Approve
-                        </button>
+                          )}<UiText>{"Approve"}</UiText></button>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -598,12 +594,10 @@ export function ReportCardsPanel({
                         href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open this report card as a PDF"
+                        title={tr("Open this report card as a PDF")}
                         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
                       >
-                        <Download className="h-3 w-3" />
-                        PDF
-                      </a>
+                        <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a>
                     </td>
                   </tr>
                 ))}

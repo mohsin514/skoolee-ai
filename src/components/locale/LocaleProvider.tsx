@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { getEffectiveDisplayLocale } from "@/app/actions/locale";
-import { defaultLocale, type LocalePackage } from "@/lib/locale/package";
+import { defaultLocale, formatMoney, formatDateOnly, type LocalePackage } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
 const LocaleContext = createContext<LocalePackage>(defaultLocale);
 export function LocaleProvider({ children }: { children: ReactNode }) {
@@ -15,3 +15,12 @@ export function useLocale() { return useContext(LocaleContext); }
 export function useUiText() { const { language } = useLocale(); return useCallback((source: string) => translateUi(source, language), [language]); }
 /** Only explicit interface copy enters this component; student names and authored content do not. */
 export function UiText({ children }: { children: string }) { const t = useUiText(); return t(children); }
+
+/** Calendar/fee fields are date-only values; never reinterpret them in a time zone. */
+export function useLocaleFormat() {
+ const locale = useLocale();
+ return {
+  money: (minor: number, currency = "PKR") => formatMoney({ minor, currency }, locale),
+  date: (value: string) => formatDateOnly(value.slice(0, 10), locale),
+ };
+}

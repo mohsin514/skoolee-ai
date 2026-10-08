@@ -247,6 +247,14 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     }
   }
   if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar" || parent?.preferredLanguage === "ur") locale = { ...locale, language: parent.preferredLanguage };
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    const instructions = {
+      en: ["The PDF report card is attached.", "Please log in to the portal to view the report card."],
+      ar: ["بطاقة التقرير بصيغة PDF مرفقة.", "يرجى تسجيل الدخول إلى البوابة لعرض بطاقة التقرير."],
+      ur: ["پی ڈی ایف رپورٹ کارڈ منسلک ہے۔", "رپورٹ کارڈ دیکھنے کے لیے پورٹل میں لاگ ان کریں۔"],
+    };
+    context.viewInstruction = instructions[locale.language][input.attachmentUrl ? 0 : 1];
+  }
   for (const key of ["date", "dueDate", "meetingDate", "deadlineDate"]) {
     const value = context[key];
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) context[key] = formatDateOnly(value, locale);

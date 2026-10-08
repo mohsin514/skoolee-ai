@@ -1,3 +1,4 @@
+import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
   "Dashboard": "لوحة التحكم",
   "Main dashboard": "لوحة التحكم الرئيسية",
@@ -372,7 +373,14 @@ export const urduUi: Record<string, string> = {
   "Strong": "مضبوط"
 };
 
+const reportedMissing = new Set<string>();
 export function translateUi(source: string, language: "en" | "ar" | "ur") {
   const catalog = language === "ar" ? arabicUi : language === "ur" ? urduUi : undefined;
-  return catalog?.[source] ?? source;
+  const workflow = language === "ar" ? arabicWorkflowUi : language === "ur" ? urduWorkflowUi : undefined;
+  const value = catalog?.[source] ?? workflow?.[source];
+  if (language !== "en" && value === undefined && /[a-zA-Z]{2}/.test(source) && process.env.NODE_ENV !== "production") {
+    const key = `${language}:${source}`;
+    if (!reportedMissing.has(key)) { reportedMissing.add(key); console.warn(`[locale:missing] ${key}`); }
+  }
+  return value ?? source;
 }
