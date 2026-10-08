@@ -46,8 +46,13 @@ export type { GradeThresholds };
 export async function thresholdsForClass(
   classId: string,
   academicYear: number,
-  client: Pick<typeof prisma, "gradeWeightConfig"> = prisma,
+  client: TxClient = prisma,
+  academicModelVersionId?: string | null,
 ): Promise<GradeThresholds> {
+  if (academicModelVersionId) {
+    const cls = await client.class.findUnique({ where: { id: classId }, select: { campusId: true } });
+    if (cls) return (await getOrCreateGradeWeightConfig(cls.campusId, classId, academicYear, client, academicModelVersionId)).thresholds;
+  }
   const config = await client.gradeWeightConfig.findUnique({
     where: { classId_academicYear: { classId, academicYear } },
     select: { gradeAplus: true, gradeA: true, gradeB: true, gradeC: true, gradeD: true },
@@ -112,7 +117,7 @@ export async function generateReportCardsForLockedExam(examId: string) {
   const studentIds = students.map((student) => student.id);
 
   // The class's own grading ladder — not the built-in one (§82).
-  const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
+  const thresholds = await thresholdsForClass(exam.classId, exam.academicYear, prisma, exam.academicModelVersionId);
 
   const [marks, attendance, existingReports] = await Promise.all([
     prisma.mark.findMany({
@@ -342,7 +347,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
       campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
       exam: {
         select: {
-          id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true,
+          id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true, academicModelVersionId: true,
           classId: true,
           class: { select: { id: true, name: true, section: true, academicYear: true } },
         },
@@ -384,8 +389,8 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
   const classId = reportCard.exam.classId;
   if (classId) {
     try {
-      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear, db);
-      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db);
+      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
+      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
       overall = {
         overallPercentage: grade.overallPercentage,
         overallGrade: grade.overallGrade,
@@ -417,11 +422,14 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
       obtained: mark.marksObtained,
       total: mark.subject.totalMarks,
       isAbsent: mark.isAbsent,
+      isExempt: mark.isExempt,
       // An absent paper has no grade. Falling back to grading the stored 0
       // would print "F" against a paper the pupil never sat.
       grade: mark.isAbsent
         ? "ABS"
-        : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
+        : mark.isExempt
+          ? "EX"
+          : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
     })),
   };
 }

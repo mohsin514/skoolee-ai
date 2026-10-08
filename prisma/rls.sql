@@ -89,6 +89,13 @@ CREATE POLICY tenant_isolation ON "academic_cycles"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 
+ALTER TABLE "academic_model_versions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "academic_model_versions" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "academic_model_versions";
+CREATE POLICY tenant_isolation ON "academic_model_versions"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "admission_queries" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "admission_queries" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "admission_queries";

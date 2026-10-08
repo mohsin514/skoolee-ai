@@ -100,7 +100,6 @@ interface Student {
   studentUser?: { email?: string } | null;
   reportCards?: { status: string }[];
 }
-
 interface TagOption {
   id: string;
   name: string;
@@ -1107,4 +1106,3 @@ function BulkTagModal({
     </BulkSheet>
   );
 }
-

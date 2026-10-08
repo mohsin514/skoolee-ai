@@ -10,6 +10,7 @@ export const TENANT_MODELS = new Set<string>([
   "aIReviewItem",
   "aIUsageLog",
   "academicCycle",
+  "academicModelVersion",
   "admissionQuery",
   "admissionQueryFollowUp",
   "attendance",

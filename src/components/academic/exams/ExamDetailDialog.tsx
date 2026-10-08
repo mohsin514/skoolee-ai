@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { StatusPill } from "@/components/shared-admin";
@@ -200,6 +201,7 @@ interface Subject {
  * "scored nothing" cannot be told apart once written.
  */
 const ABSENT = -1;
+const EXEMPT = -2;
 
 function MarksEntry({
   exam,
@@ -210,6 +212,7 @@ function MarksEntry({
   onDirtyChange: (dirty: boolean) => void;
   onSaved?: () => void;
 }) {
+  const tr = useUiText();
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [saved, setSaved] = useState<Record<string, number>>({});
@@ -241,9 +244,9 @@ function MarksEntry({
       setSubjects(res.subjects ?? []);
       setLocked(Boolean(res.exam?.isLocked));
       const map: Record<string, number> = {};
-      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean }) => {
+      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean; isExempt?: boolean }) => {
         // Absence comes back as its own fact, not as the 0 stored beside it.
-        map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.marksObtained;
+        map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.isExempt ? EXEMPT : m.marksObtained;
       });
       setSaved(map);
       setDraft({});
@@ -317,6 +320,7 @@ function MarksEntry({
           subjectId,
           marksObtained: marksObtained === ABSENT ? 0 : marksObtained,
           isAbsent: marksObtained === ABSENT,
+          isExempt: marksObtained === EXEMPT,
         }));
       if (entries.length === 0) return;
 
@@ -331,7 +335,7 @@ function MarksEntry({
       setSaved((prev) => {
         const next = { ...prev };
         entries.forEach(
-          (e) => (next[`${e.studentId}:${e.subjectId}`] = e.isAbsent ? ABSENT : e.marksObtained),
+          (e) => (next[`${e.studentId}:${e.subjectId}`] = e.isAbsent ? ABSENT : e.isExempt ? EXEMPT : e.marksObtained),
         );
         return next;
       });
@@ -513,7 +517,7 @@ function MarksEntry({
       {/* ── The column ──────────────────────────────────────────────────── */}
       {subject ? (
         <div className="overflow-hidden rounded-[20px] border border-[#cfc2d6]/20 bg-white">
-          <div className="grid grid-cols-[3rem_1fr_7rem_5rem_5rem] items-center gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-2 sm:px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
             <span>Roll</span>
             <span>Student</span>
             <span className="text-center">Marks / {subject.totalMarks}</span>
@@ -526,6 +530,7 @@ function MarksEntry({
               const key = `${student.id}:${subjectId}`;
               const unsaved = key in draft;
               const absent = value === ABSENT;
+              const exempt = value === EXEMPT;
               const pct =
                 value !== undefined && value >= 0 && subject.totalMarks > 0
                   ? Math.round((value / subject.totalMarks) * 100)
@@ -535,7 +540,7 @@ function MarksEntry({
                 <li
                   key={student.id}
                   className={cn(
-                    "grid grid-cols-[3rem_1fr_7rem_5rem_5rem] items-center gap-2 px-4 py-1.5 transition-colors",
+                    "grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 px-2 py-1.5 transition-colors sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 sm:px-4",
                     unsaved ? "bg-amber-50/40" : "hover:bg-[#faf7fc]",
                   )}
                 >
@@ -554,8 +559,8 @@ function MarksEntry({
                       inputMode="numeric"
                       min={0}
                       max={subject.totalMarks}
-                      disabled={locked || absent}
-                      value={value === undefined || absent ? "" : value}
+                      disabled={locked || absent || exempt}
+                      value={value === undefined || absent || exempt ? "" : value}
                       onKeyDown={(e) => onKey(e, i)}
                       // Clicking into a cell that already has a mark should
                       // let you retype it, not append a digit to it — 8 typed
@@ -569,8 +574,8 @@ function MarksEntry({
                       }}
                       placeholder="—"
                       className={cn(
-                        "w-16 rounded-lg border px-2 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all",
-                        absent
+                        "w-10 rounded-lg border px-1 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all focus:ring-4 focus:ring-[#8127cf]/15 sm:w-16 sm:px-2",
+                        absent || exempt
                           ? "border-[#cfc2d6]/25 bg-[#f3f4f9] text-ink-subtle"
                           : pct === null
                           ? "border-[#cfc2d6]/25 bg-white text-[#1f1a23]"
@@ -583,7 +588,8 @@ function MarksEntry({
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, absent ? undefined : ABSENT)}
-                      title={absent ? "Mark present" : "Mark absent"}
+                      title={tr(absent ? "Mark present" : "Mark absent")}
+                      aria-label={tr(absent ? "Mark present" : "Mark absent")}
                       className={cn(
                         "h-6 shrink-0 rounded-md px-1.5 text-[9px] font-black uppercase transition-colors enabled:cursor-pointer disabled:opacity-40",
                         absent
@@ -592,6 +598,19 @@ function MarksEntry({
                       )}
                     >
                       Abs
+                    </button>
+                    <button
+                      type="button"
+                      disabled={locked}
+                      onClick={() => setValue(student.id, exempt ? undefined : EXEMPT)}
+                      title={tr(exempt ? "Remove exemption" : "Mark exempt")}
+                      aria-label={tr(exempt ? "Remove exemption" : "Mark exempt")}
+                      className={cn(
+                        "h-6 shrink-0 rounded-md px-1.5 text-[9px] font-black uppercase transition-colors enabled:cursor-pointer disabled:opacity-40",
+                        exempt ? "bg-[#1f1a23] text-white" : "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]",
+                      )}
+                    >
+                      Ex
                     </button>
                   </div>
                   <span
@@ -604,12 +623,16 @@ function MarksEntry({
                         : "text-rose-500",
                     )}
                   >
-                    {absent ? "—" : pct === null ? "—" : `${pct}%`}
+                      {absent ? "ABS" : exempt ? "EX" : pct === null ? "—" : `${pct}%`}
                   </span>
                   <span className="text-center">
                     {absent ? (
                       <span className="rounded-md bg-[#f3f4f9] px-1.5 py-0.5 text-[9px] font-black uppercase text-ink-subtle">
-                        Absent
+                        <UiText>Absent</UiText>
+                      </span>
+                    ) : exempt ? (
+                      <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-700">
+                        <UiText>Exempt</UiText>
                       </span>
                     ) : pct === null ? (
                       <span className="text-[10px] font-bold text-ink-subtle">—</span>

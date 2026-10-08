@@ -20,6 +20,7 @@ import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { Field, Panel, StepEmpty, inputClass } from "@/components/academic/exams/shared";
 import { Input as SystemInput } from "@/components/ui/input";
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Grading rules, set per class and applied to every section of it (§80).
@@ -48,6 +49,10 @@ interface Config {
   gradeB: number;
   gradeC: number;
   gradeD: number;
+  missingMarkPolicy: "COUNT_AS_ZERO" | "EXCLUDE" | "BLOCK";
+  absentMarkPolicy: "COUNT_AS_ZERO" | "EXCLUDE" | "BLOCK";
+  exemptMarkPolicy: "COUNT_AS_ZERO" | "EXCLUDE" | "BLOCK";
+  roundingRule: "WHOLE" | "ONE_DECIMAL" | "TWO_DECIMALS";
 }
 
 interface ClassGroup {
@@ -309,6 +314,7 @@ function RulesEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const tr = useUiText();
   const [cfg, setCfg] = useState<Config>(group.config);
   const [saving, setSaving] = useState(false);
 
@@ -528,6 +534,45 @@ function RulesEditor({
             })}
           </div>
         </div>
+
+        <section className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-4" aria-labelledby="result-semantics-title">
+          <h3 id="result-semantics-title" className="text-xs font-black text-[#1f1a23]"><UiText>Missing, absent and exempt results</UiText></h3>
+          <p className="mt-1 text-[11px] leading-snug text-ink-muted"><UiText>A zero is a scored result. These rules keep it distinct from an unentered mark, absence or approved exemption.</UiText></p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {([
+              ["missingMarkPolicy", "No mark entered", "Used when a student has no mark row for a completed component."],
+              ["absentMarkPolicy", "Absent", "Used when the student did not sit the assessment."],
+              ["exemptMarkPolicy", "Exempt", "Used for an approved exemption; excluded is the default."],
+            ] as const).map(([key, label, help]) => (
+              <label key={key} className="space-y-1.5 text-[11px] font-bold text-ink-muted">
+                <span>{tr(label)}</span>
+                <select
+                  value={cfg[key]}
+                  onChange={(event) => setCfg((current) => ({ ...current, [key]: event.target.value as Config[typeof key] }))}
+                  className="h-10 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                >
+                  <option value="COUNT_AS_ZERO">{tr("Count as zero")}</option>
+                  <option value="EXCLUDE">{tr("Exclude from the result")}</option>
+                  <option value="BLOCK">{tr("Block until resolved")}</option>
+                </select>
+                <span className="block text-[10px] font-medium">{tr(help)}</span>
+              </label>
+            ))}
+            <label className="space-y-1.5 text-[11px] font-bold text-ink-muted">
+              <span><UiText>Rounding</UiText></span>
+              <select
+                value={cfg.roundingRule}
+                onChange={(event) => setCfg((current) => ({ ...current, roundingRule: event.target.value as Config["roundingRule"] }))}
+                className="h-10 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              >
+                <option value="WHOLE">{tr("Whole percentage (half up)")}</option>
+                <option value="ONE_DECIMAL">{tr("One decimal place (half up)")}</option>
+                <option value="TWO_DECIMALS">{tr("Two decimal places (half up)")}</option>
+              </select>
+              <span className="block text-[10px] font-medium"><UiText>For example, 82.5 rounds to 83 with whole percentage.</UiText></span>
+            </label>
+          </div>
+        </section>
 
         {/* ── Grade boundaries ──────────────────────────────────────────── */}
         <div>

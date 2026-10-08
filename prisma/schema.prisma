@@ -149,6 +149,7 @@ model School {
   studentClassHistories   StudentClassHistory[]
   teacherAttendances      TeacherAttendance[]
   academicCycles          AcademicCycle[]
+  academicModelVersions   AcademicModelVersion[]
   notifications           Notification[]
   transportRoutes         TransportRoute[]
   vehicles                Vehicle[]
@@ -314,6 +315,7 @@ model Campus {
   teacherAttendance     TeacherAttendance[]
   studentClassHistory   StudentClassHistory[]
   academicCycles        AcademicCycle[]
+  academicModelVersions AcademicModelVersion[]
   studentCategories     StudentCategory[]
   studentGroups         StudentGroup[]
   leaveTypes            LeaveType[]
@@ -1114,7 +1116,7 @@ model GuardianRelationship {
   accessEvents        GuardianAccessEvent[]
 
   @@unique([id, schoolId])
-  @@index([schoolId, campusId, studentId, status])
+  @@index([schoolId, campusId, studentId, status], map: "guardian_relationships_school_id_campus_id_student_id_status_id")
   @@index([schoolId, guardianUserId, status])
   @@map("guardian_relationships")
 }
@@ -1134,7 +1136,7 @@ model GuardianAccessVersion {
   createdByUserId String   @map("created_by_user_id")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  @@index([schoolId, relationshipId, effectiveFrom, effectiveUntil])
+  @@index([schoolId, relationshipId, effectiveFrom, effectiveUntil], map: "guardian_access_versions_school_id_relationship_id_effective_fr")
   @@map("guardian_access_versions")
 }
 
@@ -1412,6 +1414,8 @@ model Exam {
   session         ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   subjectId       String?      @map("subject_id") // if set, exam covers only this subject; null = all class subjects
   subject         Subject?     @relation(fields: [subjectId], references: [id])
+  academicModelVersionId String? @map("academic_model_version_id")
+  academicModelVersion AcademicModelVersion? @relation(fields: [academicModelVersionId], references: [id], onDelete: SetNull)
   totalMarks      Int          @default(0) @map("total_marks") // computed sum of subject totalMarks
   status          String       @default("DRAFT") // DRAFT, ACTIVE, MARKS_ENTRY, LOCKED, PRINCIPAL_REVIEWED, PUBLISHED
   isLocked        Boolean      @default(false) @map("is_locked")
@@ -1529,6 +1533,12 @@ model GradeWeightConfig {
   gradeB            Float    @default(70) @map("grade_b")
   gradeC            Float    @default(60) @map("grade_c")
   gradeD            Float    @default(50) @map("grade_d")
+  missingMarkPolicy String   @default("COUNT_AS_ZERO") @map("missing_mark_policy")
+  absentMarkPolicy  String   @default("COUNT_AS_ZERO") @map("absent_mark_policy")
+  exemptMarkPolicy  String   @default("EXCLUDE") @map("exempt_mark_policy")
+  roundingRule      String   @default("WHOLE") @map("rounding_rule")
+  academicModelVersionId String? @map("academic_model_version_id")
+  academicModelVersion AcademicModelVersion? @relation(fields: [academicModelVersionId], references: [id], onDelete: SetNull)
   isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -1559,6 +1569,7 @@ model Mark {
   // Absent rows keep marksObtained at 0 for the readers that only understand
   // a number, and this flag is what the grade calculations actually consult.
   isAbsent      Boolean @default(false) @map("is_absent")
+  isExempt      Boolean @default(false) @map("is_exempt")
   grade         String?
   enteredBy     String? @map("entered_by")
   enterer       User?   @relation("EnteredBy", fields: [enteredBy], references: [id])
@@ -2675,6 +2686,46 @@ model AcademicCycle {
   @@index([campusId, status])
   @@index([schoolId])
   @@map("academic_cycles")
+}
+
+// Versioned curriculum, terms and grading rules for one cohort and year.
+// Shared templates have no campusId and are copied into campus drafts before
+// local subject IDs or delegated exceptions are applied.
+model AcademicModelVersion {
+  id                    String    @id @default(uuid())
+  schoolId              String    @default("") @map("school_id")
+  school                School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId              String?   @map("campus_id")
+  campus                Campus?   @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  academicYear          Int       @map("academic_year")
+  cohortKey             String    @map("cohort_key")
+  cohortLabel           String    @map("cohort_label")
+  title                 String
+  version               Int
+  status                String    @default("DRAFT") // DRAFT | ACTIVE | SUPERSEDED | TEMPLATE
+  effectiveFrom         DateTime  @map("effective_from") @db.Date
+  effectiveTo           DateTime? @map("effective_to") @db.Date
+  configuration         Json
+  templateSourceId      String?   @map("template_source_id")
+  inheritedConfiguration Json?    @map("inherited_configuration")
+  delegatedOverrideKeys String[]  @default([]) @map("delegated_override_keys")
+  localOverrideKeys     String[]  @default([]) @map("local_override_keys")
+  isSharedTemplate      Boolean   @default(false) @map("is_shared_template")
+  templateApprovedAt    DateTime? @map("template_approved_at")
+  templateApprovedBy    String?   @map("template_approved_by")
+  approvedAt            DateTime? @map("approved_at")
+  approvedBy            String?   @map("approved_by")
+  createdBy             String    @map("created_by")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  gradeWeightConfigs GradeWeightConfig[]
+  exams               Exam[]
+
+  @@unique([campusId, academicYear, cohortKey, version])
+  @@index([schoolId, campusId, academicYear, status])
+  @@index([templateSourceId])
+  @@map("academic_model_versions")
 }
 
 // ─── IN-APP NOTIFICATIONS ────────────────────────────────

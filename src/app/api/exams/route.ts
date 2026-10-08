@@ -8,6 +8,7 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
+import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
 import { assertPermission } from "@/lib/permissions";
 import {
   canCreateExamType,
@@ -200,6 +201,13 @@ export async function POST(req: NextRequest) {
     });
     const totalMarks = subjects.reduce((sum, s) => sum + s.totalMarks, 0);
 
+    const academicModelVersionId = await resolveAcademicModelVersionForTerm({
+      campusId: cls.campusId,
+      classId: parsed.data.classId,
+      academicYear: parsed.data.academicYear,
+      term: parsed.data.term,
+    });
+
     // If a specific subject is selected, verify it belongs to the class
     if (parsed.data.subjectId && subjects.length === 0) {
       return Response.json({ error: "Selected subject not found in this class" }, { status: 400 });
@@ -212,6 +220,7 @@ export async function POST(req: NextRequest) {
         title: parsed.data.title,
         term: parsed.data.term,
         academicYear: parsed.data.academicYear,
+        academicModelVersionId,
         examType,
         subjectId: parsed.data.subjectId || null,
         totalMarks,
