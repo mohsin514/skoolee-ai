@@ -47,9 +47,16 @@ export const PARENT_NAV: ParentNavItem[] = [
  * session, so a bare href would bounce them to the login screen.
  */
 export function ParentSubnav() {
-  const { token } = useParentData();
+  const { token, data } = useParentData();
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
-  return <WorkspaceSubnav label="Parent sections" items={PARENT_NAV.map((item) => ({ id: item.href, label: item.label, href: item.href + q }))} />;
+  const allowed = PARENT_NAV.filter((item) => {
+    if (item.href === "/parent" || !data) return item.href === "/parent";
+    if (item.href === "/parent/results" || item.href === "/parent/timetable") return data.access.learningRecords;
+    if (item.href === "/parent/attendance") return data.access.attendance;
+    if (item.href === "/parent/fees") return data.access.finances;
+    return false;
+  });
+  return <WorkspaceSubnav label="Parent sections" items={allowed.map((item) => ({ id: item.href, label: item.label, href: item.href + q }))} />;
 }
 
 export function ParentPage({

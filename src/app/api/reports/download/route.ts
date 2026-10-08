@@ -40,9 +40,10 @@ async function download(req: NextRequest, scope: Prisma.ReportCardWhereInput, st
 export async function GET(req: NextRequest) {
   try {
     if (req.nextUrl.searchParams.has("token")) {
-      return await withParentScope(req, ({ studentId, schoolId }) => download(req, {
-        schoolId, studentId: studentId!, ...publishedReportsWhere,
-      }));
+      return await withParentScope(req, ({ studentId, schoolId, permissions }) => {
+        if (!permissions.learningRecords) throw new AccessDenied("report");
+        return download(req, { schoolId, studentId: studentId!, ...publishedReportsWhere });
+      });
     }
     const user = await getAuthUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });

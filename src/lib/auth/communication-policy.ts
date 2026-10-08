@@ -9,14 +9,41 @@ export async function assertCommunicationTarget(target: {
   if (!target.studentId) return; // Institution announcements use a trusted service identity.
   const student = await prisma.student.findFirst({
     where: { id: target.studentId, schoolId: target.schoolId, ...(target.campusId ? { campusId: target.campusId } : {}) },
-    select: { parentUserId: true, guardianEmail: true, guardianPhone: true, guardianWhatsapp: true,
-      parent: { select: { email: true, phone: true, isActive: true } } },
+    select: { id: true },
   });
-  if (!student || (target.parentUserId && target.parentUserId !== student.parentUserId)) throw new AccessDenied("communication", "send");
-  const contacts = channel === "EMAIL"
-    ? [student.guardianEmail, student.parent?.isActive ? student.parent.email : null]
-    : [student.guardianPhone, student.guardianWhatsapp, student.parent?.isActive ? student.parent.phone : null];
-  if (target.recipient && !contacts.filter(Boolean).includes(target.recipient)) throw new AccessDenied("communication", "send");
+  if (!student || (!target.parentUserId && !target.recipient)) throw new AccessDenied("communication", "send");
+  const now = new Date();
+  const relationships = await prisma.guardianRelationship.findMany({
+    where: {
+      schoolId: target.schoolId,
+      studentId: target.studentId,
+      guardianUserId: { not: null },
+      status: "ACTIVE",
+      verifiedAt: { not: null },
+      validFrom: { lte: now },
+      AND: [
+        { OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
+        { guardian: { isActive: true } },
+        { accessVersions: { some: {
+          effectiveFrom: { lte: now },
+          permissions: { path: ["communication"], equals: true },
+          AND: [{ OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }] }],
+        } } },
+      ],
+      ...(target.parentUserId ? { guardianUserId: target.parentUserId } : {}),
+    },
+    select: { email: true, phone: true, guardianUserId: true, guardian: { select: { phone: true } } },
+  });
+  const normalizedRecipient = channel === "EMAIL"
+    ? target.recipient?.trim().toLocaleLowerCase("en-US")
+    : target.recipient?.replace(/[^\d+]/g, "");
+  const allowed = relationships.some((relation) => {
+    if (target.parentUserId && relation.guardianUserId !== target.parentUserId) return false;
+    if (!normalizedRecipient) return true;
+    const contacts = channel === "EMAIL" ? [relation.email.trim().toLocaleLowerCase("en-US")] : [relation.phone, relation.guardian?.phone].map((contact) => contact?.replace(/[^\d+]/g, ""));
+    return contacts.some((contact) => !!contact && contact === normalizedRecipient);
+  });
+  if (!allowed) throw new AccessDenied("communication", "send");
 }
 
 export async function assertPublishedCommunicationReport(reportId: string, studentId?: string | null) {

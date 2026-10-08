@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { studentScope } from "@/lib/auth/policy";
 import { requireAuthUser, errorResponse } from "@/lib/api/scope";
 
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       const student = await prisma.student.findFirst({
         where: user.role === "STUDENT"
           ? { studentUserId: user.userId }
-          : { parentUserId: user.userId },
+          : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       resolvedClassId = student?.classId || null;

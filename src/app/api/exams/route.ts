@@ -3,6 +3,7 @@ import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { studentScope } from "@/lib/auth/policy";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : { parentUserId: user.userId },
+            : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));

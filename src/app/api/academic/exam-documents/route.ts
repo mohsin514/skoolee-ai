@@ -9,6 +9,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
+import { studentScope } from "@/lib/auth/policy";
 import { renderDateSheetPdf, renderSeatingPdf } from "@/lib/academic/exam-docs";
 
 export const runtime = "nodejs";
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : { parentUserId: user.userId },
+            : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       const ownClassIds = new Set(students.map((s) => s.classId));

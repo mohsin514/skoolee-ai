@@ -39,9 +39,11 @@ export default function ParentOverviewPage() {
   for (const fee of data.fees) balances.set(fee.currency, (balances.get(fee.currency) ?? 0) + fee.balance);
 
   const stats = [
-    { icon: FileText, label: "Report Cards", value: data.reportCards.length, sub: "Published to date", tone: "violet" as const },
-    { icon: Award, label: "Latest Score", value: latestPct !== undefined ? `${Math.round(latestPct)}%` : "N/A", sub: data.reportCards[0]?.examTitle || "No result yet", tone: "green" as const },
-    { icon: CalendarCheck, label: "Attendance", value: data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A", sub: `${data.attendance.total} days recorded`, tone: "amber" as const },
+    ...(data.access.learningRecords ? [
+      { icon: FileText, label: "Report Cards", value: data.reportCards.length, sub: "Published to date", tone: "violet" as const },
+      { icon: Award, label: "Latest Score", value: latestPct !== undefined ? `${Math.round(latestPct)}%` : "N/A", sub: data.reportCards[0]?.examTitle || "No result yet", tone: "green" as const },
+    ] : []),
+    ...(data.access.attendance ? [{ icon: CalendarCheck, label: "Attendance", value: data.attendance.rate !== null ? `${data.attendance.rate}%` : "N/A", sub: `${data.attendance.total} days recorded`, tone: "amber" as const }] : []),
   ];
 
   return (
@@ -65,13 +67,13 @@ export default function ParentOverviewPage() {
         </div>
 
         {/* The child's record in chart form, before the day-to-day panels. */}
-        <LearnerInsights
+        {data.access.learningRecords ? <LearnerInsights
           series={learnerSeriesFromParent(data)}
           possessive={student.fullName.split(" ")[0] || "your child"}
-        />
+        /> : null}
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          {data.access.learningRecords ? <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
                 <FileText className="h-4 w-4" />
@@ -109,9 +111,9 @@ export default function ParentOverviewPage() {
                 View all results <ChevronRight className="w-3 h-3" />
               </Link>
             ) : null}
-          </div>
+          </div> : null}
 
-          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          {data.access.learningRecords || data.access.attendance || data.access.finances ? <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <GraduationCap className="h-4 w-4" />
@@ -119,38 +121,38 @@ export default function ParentOverviewPage() {
               <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Quick Access</h3>
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <QuickLink
+              {data.access.learningRecords ? <QuickLink
                 href={`/parent/results${q}`}
                 icon={FileText}
                 label="Exams marked"
                 value={String(data.marksByExam.length)}
                 sub="View results"
-              />
-              <QuickLink
+              /> : null}
+              {data.access.attendance ? <QuickLink
                 href={`/parent/attendance${q}`}
                 icon={CalendarCheck}
                 label="Days recorded"
                 value={String(data.attendance.total)}
                 sub={data.attendance.rate !== null ? `${data.attendance.rate}% attendance` : "No rate yet"}
                 tone="emerald"
-              />
-              <QuickLink
+              /> : null}
+              {data.access.learningRecords ? <QuickLink
                 href={`/parent/timetable${q}`}
                 icon={Clock}
                 label="This week"
                 value="Timetable"
                 sub="Weekly class schedule"
-              />
-              <QuickLink
+              /> : null}
+              {data.access.finances ? <QuickLink
                 href={`/parent/fees${q}`}
                 icon={CreditCard}
                 label={feeOutstanding ? "Outstanding" : "Fees"}
                 value={feeOutstanding ? [...balances].filter(([, amount]) => amount > 0).map(([currency, amount]) => money(amount, currency)).join(" · ") : "Cleared"}
                 sub={feeOutstanding ? "Tap to pay" : "Nothing due"}
                 tone={feeOutstanding ? "rose" : "emerald"}
-              />
+              /> : null}
             </div>
-          </div>
+          </div> : null}
         </div>
 
         <AcademicCalendar readOnly role="PARENT" />
