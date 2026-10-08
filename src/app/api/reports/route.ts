@@ -1,3 +1,5 @@
+import { startPdfJob } from "@/lib/jobs/processing";
+import { trackDeliveries } from "@/lib/jobs/service";
 import { loadPermissionMap } from "@/lib/permissions";
 import { reviewQueue, approveVersions, reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertModuleRead, assertPermission } from "@/lib/api/scope";
@@ -133,25 +135,8 @@ export async function POST(req: NextRequest) {
     if (action === "pdf") {
       await assertFeatureEnabled(user.schoolId, "pdfExportEnabled");
       await ensureReportCards(examId);
-      const reportCards = await prisma.reportCard.findMany({ where: { examId } });
-      const generated = [];
-
-      for (const reportCard of reportCards) {
-        // Null means the PDF rendered but there was nowhere to cache it — a
-        // read-only serverless filesystem with no S3 configured. The document
-        // is still downloadable, rendered per request, so this is not a
-        // failure and must not be recorded as one (§84).
-        const pdfUrl = await generateReportCardPdf(reportCard.id);
-        const updated = pdfUrl
-          ? await prisma.reportCard.update({
-              where: { id: reportCard.id },
-              data: { pdfUrl },
-            })
-          : reportCard;
-        generated.push(updated);
-      }
-
-      return Response.json({ success: true, generated: generated.length });
+      const jobId = await startPdfJob(user, exam);
+      return Response.json({ success: true, jobId, queued: true }, { status: 202 });
     }
 
     if (action === "approve") {
@@ -181,7 +166,8 @@ export async function POST(req: NextRequest) {
 
     const communications = [];
     for (const reportCard of reportCards) communications.push(...await sendReportCardPublishedNotifications({ reportCardId: reportCard.id, createdById: user.userId }));
-    return Response.json({ success: true, queued: communications.filter(c => c.status === "PENDING").length, communications });
+    const jobId = await trackDeliveries(user, exam, communications);
+    return Response.json({ success: true, jobId, queued: communications.filter(c => c.status === "PENDING").length, communications });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Report action failed" }, { status });

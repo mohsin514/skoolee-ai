@@ -5,6 +5,7 @@ import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
 import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
+import { cookies } from "next/headers";
 
 export class ApiError extends Error {
   status: number;
@@ -75,9 +76,14 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
  * calling runUnscoped()/enterUnscoped() directly, so the bypass can never
  * be reached without the role check that precedes it.
  */
-export async function requirePlatformOwner(): Promise<AuthUser> {
+export async function requirePlatformOwner(options: { allowSupportAccess?: boolean } = {}): Promise<AuthUser> {
   const user = await requireAuthUser({ allowSuspended: true });
   if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+
+  // A scoped support session closes the general platform APIs. The small set
+  // of support routes opts in and checks the live grant before any data access.
+  const supportCookie = (await cookies()).get("skoolee_support_grant")?.value;
+  if (supportCookie && !options.allowSupportAccess) throw new ApiError("End the scoped support session before using platform administration", 403);
 
   enterUnscoped(`platform owner ${user.userId} administering all schools`);
   return user;
@@ -194,6 +200,7 @@ export function canManageFrontDesk(user: AuthUser) {
 }
 
 export function canPurchaseSubscription(user: AuthUser) {
+  if (["APP_OWNER", "STUDENT", "PARENT"].includes(user.role)) return false;
   return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
 }
 

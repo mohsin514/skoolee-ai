@@ -27,6 +27,8 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  activityJobs ActivityJob[]
+  deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
   corrections Correction[]
   studentEnrollments StudentEnrollment[]
@@ -36,6 +38,7 @@ model School {
   workflowJobs         WorkflowJob[]
   workflowEffects      WorkflowEffect[]
   importBatches        ImportBatch[]
+  checkoutIntents      OnboardingCheckoutIntent[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
   id                   String    @id @default(uuid())
   name                 String
@@ -94,6 +97,9 @@ model School {
   guardianAccessVersions  GuardianAccessVersion[]
   guardianAccessEvents    GuardianAccessEvent[]
   guardianReviewQueue     GuardianReviewQueue[]
+  supportIncidents        SupportIncident[]
+  supportGrants           SupportGrant[]
+  supportActions          SupportAction[]
   studentDocuments        StudentDocument[]
   studentTimelineEvents   StudentTimelineEvent[]
   admissionQueries        AdmissionQuery[]
@@ -223,13 +229,16 @@ model WorkflowJob {
   leaseToken String? @map("lease_token")
   leaseUntil DateTime? @map("lease_until")
   cancelRequestedAt DateTime? @map("cancel_requested_at")
+  supportGrantId String? @map("support_grant_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")
   startedAt DateTime? @map("started_at")
   finishedAt DateTime? @map("finished_at")
   effects WorkflowEffect[]
+  activityItems ActivityItem[]
   @@unique([id, schoolId])
   @@index([state, leaseUntil])
+  @@index([supportGrantId, state])
   @@map("workflow_jobs")
 }
 
@@ -246,6 +255,39 @@ model WorkflowEffect {
   completedAt DateTime? @map("completed_at")
   @@unique([jobId, identity])
   @@map("workflow_effects")
+}
+
+// Durable subscription checkout state. Provider redirects and browser return
+// parameters are never authoritative for entitlement activation.
+model OnboardingCheckoutIntent {
+  id                 String   @id @default(uuid())
+  schoolId           String   @map("school_id")
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId             String   @map("user_id")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idempotencyKey     String   @map("idempotency_key")
+  plan               String
+  billingPeriod      String   @default("monthly") @map("billing_period")
+  catalogueVersion   String   @map("catalogue_version")
+  contractSnapshot   Json     @map("contract_snapshot")
+  expectedCampuses   Int      @map("expected_campuses")
+  expectedEnrollment Int      @map("expected_enrollment")
+  returnStep         String   @map("return_step")
+  provider           String   @default("NONE")
+  providerReference  String?  @map("provider_reference")
+  checkoutUrl        String?  @map("checkout_url") @db.Text
+  status             String   @default("PENDING")
+  amount             Int?
+  currency           String?
+  failureReason      String?  @map("failure_reason") @db.Text
+  settledAt          DateTime? @map("settled_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, userId, idempotencyKey])
+  @@index([schoolId, status, createdAt])
+  @@index([provider, providerReference])
+  @@map("onboarding_checkout_intents")
 }
 
 // ─── 1d. ROLE PERMISSIONS MATRIX ─────────────────────────
@@ -272,6 +314,7 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  activityJobs ActivityJob[]
   corrections Correction[]
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
   localePolicies LocalePolicy[]
@@ -417,6 +460,7 @@ model User {
   emergencyPhone                String?                  @map("emergency_phone")
   isActive                      Boolean                  @default(true) @map("is_active")
   onboardingComplete            Boolean                  @default(false) @map("onboarding_complete")
+  checkoutIntents               OnboardingCheckoutIntent[]
   mustChangePassword            Boolean                  @default(false) @map("must_change_password")
   createdAt                     DateTime                 @default(now()) @map("created_at")
   // Action Tracking
@@ -2327,6 +2371,7 @@ model NotificationTemplate {
 }
 
 model ParentCommunication {
+  deliveryReceipts DeliveryReceipt[]
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -2565,6 +2610,74 @@ model SuperAdminAuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("super_admin_audit_logs")
+}
+
+// A support incident is the school-approved reason for bounded vendor support.
+// Actor IDs are immutable audit identities and intentionally have no User FK.
+model SupportIncident {
+  id               String   @id @default(uuid())
+  schoolId         String   @map("school_id")
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reference        String   @unique
+  purpose          String   @db.Text
+  impact           String   @db.Text
+  status           String   @default("open")
+  ownerActorId     String   @map("owner_actor_id")
+  closureEvidence String?  @map("closure_evidence") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  closedAt         DateTime? @map("closed_at")
+  grants           SupportGrant[]
+
+  @@index([schoolId, status, updatedAt])
+  @@map("support_incidents")
+}
+
+model SupportGrant {
+  id              String   @id @default(uuid())
+  schoolId        String   @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  incidentId      String   @map("incident_id")
+  incident        SupportIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  requestedById   String   @map("requested_by_id")
+  approvedById    String?  @map("approved_by_id")
+  purpose         String   @db.Text
+  scope           String[]
+  actions         String[] @default(["read"])
+  status          String   @default("pending")
+  expiresAt       DateTime @map("expires_at")
+  startedAt       DateTime? @map("started_at")
+  revokedAt       DateTime? @map("revoked_at")
+  emergencyReason String?  @map("emergency_reason") @db.Text
+  reviewDueAt     DateTime? @map("review_due_at")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewEvidence  String?  @map("review_evidence") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  queuedActions   SupportAction[]
+
+  @@index([schoolId, status, expiresAt])
+  @@index([incidentId])
+  @@map("support_grants")
+}
+
+model SupportAction {
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  grantId   String   @map("grant_id")
+  grant     SupportGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  actorId   String   @map("actor_id")
+  domain    String
+  action    String
+  status    String   @default("queued")
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([grantId, status])
+  @@index([schoolId])
+  @@map("support_actions")
 }
 
 model LoginSession {
@@ -3464,6 +3577,65 @@ model EnrollmentProposal {
   @@map("enrollment_proposals")
 }
 // Shared authentication counters: keys are hashed and contain no plaintext identifiers.
+model ActivityJob {
+  id                String         @id
+  school            School         @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campus            Campus         @relation(fields: [campusId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  schoolId          String         @map("school_id")
+  campusId          String         @map("campus_id")
+  classId           String?        @map("class_id")
+  actorId           String         @map("actor_id")
+  kind              String
+  identity          String
+  sourceId          String         @map("source_id")
+  sourceLabel       String         @map("source_label")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  cancelRequestedAt DateTime?      @map("cancel_requested_at")
+  items             ActivityItem[]
+
+  @@unique([schoolId, identity])
+  @@unique([id, schoolId])
+  @@index([schoolId, campusId, createdAt], map: "activity_jobs_scope")
+  @@map("activity_jobs")
+}
+
+model ActivityItem {
+  id              String       @id
+  workflow        WorkflowJob? @relation(fields: [workflowId, schoolId], references: [id, schoolId], onDelete: NoAction, onUpdate: NoAction)
+  schoolId        String       @map("school_id")
+  jobId           String       @map("job_id")
+  job             ActivityJob  @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade, onUpdate: NoAction)
+  referenceId     String       @map("reference_id")
+  label           String
+  versionId       String?      @map("version_id")
+  workflowId      String?      @map("workflow_id")
+  communicationId String?      @map("communication_id")
+  payload         Json?
+  state           String       @default("queued")
+  reason          String?
+  result          Json?
+  updatedAt       DateTime     @default(now()) @map("updated_at")
+
+  @@unique([jobId, referenceId])
+  @@index([jobId, schoolId], map: "activity_items_job")
+  @@map("activity_items")
+}
+
+model DeliveryReceipt {
+  id                String              @id
+  school            School              @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  communication     ParentCommunication @relation(fields: [communicationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  schoolId          String              @map("school_id")
+  communicationId   String              @map("communication_id")
+  providerMessageId String              @map("provider_message_id")
+  state             String
+  occurredAt        DateTime            @map("occurred_at")
+  receivedAt        DateTime            @default(now()) @map("received_at")
+
+  @@unique([communicationId, state, occurredAt])
+  @@map("delivery_receipts")
+}
+
 model AuthAttempt {
   key String @id
   count Int @default(1)

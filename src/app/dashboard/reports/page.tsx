@@ -151,6 +151,7 @@ export default function ReportsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Report action failed");
+      if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return; }
       toast.success(successMessage);
       await loadReportCards(selectedExam);
     } catch (error) {

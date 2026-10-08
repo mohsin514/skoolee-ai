@@ -835,7 +835,7 @@ export default function CampusAdminDashboard() {
       const res = await fetch(`/api/reports/${reportCardId}/send`, { method: "POST" });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to send");
-      toast.success(result.message || "Report card sent");
+      if (result.jobId) { window.location.assign(`/jobs?id=${result.jobId}`); return; }
       await loadData();
     } catch (error: any) { toast.error(error.message); }
     finally { setSendingReport(null); }

@@ -495,6 +495,13 @@ CREATE POLICY tenant_isolation ON "notifications"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
 
+ALTER TABLE "onboarding_checkout_intents" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "onboarding_checkout_intents" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "onboarding_checkout_intents";
+CREATE POLICY tenant_isolation ON "onboarding_checkout_intents"
+  USING ("school_id" = current_school_id())
+  WITH CHECK ("school_id" = current_school_id());
+
 ALTER TABLE "online_payment_orders" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "online_payment_orders" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "online_payment_orders";
@@ -763,3 +770,17 @@ ALTER TABLE payment_allocations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_payment_allocations ON payment_allocations USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));
 ALTER TABLE payment_receipts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_payment_receipts ON payment_receipts USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));
+
+-- Job activity uses the same optional tenant policy; provider ingress requires a reviewed service role.
+ALTER TABLE "activity_jobs" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "activity_jobs" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "activity_jobs";
+CREATE POLICY tenant_isolation ON "activity_jobs" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+ALTER TABLE "activity_items" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "activity_items" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "activity_items";
+CREATE POLICY tenant_isolation ON "activity_items" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+ALTER TABLE "delivery_receipts" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "delivery_receipts" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "delivery_receipts";
+CREATE POLICY tenant_isolation ON "delivery_receipts" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());

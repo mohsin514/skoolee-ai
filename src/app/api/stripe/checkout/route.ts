@@ -154,8 +154,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ success: true, method: "safepay", url: result.redirectUrl });
       }
 
-      const simUrl = `${appBase}/safepay?orderRef=${orderRef}&schoolId=${school.id}&plan=${parsed.data.plan}&billingPeriod=${parsed.data.billingPeriod}&amountLabel=${encodeURIComponent(priceLabel)}&contract=${encodeURIComponent(encodedContract)}`;
-      return Response.json({ success: true, method: "safepay", url: simUrl });
+      throw new ApiError("SafePay checkout is not configured. No simulated payment can activate a subscription.", 503);
     }
 
     const schoolForPrice = await prisma.school.findUnique({

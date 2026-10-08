@@ -1,4 +1,5 @@
 "use client";
+import { jobMessages } from "@/lib/jobs/messages";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -216,6 +217,7 @@ export function ReportCardPipeline({
         throw new Error(
           typeof d.error === "string" ? d.error : "Action failed",
         );
+      if (d.jobId) { window.location.assign(`/jobs?id=${d.jobId}`); return; }
       setMessage(t.success);
       await load();
       onChanged?.();
@@ -264,6 +266,7 @@ export function ReportCardPipeline({
       className="space-y-4 min-w-0"
       aria-label={t.title}
     >
+      <a className="underline" href="/jobs">{jobMessages[locale].title}</a>
       <h3 className="text-lg font-semibold">
         {t.title} · {exam.title}
       </h3>
