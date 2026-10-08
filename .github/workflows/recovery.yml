@@ -1,0 +1,74 @@
+name: Recovery verification
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+  schedule:
+    - cron: '20 3 * * 1'
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-recovery-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RECOVERY_PG_PASSWORD: synthetic-recovery-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - name: Install matching PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"
+      - name: Operator decision safeguards
+        run: python3 -m unittest discover -s tests/recovery -v
+      - name: Clean provisioning, populated upgrade and records/files restoration
+        run: python3 scripts/recovery/rehearse.py --port 5432 --output recovery-evidence/success
+      - name: Missing referenced object must block readiness
+        if: success()
+        run: |
+          if python3 scripts/recovery/rehearse.py --port 5432 --fault missing-file --output recovery-evidence/missing-file; then
+            echo 'Missing file incorrectly passed'; exit 1
+          fi
+          python3 -c "import json; r=json.load(open('recovery-evidence/missing-file/report.json')); assert r['status']=='blocked' and r['error']=='file-reconciliation:synthetic/attachment.txt'"
+      - name: Corrupt records must block readiness
+        if: success()
+        run: |
+          if python3 scripts/recovery/rehearse.py --port 5432 --fault corrupt-record --output recovery-evidence/corrupt-record; then
+            echo 'Corrupt record incorrectly passed'; exit 1
+          fi
+          python3 -c "import json; r=json.load(open('recovery-evidence/corrupt-record/report.json')); assert r['status']=='blocked' and r['error']=='all-record-counts-and-content-hashes'"
+      - name: Failed migration must block promotion
+        if: success()
+        run: |
+          if python3 scripts/recovery/rehearse.py --port 5432 --fault migration --output recovery-evidence/migration; then
+            echo 'Failed migration incorrectly passed'; exit 1
+          fi
+          python3 -c "import json; r=json.load(open('recovery-evidence/migration/report.json')); assert r['status']=='blocked' and r['error']=='Injected failed migration: release promotion blocked'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovery-${{ github.sha }}-${{ github.run_id }}
+          path: recovery-evidence/
+          retention-days: 30
+          if-no-files-found: error

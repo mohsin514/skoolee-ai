@@ -44,9 +44,10 @@ For each project, collect:
 
 ...and put them in BOTH the GitHub Environment secrets and the Vercel project.
 
-Because each DB starts **empty**, the first deploy applies all 26 migrations
-cleanly via `prisma migrate deploy` — no hand-backfill of `_prisma_migrations`
-(the local-DB quirk noted in project memory) is needed on the new envs.
+Empty databases provision from the verified versioned baseline using `prisma migrate
+deploy`. Existing schema-push databases must complete the reviewed adoption process
+in [the recovery runbook](recovery/RUNBOOK.md) first. The archived legacy baseline
+was not executable SQL; do not attempt to replay it or reset an existing environment.
 
 ## Environment variables
 
@@ -68,46 +69,25 @@ project. `NEXT_PUBLIC_APP_URL` also differs (each Vercel project has its own URL
 Values that legitimately stay the same across envs: `OPENAI_API_KEY`, SMTP, and
 (optionally) `AUTH_SECRET` — though a distinct `AUTH_SECRET` per env is safer.
 
-## Git-driven deploy automation
+## Gated deployment automation
 
-A single workflow, `.github/workflows/deploy.yml`, wires "push a branch → that
-environment updates":
+`.github/workflows/deploy.yml` verifies synthetic recovery before touching the
+selected environment. The protected environment then requires a reviewed exact SHA,
+evidence link and forward-recovery decision, applies versioned migrations, checks
+migration status/schema drift, builds that exact checkout and promotes its prebuilt
+Vercel artifact. A failed gate prevents this workflow from deploying.
 
-1. You push (or merge) to `dev` / `staging` / `qa` / `production` / `demo`.
-2. GitHub Actions binds the run to the matching **GitHub Environment**, reads that
-   env's `DATABASE_URL` / `DIRECT_URL` secrets, and runs `pnpm prisma migrate
-   deploy` against that env's own Supabase DB (migrations use `DIRECT_URL`).
-3. Vercel's Git integration builds and deploys that env's Vercel project from the
-   same push (Production Branch = the env branch).
+`vercel.json` disables automatic Git deployments. Confirm each managed project's
+provider settings and cancel old queued deployments during rollout; an independent
+Git integration can otherwise bypass GitHub gates. Missing approval variables or
+secrets deliberately block deployment. This change has not configured remote
+GitHub/Vercel settings or certified production recovery.
 
-So the DB schema is migrated **before** the new build serves traffic, per env.
-
-You can also run it on demand: Actions → "Migrate & Deploy" → Run workflow →
-pick an environment.
-
-### One-time secret setup (GitHub)
-
-Settings → Environments → create `dev`, `staging`, `qa`, `production`, `demo`.
-For each, add secrets:
-
-| Secret         | Value                                              |
-|----------------|----------------------------------------------------|
-| `DATABASE_URL` | that env's Supabase **pooler** URI (port 6543)     |
-| `DIRECT_URL`   | that env's Supabase **direct** URI (port 5432)     |
-
-Add required reviewers on the `production` environment to gate prod migrations.
-
-### If you want CI to trigger Vercel too (no Git integration)
-
-Uncomment the `deploy:` job in `deploy.yml` and add `VERCEL_TOKEN`,
-`VERCEL_ORG_ID`, and a per-env `VERCEL_PROJECT_ID`.
-
-## Vercel setup
-
-See `scripts/setup-vercel-envs.sh` for a scripted path (needs the Vercel CLI and a
-login), or follow the manual runbook in that file's header comment. Once a Vercel
-project's Production branch is set to the matching git branch, every push to that
-branch triggers a deploy.
+Follow [the recovery runbook](recovery/RUNBOOK.md) for required secrets, per-release
+approval variables, baseline adoption, weekly evidence review, provider setup and
+incident authorization. Manual workflow dispatch must select the branch matching
+the requested environment. Existing `setup-vercel-envs.sh` provisions variables but
+does not replace this reviewed recovery/gating setup.
 
 ## Deploy flow
 
