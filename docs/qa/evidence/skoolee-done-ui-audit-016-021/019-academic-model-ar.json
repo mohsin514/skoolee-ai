@@ -1,0 +1,51 @@
+{
+  "surface": "019-academic-model",
+  "route": "/admin?view=academic-model",
+  "status": 200,
+  "language": "ar",
+  "dir": "rtl",
+  "title": "Campus Admin | SkooleeAI",
+  "headings": [
+    " المنهج والتقدير والفصول ",
+    " الإصدارات ",
+    " منشئ النموذج الأكاديمي ",
+    " الفصول وفترات التقارير ",
+    " خريطة مواد المنهج ",
+    " قواعد الدرجات والعمل الفائت ",
+    " قواعد الانتقال والتقارير "
+  ],
+  "dimensions": [
+    {
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "lang": "ar",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ar-1440.png"
+    },
+    {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "lang": "ar",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ar-768.png"
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "lang": "ar",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "019-academic-model-ar-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "A",
+    "text": "انتقل إلى المحتوى",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}

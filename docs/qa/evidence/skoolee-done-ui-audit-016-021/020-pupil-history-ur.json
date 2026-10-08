@@ -1,0 +1,49 @@
+{
+  "surface": "020-pupil-history",
+  "route": "/pupils/ui-audit-pupil",
+  "status": 200,
+  "language": "ur",
+  "dir": "rtl",
+  "title": "SkooleeAI - AI School Management Software",
+  "headings": [
+    "Synthetic Learner",
+    "اندراج تبدیل کریں",
+    "داخلے کی تاریخ",
+    "Synthetic Campus · Grade 7 B",
+    "نقل شناخت کا جائزہ"
+  ],
+  "dimensions": [
+    {
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "020-pupil-history-ur-1440.png"
+    },
+    {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "020-pupil-history-ur-768.png"
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "lang": "ur",
+      "dir": "rtl",
+      "noOverflow": true,
+      "screenshot": "020-pupil-history-ur-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "SELECT",
+    "text": "جماعت منتخب کریںSynthetic Campus · Grade 7 B · 2026Synthetic Campus · Grade 8 B ",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}
