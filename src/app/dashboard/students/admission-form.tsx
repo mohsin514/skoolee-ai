@@ -1,4 +1,5 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { FormField, FormErrorSummary } from "@/components/ui/form-field";
@@ -1175,6 +1176,7 @@ function StepReview({
   siblings: any[];
   onEditStep: (step: number) => void;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const classDisplay = selectedClass
     ? [selectedClass.name, selectedClass.section].filter(Boolean).join(" - ")
     : "Not selected";
@@ -1210,7 +1212,7 @@ function StepReview({
           label="Date of Birth"
           value={
             form.dateOfBirth
-              ? `${new Date(form.dateOfBirth).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}${age !== null ? ` (${age} yrs)` : ""}`
+              ? `${formatCalendarDate(form.dateOfBirth)}${age !== null ? ` (${age} yrs)` : ""}`
               : ""
           }
         />

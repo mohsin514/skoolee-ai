@@ -1,3 +1,4 @@
+import { loadLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     const canSeeDrafts = isOfficeRole(user.role);
 
     const [weekends, terms, holidays, schedules] = await Promise.all([
-      prisma.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } }),
+      loadLocaleTimeline(user.schoolId, campusId),
       prisma.academicCycle.findMany({
         where: { campusId, academicYear: year },
         select: { id: true, label: true, academicYear: true, status: true, startDate: true, endDate: true },
@@ -54,6 +55,11 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    const weekendDates: string[] = [];
+    for (let day = new Date(Date.UTC(year, 0, 1)); day.getUTCFullYear() === year; day = new Date(day.getTime() + 86400000)) {
+      if (weekends(day).weekend.includes(day.getUTCDay())) weekendDates.push(day.toISOString().slice(0, 10));
+    }
+    const currentLocale = weekends();
     // Roll schedules up to per-exam date lists.
     const examMap = new Map<string, { id: string; title: string; examType: string; status: string; className: string; dates: string[] }>();
     for (const s of schedules) {
@@ -77,7 +83,9 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data: {
-        weekends: weekends.map((w) => w.dayOfWeek).sort(),
+        weekends: currentLocale.weekend.map((day) => day || 7).sort(),
+        weekendDates,
+        weekStartsOn: currentLocale.weekStartsOn,
         terms,
         holidays,
         exams: [...examMap.values()],

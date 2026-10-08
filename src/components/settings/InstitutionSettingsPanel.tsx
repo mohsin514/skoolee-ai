@@ -1,4 +1,6 @@
 "use client";
+
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
@@ -63,6 +65,7 @@ export function InstitutionSettingsPanel({
   scope?: "all" | "editable";
   onSaved?: () => void;
 }) {
+  const tr = useUiText();
   const [data, setData] = useState<InstitutionSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingSchool, setEditingSchool] = useState(false);
@@ -72,7 +75,7 @@ export function InstitutionSettingsPanel({
     try {
       setData(await getInstitutionSettings());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load institution settings.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not load institution settings."));
     } finally {
       setLoading(false);
     }
@@ -115,12 +118,10 @@ export function InstitutionSettingsPanel({
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Institution</p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]"><UiText>{"Institution"}</UiText></p>
               <h3 className="mt-0.5 truncate text-xl font-black tracking-tight text-[#1f1a23]">{data.school.name}</h3>
               {data.school.tagline ? (
-                <p className="mt-0.5 truncate text-[12px] font-semibold italic text-ink-muted">
-                  &ldquo;{data.school.tagline}&rdquo;
-                </p>
+                <p className="mt-0.5 truncate text-[12px] font-semibold italic text-ink-muted"><UiText>{"\""}</UiText>{data.school.tagline}<UiText>{"\""}</UiText></p>
               ) : null}
             </div>
           </div>
@@ -130,27 +131,24 @@ export function InstitutionSettingsPanel({
               onClick={() => setEditingSchool(true)}
               className="flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-[#fbf0fe] px-4 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
             >
-              <Pencil className="h-3.5 w-3.5" /> Edit
-            </button>
+              <Pencil className="h-3.5 w-3.5" /><UiText>{"Edit"}</UiText></button>
           ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ReadRow icon={Hash} label="School ID" value={data.school.regId} locked />
-          <ReadRow icon={Mail} label="Contact Email" value={data.school.contactEmail} locked />
-          <ReadRow icon={MapPin} label="City" value={data.school.city} />
-          <ReadRow icon={Phone} label="Phone" value={data.school.phone} />
-          <ReadRow icon={Globe} label="Website" value={data.school.website} />
-          <ReadRow icon={CalendarDays} label="Established" value={data.school.establishedYear} />
-          <ReadRow icon={Clock} label="Time Zone" value={data.school.timezone} />
-          <ReadRow icon={MapPin} label="Address" value={data.school.address} />
+          <ReadRow icon={Hash} label={tr("School ID")} value={data.school.regId} locked />
+          <ReadRow icon={Mail} label={tr("Contact Email")} value={data.school.contactEmail} locked />
+          <ReadRow icon={MapPin} label={tr("City")} value={data.school.city} />
+          <ReadRow icon={Phone} label={tr("Phone")} value={data.school.phone} />
+          <ReadRow icon={Globe} label={tr("Website")} value={data.school.website} />
+          <ReadRow icon={CalendarDays} label={tr("Established")} value={data.school.establishedYear} />
+          <ReadRow icon={Clock} label={tr("Time Zone")} value={data.school.timezone} />
+          <ReadRow icon={MapPin} label={tr("Address")} value={data.school.address} />
         </div>
 
         {!data.canEditSchool ? (
           <p className="mt-5 flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11px] font-bold leading-snug text-ink-muted">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-            School details are managed by the institution owner. You can edit the campus you administer below.
-          </p>
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" /><UiText>{"School details are managed by the institution owner. You can edit the campus you administer below."}</UiText></p>
         ) : null}
       </section>
 
@@ -158,9 +156,9 @@ export function InstitutionSettingsPanel({
       <section className="rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-lg sm:p-7">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Campuses</p>
+            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]"><UiText>{"Campuses"}</UiText></p>
             <h3 className="mt-0.5 text-xl font-black tracking-tight text-[#1f1a23]">
-              {campuses.length} {campuses.length === 1 ? "campus" : "campuses"}
+              {campuses.length} {campuses.length === 1 ? tr("campus") : tr("campuses")}
             </h3>
           </div>
         </div>
@@ -197,19 +195,17 @@ export function InstitutionSettingsPanel({
                       onClick={() => setEditingCampus(campus)}
                       className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-white px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white"
                     >
-                      <Pencil className="h-3 w-3" /> Edit
-                    </button>
+                      <Pencil className="h-3 w-3" /><UiText>{"Edit"}</UiText></button>
                   ) : (
                     <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                      <Lock className="h-3 w-3" /> View only
-                    </span>
+                      <Lock className="h-3 w-3" /><UiText>{"View only"}</UiText></span>
                   )}
                 </div>
               </div>
             );
           })}
           {campuses.length === 0 ? (
-            <p className="py-8 text-center text-[12px] font-bold text-ink-subtle">No campuses to show.</p>
+            <p className="py-8 text-center text-[12px] font-bold text-ink-subtle"><UiText>{"No campuses to show."}</UiText></p>
           ) : null}
         </div>
       </section>
@@ -229,6 +225,7 @@ export function InstitutionSettingsPanel({
 function SchoolDialog({
   school, onClose, onSaved,
 }: { school: SchoolForm; onClose: () => void; onSaved: () => Promise<void> }) {
+  const tr = useUiText();
   const [form, setForm] = useState<SchoolForm>(school);
   const draft = useFormDraft({ record: "settings:school", schema: 1, values: form, baseline: school,
     fields: ["name", "tagline", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
@@ -274,13 +271,13 @@ function SchoolDialog({
         establishedYear: form.establishedYear,
         timezone: form.timezone,
       });
-      toast.success("School details updated.");
+      toast.success(tr("School details updated."));
       draft.markSaved();
       await onSaved();
       onClose();
     } catch (error) {
       if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
-      toast.error(error instanceof Error ? error.message : "Could not save school details.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not save school details."));
     } finally {
       setSaving(false);
     }
@@ -288,9 +285,9 @@ function SchoolDialog({
 
   return (
     <Modal
-      title="Edit school details"
-      eyebrow="Institution"
-      subtitle="Name, branding and contact details for the whole institution."
+      title={tr("Edit school details")}
+      eyebrow={tr("Institution")}
+      subtitle={tr("Name, branding and contact details for the whole institution.")}
       icon={Building}
       size="lg"
       dirty={dirty}
@@ -317,22 +314,23 @@ function SchoolDialog({
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field id="s-name" label="School Name" required icon={GraduationCap} value={form.name} placeholder="e.g. Horizon Academy" onChange={(v) => set("name", v)} />
-          <Field id="s-tagline" label="Tagline / Motto" icon={Tag} value={form.tagline} placeholder="Optional" onChange={(v) => set("tagline", v)} />
-          <Field id="s-city" label="City" required icon={MapPin} value={form.city} placeholder="e.g. Lahore" onChange={(v) => set("city", v)} />
-          <Field id="s-phone" label="Phone" icon={Phone} value={form.phone} placeholder="+92 300 0000000" onChange={(v) => set("phone", v)} />
-          <Field id="s-website" label="Website" icon={Globe} value={form.website} placeholder="www.school.edu.pk" onChange={(v) => set("website", v)} />
-          <Field id="s-year" label="Established" icon={CalendarDays} value={form.establishedYear} placeholder="e.g. 1998" onChange={(v) => set("establishedYear", v.replace(/[^\d]/g, "").slice(0, 4))} />
+          <Field id="s-name" label={tr("School Name")} required icon={GraduationCap} value={form.name} placeholder={tr("e.g. Horizon Academy")} onChange={(v) => set("name", v)} />
+          <Field id="s-tagline" label={tr("Tagline / Motto")} icon={Tag} value={form.tagline} placeholder={tr("Optional")} onChange={(v) => set("tagline", v)} />
+          <Field id="s-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
+          <Field id="s-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 300 0000000" onChange={(v) => set("phone", v)} />
+          <Field id="s-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("www.school.edu.pk")} onChange={(v) => set("website", v)} />
+          <Field id="s-year" label={tr("Established")} icon={CalendarDays} value={form.establishedYear} placeholder="e.g. 1998" onChange={(v) => set("establishedYear", v.replace(/[^\d]/g, "").slice(0, 4))} />
         </div>
 
-        <Field id="s-address" label="Address" icon={MapPin} value={form.address} placeholder="Street address" onChange={(v) => set("address", v)} />
+        <Field id="s-address" label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Street address")} onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="s-tz" className="sk-field-label">Time Zone</Label>
+          <Label htmlFor="s-tz" className="sk-field-label"><UiText>{"Original Time Zone"}</UiText></Label>
           <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
             <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
+              disabled
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
               className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
@@ -341,21 +339,16 @@ function SchoolDialog({
             </SystemSelect>
           </InputGroup>
           {form.timezone !== school.timezone ? (
-            <p className="px-1 text-[11px] font-bold leading-snug text-amber-700">
-              Changing the time zone moves the boundary of &ldquo;today&rdquo;, so attendance marks and fee
-              cutoffs near midnight may fall on a different date from now on. Existing records are not rewritten.
-            </p>
+            <p className="px-1 text-[11px] font-bold leading-snug text-amber-700"><UiText>{"Changing the time zone moves the boundary of \"today\", so attendance marks and fee cutoffs near midnight may fall on a different date from now on. Existing records are not rewritten."}</UiText></p>
           ) : (
-            <p className="px-1 text-[10px] font-bold text-ink-subtle">
-              Decides which calendar day an attendance mark or fee cutoff falls on.
-            </p>
+            <p className="px-1 text-[10px] font-bold text-ink-subtle"><UiText>{"Manage the effective timezone in Language and regional settings."}</UiText></p>
           )}
         </div>
 
         <LockedRows
           rows={[
-            { icon: Hash, label: "School ID", value: school.regId },
-            { icon: Mail, label: "Contact Email", value: school.contactEmail },
+            { icon: Hash, label: tr("School ID"), value: school.regId },
+            { icon: Mail, label: tr("Contact Email"), value: school.contactEmail },
           ]}
           note="The school ID prints on report cards, invoices and receipts, and the contact email identifies the owner account. Neither can be changed here."
         />
@@ -367,6 +360,7 @@ function SchoolDialog({
 function CampusDialog({
   campus, onClose, onSaved,
 }: { campus: CampusForm; onClose: () => void; onSaved: () => Promise<void> }) {
+  const tr = useUiText();
   const [form, setForm] = useState<CampusForm>(campus);
   const draft = useFormDraft({ record: `settings:campus:${campus.id}`, schema: 1, values: form, baseline: campus,
     fields: ["name", "city", "address", "phone", "email", "website", "principalName", "board"], apply: setForm, current: async () => {
@@ -410,13 +404,13 @@ function CampusDialog({
         board: form.board,
         logoUrl: form.logoUrl,
       });
-      toast.success(`${form.name.trim()} updated.`);
+      toast.success(tr("{0} updated.", [form.name.trim()]));
       draft.markSaved();
       await onSaved();
       onClose();
     } catch (error) {
       if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
-      toast.error(error instanceof Error ? error.message : "Could not save campus details.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not save campus details."));
     } finally {
       setSaving(false);
     }
@@ -424,9 +418,9 @@ function CampusDialog({
 
   return (
     <Modal
-      title="Edit campus"
-      eyebrow="Campus"
-      subtitle={`Details for ${campus.name}.`}
+      title={tr("Edit campus")}
+      eyebrow={tr("Campus")}
+      subtitle={tr("Details for {0}.", [campus.name])}
       icon={Building2}
       size="lg"
       dirty={dirty}
@@ -453,18 +447,18 @@ function CampusDialog({
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field id="c-name" label="Campus Name" required icon={Building2} value={form.name} placeholder="e.g. Main Campus" onChange={(v) => set("name", v)} />
-          <Field id="c-city" label="City" required icon={MapPin} value={form.city} placeholder="e.g. Lahore" onChange={(v) => set("city", v)} />
-          <Field id="c-phone" label="Phone" icon={Phone} value={form.phone} placeholder="+92 42 0000000" onChange={(v) => set("phone", v)} />
-          <Field id="c-email" label="Campus Email" icon={Mail} value={form.email} placeholder="campus@school.edu.pk" onChange={(v) => set("email", v)} />
-          <Field id="c-website" label="Website" icon={Globe} value={form.website} placeholder="Optional" onChange={(v) => set("website", v)} />
-          <Field id="c-principal" label="Head of Campus" icon={UserRound} value={form.principalName} placeholder="Principal / director name" onChange={(v) => set("principalName", v)} />
+          <Field id="c-name" label={tr("Campus Name")} required icon={Building2} value={form.name} placeholder={tr("e.g. Main Campus")} onChange={(v) => set("name", v)} />
+          <Field id="c-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
+          <Field id="c-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 42 0000000" onChange={(v) => set("phone", v)} />
+          <Field id="c-email" label={tr("Campus Email")} icon={Mail} value={form.email} placeholder={tr("campus@school.edu.pk")} onChange={(v) => set("email", v)} />
+          <Field id="c-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("Optional")} onChange={(v) => set("website", v)} />
+          <Field id="c-principal" label={tr("Head of Campus")} icon={UserRound} value={form.principalName} placeholder={tr("Principal / director name")} onChange={(v) => set("principalName", v)} />
         </div>
 
-        <Field id="c-address" label="Address" icon={MapPin} value={form.address} placeholder="Full street address" onChange={(v) => set("address", v)} />
+        <Field id="c-address" label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Full street address")} onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-board" className="sk-field-label">Board</Label>
+          <Label htmlFor="c-board" className="sk-field-label"><UiText>{"Board"}</UiText></Label>
           <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
             <GraduationCap data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
@@ -479,7 +473,7 @@ function CampusDialog({
         </div>
 
         <LockedRows
-          rows={[{ icon: Hash, label: "Campus ID", value: campus.regId }]}
+          rows={[{ icon: Hash, label: tr("Campus ID"), value: campus.regId }]}
           note="The campus ID prints on report cards, invoices and receipts, so it stays fixed once the campus exists."
         />
       </div>
@@ -497,10 +491,11 @@ function LogoPicker({
   inputRef: React.RefObject<HTMLInputElement | null>;
   hint: string;
 }) {
+  const tr = useUiText();
   const handleFile = (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Please choose an image file.");
-    if (file.size > 1_500_000) return toast.error("Use a logo image under 1.5 MB.");
+    if (!file.type.startsWith("image/")) return toast.error(tr("Please choose an image file."));
+    if (file.size > 1_500_000) return toast.error(tr("Use a logo image under 1.5 MB."));
     const reader = new FileReader();
     reader.onload = () => { if (typeof reader.result === "string") onChange(reader.result); };
     reader.readAsDataURL(file);
@@ -516,7 +511,7 @@ function LogoPicker({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted">Logo</p>
+        <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted"><UiText>{"Logo"}</UiText></p>
         <p className="mb-2.5 text-[10px] font-bold text-ink-subtle">{hint}</p>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -524,16 +519,14 @@ function LogoPicker({
             onClick={() => inputRef.current?.click()}
             className="flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#8127cf] px-3.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea]"
           >
-            <Upload className="h-3.5 w-3.5" /> {value ? "Replace" : "Choose"}
+            <Upload className="h-3.5 w-3.5" /> {value ? tr("Replace") : tr("Choose")}
           </button>
           {value ? (
             <button
               type="button"
               onClick={() => onChange("")}
               className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/30 px-3.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500"
-            >
-              Remove
-            </button>
+            ><UiText>{"Remove"}</UiText></button>
           ) : null}
         </div>
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />

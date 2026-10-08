@@ -1,3 +1,4 @@
+import { loadCampusLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -274,11 +275,8 @@ async function createOrUpdate(
     }
   }
 
-  const weekends = await prisma.weekend.findMany({
-    where: { campusId },
-    select: { dayOfWeek: true },
-  });
-  const weekendDays = new Set(weekends.map((w) => w.dayOfWeek));
+  const localeAt = await loadCampusLocaleTimeline(campusId);
+  const weekendDays = new Set(localeAt(new Date(`${date}T00:00:00Z`)).weekend.map((day) => day || 7));
   const day = dayOfWeek(date);
   if (weekendDays.has(day)) {
     const labels = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

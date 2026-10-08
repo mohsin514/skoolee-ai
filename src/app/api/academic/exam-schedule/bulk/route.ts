@@ -1,3 +1,4 @@
+import { loadCampusLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import type { BulkConflict } from "@/lib/academic/exam-conflicts";
@@ -50,13 +51,13 @@ function classLabelOf(c: { name: string; section: string | null }) {
 /** Weekend and holiday days for a campus, as a lookup. */
 async function calendarBlocks(campusId: string) {
   const [weekends, holidays] = await Promise.all([
-    prisma.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } }),
+    loadCampusLocaleTimeline(campusId),
     prisma.holiday.findMany({
       where: { campusId },
       select: { name: true, fromDate: true, toDate: true },
     }),
   ]);
-  const weekendDays = new Set(weekends.map((w) => w.dayOfWeek));
+  const weekendDays = (date?: string) => new Set(weekends(date ? new Date(`${date}T00:00:00Z`) : new Date()).weekend.map((day) => day || 7));
   const holidayFor = (date: string) => {
     const d = new Date(`${date}T00:00:00.000Z`);
     return holidays.find((h) => d >= h.fromDate && d <= h.toDate) ?? null;
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
       for (const paper of row.papers) {
         if (!paper.date) continue;
         const day = dayOfWeek(paper.date);
-        if (weekendDays.has(day)) {
+        if (weekendDays(paper.date).has(day)) {
           conflicts.push({
             classLabel: row.classLabel,
             subject: paper.subjectName,
@@ -239,7 +240,7 @@ export async function GET(req: NextRequest) {
         rows,
         subjects: [...subjectNames.values()].sort((a, b) => a.name.localeCompare(b.name)),
         periods,
-        weekends: [...weekendDays],
+        weekends: [...weekendDays()],
         conflicts,
       },
     });
@@ -280,7 +281,7 @@ export async function POST(req: NextRequest) {
 
     const { weekendDays, holidayFor } = await calendarBlocks(campusId);
     const day = dayOfWeek(date);
-    if (weekendDays.has(day)) {
+    if (weekendDays(date).has(day)) {
       conflicts.push({
         classLabel: null,
         subject: subjectName,

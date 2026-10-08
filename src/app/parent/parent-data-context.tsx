@@ -44,6 +44,7 @@ interface AttendanceData {
 }
 
 interface FeeItem {
+  currency: string;
   id: string;
   invoiceNumber: string | null;
   totalAmount: number;

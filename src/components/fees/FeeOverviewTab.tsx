@@ -1,5 +1,8 @@
 "use client";
 
+import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -26,22 +29,25 @@ export function FeeOverviewTab({
   campusId?: string;
   onNavigate?: (tab: FeeTab) => void;
 }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  const [currency, setCurrency] = useState("");
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const qp = `?${new URLSearchParams({ ...(campusId ? { campusId } : {}), ...(currency ? { currency } : {}) })}`;
 
   const loadSummary = useCallback(async () => {
     try {
       const res = await fetch(`${API}/campus/summary${qp}`);
       const json = await res.json();
-      if (json.success) setSummary(json.data);
+      if (json.success) { setSummary(json.data); if (!currency) setCurrency(json.data.currency); }
     } catch {
-      toast.error("Failed to load fee summary");
+      toast.error(tr("Failed to load fee summary"));
     } finally {
       setLoading(false);
     }
-  }, [qp]);
+  }, [qp, currency]);
 
   useEffect(() => {
     loadSummary();
@@ -69,7 +75,7 @@ export function FeeOverviewTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><CurrencySelect value={currency} onChange={setCurrency} />
       <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <CornerSparkles />
         <div className="flex items-center justify-between gap-4 mb-5">
@@ -77,19 +83,13 @@ export function FeeOverviewTab({
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
               <Receipt className="h-5 w-5" />
             </div>
-            <h3 className="text-lg font-black text-[#1f1a23]">Fee Dashboard</h3>
+            <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Dashboard"}</UiText></h3>
           </div>
           {onNavigate && (
             <div className="flex flex-wrap gap-2">
-              <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => onNavigate("structures")}>
-                Structures
-              </BrandButton>
-              <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => onNavigate("invoices")}>
-                Invoices
-              </BrandButton>
-              <BrandButton variant="soft" icon={<Wallet className="w-4 h-4" />} onClick={() => onNavigate("payments")}>
-                Payments
-              </BrandButton>
+              <BrandButton variant="soft" icon={<BookOpen className="w-4 h-4" />} onClick={() => onNavigate("structures")}><UiText>{"Structures"}</UiText></BrandButton>
+              <BrandButton variant="soft" icon={<FileText className="w-4 h-4" />} onClick={() => onNavigate("invoices")}><UiText>{"Invoices"}</UiText></BrandButton>
+              <BrandButton variant="soft" icon={<Wallet className="w-4 h-4" />} onClick={() => onNavigate("payments")}><UiText>{"Payments"}</UiText></BrandButton>
             </div>
           )}
         </div>
@@ -97,36 +97,36 @@ export function FeeOverviewTab({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
           <StatCard
             icon={Receipt}
-            label="Total Receivable"
-            value={formatPKR(summary?.totalReceivable ?? 0)}
+            label={tr("Total Receivable")}
+            value={formatPKR(summary?.totalReceivable ?? 0, summary?.currency)}
             tone="purple"
             entranceDelay={80}
           />
           <StatCard
             icon={Banknote}
-            label="Collected"
-            value={formatPKR(summary?.totalCollected ?? 0)}
+            label={tr("Collected")}
+            value={formatPKR(summary?.totalCollected ?? 0, summary?.currency)}
             tone="green"
             entranceDelay={160}
           />
           <StatCard
             icon={CreditCard}
-            label="Outstanding"
-            value={formatPKR(summary?.totalOutstanding ?? 0)}
+            label={tr("Outstanding")}
+            value={formatPKR(summary?.totalOutstanding ?? 0, summary?.currency)}
             tone="rose"
             entranceDelay={240}
           />
           <StatCard
             icon={ArrowUpRight}
-            label="Collection Rate"
+            label={tr("Collection Rate")}
             value={`${summary?.collectionRate ?? 0}%`}
             tone={summary && summary.collectionRate < 60 ? "rose" : "green"}
             entranceDelay={320}
           />
           <StatCard
             icon={Shield}
-            label="Overdue"
-            value={formatPKR(summary?.totalOverdue ?? 0)}
+            label={tr("Overdue")}
+            value={formatPKR(summary?.totalOverdue ?? 0, summary?.currency)}
             tone="dark"
             entranceDelay={400}
           />
@@ -134,9 +134,7 @@ export function FeeOverviewTab({
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div>
-            <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3">
-              Collection by Class
-            </h4>
+            <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Collection by Class"}</UiText></h4>
             <div className="space-y-2">
               {summary?.byClass.map((cls) => (
                 <div
@@ -159,32 +157,26 @@ export function FeeOverviewTab({
                       {cls.collectionRate}%
                     </p>
                     <p className="text-[9px] font-bold text-ink-subtle">
-                      {formatPKR(cls.totalPaid)} / {formatPKR(cls.totalDue)}
+                      {formatPKR(cls.totalPaid, summary?.currency)} / {formatPKR(cls.totalDue, summary?.currency)}
                     </p>
                   </div>
                 </div>
               ))}
               {(!summary?.byClass || summary.byClass.length === 0) && (
-                <p className="text-xs font-semibold text-ink-subtle italic">
-                  No fee data yet
-                </p>
+                <p className="text-xs font-semibold text-ink-subtle italic"><UiText>{"No fee data yet"}</UiText></p>
               )}
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                At-Risk Students
-              </h4>
+              <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"At-Risk Students"}</UiText></h4>
               {onNavigate && summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onNavigate("reports")}
                   className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-                >
-                  View All
-                </button>
+                ><UiText>{"View All"}</UiText></button>
               )}
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -198,8 +190,7 @@ export function FeeOverviewTab({
                       {s.studentName}
                     </p>
                     <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-                      {s.className} · {s.daysOverdue}d overdue
-                    </p>
+                      {s.className} · {s.daysOverdue}<UiText>{"d overdue"}</UiText></p>
                   </div>
                   <p
                     className={`text-xs font-black whitespace-nowrap ${
@@ -210,15 +201,13 @@ export function FeeOverviewTab({
                         : "text-ink-muted"
                     }`}
                   >
-                    {formatPKR(s.totalOverdue)}
+                    {formatPKR(s.totalOverdue, summary?.currency)}
                   </p>
                 </div>
               ))}
               {(!summary?.atRiskStudents ||
                 summary.atRiskStudents.length === 0) && (
-                <p className="text-xs font-semibold text-ink-subtle italic">
-                  No at-risk students
-                </p>
+                <p className="text-xs font-semibold text-ink-subtle italic"><UiText>{"No at-risk students"}</UiText></p>
               )}
             </div>
           </div>
@@ -232,16 +221,14 @@ export function FeeOverviewTab({
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <TrendingUp className="h-4 w-4" />
               </div>
-              <h4 className="text-sm font-black text-[#1f1a23]">Recent Payments</h4>
+              <h4 className="text-sm font-black text-[#1f1a23]"><UiText>{"Recent Payments"}</UiText></h4>
             </div>
             {onNavigate && (
               <button
                 type="button"
                 onClick={() => onNavigate("payments")}
                 className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              >
-                View All
-              </button>
+              ><UiText>{"View All"}</UiText></button>
             )}
           </div>
           <div className="space-y-2">
@@ -255,12 +242,12 @@ export function FeeOverviewTab({
                     {p.studentName}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
-                    {p.invoiceNumber} · {paymentMethodLabel(p.paymentMethod)}
+                    {p.invoiceNumber} · {tr(paymentMethodLabel(p.paymentMethod))}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-black text-emerald-600">
-                    {formatPKR(p.amount)}
+                    {formatPKR(p.amount, summary?.currency)}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
                     {p.receiptNo}
