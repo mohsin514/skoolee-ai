@@ -314,11 +314,12 @@ function SchoolDialog({
         <Field id="s-address" label="Address" icon={MapPin} value={form.address} placeholder="Street address" onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="s-tz" className="sk-field-label">Time Zone</Label>
+          <Label htmlFor="s-tz" className="sk-field-label">Original Time Zone</Label>
           <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
             <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
+              disabled
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
               className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
@@ -333,7 +334,7 @@ function SchoolDialog({
             </p>
           ) : (
             <p className="px-1 text-[10px] font-bold text-ink-subtle">
-              Decides which calendar day an attendance mark or fee cutoff falls on.
+              Manage the effective timezone in Language and regional settings.
             </p>
           )}
         </div>

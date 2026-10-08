@@ -16,7 +16,12 @@ async function main() {
   await page.screenshot({ path: "/tmp/sko201-evidence/arabic-preview.png", fullPage: true }); await page.pdf({ path: "/tmp/sko201-evidence/arabic-preview.pdf", format: "A4", printBackground: true });
   await page.getByRole("button", { name: "تطبيق الإعدادات المراجعة", exact: true }).click(); await page.getByText("تغيير العملة بانتظار مراجعة مالية مستقلة.").waitFor();
   const pending = await db.localePolicy.findMany({ where: { schoolId: "locale-fixture" } }); assert.equal(pending.length, 1); assert.equal(pending[0].status, "FINANCE_REVIEW"); assert.equal((await db.school.findUniqueOrThrow({ where: { id: "locale-fixture" } })).timezone, "Asia/Karachi");
-  console.log("Arabic preview -> print PDF -> signed apply -> pending independent finance review: pass");
+  const financeToken = await new SignJWT({ userId: "locale-ACCOUNTANT", schoolId: "locale-fixture", campusId: "locale-campus-a", role: "ACCOUNTANT", onboardingComplete: true }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko201-fixture"));
+  const financeContext = await browser.newContext(); await financeContext.addCookies([{ name: "skoolee_token", value: financeToken, url: "http://localhost:3201" }]);
+  const financePage = await financeContext.newPage(); await financePage.goto("http://localhost:3201/settings/locale", { waitUntil: "networkidle" });
+  await financePage.getByRole("button", { name: "اعتماد العملة", exact: true }).click(); await financePage.getByText("مجدول / نشط", { exact: true }).waitFor();
+  assert.equal((await db.localePolicy.findUniqueOrThrow({ where: { id: pending[0].id } })).financeReviewedBy, "locale-ACCOUNTANT");
+  console.log("Arabic preview -> print PDF -> signed apply -> independent accountant approval: pass");
  } finally { await db.localePolicy.deleteMany({ where: { schoolId: "locale-fixture" } }); await browser.close(); await db.$disconnect(); }
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; });

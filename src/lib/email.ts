@@ -111,16 +111,19 @@ export async function sendEmailMessage({
   subject,
   text,
   html,
+  language = "en",
 }: {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  language?: "en" | "ar";
 }) {
   try {
     const renderedHtml = await renderTemplate(
       MessageEmail({
         subject,
+        language,
         text,
         html,
         logoUrl: getLogoUrl(),

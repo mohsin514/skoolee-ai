@@ -48,6 +48,8 @@ interface UnifiedExam {
 }
 interface UnifiedFeed {
   weekends: number[];
+  weekendDates?: string[];
+  weekStartsOn?: number;
   terms: UnifiedTerm[];
   holidays: UnifiedHoliday[];
   exams: UnifiedExam[];
@@ -233,7 +235,7 @@ export function AcademicCalendar({
         map.set(iso, {
           iso,
           dayNum: Number(iso.slice(8, 10)),
-          isWeekend: feed.weekends.includes(dowFromIso(iso)),
+          isWeekend: (feed.weekendDates ? feed.weekendDates.includes(iso) : feed.weekends.includes(dowFromIso(iso))),
           exams: [],
           deadlines: [],
           holidays: [],
@@ -275,7 +277,7 @@ export function AcademicCalendar({
   const monthCells = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const leading = (first.getDay() + 6) % 7; // Mon=0
+    const leading = (first.getDay() - (feed?.weekStartsOn ?? 1) + 7) % 7;
     const cells: (DayEvents | null)[] = [];
     for (let i = 0; i < leading; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
@@ -283,7 +285,7 @@ export function AcademicCalendar({
       cells.push(dayMap.get(iso) ?? {
         iso,
         dayNum: d,
-        isWeekend: feed ? feed.weekends.includes(dowFromIso(iso)) : false,
+        isWeekend: feed ? (feed.weekendDates ? feed.weekendDates.includes(iso) : feed.weekends.includes(dowFromIso(iso))) : false,
         exams: [],
         deadlines: [],
         holidays: [],
@@ -403,7 +405,7 @@ export function AcademicCalendar({
       ) : (
         <div className="p-5">
           <div className="grid grid-cols-7 gap-1.5">
-            {WEEKDAYS.map((d) => (
+            {Array.from({ length: 7 }, (_, i) => WEEKDAYS[((feed?.weekStartsOn ?? 1) + i + 6) % 7]).map((d) => (
               <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 {d}
               </div>

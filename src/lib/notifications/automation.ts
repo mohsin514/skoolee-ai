@@ -127,6 +127,7 @@ export async function triggerFeeDueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",
@@ -173,6 +174,7 @@ export async function triggerFeeOverdueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",

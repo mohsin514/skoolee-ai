@@ -237,6 +237,10 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   // An unrecognised zone keeps whatever is stored rather than failing the save
   // or silently resetting the tenant to the schema default.
   const timezone = safeTimezone(input.timezone);
+  if (input.timezone !== undefined) {
+    const current = await prisma.school.findUniqueOrThrow({ where: { id: session.schoolId }, select: { timezone: true } });
+    if (!timezone || timezone !== current.timezone) throw new Error("Preview timezone changes in Language and regional settings before applying them.");
+  }
 
   const school = await prisma.school.update({
     where: { id: session.schoolId },

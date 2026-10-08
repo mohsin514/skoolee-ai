@@ -107,7 +107,7 @@ export async function reviewLocaleCurrency(id: string, approved: boolean) {
   const user = await session();
   if (user.role !== "ACCOUNTANT") throw new Error("permission");
   return runWithTenantContext(user, async () => {
-    const result = await prisma.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", effectiveAt: { gt: new Date() }, ...(user.campusId ? { campusId: user.campusId } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
+    const result = await prisma.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
     if (result.count !== 1) throw new Error("permission");
   });
 }

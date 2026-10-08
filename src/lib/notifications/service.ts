@@ -1,5 +1,5 @@
 import { getLocalePackage } from "@/lib/locale/store";
-import { formatDateOnly, formatMoney, localePackageSchema, type Language } from "@/lib/locale/package";
+import { formatDateOnly, formatMoney, localeTag, localePackageSchema, type Language } from "@/lib/locale/package";
 import { notificationHtml } from "@/lib/locale/notification-catalog";
 import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
@@ -241,9 +241,9 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
       const snapshot = localePackageSchema.safeParse(invoice.localeSnapshot);
       if (snapshot.success) locale = snapshot.data;
       if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
-      context.balanceDue = formatMoney({ minor: invoice.balanceDue, currency: invoice.currency }, locale);
+      context.balanceDue = formatMoney({ minor: typeof context.balanceDueMinor === "number" && Number.isSafeInteger(context.balanceDueMinor) ? context.balanceDueMinor : invoice.balanceDue, currency: invoice.currency }, locale);
       context.dueDate = formatDateOnly(invoice.dueDate.toISOString().slice(0, 10), locale);
-      context.term = formatDateOnly(invoice.invoiceDate.toISOString().slice(0, 10), locale);
+      context.term = new Intl.DateTimeFormat(localeTag(locale), { year: "numeric", month: "long", timeZone: "UTC" }).format(invoice.invoiceDate);
     }
   }
   if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
@@ -339,6 +339,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
           subject: rendered.subject,
           text: rendered.body,
           html: notificationHtml(rendered.body, locale.language),
+          language: locale.language,
         });
 
   return prisma.parentCommunication.update({
