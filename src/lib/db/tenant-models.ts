@@ -65,6 +65,7 @@ export const TENANT_MODELS = new Set<string>([
   "leaveType",
   "ledgerEntry",
   "libraryMember",
+  "localePolicy",
   "loginSession",
   "mark",
   "notification",

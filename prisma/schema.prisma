@@ -1,7 +1,5 @@
-// ===========================================
-// SkooleeAI - Finalized Multi-Tenant Schema
-// ===========================================
-//
+// ====================================// SkooleeAI - Finalized Multi-Tenant Schema
+// ====================================//
 // TENANCY: every tenant-owned model carries `schoolId` with a real foreign
 // key to `schools`. School A must never read or write School B's rows.
 //
@@ -31,6 +29,7 @@ datasource db {
 model School {
   studentEnrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
+  localePolicies LocalePolicy[]
   workflowEvents       WorkflowEvent[]
   workflowJobs         WorkflowJob[]
   workflowEffects      WorkflowEffect[]
@@ -263,6 +262,8 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
+  localePolicies LocalePolicy[]
   id            String   @id @default(uuid())
   schoolId      String   @default("") @map("school_id")
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -353,6 +354,7 @@ model Campus {
 
 // ─── 3. USERS ─────────────────────────────────────────────
 model User {
+  preferredLanguage String? @map("preferred_language")
   isInstitutionOwner Boolean @default(false) @map("is_institution_owner")
   canPurchaseSubscription Boolean @default(false) @map("can_purchase_subscription")
   canManageMemberships Boolean @default(false) @map("can_manage_memberships")
@@ -1441,6 +1443,7 @@ model Mark {
 model ReportCard {
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  localeSnapshot Json? @map("locale_snapshot")
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1525,6 +1528,7 @@ model AttendanceEditHistory {
 
 // ─── 11. FEE_STRUCTURES ───────────────────────────────────
 model FeeStructure {
+  currency String @default("PKR")
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1579,6 +1583,7 @@ model FeeType {
 }
 
 model FeeGroup {
+  currency String @default("PKR")
   id          String               @id @default(uuid())
   schoolId    String               @default("") @map("school_id")
   school      School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1630,6 +1635,7 @@ model FeeGroupAssignment {
 }
 
 model FeeDiscount {
+  currency String @default("PKR")
   id          String                  @id @default(uuid())
   schoolId    String                  @default("") @map("school_id")
   school      School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1663,6 +1669,7 @@ model FeeDiscountAssignment {
 }
 
 model FeeCarryForward {
+  currency String @default("PKR")
   id               String  @id @default(uuid())
   schoolId         String  @default("") @map("school_id")
   school           School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1684,6 +1691,8 @@ model FeeCarryForward {
 model Invoice {
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  currency String @default("PKR")
+  localeSnapshot Json? @map("locale_snapshot")
   id              String        @id @default(uuid())
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1792,6 +1801,7 @@ model PaymentMethodRef {
 }
 
 model BankAccount {
+  currency       String        @default("PKR")
   id             String        @id @default(uuid())
   schoolId       String        @default("") @map("school_id")
   school         School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1810,6 +1820,7 @@ model BankAccount {
 }
 
 model LedgerEntry {
+  currency String @default("PKR")
   id            String         @id @default(uuid())
   schoolId      String         @default("") @map("school_id")
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -2076,6 +2087,7 @@ model ConsentLog {
 }
 
 model NotificationTemplate {
+  language String @default("en")
   id                   String   @id @default(uuid())
   schoolId             String?  @map("school_id")
   school               School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3192,4 +3204,22 @@ model EnrollmentProposal {
   confirmedAt DateTime? @map("confirmed_at")
   @@index([schoolId, studentId])
   @@map("enrollment_proposals")
+}
+// Append-only effective-dated locale policies. Campus rows contain only overrides.
+model LocalePolicy {
+  status String @default("ACTIVE")
+  id String @id @default(uuid())
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String? @map("campus_id")
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  scopeKey String @map("scope_key")
+  settings Json
+  effectiveAt DateTime @map("effective_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String @map("created_by")
+  financeReviewedBy String? @map("finance_reviewed_by")
+  @@unique([schoolId, scopeKey, effectiveAt])
+  @@index([schoolId, campusId, effectiveAt])
+  @@map("locale_policies")
 }

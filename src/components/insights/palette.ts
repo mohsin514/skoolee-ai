@@ -1,3 +1,4 @@
+import { minorUnits } from "@/lib/locale/package";
 /**
  * Chart colour tokens.
  *
@@ -128,8 +129,8 @@ export function compact(value: number): string {
  * does it too — so the derivation layer converts once, here, and every chart
  * downstream works in whole rupees.
  */
-export function fromMinor(minor: number): number {
-  return (minor || 0) / 100;
+export function fromMinor(minor: number, currency = "PKR"): number {
+  return (minor || 0) / 10 ** minorUnits(currency);
 }
 
 /** Money, compacted, without pretending to know the reader's locale currency.

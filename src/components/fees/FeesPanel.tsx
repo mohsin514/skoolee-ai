@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useState } from "react";
 import {
   BarChart3,
@@ -28,6 +29,7 @@ const TABS: { key: FeeTab; label: string; icon: typeof Receipt }[] = [
 ];
 
 export function FeesPanel({ campusId }: { campusId?: string }) {
+  const t = useUiText();
   const [activeTab, setActiveTab] = useState<FeeTab>("overview");
 
   return (
@@ -48,7 +50,7 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              {tab.label}
+              {t(tab.label)}
             </button>
           );
         })}

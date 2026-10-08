@@ -833,3 +833,11 @@ button:disabled,
 [data-date-field]:focus-within > button {
   color: #8127cf;
 }
+
+/* Browser printing uses the same shaped Arabic DOM and values as the preview. */
+@media print {
+  body:has(#locale-print-sample) * { visibility: hidden; }
+  body:has(#locale-print-sample) #locale-print-sample,
+  body:has(#locale-print-sample) #locale-print-sample * { visibility: visible; }
+  #locale-print-sample { position: absolute; inset: 0; width: 100%; padding: 20mm; border: 0; background: white; font-family: Arial, sans-serif; }
+}

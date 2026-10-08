@@ -1,3 +1,4 @@
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import type { Metadata } from "next";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 
@@ -13,5 +14,5 @@ export default async function ReceptionistLayout({ children }: { children: React
   // The page below is a client component that fetches its own data, so this is
   // the only server-side check that a session still exists.
   await requirePageSession();
-  return <>{children}</>;
+  return <LocaleProvider>{children}</LocaleProvider>;
 }

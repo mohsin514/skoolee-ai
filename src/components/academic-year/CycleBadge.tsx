@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
@@ -47,6 +48,7 @@ const statusConfig: Record<string, { icon: typeof Activity; bg: string; text: st
 };
 
 export function CycleBadge() {
+  const tr = useUiText();
   const [cycle, setCycle] = useState<CycleInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +67,7 @@ export function CycleBadge() {
           }
         }
       } catch {
-        toast.error("Failed to load cycle");
+        toast.error(tr("Failed to load cycle"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -77,7 +79,7 @@ export function CycleBadge() {
       cancelled = true;
       window.removeEventListener(ACADEMIC_CYCLE_CHANGED, load);
     };
-  }, []);
+  }, [tr]);
 
   if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-[#cfc2d6]/20" />;
 
@@ -85,7 +87,7 @@ export function CycleBadge() {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-rose-200/50 bg-rose-50 px-3 py-1.5">
         <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-        <span className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">No Cycle</span>
+        <span className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">{tr("No Cycle")}</span>
       </div>
     );
   }
@@ -98,7 +100,7 @@ export function CycleBadge() {
       <span className={cn("flex h-2 w-2 rounded-full", config.dot, cycle.status === "ACTIVE" && "animate-pulse")} />
       <Icon className={cn("h-3.5 w-3.5", config.text)} />
       <span className={cn("text-[10px] font-semibold uppercase tracking-wide", config.text)}>
-        {cycle.label} &middot; {config.label}
+        {cycle.label} &middot; {tr(config.label)}
       </span>
     </div>
   );

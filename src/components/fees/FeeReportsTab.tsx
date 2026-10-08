@@ -1,5 +1,8 @@
 "use client";
 
+import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -22,23 +25,26 @@ import {
   classLabel,
   exportCSV,
   formatPKR,
+  paisaToRupees,
   paymentMethodLabel,
 } from "./fee-utils";
 
 type ReportTab = "defaulters" | "collection" | "methods";
 
 export function FeeReportsTab({ campusId }: { campusId?: string }) {
+ const tr = useUiText();
+  const [currency, setCurrency] = useState("");
   const [subTab, setSubTab] = useState<ReportTab>("defaulters");
 
   const TABS: { key: ReportTab; label: string; icon: typeof Users }[] = [
-    { key: "defaulters", label: "Defaulters", icon: AlertTriangle },
-    { key: "collection", label: "Collection", icon: BarChart3 },
-    { key: "methods", label: "Payment Methods", icon: CreditCard },
+    { key: "defaulters", label: tr("Defaulters"), icon: AlertTriangle },
+    { key: "collection", label: tr("Collection"), icon: BarChart3 },
+    { key: "methods", label: tr("Payment Methods"), icon: CreditCard },
   ];
 
   return (
-    <div className="space-y-5">
-      <h3 className="text-lg font-black text-[#1f1a23]">Reports</h3>
+    <div className="space-y-5"><CurrencySelect value={currency} onChange={setCurrency} />
+      <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Reports"}</UiText></h3>
 
       <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
         {TABS.map((tab) => {
@@ -61,14 +67,16 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
         })}
       </div>
 
-      {subTab === "defaulters" && <DefaultersReport campusId={campusId} />}
-      {subTab === "collection" && <CollectionSummary campusId={campusId} />}
-      {subTab === "methods" && <MethodBreakdown campusId={campusId} />}
+      {subTab === "defaulters" && <DefaultersReport campusId={campusId} currency={currency} />}
+      {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} />}
+      {subTab === "methods" && <MethodBreakdown campusId={campusId} currency={currency} />}
     </div>
   );
 }
 
-function DefaultersReport({ campusId }: { campusId?: string }) {
+function DefaultersReport({ campusId, currency }: { campusId?: string; currency: string }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [defaulters, setDefaulters] = useState<DefaulterRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [remindingId, setRemindingId] = useState<string | null>(null);
@@ -76,17 +84,17 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/defaulters?${params}`);
       const json = await res.json();
       if (json.success) setDefaulters(json.data);
     } catch {
-      toast.error("Failed to load defaulters");
+      toast.error(tr("Failed to load defaulters"));
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -102,12 +110,12 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.data?.delivered ? `Reminder sent to ${json.data.sentTo}` : "Reminder logged (channel unavailable)");
+        toast.success(tr(json.data?.delivered ? tr("Reminder sent to {0}", [json.data.sentTo]) : "Reminder logged (channel unavailable)"));
       } else {
-        toast.error(json.error || "Reminder failed");
+        toast.error(tr(json.error || "Reminder failed"));
       }
     } catch {
-      toast.error("Failed to send reminder");
+      toast.error(tr("Failed to send reminder"));
     } finally {
       setRemindingId(null);
     }
@@ -122,9 +130,9 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       Guardian: d.guardianName ?? "",
       Phone: d.guardianPhone ?? "",
       Email: d.guardianEmail ?? "",
-      "Total Due": d.totalDue / 100,
-      "Total Paid": d.totalPaid / 100,
-      "Overdue Amount": d.totalOverdue / 100,
+      "Total Due": paisaToRupees(d.totalDue, d.currency),
+      "Total Paid": paisaToRupees(d.totalPaid, d.currency),
+      "Overdue Amount": paisaToRupees(d.totalOverdue, d.currency),
       "Days Overdue": d.daysOverdue,
       "Overdue Invoices": d.overdueInvoices,
     }));
@@ -152,8 +160,8 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
     return (
       <EmptyState
         icon={Users}
-        title="No defaulters"
-        description="All students are up to date on their payments."
+        title={tr("No defaulters")}
+        description={tr("All students are up to date on their payments.")}
       />
     );
   }
@@ -162,21 +170,19 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[9px] font-bold text-ink-subtle">
-          {defaulters.length} defaulter{defaulters.length !== 1 ? "s" : ""}
+          {tr("Defaulters")}: {defaulters.length}
         </p>
-        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
-          Export CSV
-        </BrandButton>
+        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
       </div>
 
       <div className="sk-panel sk-rise overflow-hidden">
         <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-          <span>Student</span>
-          <span>Guardian</span>
-          <span>Overdue</span>
-          <span>Total Due</span>
-          <span>Days</span>
-          <span>Invoices</span>
+          <span><UiText>{"Student"}</UiText></span>
+          <span><UiText>{"Guardian"}</UiText></span>
+          <span><UiText>{"Overdue"}</UiText></span>
+          <span><UiText>{"Total Due"}</UiText></span>
+          <span><UiText>{"Days"}</UiText></span>
+          <span><UiText>{"Invoices"}</UiText></span>
           <span></span>
         </div>
         <div className="divide-y divide-[#f3f4f9]">
@@ -200,8 +206,8 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
                   </p>
                 )}
               </div>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
+              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
               <span className={`text-[9px] font-black px-2 py-1 rounded-lg w-fit ${
                 d.daysOverdue > 30 ? "bg-rose-50 text-rose-600" : d.daysOverdue > 15 ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
               }`}>
@@ -214,7 +220,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
                 disabled={remindingId !== null}
                 className="rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
               >
-                {remindingId === d.studentId ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Send reminder"}
+                {remindingId === d.studentId ? <Loader2 className="w-3 h-3 animate-spin inline" /> : tr("Send reminder")}
               </button>
             </div>
           ))}
@@ -224,24 +230,26 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   );
 }
 
-function CollectionSummary({ campusId }: { campusId?: string }) {
+function CollectionSummary({ campusId, currency }: { campusId?: string; currency: string }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [data, setData] = useState<CollectionReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
       if (json.success) setData(json.data.byClass);
     } catch {
-      toast.error("Failed to load collection report");
+      toast.error(tr("Failed to load collection report"));
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -252,9 +260,9 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
     const rows = data.map((d) => ({
       Class: d.className,
       Students: d.totalStudents,
-      "Total Due": d.totalDue / 100,
-      "Total Paid": d.totalPaid / 100,
-      "Total Overdue": d.totalOverdue / 100,
+      "Total Due": paisaToRupees(d.totalDue, d.currency),
+      "Total Paid": paisaToRupees(d.totalPaid, d.currency),
+      "Total Overdue": paisaToRupees(d.totalOverdue, d.currency),
       "Collection Rate": `${d.collectionRate}%`,
     }));
     exportCSV(rows, `collection-${new Date().toISOString().split("T")[0]}`);
@@ -288,8 +296,8 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
     return (
       <EmptyState
         icon={BarChart3}
-        title="No collection data"
-        description="Generate invoices and record payments to see collection reports."
+        title={tr("No collection data")}
+        description={tr("Generate invoices and record payments to see collection reports.")}
       />
     );
   }
@@ -308,40 +316,38 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[9px] font-bold text-ink-subtle">
-          {data.length} class{data.length !== 1 ? "es" : ""}
+          {data.length}<UiText>{"Classes"}</UiText>
         </p>
-        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
-          Export CSV
-        </BrandButton>
+        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3 border border-[#cfc2d6]/10">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Students</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Students"}</UiText></p>
           <p className="text-xl font-black text-[#8127cf]">{totals.students}</p>
         </div>
         <div className="rounded-2xl bg-blue-50/50 px-4 py-3 border border-blue-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Due</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Due"}</UiText></p>
           <p className="text-xl font-black text-blue-600">{formatPKR(totals.due)}</p>
         </div>
         <div className="rounded-2xl bg-emerald-50/50 px-4 py-3 border border-emerald-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Collected</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Collected"}</UiText></p>
           <p className="text-xl font-black text-emerald-600">{formatPKR(totals.paid)}</p>
         </div>
         <div className="rounded-2xl bg-rose-50/50 px-4 py-3 border border-rose-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Total Overdue</p>
+          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Overdue"}</UiText></p>
           <p className="text-xl font-black text-rose-600">{formatPKR(totals.overdue)}</p>
         </div>
       </div>
 
       <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "80ms" }}>
         <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-          <span>Class</span>
-          <span>Students</span>
-          <span>Total Due</span>
-          <span>Collected</span>
-          <span>Overdue</span>
-          <span>Rate</span>
+          <span><UiText>{"Class"}</UiText></span>
+          <span><UiText>{"Students"}</UiText></span>
+          <span><UiText>{"Total Due"}</UiText></span>
+          <span><UiText>{"Collected"}</UiText></span>
+          <span><UiText>{"Overdue"}</UiText></span>
+          <span><UiText>{"Rate"}</UiText></span>
         </div>
         <div className="divide-y divide-[#f3f4f9]">
           {data.map((d) => (
@@ -351,9 +357,9 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
             >
               <p className="text-xs font-black text-[#1f1a23]">{d.className}</p>
               <p className="text-xs font-bold text-ink-muted">{d.totalStudents}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
-              <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid)}</p>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
+              <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid, d.currency)}</p>
+              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
                   <div
@@ -379,24 +385,26 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
   );
 }
 
-function MethodBreakdown({ campusId }: { campusId?: string }) {
+function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: string }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [data, setData] = useState<PaymentMethodBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
       if (json.success) setData(json.data.byMethod);
     } catch {
-      toast.error("Failed to load payment method data");
+      toast.error(tr("Failed to load payment method data"));
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -425,8 +433,8 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
     return (
       <EmptyState
         icon={CreditCard}
-        title="No payment data"
-        description="Record payments to see the method breakdown."
+        title={tr("No payment data")}
+        description={tr("Record payments to see the method breakdown.")}
       />
     );
   }
@@ -450,13 +458,12 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
           >
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-black text-[#1f1a23]">
-                {paymentMethodLabel(m.method)}
+                {tr(paymentMethodLabel(m.method))}
               </p>
               <span className="text-[9px] font-black uppercase text-ink-subtle px-2 py-1 rounded-lg bg-[#f3f4f9]">
-                {m.count} txns
-              </span>
+                {m.count}<UiText>{"txns"}</UiText></span>
             </div>
-            <p className="text-xl font-black text-[#8127cf] mb-2">{formatPKR(m.total)}</p>
+            <p className="text-xl font-black text-[#8127cf] mb-2">{formatPKR(m.total, m.currency)}</p>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-3 rounded-full bg-[#f3f4f9] overflow-hidden">
                 <div

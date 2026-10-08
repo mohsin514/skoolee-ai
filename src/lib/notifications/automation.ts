@@ -83,7 +83,7 @@ export async function triggerRepeatedAbsenceAlert({
     key: "ATTENDANCE_ALERT",
     channels: PARENT_CHANNELS,
     context: {
-      date: formatDate(date),
+      date: date.toISOString().slice(0, 10),
       absenceCount,
     },
     createdById,
@@ -127,6 +127,7 @@ export async function triggerFeeDueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",
@@ -173,6 +174,7 @@ export async function triggerFeeOverdueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",
@@ -230,7 +232,7 @@ export async function triggerMarksEntryDeadlineReminders({
           context: {
             recipientName: recipient.fullName,
             examTitle: exam.title,
-            deadlineDate: formatDate(deadline),
+            deadlineDate: deadline.toISOString().slice(0, 10),
             className: [exam.class.name, exam.class.section].filter(Boolean).join(" - "),
             schoolName: exam.campus.school.name,
           },

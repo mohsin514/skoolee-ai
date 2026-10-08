@@ -1,3 +1,4 @@
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { requirePageSession } from "@/lib/auth/require-page-session";
@@ -25,5 +26,5 @@ export default async function OperationalLayout({ children }: { children: React.
     redirect("/subscription-suspended");
   }
 
-  return children;
+  return <LocaleProvider>{children}</LocaleProvider>;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Loader2,
@@ -42,6 +44,7 @@ export function ReportCardPipeline({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -158,7 +161,7 @@ export function ReportCardPipeline({
     <div className="space-y-5">
       {/* Pipeline */}
       <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-5 shadow-sm">
-        <p className="mb-4 text-sm font-black text-[#1d1b20]">Pipeline</p>
+        <p className="mb-4 text-sm font-black text-[#1d1b20]"><UiText>{"Pipeline"}</UiText></p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
@@ -212,9 +215,7 @@ export function ReportCardPipeline({
         </div>
         {!isLocked ? (
           <div className="mt-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[11px] font-semibold text-amber-600">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            Lock the exam (from the Marks tab / card) before generating report cards.
-          </div>
+            <AlertTriangle className="h-4 w-4 shrink-0" /><UiText>{"Lock the exam (from the Marks tab / card) before generating report cards."}</UiText></div>
         ) : null}
       </div>
 
@@ -222,10 +223,10 @@ export function ReportCardPipeline({
       {analytics ? (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { label: "Class Avg", value: `${Math.round(analytics.classAverage || 0)}%` },
-            { label: "Passed", value: analytics.passCount ?? 0 },
-            { label: "Failed", value: analytics.failCount ?? 0 },
-            { label: "Students", value: analytics.totalStudents ?? reportCards.length },
+            { label: tr("Class Avg"), value: `${Math.round(analytics.classAverage || 0)}%` },
+            { label: tr("Passed"), value: analytics.passCount ?? 0 },
+            { label: tr("Failed"), value: analytics.failCount ?? 0 },
+            { label: tr("Students"), value: analytics.totalStudents ?? reportCards.length },
           ].map((s) => (
             <div
               key={s.label}
@@ -242,13 +243,12 @@ export function ReportCardPipeline({
 
       {/* Per-student list */}
       <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-5 shadow-sm">
-        <p className="mb-3 text-sm font-black text-[#1d1b20]">
-          Students ({reportCards.length})
+        <p className="mb-3 text-sm font-black text-[#1d1b20]"><UiText>{"Students ("}</UiText>{reportCards.length})
         </p>
         {reportCards.length === 0 ? (
           <div className="py-10 text-center">
             <FilePlus2 className="mx-auto mb-3 h-10 w-10 text-ink-subtle" />
-            <p className="text-sm font-bold text-ink-subtle">No report cards yet</p>
+            <p className="text-sm font-bold text-ink-subtle"><UiText>{"No report cards yet"}</UiText></p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -266,16 +266,15 @@ export function ReportCardPipeline({
                       <p className="truncate text-sm font-bold text-[#1d1b20]">
                         {rc.student?.fullName || "Student"}
                       </p>
-                      <p className="text-[10px] font-semibold text-ink-subtle">
-                        Roll {rc.student?.rollNo || "—"}
+                      <p className="text-[10px] font-semibold text-ink-subtle"><UiText>{"Roll"}</UiText>{rc.student?.rollNo || "—"}
                       </p>
                     </div>
                     <span className="text-lg font-black text-[#8127cf]">{rc.grade || "—"}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <Badge done={reportCards.length > 0} label="Generated" />
-                    <Badge done={published} label="Published" />
-                    <Badge done={sent} label="Sent" />
+                    <Badge done={reportCards.length > 0} label={tr("Generated")} />
+                    <Badge done={published} label={tr("Published")} />
+                    <Badge done={sent} label={tr("Sent")} />
                   </div>
                   {rc.percentage != null ? (
                     <p className="mt-2 text-[11px] font-bold text-ink-muted">
@@ -289,9 +288,7 @@ export function ReportCardPipeline({
                     disabled={busy !== null}
                     className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#8127cf]/20 bg-white py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] disabled:opacity-50 cursor-pointer"
                   >
-                    {busy === `pdf-${rc.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                    Download PDF
-                  </button>
+                    {busy === `pdf-${rc.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}<UiText>{"Download PDF"}</UiText></button>
                 </div>
               );
             })}
