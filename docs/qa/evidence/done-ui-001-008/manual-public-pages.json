@@ -1,0 +1,263 @@
+[
+  {
+    "route": "/pricing",
+    "viewport": "desktop",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "desktop",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "desktop",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "tablet",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "tablet",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "tablet",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "phone",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "phone",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/pricing",
+    "viewport": "phone",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "desktop",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "desktop",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "desktop",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "tablet",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "tablet",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "tablet",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "phone",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "phone",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/onboarding/package",
+    "viewport": "phone",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardBillingToggle": true,
+    "api": "synthetic mocked catalogue; no payment initiated",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "desktop",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "desktop",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "desktop",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "tablet",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "tablet",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "tablet",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "phone",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "phone",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  },
+  {
+    "route": "/protect-account",
+    "viewport": "phone",
+    "language": "ur",
+    "dir": "rtl",
+    "overflow": false,
+    "keyboardSetupAndTabOrder": true,
+    "api": "synthetic browser-mocked MFA challenge; no real account",
+    "pageErrors": []
+  }
+]

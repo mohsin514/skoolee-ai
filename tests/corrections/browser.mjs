@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { chromium } from 'playwright';
 import { readFile,mkdir,writeFile } from 'node:fs/promises';
 const fixture=JSON.parse(await readFile(join(tmpdir(), 'sko213-fixture.json'),'utf8'));
-const base='http://127.0.0.1:3213',out='docs/qa/evidence/sko-213';await mkdir(out,{recursive:true});
+const base=process.env.AUDIT_BASE_URL||'http://127.0.0.1:3213',out=process.env.AUDIT_EVIDENCE_DIR||'docs/qa/evidence/sko-213';await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});const evidence=[];
 for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844]]){
  for(const language of ['en','ar','ur']){
@@ -29,7 +29,7 @@ for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mo
   }
  }
 }
-for(const role of Object.keys(fixture.cookies)){
+if(process.env.AUDIT_SCREEN_ONLY!=='1') for(const role of Object.keys(fixture.cookies)){
  for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844]]){
   const page=await browser.newPage({viewport:{width,height}});await page.context().addCookies([{name:'skoolee_token',value:fixture.cookies[role].split('=')[1],url:base}]);const r=await page.goto(`${base}/corrections`);await page.waitForTimeout(350);
   const body=await page.locator('body').innerText();if(r.status()>=500||body.includes('Application error:'))throw new Error(`${role} failed`);
