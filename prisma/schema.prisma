@@ -89,6 +89,10 @@ model School {
   payrollLines            PayrollLine[]
   classes                 Class[]
   students                Student[]
+  guardianRelationships   GuardianRelationship[]
+  guardianAccessVersions  GuardianAccessVersion[]
+  guardianAccessEvents    GuardianAccessEvent[]
+  guardianReviewQueue     GuardianReviewQueue[]
   studentDocuments        StudentDocument[]
   studentTimelineEvents   StudentTimelineEvent[]
   admissionQueries        AdmissionQuery[]
@@ -289,6 +293,8 @@ model Campus {
   departments           Department[]
   classes               Class[]
   students              Student[]
+  guardianRelationships GuardianRelationship[]
+  guardianReviewQueue   GuardianReviewQueue[]
   subjects              Subject[]
   exams                 Exam[]
   examSessions          ExamSession[]
@@ -419,6 +425,10 @@ model User {
   ledClasses                    Class[]                  @relation("ClassTeacher")
   studentProfile                Student?                 @relation("StudentUser")
   parentedStudents              Student[]                @relation("Parent")
+  guardianRelationships         GuardianRelationship[]   @relation("GuardianAccount")
+  createdGuardianRelationships  GuardianRelationship[]   @relation("GuardianCreatedBy")
+  guardianAccessEvents          GuardianAccessEvent[]    @relation("GuardianAccessActor")
+  reviewedGuardianLinks         GuardianReviewQueue[]    @relation("GuardianReviewActor")
   parentCommunicationRecipients ParentCommunication[]    @relation("ParentCommunicationParent")
   createdParentCommunications   ParentCommunication[]    @relation("ParentCommunicationCreator")
   timetableSlots                TimetableSlot[]          @relation("TimetableTeacher")
@@ -1012,6 +1022,8 @@ model Student {
   studentUser          User?     @relation("StudentUser", fields: [studentUserId], references: [id], onDelete: SetNull)
   parentUserId         String?   @map("parent_user_id")
   parent               User?     @relation("Parent", fields: [parentUserId], references: [id], onDelete: SetNull)
+  guardianRelationships GuardianRelationship[]
+  guardianReviewQueue   GuardianReviewQueue[]
   admissionNo          String?   @map("admission_no") // Institution-scoped identifier; id is the immutable identity
   fullName             String    @map("full_name")
   nameUr               String?   @map("name_ur")
@@ -1070,6 +1082,105 @@ model Student {
   @@unique([campusId, rollNo])
   @@index([schoolId])
   @@map("students")
+}
+
+// A guardian link is scoped to one child and one school. Account identity is
+// attached only after the guardian accepts from their authenticated account;
+// matching a name, email, phone, or sibling group never grants access.
+model GuardianRelationship {
+  id                  String   @id @default(uuid())
+  schoolId            String   @default("") @map("school_id")
+  school              School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId            String   @map("campus_id")
+  campus              Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId           String   @map("student_id")
+  student             Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardianUserId      String?  @map("guardian_user_id")
+  guardian             User?    @relation("GuardianAccount", fields: [guardianUserId], references: [id], onDelete: SetNull)
+  createdByUserId     String   @map("created_by_user_id")
+  createdBy           User     @relation("GuardianCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  fullName            String   @map("full_name")
+  email               String
+  phone               String?
+  relationship        String
+  status              String   @default("INVITED") // INVITED | ACTIVE | SUSPENDED | REVOKED | REVIEW_REQUIRED
+  validFrom           DateTime @default(now()) @map("valid_from")
+  validUntil          DateTime? @map("valid_until")
+  verifiedAt          DateTime? @map("verified_at")
+  invitationExpiresAt DateTime? @map("invitation_expires_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  accessVersions      GuardianAccessVersion[]
+  accessEvents        GuardianAccessEvent[]
+
+  @@unique([id, schoolId])
+  @@index([schoolId, campusId, studentId, status])
+  @@index([schoolId, guardianUserId, status])
+  @@map("guardian_relationships")
+}
+
+// Versioned rights keep scheduled changes from altering current access.
+// Each request resolves the version effective at that request's current time.
+model GuardianAccessVersion {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  relationshipId  String   @map("relationship_id")
+  relationship    GuardianRelationship @relation(fields: [relationshipId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  permissions     Json
+  effectiveFrom   DateTime @default(now()) @map("effective_from")
+  effectiveUntil  DateTime? @map("effective_until")
+  reason          String
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, relationshipId, effectiveFrom, effectiveUntil])
+  @@map("guardian_access_versions")
+}
+
+model GuardianAccessEvent {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  relationshipId  String   @map("relationship_id")
+  relationship    GuardianRelationship @relation(fields: [relationshipId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  actorUserId     String   @map("actor_user_id")
+  actor           User     @relation("GuardianAccessActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  action          String
+  reason          String
+  beforeState     Json?    @map("before_state")
+  afterState      Json?    @map("after_state")
+  effectiveAt     DateTime @map("effective_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, relationshipId, createdAt])
+  @@map("guardian_access_events")
+}
+
+// Contact-only legacy records are not proof of a family relationship. Preserve
+// them here for staff review without granting a guardian account access.
+model GuardianReviewQueue {
+  id                  String   @id @default(uuid())
+  schoolId            String   @default("") @map("school_id")
+  school              School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId            String   @map("campus_id")
+  campus              Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId           String   @map("student_id")
+  student             Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  contactName         String?  @map("contact_name")
+  email               String?
+  phone               String?
+  legacyRelationship  String?  @map("legacy_relationship")
+  reason              String
+  status              String   @default("OPEN")
+  reviewedByUserId    String?  @map("reviewed_by_user_id")
+  reviewedBy          User?    @relation("GuardianReviewActor", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt          DateTime? @map("reviewed_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([studentId, reason])
+  @@index([schoolId, campusId, status, createdAt])
+  @@map("guardian_review_queue")
 }
 
 // Admission documents (birth certificate, transfer certificate, photo…)

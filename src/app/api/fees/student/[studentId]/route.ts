@@ -21,7 +21,7 @@ export async function GET(
     const student = await prisma.student.findFirst({
       where: {
         id: studentId,
-        ...studentScope(user),
+        ...studentScope(user, "finances"),
       },
       include: {
         class: { select: { id: true, name: true, section: true } },

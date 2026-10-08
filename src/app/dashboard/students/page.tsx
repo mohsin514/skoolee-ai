@@ -4,7 +4,8 @@ import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -347,6 +348,9 @@ export default function StudentsPage() {
         description="Manage student records, guardians, classes, and daily attendance"
         actions={
           <div className="flex gap-2">
+            <Link href="/dashboard/guardians" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Guardians & access
+            </Link>
             <Button variant="outline" size="sm" onClick={() => setShowBulkImport(true)} disabled={classes.length === 0}>
               <Upload className="h-4 w-4" />
               Bulk Import

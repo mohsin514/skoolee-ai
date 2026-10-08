@@ -177,10 +177,30 @@ export function renderNotificationTemplate(template: NotificationTemplateDefinit
   };
 }
 
-function recipientForStudent(student: StudentContext, channel: NotificationChannel) {
-  if (channel === "EMAIL") return student.guardianEmail || student.parent?.email || null;
-  if (channel === "WHATSAPP") return student.guardianWhatsapp || student.parent?.phone || student.guardianPhone || null;
-  return student.guardianPhone || student.guardianWhatsapp || student.parent?.phone || null;
+async function authorizedGuardianRecipients(studentId: string, schoolId: string, channel: NotificationChannel) {
+  const now = new Date();
+  const links = await prisma.guardianRelationship.findMany({
+    where: {
+      schoolId, studentId, status: "ACTIVE", guardianUserId: { not: null },
+      verifiedAt: { not: null }, validFrom: { lte: now },
+      AND: [
+        { OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
+        { guardian: { isActive: true } },
+        { accessVersions: { some: {
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }],
+          permissions: { path: ["communication"], equals: true },
+        } } },
+      ],
+    },
+    select: { fullName: true, email: true, phone: true, guardianUserId: true, guardian: { select: { phone: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  return links.flatMap((link) => {
+    const recipient = channel === "EMAIL" ? link.email : link.phone || link.guardian?.phone;
+    if (!link.guardianUserId || !recipient) return [];
+    return [{ guardianUserId: link.guardianUserId, fullName: link.fullName, recipient }];
+  });
 }
 
 export function studentBaseContext(student: StudentContext): TemplateContext {
@@ -236,7 +256,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     if (!input.createdById) throw new Error("Report delivery requires an authorized actor");
     // Callers cannot replace approved facts, document identity, approval or logical delivery identity.
     input = { ...input, approvedData: true, attachmentUrl: null,
-      idempotencyKey: `report-version:${version.id}:${input.channel}`,
+      idempotencyKey: `report-version:${version.id}:${input.channel}:${input.target.parentUserId || "unlinked"}`,
       context: { ...input.context, examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
       metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
     };
@@ -423,29 +443,27 @@ export async function sendStudentTemplatedCommunication({
 
   const results = [];
   for (const channel of channels) {
-    const recipient = recipientForStudent(student, channel);
-    results.push(
-      await sendTemplatedCommunication({
-        key,
-        channel,
-        context: { ...baseContext, ...context },
-        target: {
-          schoolId: student.campus.schoolId,
-          campusId: student.campusId,
-          studentId: student.id,
-          parentUserId: student.parentUserId,
-          recipientName: valueFor(baseContext, "parentName"),
-          recipient,
-        },
-        createdById,
-        attachmentUrl,
-        relatedType,
-        relatedId,
-        approvedData,
-        idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}` : undefined,
-        metadata,
-      })
-    );
+    const recipients = await authorizedGuardianRecipients(student.id, student.campus.schoolId, channel);
+    for (const guardian of recipients) results.push(await sendTemplatedCommunication({
+      key,
+      channel,
+      context: { ...baseContext, ...context, parentName: guardian.fullName, recipientName: guardian.fullName },
+      target: {
+        schoolId: student.campus.schoolId,
+        campusId: student.campusId,
+        studentId: student.id,
+        parentUserId: guardian.guardianUserId,
+        recipientName: guardian.fullName,
+        recipient: guardian.recipient,
+      },
+      createdById,
+      attachmentUrl,
+      relatedType,
+      relatedId,
+      approvedData,
+      idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}:${guardian.guardianUserId}` : undefined,
+      metadata,
+    }));
   }
 
   return results;
