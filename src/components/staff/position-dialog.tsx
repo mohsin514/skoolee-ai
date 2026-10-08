@@ -44,6 +44,7 @@ import {
   TRACK_TONES,
 } from "@/lib/staff/hierarchy-presets";
 import type { OrgNode } from "@/lib/staff/hierarchy";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 export interface DesignationOption {
   id: string;
@@ -548,7 +549,7 @@ export function PositionDialog({
                 </Field>
               </div>
               <label className="flex cursor-pointer items-center gap-2 sm:col-span-2">
-                <input type="checkbox" checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-[#8127cf]" />
+                <SystemCheckbox  checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-[#8127cf]" />
                 <span className="text-xs font-bold text-ink">
                   Acting / officiating charge
                   <span className="ml-1 font-semibold text-ink-muted">— holding the post without the rank</span>

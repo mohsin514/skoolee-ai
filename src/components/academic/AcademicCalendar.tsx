@@ -1,4 +1,7 @@
 "use client";
+import { localeTag } from "@/lib/locale/package";
+
+import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -47,6 +51,8 @@ interface UnifiedExam {
 }
 interface UnifiedFeed {
   weekends: number[];
+  weekendDates?: string[];
+  weekStartsOn?: number;
   terms: UnifiedTerm[];
   holidays: UnifiedHoliday[];
   exams: UnifiedExam[];
@@ -58,7 +64,7 @@ function isoOf(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 function dowFromIso(iso: string) {
-  return ((new Date(`${iso}T00:00:00`).getDay() + 6) % 7) + 1; // 1=Mon..7=Sun
+  return ((new Date(`${iso}T00:00:00Z`).getDay() + 6) % 7) + 1; // 1=Mon..7=Sun
 }
 function todayIso() {
   const d = new Date();
@@ -93,6 +99,8 @@ export function AcademicCalendar({
   role?: CalendarRole;
   onScheduleExam?: () => void;
 }) {
+  const tr = useUiText();
+  const locale = useLocale();
   const canEdit = !readOnly && (role === "ADMIN" || role === "PRINCIPAL");
 
   const now = new Date();
@@ -125,9 +133,9 @@ export function AcademicCalendar({
       const res = await fetch(`/api/academic/calendar/unified${qs ? `${qs}&` : "?" }year=${viewYear}`);
       const json = await res.json();
       if (json.success) setFeed(json.data);
-      else toast.error("Failed to load unified calendar");
+      else toast.error(tr("Failed to load unified calendar"));
     } catch {
-      toast.error("Failed to load unified calendar");
+      toast.error(tr("Failed to load unified calendar"));
     } finally {
       setLoading(false);
     }
@@ -232,7 +240,7 @@ export function AcademicCalendar({
         map.set(iso, {
           iso,
           dayNum: Number(iso.slice(8, 10)),
-          isWeekend: feed.weekends.includes(dowFromIso(iso)),
+          isWeekend: (feed.weekendDates ? feed.weekendDates.includes(iso) : feed.weekends.includes(dowFromIso(iso))),
           exams: [],
           deadlines: [],
           holidays: [],
@@ -274,7 +282,7 @@ export function AcademicCalendar({
   const monthCells = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const leading = (first.getDay() + 6) % 7; // Mon=0
+    const leading = (first.getDay() - (feed?.weekStartsOn ?? 1) + 7) % 7;
     const cells: (DayEvents | null)[] = [];
     for (let i = 0; i < leading; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
@@ -282,7 +290,7 @@ export function AcademicCalendar({
       cells.push(dayMap.get(iso) ?? {
         iso,
         dayNum: d,
-        isWeekend: feed ? feed.weekends.includes(dowFromIso(iso)) : false,
+        isWeekend: feed ? (feed.weekendDates ? feed.weekendDates.includes(iso) : feed.weekends.includes(dowFromIso(iso))) : false,
         exams: [],
         deadlines: [],
         holidays: [],
@@ -311,7 +319,7 @@ export function AcademicCalendar({
     (layers.deadlines && day.deadlines.length > 0);
 
   return (
-    <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] overflow-hidden">
+    <div className="sk-panel border-[#cfc2d6]/15 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10">
         <div className="flex items-center gap-3">
@@ -319,10 +327,10 @@ export function AcademicCalendar({
             <CalendarDays className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-lg font-black tracking-tight text-[#1d1b20]">Academic Calendar</h3>
+            <h3 className="text-lg font-black tracking-tight text-[#1d1b20]"><UiText>{"Academic Calendar"}</UiText></h3>
             <p className="text-[11px] font-semibold text-ink-muted">
-              {calendarView === "month" ? `${MONTHS[viewMonth]} ${viewYear}` : `${viewYear}`}
-              {upcoming.length > 0 ? ` · ${upcoming.length} still to come` : " · nothing else scheduled"}
+              {calendarView === "month" ? new Intl.DateTimeFormat(localeTag(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(viewYear, viewMonth, 1))) : `${viewYear}`}
+              {upcoming.length > 0 ? tr(" · {0} still to come", [upcoming.length]) : tr(" · nothing else scheduled")}
             </p>
           </div>
         </div>
@@ -341,32 +349,30 @@ export function AcademicCalendar({
                     : "text-ink-muted hover:text-[#8127cf]",
                 )}
               >
-                {v === "month" ? "Month" : "What's next"}
+                {v === "month" ? tr("Month") : tr("What's next")}
               </button>
             ))}
           </div>
           {calendarView === "month" ? (
             <>
-              <button onClick={prevMonth} aria-label="Previous month" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <button onClick={prevMonth} aria-label={tr("Previous month")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
                 className="cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-              >
-                Today
-              </button>
-              <button onClick={nextMonth} aria-label="Next month" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              ><UiText>{"Today"}</UiText></button>
+              <button onClick={nextMonth} aria-label={tr("Next month")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <button onClick={() => setViewYear((y) => y - 1)} aria-label="Previous year" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <button onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-[11px] font-black uppercase tracking-wider text-ink-muted">{viewYear}</span>
-              <button onClick={() => setViewYear((y) => y + 1)} aria-label="Next year" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+              <button onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -376,10 +382,10 @@ export function AcademicCalendar({
 
       {/* Layer toggles */}
       <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-[#cfc2d6]/10">
-        <LayerChip label="Exams" color="#8127cf" active={layers.exams} onClick={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
-        <LayerChip label="Holidays" color="#0d9488" active={layers.holidays} onClick={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
-        <LayerChip label="Terms" color="#d97706" active={layers.terms} onClick={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
-        <LayerChip label="Deadlines" color="#f43f5e" active={layers.deadlines} onClick={() => setLayers((l) => ({ ...l, deadlines: !l.deadlines }))} />
+        <LayerChip label={tr("Exams")} color="#8127cf" active={layers.exams} onClick={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
+        <LayerChip label={tr("Holidays")} color="#0d9488" active={layers.holidays} onClick={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
+        <LayerChip label={tr("Terms")} color="#d97706" active={layers.terms} onClick={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
+        <LayerChip label={tr("Deadlines")} color="#f43f5e" active={layers.deadlines} onClick={() => setLayers((l) => ({ ...l, deadlines: !l.deadlines }))} />
       </div>
 
       {loading ? (
@@ -402,7 +408,7 @@ export function AcademicCalendar({
       ) : (
         <div className="p-5">
           <div className="grid grid-cols-7 gap-1.5">
-            {WEEKDAYS.map((d) => (
+            {Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(localeTag(locale), { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2027, 0, 3 + ((feed?.weekStartsOn ?? 1) + i) % 7)))).map((d) => (
               <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 {d}
               </div>
@@ -450,8 +456,8 @@ export function AcademicCalendar({
                     )}
                   </div>
                   <div className="mt-auto flex flex-wrap gap-1">
-                    {layers.exams && cell.exams.length > 0 && <Dot color="#8127cf" title={`${cell.exams.length} exam(s)`} />}
-                    {layers.deadlines && cell.deadlines.length > 0 && <Dot color="#f43f5e" title="Deadline" />}
+                    {layers.exams && cell.exams.length > 0 && <Dot color="#8127cf" title={tr("{0} exam(s)", [cell.exams.length])} />}
+                    {layers.deadlines && cell.deadlines.length > 0 && <Dot color="#f43f5e" title={tr("Deadline")} />}
                     {layers.terms && cell.terms.length > 0 && (
                       <Dot color="#d97706" title={cell.terms.map((t) => `${t.term.label} ${t.type}`).join(", ")} />
                     )}
@@ -524,6 +530,8 @@ function DayPopover({
   onHolidayAdded: () => void;
   campusId?: string;
 }) {
+  const tr = useUiText();
+  const locale = useLocale();
   const [name, setName] = useState("");
   const [fromDate, setFromDate] = useState(popover.iso);
   const [toDate, setToDate] = useState(popover.iso);
@@ -585,16 +593,16 @@ function DayPopover({
         body: JSON.stringify({ name: name.trim(), fromDate, toDate }),
       });
       const json = await res.json();
-      if (json.success) { toast.success("Holiday added"); onHolidayAdded(); }
-      else toast.error(json.error || "Failed to add holiday");
+      if (json.success) { toast.success(tr("Holiday added")); onHolidayAdded(); }
+      else toast.error(tr(json.error || "Failed to add holiday"));
     } catch {
-      toast.error("Failed to add holiday");
+      toast.error(tr("Failed to add holiday"));
     } finally {
       setSaving(false);
     }
   };
 
-  const dayLabel = new Date(`${popover.iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  const dayLabel = new Date(`${popover.iso}T00:00:00Z`).toLocaleDateString(localeTag(locale), { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
   const pos = { top: Math.min(popover.y, (typeof window !== "undefined" ? window.innerHeight - 320 : popover.y)), left: Math.min(popover.x, (typeof window !== "undefined" ? window.innerWidth - 300 : popover.x)) };
 
@@ -611,19 +619,19 @@ function DayPopover({
       ref={ref}
       style={pos}
       role="dialog"
-      aria-label={`Events on ${dayLabel}`}
+      aria-label={tr("Events on {0}", [dayLabel])}
       className="fixed z-[200] w-[290px] rounded-2xl border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_24px_70px_rgba(31,26,35,0.28)] animate-modal-enter"
     >
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-black text-[#1d1b20]">{dayLabel}</p>
-        <button type="button" onClick={requestClose} aria-label="Close" title="Close (Esc)"
+        <button type="button" onClick={requestClose} aria-label={tr("Close")} title={tr("Close (Esc)")}
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle hover:bg-rose-50 hover:text-rose-500">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {events.length === 0 ? (
-        <p className="py-2 text-xs font-semibold text-ink-subtle">No events scheduled.</p>
+        <p className="py-2 text-xs font-semibold text-ink-subtle"><UiText>{"No events scheduled."}</UiText></p>
       ) : (
         <ul className="max-h-44 space-y-2 overflow-y-auto custom-scrollbar">
           {events.map((ev, i) => (
@@ -642,22 +650,22 @@ function DayPopover({
         <div className="mt-3 space-y-3 border-t border-[#cfc2d6]/10 pt-3">
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">From</span>
-              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
+              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
+              <SystemInput type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-[#cfc2d6]/30 px-2 py-1.5 text-xs font-semibold outline-none focus:border-[#8127cf]/60" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted">To</span>
+              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
               {/* The picker itself now refuses a date before the start. */}
-              <input type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
+              <SystemInput type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
                 className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none ${datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/30 focus:border-[#8127cf]/60"}`} />
             </label>
           </div>
-          <input
+          <SystemInput
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}
-            placeholder="Holiday name"
-            aria-label={`Holiday name for ${dayLabel}`}
+            placeholder={tr("Holiday name")}
+            aria-label={tr("Holiday name for {0}", [dayLabel])}
             className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none focus:border-[#8127cf]/60"
           />
           {blockedReason ? (
@@ -668,19 +676,17 @@ function DayPopover({
               type="button"
               onClick={addHoliday}
               disabled={saving || Boolean(blockedReason)}
-              title={blockedReason || `Add a holiday from ${fromDate} to ${toDate}`}
+              title={blockedReason || tr("Add a holiday from {0} to {1}", [fromDate, toDate])}
               className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-[#0d9488] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <PartyPopper className="h-3.5 w-3.5" /> Add Holiday
-            </button>
+              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add Holiday"}</UiText></button>
             <button
               type="button"
               onClick={() => { onClose(); if (onScheduleExam) onScheduleExam(); else toast.info("Open the Exam Cycles manager to schedule an exam."); }}
-              title="Schedule an exam on this date"
+              title={tr("Schedule an exam on this date")}
               className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97]"
             >
-              <BookOpen className="h-3.5 w-3.5" /> Schedule Exam
-            </button>
+              <BookOpen className="h-3.5 w-3.5" /><UiText>{"Schedule Exam"}</UiText></button>
           </div>
         </div>
       )}
@@ -688,11 +694,11 @@ function DayPopover({
       <ConfirmAction
         open={askDiscard}
         tone="warning"
-        title="Discard this holiday?"
-        description="The holiday has not been added yet. Closing now throws away what you typed."
-        detail={name.trim() ? <span>&ldquo;{name.trim()}&rdquo;</span> : undefined}
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={tr("Discard this holiday?")}
+        description={tr("The holiday has not been added yet. Closing now throws away what you typed.")}
+        detail={name.trim() ? <span><UiText>{"\""}</UiText>{name.trim()}<UiText>{"\""}</UiText></span> : undefined}
+        confirmLabel={tr("Discard")}
+        cancelLabel={tr("Keep editing")}
         onCancel={() => setAskDiscard(false)}
         onConfirm={() => { setAskDiscard(false); onClose(); }}
       />
@@ -711,6 +717,8 @@ function AgendaList({
 }: {
   items: { iso: string; kind: string; title: string; detail: string; color: string }[];
 }) {
+ const tr = useUiText();
+  const locale = useLocale();
   const today = todayIso();
   const grouped = useMemo(() => {
     const map = new Map<string, typeof items>();
@@ -729,18 +737,16 @@ function AgendaList({
     return (
       <div className="flex flex-col items-center justify-center p-14 text-center">
         <CalendarDays className="mb-3 h-9 w-9 text-ink-subtle" />
-        <p className="text-sm font-bold text-ink-muted">Nothing on the calendar this year</p>
-        <p className="mt-1 text-xs font-semibold text-ink-subtle">
-          Terms, holidays and exam dates all appear here once they are set.
-        </p>
+        <p className="text-sm font-bold text-ink-muted"><UiText>{"Nothing on the calendar this year"}</UiText></p>
+        <p className="mt-1 text-xs font-semibold text-ink-subtle"><UiText>{"Terms, holidays and exam dates all appear here once they are set."}</UiText></p>
       </div>
     );
   }
 
   const renderDay = ([iso, dayItems]: [string, typeof items], isPast: boolean) => {
-    const d = new Date(`${iso}T00:00:00`);
+    const d = new Date(`${iso}T00:00:00Z`);
     const isToday = iso === today;
-    const days = Math.round((d.getTime() - new Date(`${today}T00:00:00`).getTime()) / 86_400_000);
+    const days = Math.round((d.getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
     return (
       <li key={iso} className={cn("flex gap-4 px-5 py-3", isPast && "opacity-55")}>
         <div className="w-20 shrink-0 text-right">
@@ -750,16 +756,16 @@ function AgendaList({
               isToday ? "text-[#8127cf]" : "text-[#1d1b20]",
             )}
           >
-            {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            {d.toLocaleDateString(localeTag(locale), { timeZone: "UTC", day: "numeric", month: "short" })}
           </p>
           <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
             {isToday
-              ? "Today"
+              ? tr("Today")
               : days === 1
-                ? "Tomorrow"
+                ? tr("Tomorrow")
                 : days > 0
-                  ? `in ${days}d`
-                  : d.toLocaleDateString("en-GB", { weekday: "short" })}
+                  ? new Intl.RelativeTimeFormat(locale.language, { numeric: "auto" }).format(days, "day")
+                  : d.toLocaleDateString(localeTag(locale), { timeZone: "UTC", weekday: "short" })}
           </p>
         </div>
         <ul className="min-w-0 flex-1 space-y-1.5">
@@ -788,15 +794,11 @@ function AgendaList({
       {future.length > 0 ? (
         <ul className="divide-y divide-[#cfc2d6]/10">{future.map((g) => renderDay(g, false))}</ul>
       ) : (
-        <p className="px-5 py-6 text-center text-sm font-semibold text-ink-muted">
-          Nothing else is scheduled this year.
-        </p>
+        <p className="px-5 py-6 text-center text-sm font-semibold text-ink-muted"><UiText>{"Nothing else is scheduled this year."}</UiText></p>
       )}
       {past.length > 0 ? (
         <>
-          <p className="border-y border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-            Already happened
-          </p>
+          <p className="border-y border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Already happened"}</UiText></p>
           <ul className="divide-y divide-[#cfc2d6]/10">{past.map((g) => renderDay(g, true))}</ul>
         </>
       ) : null}

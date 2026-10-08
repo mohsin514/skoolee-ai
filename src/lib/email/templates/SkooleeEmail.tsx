@@ -19,6 +19,7 @@ interface EmailAction {
 }
 
 interface SkooleeEmailProps {
+  language?: "en" | "ar" | "ur";
   preview: string;
   eyebrow?: string;
   title: string;
@@ -30,18 +31,19 @@ interface SkooleeEmailProps {
 
 export function SkooleeEmail({
   preview,
+  language = "en",
   eyebrow,
   title,
   children,
   action,
   logoUrl,
-  footerText = "SkooleeAI Campus Management System",
+  footerText,
 }: SkooleeEmailProps) {
   return (
-    <Html>
+    <Html lang={language} dir={language !== "en" ? "rtl" : "ltr"}>
       <Head />
       <Preview>{preview}</Preview>
-      <Body style={main}>
+      <Body style={{ ...main, textAlign: language !== "en" ? "right" : "left" }}>
         <Container style={container}>
           <Section style={brandSection}>
             <Section style={brandRow}>
@@ -52,7 +54,7 @@ export function SkooleeEmail({
               )}
               <Section style={brandTextWrap}>
                 <Text style={brandName}>Skoolee AI</Text>
-                <Text style={brandTagline}>The next-gen school operating system</Text>
+                <Text style={brandTagline}>{language === "ur" ? "اگلی نسل کا اسکول انتظامی نظام" : language === "ar" ? "نظام إدارة المدارس للجيل القادم" : "The next-gen school operating system"}</Text>
               </Section>
             </Section>
           </Section>
@@ -72,7 +74,7 @@ export function SkooleeEmail({
           </Section>
 
           <Hr style={hr} />
-          <Text style={footer}>{footerText}</Text>
+          <Text style={footer}>{footerText || (language === "ur" ? "SkooleeAI کیمپس انتظامی نظام" : language === "ar" ? "نظام SkooleeAI لإدارة الحرم المدرسي" : "SkooleeAI Campus Management System")}</Text>
         </Container>
       </Body>
     </Html>

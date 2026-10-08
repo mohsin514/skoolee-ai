@@ -1,3 +1,5 @@
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
+import { PageCard } from "@/components/ui/page-card";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -36,19 +38,19 @@ export default async function DashboardLayout({
   return (
     // This console predates RoleShell, so the messenger is mounted here too —
     // otherwise the school-group workspace would be the one dashboard without it.
-    <ChatProvider>
-      <div className="flex min-h-screen bg-[#fbf0fe] font-sans text-[#1f1a23]">
+    <LocaleProvider><ChatProvider>
+      <div className="flex min-h-screen bg-background font-sans text-[#1f1a23]">
         <Sidebar />
-        <main className="skoolee-dashboard-main min-h-screen flex-1 pb-24 md:ml-64 md:pb-0">
+        <main className="skoolee-dashboard-main min-h-screen min-w-0 flex-1 pb-24 md:ms-64 md:pb-0">
           {isSuspended && (
             <div className="border-b border-amber-200 bg-amber-50/90 px-6 py-3 text-sm font-bold text-amber-800">
               Subscription suspended. Billing is still available so an administrator can restore access.
             </div>
           )}
-          {children}
+          <div className="p-3 sm:p-5"><PageCard className="p-0 sm:p-0">{children}</PageCard></div>
         </main>
         <ChatDock />
       </div>
-    </ChatProvider>
+    </ChatProvider></LocaleProvider>
   );
 }

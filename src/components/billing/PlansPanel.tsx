@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ANNUAL_DISCOUNT, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type PlanType = "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
 
@@ -34,6 +35,7 @@ interface PlanDetails {
 }
 
 interface BillingSnapshot {
+  canPurchaseSubscription?: boolean;
   school: {
     plan: PlanType;
     status: string;
@@ -176,6 +178,8 @@ export function PlansPanel() {
       "Thank you.",
     ].join("\n")
   );
+
+  if (billing && !billing.canPurchaseSubscription) return <p className="rounded-xl border p-4">Subscription purchasing is managed by your institution owner. Tuition permissions do not grant purchasing authority.</p>;
 
   return (
     <div className="space-y-6">
@@ -434,7 +438,7 @@ export function PlansPanel() {
             )}
             <div className="space-y-2">
               <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block">Payment Reference (optional)</label>
-              <input
+              <SystemInput
                 value={receiptRef}
                 onChange={(e) => setReceiptRef(e.target.value)}
                 placeholder="e.g. Transaction ID, receipt number"

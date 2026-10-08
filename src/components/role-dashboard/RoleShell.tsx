@@ -1,6 +1,11 @@
 "use client";
 
+import { LocaleProvider, UiText } from "@/components/locale/LocaleProvider";
+
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { NavigationAccessProvider, NavigationAccessNotice, useNavigationAccess } from "@/components/nav/NavigationAccess";
+import type { NavigationAccess } from "@/lib/navigation/modules";
 import { cn } from "@/lib/utils";
 import { ChatDock, ChatProvider } from "@/components/chat";
 import { RoleHeader } from "./RoleHeader";
@@ -9,6 +14,8 @@ import { RoleSidebar, type RoleNavItem, type SidebarEntry } from "./RoleSidebar"
 const SIDEBAR_KEY = "skoolee.sidebar.collapsed";
 
 interface RoleShellProps {
+  navigationAccess?: NavigationAccess | null;
+  navigationAccessFallback?: ReactNode;
   tagline?: string;
   navItems: SidebarEntry[];
   bottomItems?: RoleNavItem[];
@@ -24,7 +31,12 @@ interface RoleShellProps {
   className?: string;
 }
 
-export function RoleShell({
+export function RoleShell(props: RoleShellProps) {
+  return <LocaleProvider><NavigationAccessProvider access={props.navigationAccess}><RoleShellContent {...props} /></NavigationAccessProvider></LocaleProvider>;
+}
+
+function RoleShellContent({
+  navigationAccessFallback,
   tagline,
   navItems,
   bottomItems,
@@ -48,6 +60,10 @@ export function RoleShell({
    * so the saver would write the default over what was stored before the
    * loader had a chance. `loaded` makes the save wait its turn.
    */
+  const pathname = usePathname();
+  const access = useNavigationAccess();
+  const activeItems = navItems.flatMap((item) => "children" in item ? item.children : [item]).filter((item) => item.active);
+  const denied = !access.allowsHref(pathname) || activeItems.some((item) => item.available === false || !access.allows(item.module));
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -71,11 +87,10 @@ export function RoleShell({
 
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
 
-  // "[" is the shortcut every editor uses for this, and it never collides with
-  // typing because the handler ignores fields.
+  // A modified shortcut avoids intercepting screen-reader single-character commands.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "[" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.code !== "BracketLeft" || !e.altKey || !e.shiftKey || e.metaKey || e.ctrlKey) return;
       const el = e.target as HTMLElement | null;
       if (
         el &&
@@ -95,7 +110,8 @@ export function RoleShell({
 
   return (
     <ChatProvider>
-      <div className="min-h-screen bg-[#fbf0fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
+      <div className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
+        <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:bg-card focus:p-3"><UiText>Skip to content</UiText></a>
         <RoleSidebar
           tagline={tagline}
           items={navItems}
@@ -105,9 +121,11 @@ export function RoleShell({
           onToggleCollapse={toggleCollapsed}
         />
         <main
+          id="workspace-content"
+          tabIndex={-1}
           className={cn(
-            "flex-1 min-w-0 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-screen overflow-hidden transition-[margin] duration-300 ease-out",
-            collapsed ? "md:ml-[72px]" : "md:ml-64",
+            "flex-1 min-w-0 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-dvh overflow-hidden transition-none md:transition-[margin] duration-300 ease-out",
+            collapsed ? "md:ms-[72px]" : "md:ms-64",
             className,
           )}
         >
@@ -121,7 +139,8 @@ export function RoleShell({
             actions={headerActions}
           />
           <div className="flex-1 min-h-0 flex flex-col">
-            {children}
+            <NavigationAccessNotice denied={denied} fallback={navigationAccessFallback} />
+            <div style={{ display: denied ? "none" : "contents" }}>{children}</div>
           </div>
         </main>
 

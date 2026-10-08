@@ -1,10 +1,11 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
   assertPermission,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -23,6 +24,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new ApiError("Invalid currency", 400);
     const kind = searchParams.get("kind");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
@@ -31,6 +34,7 @@ export async function GET(req: NextRequest) {
     const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get("pageSize") ?? "50", 10) || 50));
 
     const where: any = scopedCampusWhere(user, campusId ?? undefined) as any;
+    where.currency = currency;
     if (kind && ["INCOME", "EXPENSE"].includes(String(kind).toUpperCase())) where.kind = String(kind).toUpperCase();
     if (accountId) where.accountId = accountId;
     if (from) {
@@ -67,6 +71,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
+      currency,
       sumAmount: totals._sum.amount ?? 0,
     });
   } catch (error) {
@@ -77,13 +82,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
     const kind = String(body.kind ?? "").toUpperCase();
-    const amount = Math.round(Number(body.amount));
+    const currency = body.currency || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
+    const amount = Number(body.amount);
     const date = new Date(body.date ?? new Date().toISOString().split("T")[0]);
 
     if (!["INCOME", "EXPENSE"].includes(kind)) throw new ApiError("kind must be INCOME or EXPENSE", 400);
@@ -103,11 +109,13 @@ export async function POST(req: NextRequest) {
     if (body.bankAccountId) {
       const bank = await prisma.bankAccount.findFirst({ where: { id: body.bankAccountId, campusId } });
       if (!bank) throw new ApiError("Bank account not found", 404);
+      if (bank.currency !== currency) throw new ApiError("Bank account currency must match the ledger entry", 400);
       bankAccountId = bank.id;
     }
 
     const entry = await prisma.ledgerEntry.create({
       data: {
+        currency,
         campusId,
         kind,
         sourceName: String(body.sourceName ?? (kind === "INCOME" ? "Manual income" : "Manual expense")).trim(),
@@ -130,7 +138,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "delete");
 
     const id = req.nextUrl.searchParams.get("id");

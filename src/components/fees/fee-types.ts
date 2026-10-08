@@ -12,6 +12,7 @@ export interface FeeTypeRow {
 }
 
 export interface FeeGroupRow {
+  currency: string;
   id: string;
   campusId: string;
   name: string;
@@ -28,7 +29,7 @@ export interface MasterLineRow {
   amount: number;
   dueDate: string | null;
   feeType?: { id: string; name: string; code: string };
-  feeGroup?: { id: string; name: string };
+  feeGroup?: { id: string; name: string; currency: string };
 }
 
 export interface GroupAssignmentRow {
@@ -37,11 +38,12 @@ export interface GroupAssignmentRow {
   feeGroupId: string;
   classId: string;
   academicYear: number;
-  feeGroup?: { id: string; name: string };
+  feeGroup?: { id: string; name: string; currency: string };
   class?: { id: string; name: string; section: string | null };
 }
 
 export interface FeeDiscountRow {
+  currency: string;
   id: string;
   campusId: string;
   name: string;
@@ -63,6 +65,7 @@ export interface DiscountAssignmentRow {
 }
 
 export interface CarryForwardRow {
+  currency: string;
   id: string;
   campusId: string;
   studentId: string;
@@ -84,7 +87,7 @@ export interface StudentLite {
 export interface ResolvedFees {
   mode: "layers" | "legacy" | "none";
   academicYear: number;
-  feeGroup?: { id: string; name: string } | null;
+  feeGroup?: { id: string; name: string; currency: string } | null;
   legacyStructure?: { id: string; activeFrom: string } | null;
   lines: { id: string; typeName: string; typeCode: string; amount: number; dueDate: string | null }[];
   subtotal: number;
@@ -99,6 +102,7 @@ export interface ResolvedFees {
 
 
 export interface FeeSummary {
+  currency: string;
   totalReceivable: number;
   totalCollected: number;
   totalOutstanding: number;
@@ -136,6 +140,7 @@ export interface RecentPayment {
 }
 
 export interface FeeStructure {
+  currency: string;
   id: string;
   classId: string;
   campusId: string;
@@ -154,6 +159,7 @@ export interface FeeStructure {
 }
 
 export interface Invoice {
+  currency: string;
   id: string;
   campusId: string;
   studentId: string;
@@ -188,7 +194,7 @@ export interface PaymentRecord {
   receiptNo: string | null;
   recordedAt: string;
   student: { fullName: string; rollNo: string | null; class: { name: string; section: string | null } };
-  invoice: { invoiceNumber: string; totalAmount: number; balanceDue: number; status: string };
+  invoice: { currency: string; invoiceNumber: string; totalAmount: number; balanceDue: number; status: string };
 }
 
 export interface ClassOption {
@@ -206,6 +212,7 @@ export interface PaginatedResponse<T> {
 }
 
 export interface DefaulterRecord {
+  currency: string;
   studentId: string;
   studentName: string;
   rollNo: string | null;
@@ -222,6 +229,7 @@ export interface DefaulterRecord {
 }
 
 export interface CollectionReport {
+  currency: string;
   className: string;
   totalStudents: number;
   totalDue: number;
@@ -231,6 +239,7 @@ export interface CollectionReport {
 }
 
 export interface PaymentMethodBreakdown {
+  currency: string;
   method: string;
   count: number;
   total: number;

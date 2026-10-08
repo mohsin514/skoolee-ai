@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -19,14 +20,15 @@ export async function GET(req: NextRequest) {
     const campusId = await resolveCampusId(user, new URL(req.url).searchParams.get("campusId"));
 
     const [weekends, holidays] = await Promise.all([
-      prisma.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } }),
+      getLocalePackage(user.schoolId, campusId),
       prisma.holiday.findMany({ where: { campusId }, orderBy: { fromDate: "asc" } }),
     ]);
 
     return Response.json({
       success: true,
       data: {
-        weekends: weekends.map((w) => w.dayOfWeek).sort(),
+        weekends: weekends.weekend.map((day) => day || 7).sort(),
+        weekStartsOn: weekends.weekStartsOn,
         holidays,
       },
     });
@@ -48,6 +50,8 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError("days must be a non-empty array of 1-7 (Mon..Sun)", 400);
     }
 
+    const localePolicies = await prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", effectiveAt: { lte: new Date() }, OR: [{ campusId: null }, { campusId }] }, select: { settings: true } });
+    if (localePolicies.some((p) => p.settings && typeof p.settings === "object" && !Array.isArray(p.settings) && "weekend" in p.settings)) throw new ApiError("Weekend policy is controlled in Language and regional settings. Preview an effective-dated change there.", 409);
     const uniqueDays = [...new Set(days.map((d) => Number(d)))];
     await prisma.$transaction([
       prisma.weekend.deleteMany({ where: { campusId } }),

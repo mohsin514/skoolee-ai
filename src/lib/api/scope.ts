@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { isCurrentSessionRevoked } from "@/lib/auth/session-revocation";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
@@ -14,9 +15,38 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A rejected request body, carrying the per-field messages.
+ *
+ * Separate from `ApiError` because the client needs the field map, not just a
+ * sentence: the dialog that submitted the form uses it to mark the offending
+ * inputs. `errorResponse` serialises it in the `{ error: { field: [msg] } }`
+ * shape the routes already emit by hand, so nothing downstream changes.
+ */
+export class ValidationError extends ApiError {
+  fieldErrors: Record<string, string[]>;
+
+  constructor(fieldErrors: Record<string, string[]>, message = "Please check the highlighted fields") {
+    super(message, 400);
+    this.fieldErrors = fieldErrors;
+  }
+}
+
 export async function requireAuthUser(options: { allowSuspended?: boolean } = {}): Promise<AuthUser> {
   const user = await getAuthUser();
-  if (!user) throw new ApiError("Unauthorized", 401);
+
+  if (!user) {
+    // getAuthUser() returns null for a revoked session as well as for no
+    // session at all, and the difference is worth telling the client. A bare
+    // "Unauthorized" leaves a signed-out tab showing failed panels; this
+    // message is the one signOutInvalidSession() already recovers from, so the
+    // tab tears its cookie down and returns to /login on its own. Shares the
+    // per-request memo with the check above, so it costs no extra query.
+    if (await isCurrentSessionRevoked()) {
+      throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
+    }
+    throw new ApiError("Unauthorized", 401);
+  }
   if (!options.allowSuspended) {
     try {
       await assertSchoolOperational(user.schoolId);
@@ -31,26 +61,6 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
       }
       throw error;
     }
-  }
-
-  // The JWT is a 7-day bearer credential, so nothing in it can be trusted to
-  // still be true. Deactivating an account or changing its role only altered
-  // the database — the holder of an already-issued token kept full access until
-  // it expired (AUTH-1.8/AUTH-1.9). Re-check the account on every request.
-  const account = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { isActive: true, role: true },
-  });
-
-  if (!account || !account.isActive) {
-    throw new ApiError("Your session is no longer valid. Please sign in again.", 401);
-  }
-
-  // A role change must never take effect from a stale claim — in either
-  // direction. Ending the session forces a re-issue, so a privilege can never
-  // be exercised from a token minted before it was granted or revoked.
-  if (account.role !== user.role) {
-    throw new ApiError("Your access has changed. Please sign in again.", 401);
   }
 
   return user;
@@ -74,6 +84,15 @@ export async function requirePlatformOwner(): Promise<AuthUser> {
 }
 
 export function errorResponse(error: unknown, fallback = "Request failed") {
+  // Checked before ApiError — ValidationError extends it, and the field map is
+  // the whole point of the subclass.
+  if (error instanceof ValidationError) {
+    return Response.json(
+      { error: error.fieldErrors, message: error.message, details: error.fieldErrors },
+      { status: 400 }
+    );
+  }
+
   if (error instanceof ApiError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
@@ -172,6 +191,10 @@ export function canManageLibrary(user: AuthUser) {
 
 export function canManageFrontDesk(user: AuthUser) {
   return canManageOperations(user) || user.role === "RECEPTIONIST";
+}
+
+export function canPurchaseSubscription(user: AuthUser) {
+  return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
 }
 
 export function canManageBilling(user: AuthUser) {

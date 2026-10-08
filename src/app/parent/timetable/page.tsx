@@ -112,7 +112,7 @@ export default function ParentTimetablePage() {
                 );
               })}
             </div>
-            <div className="sk-rise overflow-x-auto rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "80ms" }}>
               <div className="min-w-[700px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">

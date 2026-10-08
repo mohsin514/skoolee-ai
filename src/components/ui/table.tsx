@@ -12,7 +12,7 @@ const Table = React.forwardRef<
   <div className="relative w-full overflow-auto rounded-[24px] border border-[#cfc2d6]/15 bg-white">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("sk-data-table w-full caption-bottom text-sm", className)}
       {...props}
     />
   </div>
@@ -65,7 +65,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 text-left align-middle text-xs font-black text-ink-muted [&:has([role=checkbox])]:pr-0",
+      "h-12 px-4 text-start align-middle text-xs font-black text-ink-muted [&:has([role=checkbox])]:pe-0",
       className
     )}
     {...props}
@@ -80,7 +80,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-4 align-middle text-[#1f1a23] [&:has([role=checkbox])]:pr-0",
+      "p-4 align-middle text-foreground [&:has([role=checkbox])]:pe-0",
       className
     )}
     {...props}

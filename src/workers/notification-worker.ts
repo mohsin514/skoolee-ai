@@ -1,3 +1,4 @@
+import { assertCommunicationTarget } from "@/lib/auth/communication-policy";
 // ===========================================
 // SkooleeAI - Notification Worker
 // ===========================================
@@ -82,6 +83,7 @@ async function processNotification(job: Job<NotificationJobData>) {
     }
 
     const legacyData = data as Extract<NotificationJobData, { type: "WHATSAPP" | "EMAIL" }>;
+    await assertCommunicationTarget({ schoolId: legacyData.tenantId!, studentId: legacyData.studentId, recipient: legacyData.recipient }, legacyData.type);
     const result =
       legacyData.type === "WHATSAPP"
         ? await sendWhatsAppMessage({

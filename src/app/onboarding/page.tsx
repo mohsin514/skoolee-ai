@@ -1,6 +1,13 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { clearDeviceDrafts } from "@/lib/drafts/store";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { FormErrorSummary } from "@/components/ui/form-field";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { InputGroup } from "@/components/ui/input-group";
+
+
+import React, { useCallback, useEffect, useMemo, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import {
@@ -10,7 +17,7 @@ import {
   Shield, Hash,
   Trash2, LucideIcon, LogOut, Phone, School, Users,
   Globe, Mail, Upload, ImageIcon, CalendarDays, Tag, UserRound,
-  CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw,
+  CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw, Pencil,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -27,6 +34,16 @@ import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { resolveMediaUrl } from "@/lib/storage/s3";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard is keyed by step *id*, not by number. A standalone school
@@ -43,6 +60,7 @@ const STEP_META: Record<StepId, { title: string; desc: string }> = {
 };
 
 interface InputFieldProps {
+  error?: string;
   label: string;
   value: string;
   onChange: (val: string) => void;
@@ -52,6 +70,7 @@ interface InputFieldProps {
   required?: boolean;
   readonly?: boolean;
   type?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'search' | 'none' | 'decimal';
 }
 
 interface SummaryItemProps {
@@ -114,6 +133,7 @@ export default function OnboardingWizard() {
   const [step, setStep] = useState<StepId>('identity');
   const [loading, setLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [session, setSession] = useState<{ role?: string; email?: string; phone?: string | null; school?: { name?: string; city?: string; contactEmail?: string; phone?: string | null; regId?: string; plan?: string } } | null>(null);
 
   const isStandalone = session?.role === 'ADMIN';
@@ -151,9 +171,23 @@ export default function OnboardingWizard() {
     weekends: [7] as number[],
   });
 
+  const [baseline, setBaseline] = useState(schoolData);
   const [campuses, setCampuses] = useState<CampusDraft[]>([]);
   const [newCampus, setNewCampus] = useState<Omit<CampusDraft, 'id'>>(emptyCampus);
 
+  const [baselineCampus] = useState(newCampus);
+
+  const [editingCampusId, setEditingCampusId] = useState<string | null>(null);
+  const [campusToDelete, setCampusToDelete] = useState<CampusDraft | null>(null);
+
+  const recovery = useFormDraft({ record: "onboarding:school", schema: 1,
+    values: { ...schoolData, campuses, newCampus }, baseline: { ...baseline, campuses: [] as CampusDraft[], newCampus: baselineCampus },
+    fields: ["name", "city", "address", "phone", "website", "establishedYear", "tagline", "regId", "autoId", "timezone", "academicYear", "sessionLabel", "sessionStart", "sessionEnd", "weekends", "campuses", "newCampus"],
+    enabled: !!session, section: step, apply: ({ campuses: savedCampuses, newCampus: savedCampus, ...next }, savedStep) => {
+      setSchoolData(next); setCampuses(savedCampuses); setNewCampus(savedCampus);
+      if (savedStep && flow.includes(savedStep as StepId)) setStep(savedStep as StepId);
+    },
+  });
   useEffect(() => {
     const loadSession = async () => {
       const res = await getOnboardingSession();
@@ -161,8 +195,9 @@ export default function OnboardingWizard() {
       if (res && 'user' in res && res.user) {
         const user = res.user;
         setSession(user);
-        setSchoolData((prev) => ({
-          ...prev,
+        const initial = {
+          ...schoolData,
+
           name: user?.school?.name || '',
           city: user?.school?.city || '',
           email: user?.school?.contactEmail || user?.email || '',
@@ -174,14 +209,28 @@ export default function OnboardingWizard() {
           // one we actually offer — otherwise leave the Pakistan default.
           timezone: (() => {
             const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            return TIMEZONES.some((t) => t.value === detected) ? detected : prev.timezone;
+            return TIMEZONES.some((t) => t.value === detected) ? detected : schoolData.timezone;
           })(),
-        }));
+        };
+        setSchoolData(initial);
+        setBaseline(initial);
       }
     };
 
     loadSession();
   }, []);
+
+  // When navigating back to identity step in standalone mode, restore campus settings
+  useEffect(() => {
+    if (isStandalone && step === 'identity' && campuses.length > 0) {
+      const existingCampus = campuses[0];
+      setNewCampus(prev => ({
+        ...prev,
+        regId: existingCampus.regId,
+        autoId: existingCampus.autoId,
+      }));
+    }
+  }, [step, isStandalone, campuses]);
 
   const handleLogoFile = async (file?: File) => {
     if (!file) return;
@@ -270,29 +319,104 @@ export default function OnboardingWizard() {
       toast.error("Please fill in Campus Name, City, and Campus ID.");
       return;
     }
-    if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase())) {
+
+    // Validate email format if provided
+    if (newCampus.email && newCampus.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampus.email.trim())) {
+        toast.error("Please enter a valid email address.");
+        return;
+      }
+    }
+
+    // Validate phone number format if provided
+    if (newCampus.phone && newCampus.phone.trim()) {
+      // Remove all non-digit characters to count actual digits
+      const digits = newCampus.phone.replace(/\D/g, '');
+      if (digits.length < 7) {
+        toast.error("Phone number is too short to be valid.");
+        return;
+      }
+      if (digits.length > 15) {
+        toast.error("Phone number is too long to be valid.");
+        return;
+      }
+    }
+
+    // Check for duplicate Campus ID (exclude the campus being edited)
+    if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase() && c.id !== editingCampusId)) {
       toast.error("That Campus ID is already used by another campus.");
       return;
     }
-    try {
-      const plan = session?.school?.plan;
-      const maxCampuses = getPlanLimits(plan).maxCampuses;
-      if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
-        const planName = getPlanLimits(plan).name || 'your plan';
-        toast.error(`${planName} allows ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Upgrade to add more.`);
-        return;
+
+    if (editingCampusId) {
+      // Update existing campus
+      setCampuses(campuses.map(c => c.id === editingCampusId ? { ...newCampus, id: editingCampusId } : c));
+      setEditingCampusId(null);
+      setNewCampus(emptyCampus());
+      toast.success(`${newCampus.name} updated.`);
+    } else {
+      // Add new campus
+      try {
+        const plan = session?.school?.plan;
+        const maxCampuses = getPlanLimits(plan).maxCampuses;
+        if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
+          const planName = getPlanLimits(plan).name || 'your plan';
+          toast.error(`Your ${planName} package is limited to ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Please upgrade to an applicable package to add multiple campuses.`);
+          return;
+        }
+      } catch {
+        // let server validate
       }
-    } catch {
-      // let server validate
+      setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
+      setNewCampus(emptyCampus());
+      toast.success(`${newCampus.name} added.`);
     }
-    setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
+  };
+
+  const editCampus = (campus: CampusDraft) => {
+    setNewCampus({
+      name: campus.name,
+      city: campus.city,
+      address: campus.address,
+      phone: campus.phone,
+      email: campus.email,
+      website: campus.website,
+      principalName: campus.principalName,
+      regId: campus.regId,
+      autoId: campus.autoId,
+      board: campus.board,
+    });
+    setEditingCampusId(campus.id);
+    // Scroll to the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingCampusId(null);
     setNewCampus(emptyCampus());
-    toast.success(`${newCampus.name} added.`);
+  };
+
+  const confirmDeleteCampus = () => {
+    if (campusToDelete) {
+      setCampuses(campuses.filter(x => x.id !== campusToDelete.id));
+      toast.success(`${campusToDelete.name} deleted.`);
+      setCampusToDelete(null);
+    }
   };
 
   const handleLogout = async () => {
+    clearDeviceDrafts();
     await logout();
-    router.push('/login');
+
+    // A full-document navigation, not router.push. The App Router keeps a
+    // client-side cache of rendered segments, and a soft navigation leaves it
+    // intact — so Back could paint this half-finished onboarding flow, with the
+    // school details already typed into it, after the user had signed out.
+    // Replacing the document discards that cache along with all component
+    // state. This is what every other sign-out control in the app does; this
+    // was the one that did not.
+    window.location.href = '/login';
   };
 
   const goTo = (target: StepId) => {
@@ -304,16 +428,23 @@ export default function OnboardingWizard() {
   };
 
   const handleProceedFromIdentity = () => {
-    if (!schoolData.name || !schoolData.city) {
+    setFormErrors({});
+    if (!schoolData.name.trim() || !schoolData.city.trim()) {
+      setFormErrors({ ...(!schoolData.name.trim() ? { name: "School name is required." } : {}), ...(!schoolData.city.trim() ? { city: "City is required." } : {}) });
       toast.error("School name and city are required.");
-      return;
-    }
-    if (isStandalone && !newCampus.regId) {
-      toast.error("Campus ID is required.");
       return;
     }
 
     if (isStandalone) {
+      // Validate Campus ID is provided
+      const campusRegId = campuses.length > 0 ? campuses[0].regId : (newCampus.regId || schoolData.regId);
+      const campusAutoId = campuses.length > 0 ? campuses[0].autoId : (newCampus.autoId);
+
+      if (!campusRegId) {
+        toast.error("Campus ID is required.");
+        return;
+      }
+
       // A single-campus school still needs a Campus row: every class, student
       // and timetable hangs off one, so it is created from the school's own
       // details rather than asked for twice.
@@ -326,8 +457,8 @@ export default function OnboardingWizard() {
         email: schoolData.email,
         website: schoolData.website,
         principalName: '',
-        regId: newCampus.regId,
-        autoId: newCampus.autoId,
+        regId: campusRegId,
+        autoId: campusAutoId,
         board: DEFAULT_EXAM_BOARD,
       }]);
     }
@@ -337,17 +468,21 @@ export default function OnboardingWizard() {
   const handleProceedFromAcademic = () => {
     const year = Number(schoolData.academicYear);
     if (!year || year < 2000 || year > thisYear + 5) {
+      setFormErrors({ academic: "Enter a valid academic year." });
       toast.error("Enter a valid academic year.");
       return;
     }
     if (!schoolData.sessionLabel.trim()) {
+      setFormErrors({ academic: "Give the session a name, e.g. 2026-27." });
       toast.error("Give the session a name, e.g. 2026-27.");
       return;
     }
     if (schoolData.sessionStart && schoolData.sessionEnd && schoolData.sessionEnd <= schoolData.sessionStart) {
+      setFormErrors({ academic: "The session must end after it starts." });
       toast.error("The session must end after it starts.");
       return;
     }
+    setFormErrors({});
     setStep('review');
   };
 
@@ -356,6 +491,7 @@ export default function OnboardingWizard() {
     try {
       const res = await finishOnboarding(schoolData, campuses);
       if (res.success) {
+        recovery.markSaved();
         toast.success("Setup complete! Opening your dashboard...");
         router.push(dashboardPathForRole(res.role));
       }
@@ -486,6 +622,8 @@ export default function OnboardingWizard() {
         <div className="p-6 md:p-12 flex-1 flex flex-col items-center">
 
           <div className="w-full max-w-4xl">
+            <DraftRecovery draft={recovery} saving={loading} excluded="Logo files are not stored in device drafts." />
+            <FormErrorSummary errors={formErrors} onFocusField={() => document.querySelector<HTMLInputElement>("[aria-invalid=true],main input")?.focus()} />
             <AnimatePresence mode="wait">
               {/* ═══ STEP: School Details ═══ */}
               {step === 'identity' && (
@@ -535,17 +673,39 @@ export default function OnboardingWizard() {
                           </div>
                         </div>
 
-                        <InputField label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
+                        <InputField error={formErrors.name} label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
                         <InputField label="Tagline / Motto" value={schoolData.tagline} onChange={(v: string) => setSchoolData({ ...schoolData, tagline: v })} placeholder="e.g. Knowledge is Power (optional)" icon={Tag} />
-                        <InputField label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
+                        <InputField error={formErrors.city} label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
                         <InputField label="Address" value={schoolData.address} onChange={(v: string) => setSchoolData({ ...schoolData, address: v })} placeholder="Street address (optional)" icon={MapPin} isArea />
                       </div>
 
                       <div className="space-y-6">
-                        <InputField label="Contact Email" value={schoolData.email} onChange={(v: string) => setSchoolData({ ...schoolData, email: v })} placeholder="e.g. info@school.edu.pk" icon={Mail} readonly />
                         <div className="grid grid-cols-2 gap-5">
-                          <InputField label="Phone Number" value={schoolData.phone} onChange={(v: string) => setSchoolData({ ...schoolData, phone: v })} placeholder="+92 300 0000000" icon={Phone} />
-                          <InputField label="Est. Year" value={schoolData.establishedYear} onChange={(v: string) => setSchoolData({ ...schoolData, establishedYear: v.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="e.g. 1998" icon={CalendarDays} />
+                          <InputField
+                            label="Phone Number"
+                            value={schoolData.phone}
+                            onChange={(v: string) => {
+                              // Basic phone validation: allow digits, spaces, +, -, and parentheses
+                              const cleaned = v.replace(/[^\d\s+\-()]/g, '');
+                              setSchoolData({ ...schoolData, phone: cleaned });
+                            }}
+                            placeholder="+92 300 0000000"
+                            icon={Phone}
+                            type="tel"
+                          />
+                          <InputField
+                            label="Est. Year"
+                            value={schoolData.establishedYear}
+                            onChange={(v: string) => {
+                              // Allow year input and validation
+                              const year = v.replace(/[^\d]/g, '').slice(0, 4);
+                              setSchoolData({ ...schoolData, establishedYear: year });
+                            }}
+                            placeholder="e.g. 1998"
+                            icon={CalendarDays}
+                            type="number"
+                            inputMode="numeric"
+                          />
                         </div>
                         <InputField label="Website" value={schoolData.website} onChange={(v: string) => setSchoolData({ ...schoolData, website: v })} placeholder="e.g. www.school.edu.pk (optional)" icon={Globe} />
                         <div className="bg-[#fbf0fe] p-6 md:p-8 rounded-[32px] border border-[#cfc2d6]/20">
@@ -594,8 +754,12 @@ export default function OnboardingWizard() {
                           <Building className="w-6 h-6" />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">Add Your Campuses</h2>
-                          <p className="text-xs font-semibold text-ink-muted mt-0.5">Add each branch or campus of your school group.</p>
+                          <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">
+                            {editingCampusId ? "Edit Campus" : "Add Your Campuses"}
+                          </h2>
+                          <p className="text-xs font-semibold text-ink-muted mt-0.5">
+                            {editingCampusId ? "Update the campus details below." : "Add each branch or campus of your school group."}
+                          </p>
                         </div>
                       </div>
                       <div className="space-y-5">
@@ -613,16 +777,16 @@ export default function OnboardingWizard() {
                           <InputField label="Head of Campus" value={newCampus.principalName ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
-                            <div className="relative group flex items-center">
-                              <GraduationCap className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                              <select
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+                              <GraduationCap data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                              <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                               >
                                 {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
-                              </select>
-                            </div>
+                              </SystemSelect>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -655,9 +819,24 @@ export default function OnboardingWizard() {
                               className="h-12 bg-[#fbf0fe] border-0 font-black tracking-normal rounded-xl text-center focus:ring-2 focus:ring-[#8127cf]/10 transition-all text-sm"
                             />
                           </div>
-                          <button onClick={addCampus} className="h-12 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
-                            <Plus className="w-4 h-4" /> Add Campus
-                          </button>
+                          <div className="flex gap-2">
+                            {editingCampusId && (
+                              <button onClick={cancelEdit} className="h-12 px-4 bg-gray-100 text-gray-600 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-gray-200 cursor-pointer transition-all">
+                                Cancel
+                              </button>
+                            )}
+                            <button onClick={addCampus} className="h-12 flex-1 bg-[#8127cf] text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-[#9c48ea] cursor-pointer shadow-lg shadow-[#8127cf]/20 transition-all">
+                              {editingCampusId ? (
+                                <>
+                                  <CheckCircle2 className="w-4 h-4" /> Update Campus
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4" /> Add Campus
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -683,20 +862,48 @@ export default function OnboardingWizard() {
 
                       <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                         {campuses.map((c, i) => (
-                          <div key={c.id} className="p-4 bg-[#fbf0fe]/50 rounded-[20px] border border-transparent flex items-center justify-between group hover:bg-white hover:border-[#8127cf]/10 transition-all shadow-sm">
+                          <div
+                            key={c.id}
+                            className={`p-4 rounded-[20px] border flex items-center justify-between group transition-all shadow-sm ${
+                              editingCampusId === c.id
+                                ? 'bg-[#8127cf]/10 border-[#8127cf]/30'
+                                : 'bg-[#fbf0fe]/50 border-transparent hover:bg-white hover:border-[#8127cf]/10'
+                            }`}
+                          >
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#8127cf] font-black text-[10px] shadow-sm">{i + 1}</div>
                               <div>
-                                <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">{c.name}</p>
+                                <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">
+                                  {c.name}
+                                  {editingCampusId === c.id && (
+                                    <span className="ml-2 text-[8px] font-black text-[#8127cf] uppercase tracking-wider bg-[#8127cf]/10 px-2 py-0.5 rounded">
+                                      Editing
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
                                 {(c.phone || c.email || c.principalName) && (
                                   <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
                                 )}
                               </div>
                             </div>
-                            <button onClick={() => setCampuses(campuses.filter(x => x.id !== c.id))} className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => editCampus(c)}
+                                className="text-[#8127cf] p-2 hover:bg-[#fbf0fe] rounded-lg cursor-pointer transition-colors"
+                                title="Edit campus"
+                                disabled={editingCampusId === c.id}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setCampusToDelete(c)}
+                                className="text-rose-400 p-2 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                title="Delete campus"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                         {campuses.length === 0 && (
@@ -745,8 +952,8 @@ export default function OnboardingWizard() {
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Academic Year <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <CalendarDays className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
+                              <CalendarDays data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.academicYear}
                                 onChange={e => setAcademicYear(e.target.value)}
@@ -754,21 +961,21 @@ export default function OnboardingWizard() {
                                 inputMode="numeric"
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                            </div>
+                            </InputGroup>
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Session Name <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <Tag className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
+                              <Tag data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.sessionLabel}
                                 onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
                                 placeholder={sessionLabelFor(thisYear)}
                                 className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                              <button
+                              <button data-field-affix="end"
                                 type="button"
                                 aria-label="Reset session name"
                                 onClick={() => setSchoolData({ ...schoolData, sessionLabel: sessionLabelFor(Number(schoolData.academicYear) || thisYear) })}
@@ -776,7 +983,7 @@ export default function OnboardingWizard() {
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
                               </button>
-                            </div>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -802,16 +1009,16 @@ export default function OnboardingWizard() {
 
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Time Zone</Label>
-                          <div className="relative group flex items-center">
-                            <Clock className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                            <select
+                          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+                            <Clock data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <SystemSelect
                               value={schoolData.timezone}
                               onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
                               className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none appearance-none text-[#1f1a23] cursor-pointer"
                             >
                               {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </select>
-                          </div>
+                            </SystemSelect>
+                          </InputGroup>
                           <p className="text-[10px] font-bold text-ink-subtle ml-1">
                             Decides which calendar day an attendance mark or fee cutoff falls on.
                           </p>
@@ -1002,6 +1209,32 @@ export default function OnboardingWizard() {
         </div>
       </main>
 
+      {/* ═══ DELETE CONFIRMATION DIALOG ═══ */}
+      <Dialog open={!!campusToDelete} onOpenChange={(open) => !open && setCampusToDelete(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Delete Campus?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{campusToDelete?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              onClick={() => setCampusToDelete(null)}
+              className="h-12 px-6 rounded-xl border border-[#cfc2d6]/30 font-bold text-sm text-ink-muted hover:text-[#8127cf] hover:border-[#8127cf]/25 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteCampus}
+              className="h-12 px-6 bg-rose-500 text-white rounded-xl font-bold text-sm hover:bg-rose-600 cursor-pointer shadow-lg shadow-rose-500/20 transition-all"
+            >
+              Delete Campus
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
@@ -1033,32 +1266,35 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text" }: InputFieldProps) {
+function InputField({ error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
+  const id = useId();
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
+      <Label htmlFor={id} className="sk-field-label">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <div className="relative group flex items-center">
-        <Icon className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+      <InputGroup>
+        {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
-          <textarea
+          <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             className="w-full min-h-[100px] pl-12 pr-5 py-4 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all outline-none resize-none placeholder:text-ink-subtle"
           />
         ) : (
-          <Input
+          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} dir={["email", "tel", "url"].includes(type) ? "ltr" : undefined}
             type={type}
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             readOnly={readonly}
+            inputMode={inputMode}
             className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
-      </div>
+      </InputGroup>
+      {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

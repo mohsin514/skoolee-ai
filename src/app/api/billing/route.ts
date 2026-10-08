@@ -1,9 +1,11 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema, generateInvoicesSchema, paymentSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
   canManageBilling,
+  canPurchaseSubscription,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -29,6 +31,8 @@ async function scopedClass(classId: string, user: Awaited<ReturnType<typeof requ
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
+    const canReadTuition = canManageBilling(user) || user.role === "ACCOUNTANT";
+    if (!canReadTuition && !canPurchaseSubscription(user)) throw new ApiError("Billing is not delegated to this membership", 403);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     const [billing, feeStructures] = await Promise.all([
       getBillingSnapshot(user.schoolId),
-      prisma.feeStructure.findMany({
+      canReadTuition ? prisma.feeStructure.findMany({
       where: {
         ...scopedCampusWhere(user, campusId),
         ...(classId ? { classId } : {}),
@@ -55,10 +59,10 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: [{ class: { name: "asc" } }, { activeFrom: "desc" }],
-      }),
+      }) : Promise.resolve([]),
     ]);
 
-    return Response.json({ success: true, billing, feeStructures });
+    return Response.json({ success: true, billing: { ...billing, canPurchaseSubscription: canPurchaseSubscription(user) }, feeStructures });
   } catch (error) {
     return errorResponse(error, "[billing] GET failed");
   }
@@ -155,6 +159,7 @@ export async function POST(req: NextRequest) {
       const subtotal = feeStructure.monthlyFee + oneTimeTotal;
       const totalAmount = subtotal;
 
+      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
       const created = await prisma.$transaction(
         students
           .filter((s) => !alreadyGenerated.has(s.id))
@@ -163,6 +168,8 @@ export async function POST(req: NextRequest) {
               data: {
                 campusId,
                 studentId: student.id,
+                currency: feeStructure.currency,
+                localeSnapshot,
                 monthlyFee: feeStructure.monthlyFee,
                 oneTimeFees: oneTimeTotal,
                 subtotal,

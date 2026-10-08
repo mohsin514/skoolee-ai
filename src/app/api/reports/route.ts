@@ -1,5 +1,7 @@
+import { assertModuleRead, assertPermission } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, tenantTransaction } from "@/lib/db/prisma";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardPdf } from "@/lib/academic/pdf";
@@ -13,6 +15,7 @@ import { sendReportCardPublishedNotifications } from "@/lib/notifications/servic
 import { reportActionSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
 import { assertFeatureEnabled, assertSchoolOperational } from "@/lib/billing/entitlements";
+import { appendEvent } from "@/lib/queue/outbox";
 
 export const runtime = "nodejs";
 
@@ -70,6 +73,7 @@ export async function GET(req: NextRequest) {
   if (!examId) return Response.json({ error: "examId required" }, { status: 400 });
 
   try {
+    await assertModuleRead(user, "reports");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
     if (exam._count.reportCards === 0) {
@@ -118,6 +122,7 @@ export async function POST(req: NextRequest) {
   const { examId, action } = parsed.data;
 
   try {
+    await assertPermission(user, "reports", "edit");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
 
@@ -210,27 +215,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await prisma.$transaction([
-        prisma.reportCard.updateMany({
-          where: { examId },
-          data: { status: "PUBLISHED" },
-        }),
-        prisma.exam.update({
-          where: { id: examId },
+      const workflowId = await runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () => tenantTransaction(async tx => {
+        const changed = await tx.exam.updateMany({
+          where: { id: examId, status: "PRINCIPAL_REVIEWED" },
           data: { status: "PUBLISHED", publishedAt: new Date() },
-        }),
-      ]);
+        });
+        if (changed.count !== 1) throw new Error("Exam publication state changed; refresh and retry");
+        await tx.reportCard.updateMany({ where: { examId }, data: { status: "PUBLISHED" } });
+        return appendEvent(tx, {
+          schoolId: user.schoolId, actorId: user.userId, referenceId: examId,
+          kind: "REPORT_PUBLISHED", version: 1,
+          identity: `report-published:${examId}:${exam.reviewedAt?.toISOString() || "initial"}`,
+        });
+      }));
 
-      notify("REPORT_CARDS_PUBLISHED", {
-        schoolId: user.schoolId,
-        campusId: exam.campusId,
-        actorId: user.userId,
-        actorName: user.fullName,
-        examTitle: exam.title,
-        classId: exam.class?.id,
-      });
-
-      return Response.json({ success: true });
+      return Response.json({ success: true, workflowId, backgroundDelivery: "pending" });
     }
 
     await ensureReportCards(examId);

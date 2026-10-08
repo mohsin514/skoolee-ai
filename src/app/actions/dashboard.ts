@@ -1,5 +1,8 @@
 'use server'
 
+import { getLocalePackage } from "@/lib/locale/store";
+import { studentScope, publishedMarksWhere, publishedReportsWhere } from "@/lib/auth/policy";
+
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -63,6 +66,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   const session = await getAuthUser();
   if (!session || session.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
+  const { currency } = await getLocalePackage(session.schoolId, null);
 
   const [
     school,
@@ -226,7 +230,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     }),
     prisma.invoice.groupBy({
       by: ["campusId", "status"],
-      where: { campus: { schoolId: session.schoolId } },
+      where: { currency, campus: { schoolId: session.schoolId } },
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
@@ -289,6 +293,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       aiUsage: aiUsageMap[campus.id] || { runs: 0, tokens: 0 },
       communicationSummary: communicationMap[campus.id] || {},
       invoiceSummary: invoiceMap[campus.id] || {},
+      currency,
       admin: admin
         ? { ...admin, status: admin.onboardingComplete ? "Active" : "Onboarding" }
         : pendingAdmin
@@ -345,6 +350,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   );
 
   return {
+    currency,
     schoolName: school?.name || "System",
     schoolSlug: school?.slug || "system",
     billing: {
@@ -372,6 +378,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
+  const { currency } = await getLocalePackage(session.schoolId, campusId);
 
   const [
     classes,
@@ -607,13 +614,13 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
       },
     }),
     prisma.invoice.aggregate({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _sum: { totalAmount: true },
       _count: true,
     }),
     prisma.invoice.groupBy({
       by: ["status"],
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _count: true,
       _sum: { totalAmount: true },
     }),
@@ -655,6 +662,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
       leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
     },
     invoiceSummary: {
+      currency,
       total: invoiceTotals._count || 0,
       totalAmount: invoiceTotals._sum?.totalAmount || 0,
       byStatus: invoiceGroups,
@@ -932,6 +940,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
+  const { currency } = await getLocalePackage(session.schoolId, campusId);
 
   const today = new Date(new Date().setHours(0, 0, 0, 0));
 
@@ -1219,13 +1228,13 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
       },
     }),
     prisma.invoice.aggregate({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _sum: { totalAmount: true },
       _count: true,
     }),
     prisma.invoice.groupBy({
       by: ["status"],
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _count: true,
       _sum: { totalAmount: true },
     }),
@@ -1288,6 +1297,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
       leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
     },
     invoiceSummary: {
+      currency,
       total: invoiceTotals._count || 0,
       totalAmount: invoiceTotals._sum?.totalAmount || 0,
       byStatus: invoiceGroups,
@@ -1318,20 +1328,6 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     select: { id: true, fullName: true, email: true, campusId: true, profileImageUrl: true },
   });
 
-  const accountEmail = (account?.email || session.email || "").toLowerCase();
-  // Identity must come from an explicit link (studentUserId / parentUserId) or
-  // an address the office recorded for this guardian. Matching on fullName
-  // would hand any namesake another child's marks, attendance, and fees, so
-  // that fallback is deliberately absent: an unlinked account sees
-  // profileMissing instead of somebody else's record.
-  const identityFilters: any[] = [
-    ...(session.role === "PARENT" ? [{ parentUserId: session.userId }] : []),
-    ...(session.role === "PARENT" && accountEmail ? [{ guardianEmail: { equals: accountEmail, mode: "insensitive" as const } }] : []),
-  ];
-
-  // Kept outside the `as const` include below so Prisma sees a mutable string[].
-  const RELEASED_REPORT_CARD = { status: { in: ["PUBLISHED", "SENT"] } };
-
   const studentInclude = {
       campus: { select: { id: true, name: true, city: true, logoUrl: true, school: { select: { logoUrl: true } } } },
       class: {
@@ -1356,7 +1352,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       // published them — never while an exam is in DRAFT/MARKS_ENTRY or a card
       // is still GENERATED/REVIEWED.
       marks: {
-        where: { exam: { status: "PUBLISHED" } },
+        where: publishedMarksWhere,
         include: {
           subject: {
             select: {
@@ -1380,7 +1376,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         take: 200,
       },
       reportCards: {
-        where: RELEASED_REPORT_CARD,
+        where: publishedReportsWhere,
         include: { exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } } },
         orderBy: { generatedAt: "desc" },
         take: 3,
@@ -1392,24 +1388,9 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       },
   } as const;
 
-  const baseStudentWhere = {
-    campus: { schoolId: session.schoolId },
-    ...(session.campusId ? { campusId: session.campusId } : {}),
-  };
-
-  const linkedStudent = session.role === "STUDENT"
-    ? await prisma.student.findFirst({
-        where: { ...baseStudentWhere, studentUserId: session.userId },
-        include: studentInclude,
-      })
-    : null;
-
-  const student = linkedStudent || await prisma.student.findFirst({
-    where: {
-      ...baseStudentWhere,
-      OR: identityFilters.length ? identityFilters : [{ id: "__missing_student__" }],
-    },
-    include: studentInclude,
+  const student = await prisma.student.findFirst({
+    where: studentScope(session), include: studentInclude,
+    orderBy: [{ rollNo: "asc" }, { id: "asc" }],
   });
 
   // Only the current year's days belong on the student's own dashboard;
@@ -1422,7 +1403,8 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
   const attendanceRate = attendanceSummary.rate;
   // Read the ledger column rather than re-summing payments, so the dashboard,
   // the student fees page, and the parent portal all quote the same number.
-  const balanceDue = student?.invoices.reduce(
+  const balanceCurrency = student?.invoices[0]?.currency ?? (await getLocalePackage(session.schoolId, student?.campusId ?? session.campusId)).currency;
+  const balanceDue = student?.invoices.filter((invoice) => invoice.currency === balanceCurrency).reduce(
     (total, invoice) => total + Math.max(invoice.balanceDue, 0),
     0,
   ) || 0;
@@ -1456,10 +1438,11 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       subjects: student?.class?.subjects || [],
       marks: student?.marks || [],
       attendance: currentYearAttendance,
-      reportCards: student?.reportCards || [],
+      reportCards: student?.reportCards.map((report) => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&redirect=1` })) || [],
       invoices: student?.invoices || [],
       attendanceRate,
       balanceDue,
+      balanceCurrency,
       aiInsights,
     },
   };
@@ -1636,16 +1619,17 @@ async function librarianSummary(schoolId: string, campusId: string) {
 
 async function accountantSummary(schoolId: string, campusId: string) {
   const twelveMonths = monthsAgo(11);
+  const { currency } = await getLocalePackage(schoolId, campusId);
 
   const [invoiceGroups, payments, defaulters, payrollRuns, studentsBilled] = await Promise.all([
     prisma.invoice.groupBy({
       by: ["status"],
-      where: { campusId, campus: { schoolId } },
+      where: { currency, campusId, campus: { schoolId } },
       _count: true,
       _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
     }),
     prisma.payment.findMany({
-      where: { campusId, schoolId, paymentDate: { gte: twelveMonths } },
+      where: { campusId, schoolId, invoice: { currency }, paymentDate: { gte: twelveMonths } },
       select: { paymentDate: true, amount: true, paymentMethod: true },
     }),
     // "Past due" is any invoice still carrying a balance after its due date —
@@ -1654,7 +1638,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
     // family that has paid something and then stopped.
     prisma.invoice.count({
       where: {
-        campusId,
+        currency, campusId,
         campus: { schoolId },
         status: { not: "CANCELLED" },
         balanceDue: { gt: 0 },
@@ -1663,7 +1647,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
     }),
     prisma.payrollRun.count({ where: { campusId, schoolId } }),
     prisma.invoice.findMany({
-      where: { campusId, campus: { schoolId } },
+      where: { currency, campusId, campus: { schoolId } },
       select: { studentId: true },
       distinct: ["studentId"],
     }),
@@ -1680,6 +1664,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
 
   return {
     kind: "ACCOUNTANT" as const,
+    currency,
     byStatus: invoiceGroups.map((g) => ({
       status: g.status,
       count: g._count,

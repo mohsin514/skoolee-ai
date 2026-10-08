@@ -91,7 +91,7 @@ export function TodaySchedule({
   /* ── Loading skeleton ── */
   if (loading) {
     return (
-      <div className="rounded-[32px] overflow-hidden border border-[#cfc2d6]/20 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] p-6 animate-skeleton-in">
+      <div className="sk-panel overflow-hidden border-[#cfc2d6]/20 p-6 animate-skeleton-in">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <div className="skeleton-shimmer h-9 w-9 rounded-2xl bg-[#e8e0ec]/60" />
@@ -111,7 +111,7 @@ export function TodaySchedule({
   if (entries.length === 0) return null;
 
   return (
-    <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.22)]">
+    <div className="sk-panel sk-rise relative overflow-hidden border-[#cfc2d6]/20">
       {/* ambient background */}
       <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#8127cf]/[0.07] blur-3xl sk-blob" />
       <div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-[#b10e6b]/[0.05] blur-3xl sk-blob sk-blob-2" />

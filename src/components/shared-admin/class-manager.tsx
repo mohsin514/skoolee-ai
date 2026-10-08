@@ -49,6 +49,8 @@ import {
   EmptyInline,
 } from "@/components/shared-admin";
 import { cn } from "@/lib/utils";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -451,7 +453,7 @@ function AddSectionPanel({
         </button>
       </div>
 
-      <input
+      <SystemInput
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
@@ -488,7 +490,7 @@ function AddSectionPanel({
           <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
             Copy subjects from
           </span>
-          <select
+          <SystemSelect
             value={cloneFromId}
             onChange={(e) => setCloneFromId(e.target.value)}
             disabled={busy}
@@ -502,7 +504,7 @@ function AddSectionPanel({
                   {sec.section ? `Section ${sec.section}` : "Main"} ({sec.subjects.length})
                 </option>
               ))}
-          </select>
+          </SystemSelect>
         </label>
       ) : null}
 
@@ -510,7 +512,7 @@ function AddSectionPanel({
         <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
           Class teacher
         </span>
-        <select
+        <SystemSelect
           value={teacherId}
           onChange={(e) => setTeacherId(e.target.value)}
           disabled={busy}
@@ -520,7 +522,7 @@ function AddSectionPanel({
           {teachers.map((t: any) => (
             <option key={t.id} value={t.id}>{t.fullName}</option>
           ))}
-        </select>
+        </SystemSelect>
       </label>
 
       {blocked && input.trim() ? (

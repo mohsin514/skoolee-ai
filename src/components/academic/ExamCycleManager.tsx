@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -32,6 +34,9 @@ import { BrandButton } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { toneOf } from "@/lib/ui/module-tones";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 /** Constant lookup — hoisted so it is not recomputed on every render. */
 const examTone = toneOf("exams");
@@ -973,7 +978,7 @@ export function ExamCycleManager({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <select
+              <SystemSelect
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 aria-label="Filter by term"
@@ -985,8 +990,8 @@ export function ExamCycleManager({
                     {t}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+              </SystemSelect>
+
             </div>
             <button
               type="button"
@@ -1036,9 +1041,9 @@ export function ExamCycleManager({
 
       {/* ── Toolbar ── */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <div className="relative min-w-[190px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
-          <input
+        <InputGroup surfaceClassName="bg-[#faf7fc]" className="relative min-w-[190px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
+          <SystemInput
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1046,7 +1051,7 @@ export function ExamCycleManager({
             aria-label="Search exams"
             className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/40 focus:bg-white"
           />
-        </div>
+        </InputGroup>
 
         <FilterSelect
           value={classFilter}
@@ -1661,7 +1666,7 @@ function FilterSelect({
 }) {
   return (
     <div className="relative">
-      <select
+      <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
@@ -1672,8 +1677,8 @@ function FilterSelect({
             {l}
           </option>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+      </SystemSelect>
+
     </div>
   );
 }
@@ -1919,7 +1924,7 @@ function RejectMarksModal({
           <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
             Reason for the teacher
           </span>
-          <textarea
+          <SystemTextarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
@@ -2122,7 +2127,7 @@ function CreateExamModal({
           ) : (
             <>
               <Field label="Class">
-                <select
+                <SystemSelect
                   value={form.classId}
                   onChange={(e) => setForm({ ...form, classId: e.target.value })}
                   className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
@@ -2133,11 +2138,11 @@ function CreateExamModal({
                       {classLabel(c)}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
               </Field>
 
               <Field label="Exam Title">
-                <input
+                <SystemInput
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Mid-Term Examination"
@@ -2147,14 +2152,14 @@ function CreateExamModal({
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Term">
-                  <input
+                  <SystemInput
                     value={form.term}
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
                     className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
                   />
                 </Field>
                 <Field label="Academic Year">
-                  <input
+                  <SystemInput
                     type="number"
                     value={form.academicYear}
                     onChange={(e) => setForm({ ...form, academicYear: Number(e.target.value) })}
@@ -2164,7 +2169,7 @@ function CreateExamModal({
               </div>
 
               <Field label={role === "TEACHER" ? "Type of Test" : "Type of Exam"}>
-                <select
+                <SystemSelect
                   value={form.examType}
                   onChange={(e) => setForm({ ...form, examType: e.target.value })}
                   className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
@@ -2174,7 +2179,7 @@ function CreateExamModal({
                       {EXAM_TYPE_LABELS[t]}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
                 {role === "TEACHER" ? (
                   <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
                     Mid-term and final exams are set up by the school office.

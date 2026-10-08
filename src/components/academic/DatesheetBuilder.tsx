@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 interface ScheduleRow {
   id: string;
@@ -587,8 +588,8 @@ function AssignmentPopover({
                       checked ? "bg-[#fbf0fe] text-[#1d1b20]" : "text-ink hover:bg-[#4d4354]/5"
                     }`}
                   >
-                    <input
-                      type="checkbox"
+                    <SystemCheckbox
+
                       checked={checked}
                       onChange={() => toggleRoom(r.id)}
                       className="h-4 w-4 shrink-0 accent-[#8127cf]"

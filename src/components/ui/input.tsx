@@ -1,26 +1,22 @@
-// ===========================================
-// shadcn/ui - Input Component
-// ===========================================
+"use client";
 
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
+import { datePickerMessages } from "@/lib/locale/date-picker-messages";
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { Input as NativeInput } from "./input-base";
+import { DatePicker } from "./date-picker";
 
-const Input = React.forwardRef<
-  HTMLInputElement,
-  React.InputHTMLAttributes<HTMLInputElement>
->(({ className, type, ...props }, ref) => {
-  return (
-    <input
-      type={type}
-      className={cn(
-        "flex h-12 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3.5 py-2 text-sm font-bold text-[#1f1a23] shadow-none transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-ink-subtle hover:border-[#cfc2d6]/40 focus-visible:border-[#8127cf]/40 focus-visible:bg-white focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-  );
-});
+/** All date fields share the calendar while retaining native input events and refs. */
+const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  ({ type, value, defaultValue, ...props }, ref) => {
+    const locale = useLocale(); const tr = useUiText();
+    return type === "date" ? (
+    <DatePicker {...props} ref={ref} locale={localeTag(locale)} todayDate={new Intl.DateTimeFormat("en-CA", { timeZone: locale.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())} weekStartsOn={locale.weekStartsOn as 0|1|2|3|4|5|6} messages={datePickerMessages[locale.language]} dir={props.dir || (locale.language === "en" ? "ltr" : "rtl")} label={props["aria-label"] || tr("Date")}
+      value={value === undefined ? undefined : String(value)}
+      defaultValue={defaultValue === undefined ? undefined : String(defaultValue)} />
+  ) : <NativeInput {...props} dir={props.dir ?? (["tel", "email", "url", "number"].includes(type ?? "") ? "ltr" : undefined)} ref={ref} type={type} value={value} defaultValue={defaultValue} />;
+  },
+);
 Input.displayName = "Input";
-
 export { Input };

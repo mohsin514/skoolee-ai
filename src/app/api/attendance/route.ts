@@ -51,11 +51,11 @@ export async function GET(req: NextRequest) {
     // Default to TODAY IN THE SCHOOL'S TIMEZONE, not UTC. For a UTC+5 tenant the
     // two disagree between 00:00 and 05:00 local, so the old UTC default dated
     // early-morning attendance to the previous day.
-    const dateParam = searchParams.get("date") || (await schoolToday(user.schoolId));
     const requestedCampusId = searchParams.get("campusId");
     const campusId = user.role === "SUPER_ADMIN"
       ? await resolveCampusId(user, requestedCampusId)
       : await resolveCampusId(user, user.campusId);
+    const dateParam = searchParams.get("date") || (await schoolToday(user.schoolId, campusId));
     const date = dateOnly(dateParam);
 
     if (classId) {

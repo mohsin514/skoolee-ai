@@ -2,6 +2,7 @@
 
 import { ChevronDown, Printer, User } from "lucide-react";
 import type { GridDay, GridPeriod, TeacherOption, TimetableData } from "./TimetableStudio";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 interface TeacherSlot {
   classLabel: string;
@@ -54,7 +55,7 @@ export function TeacherView({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
-          <select
+          <SystemSelect
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
             className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
@@ -65,8 +66,8 @@ export function TeacherView({
                 {t.fullName}
               </option>
             ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
+          </SystemSelect>
+
         </div>
         {selectedTeacherId && (
           <span className="text-[10px] font-bold text-ink-muted">
@@ -97,7 +98,7 @@ export function TeacherView({
       )}
 
       {selectedTeacherId && (
-        <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel overflow-x-auto">
           <div className="min-w-[760px]">
             <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
               <div className="flex items-center justify-center p-3">

@@ -6,32 +6,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createTenantSchema } from "@/lib/db/tenant";
 import { onboardingSchema } from "@/lib/validators/schemas";
-import { DEFAULT_PERMISSIONS, PERMISSION_MODULES } from "@/lib/permissions";
-import type { UserRole } from "@/lib/roles";
+import { seedRolePermissions } from "@/lib/auth/seed-permissions";
 import { getAuthUser } from "@/lib/auth";
-
-export async function seedRolePermissions(schoolId: string) {
-  const rows = [];
-  const roles = Object.keys(DEFAULT_PERMISSIONS) as UserRole[];
-  for (const role of roles) {
-    for (const module of PERMISSION_MODULES) {
-      const flags = DEFAULT_PERMISSIONS[role][module];
-      if (!flags.canView && !flags.canAdd && !flags.canEdit && !flags.canDelete) continue;
-      rows.push({
-        schoolId,
-        role,
-        module,
-        canView: flags.canView,
-        canAdd: flags.canAdd,
-        canEdit: flags.canEdit,
-        canDelete: flags.canDelete,
-      });
-    }
-  }
-  if (rows.length) {
-    await prisma.rolePermission.createMany({ data: rows, skipDuplicates: true });
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {

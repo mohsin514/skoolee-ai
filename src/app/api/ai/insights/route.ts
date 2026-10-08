@@ -1,3 +1,5 @@
+import { AccessDenied } from "@/lib/auth/policy";
+import { getStudentContext } from "@/lib/ai/student-context";
 import { NextRequest } from "next/server";
 import { InvoiceStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
@@ -100,7 +102,7 @@ function scopedCampusWhere(schoolId: string, campusId: string | null) {
 
 async function resolveScopedCampusId(user: AuthUser, requestedCampusId?: string | null) {
   if (user.role !== "SUPER_ADMIN") {
-    if (!user.campusId) return null;
+    if (!user.campusId && user.role !== "PARENT" && user.role !== "STUDENT") throw new AccessDenied("campus");
     if (requestedCampusId && requestedCampusId !== user.campusId) {
       const error = new Error("Campus is outside your account");
       (error as Error & { status?: number }).status = 403;
@@ -125,50 +127,6 @@ async function resolveScopedCampusId(user: AuthUser, requestedCampusId?: string 
   return campus.id;
 }
 
-async function getStudentContext(user: AuthUser, studentId?: string) {
-  const account = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { fullName: true },
-  });
-  const ownershipFilter = {
-    OR: [
-      { parentUserId: user.userId },
-      ...(account?.fullName ? [{ fullName: account.fullName }] : []),
-    ],
-  };
-
-  const student = await prisma.student.findFirst({
-    where: {
-      campus: { schoolId: user.schoolId },
-      ...(user.campusId ? { campusId: user.campusId } : {}),
-      ...(studentId ? { id: studentId } : {}),
-      ...ownershipFilter,
-    },
-    include: {
-      class: { select: { name: true, section: true, academicYear: true } },
-      marks: {
-        include: {
-          subject: { select: { name: true, totalMarks: true } },
-          exam: { select: { title: true, term: true, academicYear: true } },
-        },
-        take: 40,
-      },
-      reportCards: {
-        include: { exam: { select: { title: true, term: true, academicYear: true } } },
-        orderBy: { generatedAt: "desc" },
-        take: 3,
-      },
-    },
-  });
-
-  if (studentId && !student) {
-    const error = new Error("Student is outside your account");
-    (error as Error & { status?: number }).status = 403;
-    throw error;
-  }
-
-  return student;
-}
 
 function approvedFaqsFromTemplates(templates: Array<{ content: unknown; userPrompt: string }>) {
   const faqs: Array<{ question: string; answer: string }> = [];
@@ -446,6 +404,7 @@ export async function POST(req: NextRequest) {
   if (billingBlocked) return billingBlocked;
 
   try {
+    await assertSharedModuleRead(user, "ai");
     const body = await req.json();
     const parsed = aiFeatureRequestSchema.safeParse(body);
     if (!parsed.success) {

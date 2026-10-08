@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
@@ -36,6 +38,7 @@ import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { localToday } from "@/lib/date-only";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -367,8 +370,8 @@ export default function StudentsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <InputGroup className="relative flex-1 max-w-sm">
+                <Search data-field-affix="start" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search name, roll, guardian..."
                   value={searchQuery}
@@ -378,7 +381,7 @@ export default function StudentsPage() {
                   }}
                   className="pl-9"
                 />
-              </div>
+              </InputGroup>
               <Select
                 aria-label="Filter students by class"
                 className="w-full md:w-56"
@@ -452,8 +455,8 @@ export default function StudentsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8">
-                        <input
-                          type="checkbox"
+                        <SystemCheckbox
+
                           checked={allOnPageSelected}
                           onChange={() =>
                             setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
@@ -476,8 +479,8 @@ export default function StudentsPage() {
                     {students.map((student) => (
                       <TableRow key={student.id}>
                         <TableCell>
-                          <input
-                            type="checkbox"
+                          <SystemCheckbox
+
                             checked={selected.has(student.id)}
                             onChange={() => toggleRow(student.id)}
                             aria-label={`Select ${student.fullName}`}
@@ -565,7 +568,7 @@ export default function StudentsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[220px_220px_1fr] md:items-end">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-end">
               <div className="space-y-1">
                 <Label htmlFor="attendance-date">Date</Label>
                 <Input id="attendance-date" type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
@@ -589,7 +592,7 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               {[
                 ["Total", attendanceSummary.total],
                 ["Present", attendanceSummary.present],

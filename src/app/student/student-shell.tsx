@@ -1,20 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useStudentData } from "./student-data-context";
 import { STUDENT_NAV } from "@/components/student/student-page";
 
+// Sign-out lives in RoleHeader (see the note in teacher-shell.tsx): the
+// handleLogout() declared here was unreachable, and its router.push("/login")
+// would have left the console renderable via Back.
 export function StudentShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const { data } = useStudentData();
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
 
   // "Schedule" used to sit here as a second attendance page. Its unique
   // content (class teacher, enrolled subjects) now lives on Coursework, so the

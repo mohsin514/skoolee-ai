@@ -137,7 +137,7 @@ function HeroSkeleton() {
 /** One stat tile, matching `StatTile`'s padding and radius. */
 function TileSkeleton({ delay = 0 }: { delay?: number }) {
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <SkeletonBar className="h-2.5 w-20 rounded-full" delay={delay} />
@@ -172,7 +172,7 @@ function ChartCardSkeleton({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
+        "sk-panel flex flex-col p-5",
         className,
       )}
     >

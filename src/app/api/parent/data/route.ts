@@ -1,15 +1,15 @@
+import { errorResponse } from "@/lib/api/scope";
+import { loadPermissionMap } from "@/lib/permissions";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
-import { enterTenantContext } from "@/lib/db/tenant-context";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
-import { resolveParentScope } from "@/lib/parent/resolve-child";
+import { withParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { studentId, children } = await resolveParentScope(req);
+    return await withParentScope(req, async ({ studentId, children }) => {
     if (!studentId) {
       return Response.json({ error: "Invalid or expired access" }, { status: 401 });
     }
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       where: { id: studentId },
       include: {
         class: { select: { name: true, section: true, academicYear: true } },
-        campus: { select: { name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
+        campus: { select: { schoolId: true, name: true, city: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
         // A report card sits in GENERATED/REVIEWED while the office is still
         // checking it. Families only ever see one the school has released.
         reportCards: {
@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
+    const navigationPermissions = await loadPermissionMap(student.campus.schoolId, "PARENT");
+
     const currentYearAttendance = attendanceForYear(
       student.attendance,
       student.class?.academicYear
@@ -79,6 +81,7 @@ export async function GET(req: NextRequest) {
         // a switcher instead of stranding siblings behind the default pick.
         children,
         selectedStudentId: studentId,
+        navigationAccess: Object.fromEntries([...navigationPermissions].map(([module, flags]) => [module, flags.canView])),
         student: {
           fullName: student.fullName,
           rollNo: student.rollNo,
@@ -87,7 +90,7 @@ export async function GET(req: NextRequest) {
           className: [student.class.name, student.class.section].filter(Boolean).join(" - "),
           academicYear: student.class.academicYear,
         },
-        campus: student.campus,
+        campus: { ...student.campus, schoolId: undefined },
         reportCards: student.reportCards.map((r) => ({
           id: r.id,
           examTitle: r.exam.title,
@@ -100,7 +103,7 @@ export async function GET(req: NextRequest) {
           totalMarks: r.totalMarks,
           remarksEn: r.remarksEn,
           remarksUr: r.remarksUr,
-          pdfUrl: r.pdfUrl,
+          pdfUrl: `/api/reports/download?reportCardId=${r.id}&redirect=1${req.nextUrl.searchParams.get("token") ? `&token=${encodeURIComponent(req.nextUrl.searchParams.get("token")!)}` : ""}`,
           status: r.status,
         })),
         marksByExam: [...marksByExam.entries()].map(([examId, data]) => ({
@@ -131,6 +134,7 @@ export async function GET(req: NextRequest) {
         fees: student.invoices.map((inv) => ({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
+          currency: inv.currency,
           totalAmount: inv.totalAmount,
           paid: inv.totalAmountPaid,
           balance: inv.balanceDue,
@@ -139,7 +143,8 @@ export async function GET(req: NextRequest) {
         })),
       },
     });
-  } catch {
-    return Response.json({ error: "Failed to load data" }, { status: 500 });
+    });
+  } catch (error) {
+    return errorResponse(error, "Failed to load data");
   }
 }

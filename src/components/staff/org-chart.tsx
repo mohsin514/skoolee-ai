@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 /**
  * The staff hierarchy graph.
@@ -42,6 +44,9 @@ import {
   layoutTree,
   type Placed,
 } from "@/lib/staff/org-layout";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 /** Every id from `startIds` up to the root, so a search hit can be revealed. */
 function ancestorsOf(nodes: Map<string, OrgNode>, startIds: string[]) {
@@ -227,9 +232,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
     <div className="space-y-3">
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <input
+        <InputGroup surfaceClassName="bg-white" className="relative min-w-[200px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+          <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -240,7 +245,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
             className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted focus:border-[#8127cf]"
           />
           {query ? (
-            <button
+            <button data-field-affix="end"
               type="button"
               onClick={() => setQuery("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink"
@@ -249,9 +254,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               <X className="h-3.5 w-3.5" />
             </button>
           ) : null}
-        </div>
+        </InputGroup>
 
-        <select
+        <SystemSelect
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
           className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
@@ -263,9 +268,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               {d.name}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <select
+        <SystemSelect
           value={track}
           onChange={(e) => setTrack(e.target.value)}
           className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
@@ -276,7 +281,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               {tone.label}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
         <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
           <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
@@ -300,7 +305,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           </span>
         ))}
         <label className="flex cursor-pointer items-center gap-1.5 normal-case">
-          <input type="checkbox" checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
+          <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
           <span className="font-black uppercase tracking-wide">Show secondary lines</span>
         </label>
         {query ? <span className="normal-case text-[#8127cf]">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}

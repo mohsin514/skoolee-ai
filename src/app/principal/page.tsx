@@ -1,5 +1,8 @@
 "use client";
 
+import { pageCardSurface } from "@/components/ui/page-card";
+
+import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import type { ReactNode } from "react";
@@ -57,7 +60,6 @@ import {
   Network,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -139,6 +141,8 @@ import {
   PanelTitle,
   StatusPill,
 } from "@/components/shared-admin";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 type PrincipalView =
   | "overview"
@@ -184,7 +188,6 @@ const principalAIFeatures = [
 ];
 
 export default function PrincipalDashboard() {
-  const router = useRouter();
   // `loading` is not read: the provider hands back null until the first
   // payload lands, and null is what the skeleton keys off.
   const { data, refetch } = usePrincipalData();
@@ -231,8 +234,10 @@ export default function PrincipalDashboard() {
   const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
   const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
 
-  const handleLogout = async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   // Exports exactly what the directory is showing, so a filtered view exports
   // the filtered roster rather than silently dumping every student.
   const exportStudentsCSV = (visible?: any[]) =>
@@ -419,53 +424,53 @@ export default function PrincipalDashboard() {
   };
 
   const navItems: SidebarEntry[] = [
-    { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
+    { icon: LayoutGrid, label: "Overview", active: activeView === "overview", module: moduleForView("overview"), onClick: () => setActiveView("overview") },
     {
       icon: GraduationCap, label: "Students", children: [
-        { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
-        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
-        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
-        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
+        { icon: GraduationCap, label: "Student List", active: activeView === "students", module: moduleForView("students"), onClick: () => setActiveView("students") },
+        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", module: moduleForView("admission-queries"), onClick: () => setActiveView("admission-queries") },
+        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", module: moduleForView("student-setup"), onClick: () => setActiveView("student-setup") },
+        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", module: moduleForView("promote-archive"), onClick: () => setActiveView("promote-archive") },
       ],
     },
     {
       icon: BookOpen, label: "Academics", children: [
-        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", onClick: () => setActiveView("academic-hub") },
-        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", onClick: () => setActiveView("year-setup") },
-        { icon: School, label: "Classes & Subjects", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: History, label: "Academic Years", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", onClick: () => setActiveView("grading-rules") },
-        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
+        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", module: moduleForView("academic-hub"), onClick: () => setActiveView("academic-hub") },
+        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", module: moduleForView("year-setup"), onClick: () => setActiveView("year-setup") },
+        { icon: School, label: "Classes & Subjects", active: activeView === "classes", module: moduleForView("classes"), onClick: () => setActiveView("classes") },
+        { icon: History, label: "Academic Years", active: activeView === "year-cycle", module: moduleForView("year-cycle"), onClick: () => setActiveView("year-cycle") },
+        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", module: moduleForView("school-calendar"), onClick: () => setActiveView("school-calendar") },
+        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", module: moduleForView("timetable"), onClick: () => setActiveView("timetable") },
+        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", module: moduleForView("period-setup"), onClick: () => setActiveView("period-setup") },
+        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", module: moduleForView("class-rooms"), onClick: () => setActiveView("class-rooms") },
+        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", module: moduleForView("exam-cycles"), onClick: () => setActiveView("exam-cycles") },
+        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", module: moduleForView("grading-rules"), onClick: () => setActiveView("grading-rules") },
+        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", module: moduleForView("report-cards"), onClick: () => setActiveView("report-cards") },
       ],
     },
     {
       icon: UserCog, label: "Staff", children: [
-        { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", onClick: () => setActiveView("staff-hierarchy") },
-        { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
-        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
+        { icon: Users, label: "Teachers", active: activeView === "teachers", module: moduleForView("teachers"), onClick: () => setActiveView("teachers") },
+        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", module: moduleForView("staff-hierarchy"), onClick: () => setActiveView("staff-hierarchy") },
+        { icon: Plane, label: "Staff Leave", active: activeView === "leave", module: moduleForView("leave"), onClick: () => setActiveView("leave") },
+        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", module: moduleForView("teacher-performance"), onClick: () => setActiveView("teacher-performance") },
+        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", module: moduleForView("permissions"), onClick: () => setActiveView("permissions") },
       ],
     },
-    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
-    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
+    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", module: moduleForView("attendance"), onClick: () => setActiveView("attendance") },
+    { icon: Receipt, label: "Fees", active: activeView === "fees", module: moduleForView("fees"), onClick: () => setActiveView("fees") },
     {
       icon: Wrench, label: "Operations", children: [
-        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
-        { icon: Building2, label: "Hostel", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
+        { icon: Bus, label: "Transport", active: activeView === "transport", module: moduleForView("transport"), onClick: () => setActiveView("transport") },
+        { icon: Building2, label: "Hostel", active: activeView === "dormitory", module: moduleForView("dormitory"), onClick: () => setActiveView("dormitory") },
+        { icon: Package, label: "Inventory", active: activeView === "inventory", module: moduleForView("inventory"), onClick: () => setActiveView("inventory") },
+        { icon: BookOpen, label: "Library", active: activeView === "library", module: moduleForView("library"), onClick: () => setActiveView("library") },
       ],
     },
-    { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
-    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
+    { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", module: moduleForView("engagement"), onClick: () => setActiveView("engagement") },
+    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", module: moduleForView("ai"), onClick: () => setActiveView("ai") },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
-    { icon: School, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
+    { icon: School, label: "Admins & Access", active: activeView === "leadership", module: moduleForView("leadership"), onClick: () => setActiveView("leadership") },
   ];
   const bottomItems: RoleNavItem[] = [];
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
@@ -482,7 +487,7 @@ export default function PrincipalDashboard() {
 
   return (
     <RoleShell navItems={navItems} bottomItems={bottomItems} eyebrow={`${data.schoolName} - ${data.campusName}`} userName={data.principalName} userRole="Principal Authority" avatarSeed={data.principalName} dashboardHref="/principal" logoUrl={data.logoUrl}>
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 p-4 sm:p-5 overflow-y-auto custom-scrollbar">
+      <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 p-4 sm:p-5 overflow-y-auto custom-scrollbar")} >
         {/* Academics is ten screens deep. This keeps them one click from each
             other instead of one sidebar expansion away. */}
         {ACADEMIC_VIEWS.has(activeView) ? (
@@ -607,7 +612,7 @@ export default function PrincipalDashboard() {
         */}
         {activeView === "promote-archive" ? (
           <div className="space-y-6">
-            <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="sk-panel p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
@@ -844,7 +849,7 @@ function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvi
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <PanelTitle icon={Users} title="Teacher Profiles" />
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-40 bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle" /></div>
+            <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><SystemInput type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-40 bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle" /></div>
             <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>
           </div>
         </div>
@@ -877,7 +882,7 @@ function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; ico
 function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCancel, onChange, onSave, onApprove }: {
   report: any; busy: boolean; editing: boolean; editedRemarks: { en: string; ur: string }; onEdit: () => void; onCancel: () => void; onChange: (v: { en: string; ur: string }) => void; onSave: () => void; onApprove: () => void;
 }) {
-  return (<div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#8127cf]/25"><div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{report.exam?.title || "Exam"} · {report.grade || `${Math.round(report.percentage || 0)}%`}</p></div><StatusPill status={report.status} /></div>{editing ? (<div className="space-y-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">English Remarks</p><textarea value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Urdu Remarks</p><textarea value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={onSave} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</BrandButton><BrandButton variant="dark" onClick={onApprove} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Approve"}</BrandButton><button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-ink-muted cursor-pointer transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">Cancel</button></div></div>) : (<div className="flex gap-2"><button type="button" onClick={onEdit} className="h-9 cursor-pointer rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-md">Edit Remarks</button></div>)}</div>);
+  return (<div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#8127cf]/25"><div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{report.exam?.title || "Exam"} · {report.grade || `${Math.round(report.percentage || 0)}%`}</p></div><StatusPill status={report.status} /></div>{editing ? (<div className="space-y-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">English Remarks</p><SystemTextarea value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Urdu Remarks</p><SystemTextarea value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={onSave} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</BrandButton><BrandButton variant="dark" onClick={onApprove} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Approve"}</BrandButton><button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-ink-muted cursor-pointer transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">Cancel</button></div></div>) : (<div className="flex gap-2"><button type="button" onClick={onEdit} className="h-9 cursor-pointer rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-md">Edit Remarks</button></div>)}</div>);
 }
 
 function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {

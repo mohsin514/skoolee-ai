@@ -1,0 +1,1381 @@
+[
+  {
+    "key": "F61",
+    "title": "Shared design system and role-based navigation",
+    "value": "Create consistent task-focused pages, forms, dialogs and navigation",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 1,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F01",
+    "title": "Shared authorization and tenant/campus/child ownership rules",
+    "value": "Every surface enforces the same access rights",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 2,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-18",
+      "SKO-19",
+      "SKO-162"
+    ]
+  },
+  {
+    "key": "F79",
+    "title": "Role assignment, invitations and institution membership UX",
+    "value": "Role assignment, invitations and institution membership UX",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 3,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F61"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-6",
+      "SKO-11",
+      "SKO-20",
+      "SKO-52"
+    ]
+  },
+  {
+    "key": "F02",
+    "title": "Reliable account lifecycle and administrator MFA",
+    "value": "Invitations, recovery, role changes and revocation work predictably",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 4,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-50",
+      "SKO-12"
+    ]
+  },
+  {
+    "key": "F03",
+    "title": "Approved report versions and publication gates",
+    "value": "Families see the intended, approved result",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 5,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F62",
+    "title": "Truthful marketing and synchronized pricing entitlements",
+    "value": "Align product claims, plan limits and commercial promises with verified behavior",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 6,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F03",
+      "F61"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F05",
+    "title": "Backups, restore rehearsals and migration checks",
+    "value": "Schools can recover from mistakes and deployment failures",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 7,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F06",
+    "title": "Auditable grade and finance corrections",
+    "value": "Explain who changed what and why without destroying history",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 8,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F63",
+    "title": "AI provider policy, privacy and evaluation gateway",
+    "value": "Keep AI data handling, review and failure behavior accountable",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 9,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F03"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F70",
+    "title": "Durable event outbox and job orchestration",
+    "value": "Reliably complete imports, OCR, reports and notifications after data is committed",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 10,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F05"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F81",
+    "title": "Package comparison, trial and checkout during registration",
+    "value": "Package comparison, trial and checkout during registration",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 11,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F62",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F82",
+    "title": "Subscription lifecycle, group billing and entitlement enforcement",
+    "value": "Subscription lifecycle, group billing and entitlement enforcement",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 12,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F81",
+      "F79",
+      "F06"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F07",
+    "title": "Job status, retries and delivery receipts",
+    "value": "Staff know whether reports and messages actually completed",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 13,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F08",
+    "title": "Draft recovery, consistent navigation and accessibility",
+    "value": "Work survives interruptions and is usable by more people",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 14,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F61"
+    ],
+    "reuseIssue": "SKO-196",
+    "relatedIssues": [
+      "SKO-190"
+    ]
+  },
+  {
+    "key": "F67",
+    "title": "Safe deletion, archival and restore",
+    "value": "Protect referenced school records and offer reversible actions where appropriate",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 15,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F06"
+    ],
+    "reuseIssue": "SKO-195",
+    "relatedIssues": [
+      "SKO-176"
+    ]
+  },
+  {
+    "key": "F76",
+    "title": "Audited support access and service operations",
+    "value": "Give authorized support staff time-limited access and clear incident handling",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 16,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F02",
+      "F06"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F80",
+    "title": "Separate standalone and school-group onboarding with resumable setup",
+    "value": "Separate standalone and school-group onboarding with resumable setup",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 17,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F79",
+      "F81"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-174",
+      "SKO-178"
+    ]
+  },
+  {
+    "key": "F49",
+    "title": "Language, RTL, timezone, calendar and currency packages",
+    "value": "Make the whole workflow fit the institution's location",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 18,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F61"
+    ],
+    "reuseIssue": "SKO-201",
+    "relatedIssues": [
+      "SKO-183"
+    ]
+  },
+  {
+    "key": "F50",
+    "title": "Configurable curriculum, grading and term structures",
+    "value": "Support national, Cambridge, IB and other school models",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 19,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F49"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F11",
+    "title": "Permanent student identity and enrollment history",
+    "value": "Preserve records through class, campus and year changes",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 20,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F01",
+      "F05"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-206",
+      "SKO-184"
+    ]
+  },
+  {
+    "key": "F32",
+    "title": "Multiple guardians and granular access/consent",
+    "value": "Reflect real families, custody and communication permissions",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 21,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F01",
+      "F11"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F04",
+    "title": "Reversible imports and clear validation",
+    "value": "Staff can catch and correct bulk mistakes",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 22,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F05",
+      "F06",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-194",
+      "SKO-199"
+    ]
+  },
+  {
+    "key": "F09",
+    "title": "Guided school setup and import reconciliation",
+    "value": "Reduce the effort and uncertainty of switching systems",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 23,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F04",
+      "F11",
+      "F32",
+      "F49",
+      "F50",
+      "F80"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-192",
+      "SKO-179"
+    ]
+  },
+  {
+    "key": "F10",
+    "title": "Configurable admission forms and enquiry pipeline",
+    "value": "Track interest through enrollment without duplicate entry",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 24,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F09"
+    ],
+    "reuseIssue": "SKO-205",
+    "relatedIssues": []
+  },
+  {
+    "key": "F40",
+    "title": "Staff hierarchy, workload and absence cover",
+    "value": "Support real reporting lines and staffing decisions",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 25,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F02",
+      "F09"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F64",
+    "title": "Learning resource and document library",
+    "value": "Let teachers distribute approved resources to the correct learners and families",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 26,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F01",
+      "F07",
+      "F09"
+    ],
+    "reuseIssue": "SKO-204",
+    "relatedIssues": []
+  },
+  {
+    "key": "F66",
+    "title": "Global search and reliable directory filters",
+    "value": "Help staff find the correct records with predictable scoped results",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 27,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F01",
+      "F09"
+    ],
+    "reuseIssue": "SKO-191",
+    "relatedIssues": [
+      "SKO-189",
+      "SKO-193"
+    ]
+  },
+  {
+    "key": "F72",
+    "title": "School and campus lifecycle editing",
+    "value": "Support validated create/edit/archive flows with consistent institution details",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 28,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F09",
+      "F67"
+    ],
+    "reuseIssue": "SKO-200",
+    "relatedIssues": [
+      "SKO-175",
+      "SKO-177"
+    ]
+  },
+  {
+    "key": "F77",
+    "title": "Teaching timetable conflicts and publication",
+    "value": "Resolve lesson clashes and publish synchronized schedules to all affected roles",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 29,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F40",
+      "F50"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-91",
+      "SKO-93"
+    ]
+  },
+  {
+    "key": "F78",
+    "title": "Attendance accuracy and exception handling",
+    "value": "Support daily registration, corrections, late arrivals and family follow-up",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 30,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F11",
+      "F32",
+      "F50"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-54",
+      "SKO-56",
+      "SKO-58"
+    ]
+  },
+  {
+    "key": "F68",
+    "title": "Year-end rollover and promotion review",
+    "value": "Preview, approve and reconcile enrollment changes without losing historical records",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 31,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F11",
+      "F50",
+      "F06"
+    ],
+    "reuseIssue": "SKO-198",
+    "relatedIssues": []
+  },
+  {
+    "key": "F17",
+    "title": "Curriculum and learning objective map",
+    "value": "Tie lessons, questions and feedback to what is being taught",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 32,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F50",
+      "F64"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F19",
+    "title": "Reviewed question bank and assessment blueprints",
+    "value": "Reuse quality questions and check syllabus coverage",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 33,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F17"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F18",
+    "title": "AI quiz/test generation with source references",
+    "value": "Produce editable drafts aligned to the chosen content",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 34,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F19",
+      "F63"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F21",
+    "title": "Assignments, submissions and rubrics",
+    "value": "Complete the basic teaching and feedback workflow",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 35,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F17",
+      "F64"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F29",
+    "title": "Assessment accommodations and accessible materials",
+    "value": "Support authorized extra time and different access needs",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 36,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F21",
+      "F08"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F30",
+    "title": "Exam attempts with autosave and recovery",
+    "value": "Prevent lost answers and support reliable submission",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 37,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F19",
+      "F29",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F13",
+    "title": "Exam scheduling, room capacity and invigilation",
+    "value": "Coordinate people and physical space accurately",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 38,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F77",
+      "F50"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F20",
+    "title": "Paper marks scan with teacher-approved import",
+    "value": "Reduce repetitive entry and transcription errors",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 39,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F19",
+      "F04",
+      "F70",
+      "F03"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F23",
+    "title": "Lesson plans and differentiated activity groups",
+    "value": "Help teachers prepare appropriate follow-up work",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 40,
+    "phase": "M3",
+    "phaseName": "03 Teaching and assessment",
+    "dependsOn": [
+      "F17",
+      "F18"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F65",
+    "title": "Messaging and attachment reliability",
+    "value": "Make permitted school conversations, uploads and delivery recoverable",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 41,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F01",
+      "F07",
+      "F32"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-182"
+    ]
+  },
+  {
+    "key": "F71",
+    "title": "Actionable notification center",
+    "value": "Provide mentions, assigned actions and deep links with persistent read/completion state",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 42,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F07",
+      "F61"
+    ],
+    "reuseIssue": "SKO-203",
+    "relatedIssues": []
+  },
+  {
+    "key": "F12",
+    "title": "Principal action queue",
+    "value": "Put unresolved work in front of the responsible person",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 43,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F71",
+      "F78",
+      "F03"
+    ],
+    "reuseIssue": "SKO-202",
+    "relatedIssues": []
+  },
+  {
+    "key": "F25",
+    "title": "Student Today page",
+    "value": "Show lessons, tasks, due dates and the next useful action",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 44,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F21",
+      "F30",
+      "F77"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F31",
+    "title": "Family action inbox across siblings",
+    "value": "Complete school requests from one place",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 45,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F32",
+      "F71"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F35",
+    "title": "Absence explanation, leave and trip consent",
+    "value": "Replace repeated calls and paper permission slips",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 46,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F31",
+      "F78"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F33",
+    "title": "Weekly family digest and short home practice",
+    "value": "Make academic updates understandable and actionable",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 47,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F31",
+      "F03",
+      "F63"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F34",
+    "title": "Parent-teacher meeting booking and follow-up",
+    "value": "Connect a conversation to agreed actions",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 48,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F31",
+      "F77"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F22",
+    "title": "Question-level misconception and item review",
+    "value": "Identify what needs reteaching and which questions were poor",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 49,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F19",
+      "F20",
+      "F30"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F24",
+    "title": "Marking moderation and regrade workflow",
+    "value": "Improve consistency and resolve disputed results",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 50,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F03",
+      "F06",
+      "F21"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F15",
+    "title": "Intervention ownership and reassessment",
+    "value": "Turn concern into action with an outcome record",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 51,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F22",
+      "F31"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F26",
+    "title": "Practice with hints and spaced review",
+    "value": "Build understanding with short revisits of weak skills",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 52,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F22",
+      "F21"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F27",
+    "title": "Feedback and improvement portfolio",
+    "value": "Show progress through work and revisions, not only averages",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 53,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F21",
+      "F24"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F28",
+    "title": "Source-grounded student study assistant",
+    "value": "Explain approved material without revealing restricted answers",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 54,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F63",
+      "F64",
+      "F25"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F73",
+    "title": "School policy assistant with cited answers",
+    "value": "Answer routine policy questions from approved versions and escalate uncertain cases",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 55,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F63",
+      "F64"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F74",
+    "title": "Pilot adoption and value measurement",
+    "value": "Collect workflow timings, correctness, adoption and conversion evidence",
+    "kind": "New",
+    "priority": "P1",
+    "sequence": 56,
+    "phase": "M4",
+    "phaseName": "04 Family and learning outcomes",
+    "dependsOn": [
+      "F09",
+      "F20",
+      "F31"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F36",
+    "title": "Secure fee statements, installments and receipts",
+    "value": "Make family obligations and payments clear",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 57,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F32",
+      "F06"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F37",
+    "title": "Payment reconciliation and duplicate prevention",
+    "value": "Match funds to the correct invoices reliably",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 58,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F36",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F38",
+    "title": "Refunds, credit notes, waivers and approval separation",
+    "value": "Handle financial exceptions without erasing history",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 59,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F37",
+      "F06"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F41",
+    "title": "Payroll provider interfaces and local rules",
+    "value": "Avoid forcing one country's payroll model onto every school",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 60,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F40",
+      "F37"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F42",
+    "title": "Purchasing, budgets and asset maintenance",
+    "value": "Connect requests, approval, receipt and expenditure",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 61,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F37",
+      "F67"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F43",
+    "title": "Library reservations, barcode issue/return and fine policy",
+    "value": "Complete lending operations",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 62,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F11",
+      "F07",
+      "F67"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F44",
+    "title": "Bus boarding, arrival and handover records",
+    "value": "Know which students are on a route and where handover occurred",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 63,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F11",
+      "F32"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F45",
+    "title": "Authorized QR pickup",
+    "value": "Support a verified release process at the school gate",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 64,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F32",
+      "F06",
+      "F07"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F46",
+    "title": "Restricted clinic and safeguarding workflows",
+    "value": "Give designated staff access to appropriate confidential records",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 65,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01",
+      "F32",
+      "F06"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F47",
+    "title": "Facilities requests and internal service desk",
+    "value": "Turn an RFI or maintenance request into assigned, trackable work",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 66,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F71",
+      "F40"
+    ],
+    "reuseIssue": "SKO-197",
+    "relatedIssues": []
+  },
+  {
+    "key": "F48",
+    "title": "Clubs, sports, trips and participation",
+    "value": "Coordinate activities, capacity, payments and consent",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 67,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F35",
+      "F36"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F14",
+    "title": "Substitute teacher and missed-lesson recovery",
+    "value": "Respond to absence and preserve learning continuity",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 68,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F77",
+      "F40",
+      "F25"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F16",
+    "title": "School-group policy templates with controlled local overrides",
+    "value": "Standardize campuses without ignoring local needs",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 69,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F09",
+      "F49",
+      "F50"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F39",
+    "title": "Country-specific tax and invoice packages",
+    "value": "Apply the school's verified local requirements",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 70,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F38",
+      "F49"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F53",
+    "title": "Versioned APIs, webhooks and integration monitoring",
+    "value": "Let schools retain other useful systems",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 71,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F01",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F51",
+    "title": "School identity integration and roster exchange",
+    "value": "Reduce duplicate accounts and data entry",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 72,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F53",
+      "F02"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F52",
+    "title": "Regional hosting and data lifecycle controls",
+    "value": "Support procurement requirements and accountable processing",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 73,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F05",
+      "F63",
+      "F76"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F54",
+    "title": "Low-bandwidth operation and conflict-aware offline capture",
+    "value": "Keep essential work usable when connectivity is poor",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 74,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F06",
+      "F78",
+      "F21"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F55",
+    "title": "Safe Exam Browser integration",
+    "value": "Offer a controlled exam environment on supported devices",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 75,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F30",
+      "F29"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F56",
+    "title": "Improvement and accreditation evidence workspace",
+    "value": "Assemble traceable records of actions and outcomes",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 76,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F15",
+      "F27"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F69",
+    "title": "Peak-load performance and tenant fairness",
+    "value": "Validate school-day workloads and protect interactive work from noisy neighbors",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 77,
+    "phase": "M6",
+    "phaseName": "06 Global and integrations",
+    "dependsOn": [
+      "F70",
+      "F30",
+      "F37",
+      "F53"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F75",
+    "title": "LEAP demo, case studies and launch readiness",
+    "value": "Present verified workflows with synthetic demo data and audience-specific materials",
+    "kind": "New",
+    "priority": "P2",
+    "sequence": 78,
+    "phase": "M7",
+    "phaseName": "07 LEAP and launch readiness",
+    "dependsOn": [
+      "F20",
+      "F18",
+      "F31",
+      "F49",
+      "F69",
+      "F74",
+      "F62",
+      "F02",
+      "F76",
+      "F82"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F57",
+    "title": "Capacity and staffing scenario planning",
+    "value": "Explore enrollment, rooms and timetable constraints",
+    "kind": "New",
+    "priority": "P3",
+    "sequence": 79,
+    "phase": "M8",
+    "phaseName": "08 Advanced expansion",
+    "dependsOn": [
+      "F13",
+      "F40",
+      "F77"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F58",
+    "title": "Teacher question-quality review network",
+    "value": "Share reviewed resources under clear licensing and access rules",
+    "kind": "New",
+    "priority": "P3",
+    "sequence": 80,
+    "phase": "M8",
+    "phaseName": "08 Advanced expansion",
+    "dependsOn": [
+      "F19",
+      "F24",
+      "F53"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F59",
+    "title": "Careers, counseling and alumni pathways",
+    "value": "Serve secondary-school progression needs",
+    "kind": "New",
+    "priority": "P3",
+    "sequence": 81,
+    "phase": "M8",
+    "phaseName": "08 Advanced expansion",
+    "dependsOn": [
+      "F27",
+      "F46"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  },
+  {
+    "key": "F60",
+    "title": "Optional canteen, boarding and specialist school packages",
+    "value": "Extend only where the school segment needs them",
+    "kind": "Extend",
+    "priority": "P3",
+    "sequence": 82,
+    "phase": "M8",
+    "phaseName": "08 Advanced expansion",
+    "dependsOn": [
+      "F36",
+      "F44",
+      "F46"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": []
+  }
+]

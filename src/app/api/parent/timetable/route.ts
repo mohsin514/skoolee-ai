@@ -1,23 +1,16 @@
+import { loadCampusLocaleTimeline } from "@/lib/locale/store";
+import { errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { resolveParentScope } from "@/lib/parent/resolve-child";
+import { withParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
-async function resolveClassId(req: NextRequest): Promise<string | null> {
-  const { studentId } = await resolveParentScope(req);
-  if (!studentId) return null;
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: { classId: true },
-  });
-  return student?.classId || null;
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const classId = await resolveClassId(req);
+    return await withParentScope(req, async ({ studentId }) => {
+    const student = await prisma.student.findFirst({ where: { id: studentId! }, select: { classId: true } });
+    const classId = student?.classId;
     if (!classId) {
       return Response.json({ success: true, data: null });
     }
@@ -40,17 +33,15 @@ export async function GET(req: NextRequest) {
       return Response.json({ success: true, data: null });
     }
 
-    const weekends = await prisma.weekend.findMany({
-      where: { campusId: timetable.class.campusId },
-      select: { dayOfWeek: true },
-    });
+    const localeAt = await loadCampusLocaleTimeline(timetable.class.campusId);
+    const weekends = localeAt().weekend.map((day) => day || 7);
 
     return Response.json({
       success: true,
       data: {
         className: timetable.class.name,
         classSection: timetable.class.section,
-        weekends: weekends.map((w) => w.dayOfWeek).sort(),
+        weekends: weekends.sort(),
         slots: timetable.slots.map((s) => ({
           dayOfWeek: s.dayOfWeek,
           periodNumber: s.periodNumber,
@@ -63,7 +54,8 @@ export async function GET(req: NextRequest) {
         })),
       },
     });
-  } catch {
-    return Response.json({ error: "Failed to load timetable" }, { status: 500 });
+    });
+  } catch (error) {
+    return errorResponse(error, "Failed to load timetable");
   }
 }

@@ -12,6 +12,11 @@ import { rateLimit } from "@/lib/rate-limit";
 import { runUnscoped } from "@/lib/db/tenant-context";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_DAYS,
+  sessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 export async function POST(req: NextRequest) {
   // Login is inherently cross-tenant: the school is unknown until the
@@ -46,7 +51,7 @@ async function handleLogin(req: NextRequest) {
     // it lengthens the session rather than silently defaulting to it. Cookie
     // maxAge, JWT expiry and the recorded session row all have to agree —
     // a cookie that outlives its token just logs people out mid-task.
-    const sessionDays = rememberMe ? 30 : 7;
+    const sessionDays = rememberMe ? SESSION_DAYS.remembered : SESSION_DAYS.default;
 
     // 1. Find every account on this address.
     //
@@ -127,6 +132,7 @@ async function handleLogin(req: NextRequest) {
     const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
     const token = await new SignJWT({
       userId: user.id,
+      accessVersion: user.accessVersion,
       email: user.email,
       fullName: user.fullName,
       role: user.role,
@@ -188,13 +194,7 @@ async function handleLogin(req: NextRequest) {
       },
     });
 
-    res.cookies.set("skoolee_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * sessionDays,
-      path: "/",
-    });
+    res.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieAttributes(sessionDays));
 
     return res;
   } catch (error) {

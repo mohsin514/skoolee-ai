@@ -23,6 +23,8 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 // ─── shared bits ─────────────────────────────────────────
 
@@ -298,19 +300,19 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">1 · Institution</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="School / group name" required>
-              <input className={inputCls} value={form.schoolName} autoFocus
+              <SystemInput className={inputCls} value={form.schoolName} autoFocus
                 onChange={(e) => set("schoolName", e.target.value)} placeholder="Beaconhouse Garden Town" />
             </Field>
             <Field label="City" required>
-              <input className={inputCls} value={form.city}
+              <SystemInput className={inputCls} value={form.city}
                 onChange={(e) => set("city", e.target.value)} placeholder="Lahore" />
             </Field>
             <Field label="Contact email" hint="defaults to owner email">
-              <input className={inputCls} type="email" value={form.contactEmail}
+              <SystemInput className={inputCls} type="email" value={form.contactEmail}
                 onChange={(e) => set("contactEmail", e.target.value)} placeholder="info@school.edu.pk" />
             </Field>
             <Field label="Phone">
-              <input className={inputCls} value={form.phone}
+              <SystemInput className={inputCls} value={form.phone}
                 onChange={(e) => set("phone", e.target.value)} placeholder="+92 300 1234567" />
             </Field>
           </div>
@@ -320,16 +322,16 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">2 · First campus</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Campus name" hint="auto">
-              <input className={inputCls} value={form.campusName}
+              <SystemInput className={inputCls} value={form.campusName}
                 onChange={(e) => set("campusName", e.target.value)}
                 placeholder={form.schoolName ? `${form.schoolName} — Main` : "Main Campus"} />
             </Field>
             <Field label="Campus city" hint="auto">
-              <input className={inputCls} value={form.campusCity}
+              <SystemInput className={inputCls} value={form.campusCity}
                 onChange={(e) => set("campusCity", e.target.value)} placeholder={form.city || "Lahore"} />
             </Field>
             <Field label="Board">
-              <input className={inputCls} value={form.board}
+              <SystemInput className={inputCls} value={form.board}
                 onChange={(e) => set("board", e.target.value)} placeholder="FBISE" />
             </Field>
           </div>
@@ -339,17 +341,17 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">3 · Owner account</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" required>
-              <input className={inputCls} value={form.ownerName}
+              <SystemInput className={inputCls} value={form.ownerName}
                 onChange={(e) => set("ownerName", e.target.value)} placeholder="Ayesha Khan" />
             </Field>
             <Field label="Login email" required>
-              <input className={inputCls} type="email" value={form.ownerEmail}
+              <SystemInput className={inputCls} type="email" value={form.ownerEmail}
                 onChange={(e) => set("ownerEmail", e.target.value)} placeholder="ayesha@school.edu.pk" />
             </Field>
           </div>
           <Field label="Temporary password" hint="user must change it on first sign-in">
             <div className="flex gap-2">
-              <input className={`${inputCls} font-mono`} value={password}
+              <SystemInput className={`${inputCls} font-mono`} value={password}
                 onChange={(e) => setPassword(e.target.value)} />
               <button onClick={() => setPassword(makePassword())} type="button"
                 aria-label="Regenerate password"
@@ -526,13 +528,13 @@ export function AddUserModal({
         {error && <ErrorBanner message={error} />}
 
         <Field label="School" required>
-          <select className={`${inputCls} cursor-pointer`} value={form.schoolId}
+          <SystemSelect className={`${inputCls} cursor-pointer`} value={form.schoolId}
             onChange={(e) => set("schoolId", e.target.value)}>
             <option value="">Select a school…</option>
             {schools.map((s) => (
               <option key={s.id} value={s.id}>{s.name}{s.plan ? ` · ${getPlanLimits(s.plan).name}` : ""}</option>
             ))}
-          </select>
+          </SystemSelect>
         </Field>
 
         <Field label="Role" required>
@@ -562,12 +564,12 @@ export function AddUserModal({
             hint={!form.schoolId ? "pick a school first" : undefined}
             error={form.schoolId && campuses.length === 0 ? "This school has no campuses yet." : undefined}
           >
-            <select className={`${inputCls} cursor-pointer disabled:opacity-50`} value={form.campusId}
+            <SystemSelect className={`${inputCls} cursor-pointer disabled:opacity-50`} value={form.campusId}
               disabled={!form.schoolId || campuses.length === 0}
               onChange={(e) => set("campusId", e.target.value)}>
               <option value="">Select a campus…</option>
               {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </SystemSelect>
           </Field>
         )}
 
@@ -579,23 +581,23 @@ export function AddUserModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Full name" required>
-            <input className={inputCls} value={form.fullName}
+            <SystemInput className={inputCls} value={form.fullName}
               onChange={(e) => set("fullName", e.target.value)} placeholder="Bilal Ahmed" />
           </Field>
           <Field label="Phone">
-            <input className={inputCls} value={form.phone}
+            <SystemInput className={inputCls} value={form.phone}
               onChange={(e) => set("phone", e.target.value)} placeholder="+92 300 1234567" />
           </Field>
         </div>
 
         <Field label="Login email" required>
-          <input className={inputCls} type="email" value={form.email}
+          <SystemInput className={inputCls} type="email" value={form.email}
             onChange={(e) => set("email", e.target.value)} placeholder="bilal@school.edu.pk" />
         </Field>
 
         <Field label="Temporary password" hint="user must change it on first sign-in">
           <div className="flex gap-2">
-            <input className={`${inputCls} font-mono`} value={password}
+            <SystemInput className={`${inputCls} font-mono`} value={password}
               onChange={(e) => setPassword(e.target.value)} />
             <button onClick={() => setPassword(makePassword())} type="button"
               aria-label="Regenerate password"

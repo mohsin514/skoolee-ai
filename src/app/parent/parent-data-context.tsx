@@ -44,6 +44,7 @@ interface AttendanceData {
 }
 
 interface FeeItem {
+  currency: string;
   id: string;
   invoiceNumber: string | null;
   totalAmount: number;
@@ -54,6 +55,7 @@ interface FeeItem {
 }
 
 export interface ParentData {
+  navigationAccess: Record<string, boolean>;
   student: {
     fullName: string;
     rollNo: string;

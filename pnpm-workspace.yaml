@@ -1,3 +1,8 @@
+# Single-package repo (no sub-packages). The explicit empty `packages` list
+# stops pnpm's `store path` from erroring "packages field missing or empty"
+# (which broke setup-node's pnpm cache in CI).
+packages: []
+
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true

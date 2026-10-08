@@ -7,26 +7,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "relative overflow-hidden sk-sweep-trigger inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf0fe] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-normal rounded-2xl text-sm font-bold transition-[background-color,border-color,box-shadow,transform] duration-200 enabled:active:scale-[0.98] motion-reduce:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-ink-muted disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98]",
-        destructive:
-          "bg-rose-500 text-white shadow-lg shadow-rose-500/15 hover:bg-rose-600 active:scale-[0.98]",
-        outline:
-          "border border-[#cfc2d6]/30 bg-white/60 text-ink shadow-sm hover:border-[#8127cf]/30 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-[0.98]",
-        secondary:
-          "bg-[#fbf0fe] text-[#8127cf] shadow-sm hover:bg-[#eadfed] active:scale-[0.98]",
-        ghost: "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]",
-        link: "text-[#8127cf] underline-offset-4 hover:underline",
+        default: "border border-[#6d22b4] bg-primary bg-gradient-to-b from-[#8c36d5] to-[#7423ba] text-primary-foreground shadow-[0_7px_15px_-7px_rgba(106,31,176,0.6),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(56,12,99,0.15)] enabled:hover:border-[#5d149f] enabled:hover:from-[#812aca] enabled:hover:to-[#6820aa] enabled:hover:shadow-[0_9px_20px_-7px_rgba(106,31,176,0.55),inset_0_1px_0_rgba(255,255,255,0.3)] enabled:active:shadow-[0_2px_6px_-2px_rgba(106,31,176,0.45),inset_0_1px_3px_rgba(56,12,99,0.2)] disabled:bg-none",
+        dark: "border border-[#1f1a23] bg-[#1f1a23] text-white shadow-md enabled:hover:bg-black",
+        destructive: "border border-destructive bg-destructive text-destructive-foreground shadow-[0_4px_10px_-6px_rgba(153,27,27,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] enabled:hover:bg-red-900",
+        outline: "border border-[#d8cfe5] bg-white text-ink shadow-[0_2px_3px_-2px_rgba(55,27,77,0.16),inset_0_1px_0_white] enabled:hover:border-[#b59bce] enabled:hover:bg-[#faf5ff] enabled:hover:text-primary enabled:hover:shadow-[0_5px_12px_-8px_rgba(90,42,128,0.35)]",
+        secondary: "border border-[#e3d5f0] bg-[#f1e7fb] text-[#7020b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] enabled:hover:border-[#cdb2e6] enabled:hover:bg-[#eaddf6]",
+        ghost: "text-ink enabled:hover:bg-[#f3ecfa] enabled:hover:text-primary",
+        link: "text-primary underline-offset-4 enabled:hover:underline",
       },
       size: {
-        default: "h-11 px-4 py-2",
-        sm: "h-9 rounded-lg px-3 text-xs",
-        lg: "h-14 rounded-xl px-8 text-base",
-        icon: "h-10 w-10",
+        default: "min-h-11 px-4 py-2.5",
+        sm: "min-h-11 rounded-xl px-3 text-xs",
+        lg: "min-h-14 rounded-2xl px-8 py-3 text-base",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: {
@@ -48,9 +45,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {variant === "default" && !props.disabled && (
-          <span aria-hidden className="sk-sweep bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-        )}
         {props.children}
       </button>
     );

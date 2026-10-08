@@ -1,14 +1,15 @@
 'use server'
 
+import { getAuthUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { inviteStaff } from "./invite";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { DEFAULT_EXAM_BOARD } from "@/config/boards";
 
-import { JWT_SECRET } from "@/lib/auth/secret";
 
 export interface AddCampusInput {
   name: string;
@@ -35,10 +36,11 @@ function optional(value?: string) {
 
 export async function addCampus(input: AddCampusInput) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("Unauthorized");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
   if (payload.role !== "SUPER_ADMIN" && payload.role !== "ADMIN") throw new Error("Permission Denied");
 
   const name = input.name?.trim();
@@ -48,14 +50,20 @@ export async function addCampus(input: AddCampusInput) {
 
   const email = optional(input.email);
   if (email && !EMAIL_PATTERN.test(email)) throw new Error("Enter a valid campus email address.");
+  
+  const phone = optional(input.phone);
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 7) throw new Error("Phone number is too short to be valid.");
+    if (digits.length > 15) throw new Error("Phone number is too long to be valid.");
+  }
+  
   const adminEmail = optional(input.adminEmail);
   if (adminEmail && !EMAIL_PATTERN.test(adminEmail)) throw new Error("Enter a valid campus admin email address.");
 
   const schoolId = String(payload.schoolId);
-  // This action decodes the JWT directly instead of going through
-  // getAuthUser(), so it must bind the tenant context itself before touching
-  // the database, or the guard will (correctly) refuse the query.
-  enterTenantContext({ schoolId, userId: String(payload.userId || "") });
+  // Bind current membership before touching tenant records.
+  enterTenantContext({ schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
   await assertPlanCapacity({ schoolId, metric: "campuses" });
 
   const finalRegId = (optional(input.regId) || `BR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`).toUpperCase();

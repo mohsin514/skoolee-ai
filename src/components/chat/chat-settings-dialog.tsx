@@ -13,6 +13,7 @@ import { Loader2, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
+import { Input as SystemInput } from "@/components/ui/input";
 
 interface ChatSettingsDialogProps {
   open: boolean;
@@ -231,7 +232,7 @@ function TimeField({
       <label htmlFor={id} className="block text-[10px] font-black uppercase tracking-wide text-ink-faint">
         {label}
       </label>
-      <input
+      <SystemInput
         id={id}
         type="time"
         value={value}

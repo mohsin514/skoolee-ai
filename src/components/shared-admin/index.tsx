@@ -1,4 +1,8 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { InputGroup } from "@/components/ui/input-group";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -71,6 +75,10 @@ import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-conflicts-banner";
 // The roster grew its own file once it gained table view, multi-select and
 // bulk actions; the import path is unchanged.
@@ -344,7 +352,7 @@ export function LeadershipPanel({
         {/* Donut + Campus Identity */}
         <div className="space-y-6">
           {/* Donut Chart */}
-          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "80ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Leadership</p>
@@ -398,7 +406,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Campus Identity */}
-          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Identity</p>
@@ -437,7 +445,7 @@ export function LeadershipPanel({
         {/* Admin Team & Principal Panel */}
         <div className="space-y-6">
           {/* Admin Team + Pending In One Card */}
-          <div className="sk-rise bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Team</p>
@@ -474,7 +482,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Principal Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel p-6 border-[#cfc2d6]/10">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Authority</p>
@@ -528,7 +536,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Operations Staff Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel p-6 border-[#cfc2d6]/10">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Operations</p>
@@ -1037,7 +1045,7 @@ export function ExamDetailModal({
                         { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
                         { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-ink" },
                       ].map((s) => (
-                        <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                        <div key={s.label} className="sk-panel p-5">
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
@@ -1052,7 +1060,7 @@ export function ExamDetailModal({
                     </div>
 
                     {analytics.subjectAverages?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
                         <div className="space-y-3">
                           {analytics.subjectAverages.map((sa: any) => {
@@ -1076,7 +1084,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.topStudents?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
                         <div className="space-y-2">
                           {analytics.topStudents.map((ts: any, idx: number) => (
@@ -1096,7 +1104,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.needsAttention?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
                         <div className="space-y-2">
                           {analytics.needsAttention.map((ns: any) => (
@@ -1526,7 +1534,7 @@ export function ReportCardsPanel({
                   onSelect?.(report);
                 }
               }}
-              className="sk-rise group/report cursor-pointer rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-panel sk-rise group/report cursor-pointer p-5 transition-all duration-300 hover:-translate-y-0.5"
               style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -1735,7 +1743,7 @@ export function FacultyPanel({
         />
       </div>
 
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel sk-rise p-6">
         <div className="mb-5 flex flex-wrap items-center gap-2.5">
           <SearchField
             value={searchQuery}
@@ -2008,7 +2016,7 @@ export function AIPanel({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden" style={{ animationDelay: "80ms" }}>
+      <div className="sk-panel sk-rise p-6 relative overflow-hidden" style={{ animationDelay: "80ms" }}>
         <CornerSparkles />
         <AiActionPanel title={title} options={features} compact onComplete={onComplete} />
       </div>
@@ -2667,6 +2675,36 @@ const STUDENT_STATUS_CHANGES = {
 
 type StudentStatusChange = keyof typeof STUDENT_STATUS_CHANGES;
 
+function studentDraftValues(record: any): Record<string, string> {
+  return {
+      fullName: record.fullName || "",
+      nameUr: record.nameUr || "",
+      rollNo: record.rollNo || "",
+      dateOfBirth: record.dateOfBirth ? new Date(record.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: record.gender || "",
+      bloodType: record.bloodType || "",
+      nationality: record.nationality || "",
+      phone: record.phone || "",
+      guardianName: record.guardianName || "",
+      guardianNameUr: record.guardianNameUr || "",
+      guardianPhone: record.guardianPhone || "",
+      guardianEmail: record.guardianEmail || "",
+      guardianRelationship: record.guardianRelationship || "",
+      guardianOccupation: record.guardianOccupation || "",
+      city: record.city || "",
+      province: record.province || "",
+      postalCode: record.postalCode || "",
+      address: record.address || "",
+      medicalNotes: record.medicalNotes || "",
+      specialNeeds: record.specialNeeds || "",
+      allergies: record.allergies || "",
+      medications: record.medications || "",
+      previousSchool: record.previousSchool || "",
+      categoryId: record.category?.id || "",
+      groupId: record.group?.id || "",
+  };
+}
+
 export function StudentDetailModal({
   student: summary,
   busy,
@@ -2687,6 +2725,7 @@ export function StudentDetailModal({
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   // The roster carries a summary; address, medical notes, allergies,
   // medications and special needs live only on the full record and are fetched
   // when a profile is actually opened. Render the summary immediately and merge
@@ -2782,38 +2821,19 @@ export function StudentDetailModal({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  useEffect(() => {
-    setEdits({
-      fullName: student.fullName || "",
-      nameUr: student.nameUr || "",
-      rollNo: student.rollNo || "",
-      dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
-      gender: student.gender || "",
-      bloodType: student.bloodType || "",
-      nationality: student.nationality || "",
-      phone: student.phone || "",
-      guardianName: student.guardianName || "",
-      guardianNameUr: student.guardianNameUr || "",
-      guardianPhone: student.guardianPhone || "",
-      guardianEmail: student.guardianEmail || "",
-      guardianRelationship: student.guardianRelationship || "",
-      guardianOccupation: student.guardianOccupation || "",
-      city: student.city || "",
-      province: student.province || "",
-      postalCode: student.postalCode || "",
-      address: student.address || "",
-      medicalNotes: student.medicalNotes || "",
-      specialNeeds: student.specialNeeds || "",
-      allergies: student.allergies || "",
-      medications: student.medications || "",
-      previousSchool: student.previousSchool || "",
-      categoryId: student.category?.id || "",
-      groupId: student.group?.id || "",
-    });
-    // Reseeds when the full record lands. saveEdits writes every string field
-    // as `edits[f] || null`, so seeding once from the summary and saving would
-    // erase address, medical notes, allergies and medications outright.
-  }, [student.id, full]);
+  const baseline = studentDraftValues(student);
+  const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
+    values: edits, baseline,
+    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
+    apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
+    current: async () => {
+      const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
+      return studentDraftValues(result.data);
+    },
+  });
+  useEffect(() => { setEdits(studentDraftValues(student)); }, [student.id, full]);
 
   const ed = (field: string) => edits[field] || "";
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
@@ -2833,8 +2853,18 @@ export function StudentDetailModal({
     if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
     updates.categoryId = edits.categoryId || null;
     updates.groupId = edits.groupId || null;
-    await onUpdate(student.id, updates);
-    setEditing(false);
+    updates.expectedValues = pupilDraft.baseline;
+    try {
+      await onUpdate(student.id, updates);
+      // Some legacy callers catch their own request failure. Verify durability
+      // before deleting the only recoverable copy of the input.
+      const response = await fetch(`/api/students/${student.id}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
+      const saved = studentDraftValues(result.data);
+      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
+      pupilDraft.markSaved(); setFull(result.data); setEditing(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed. Your draft is retained."); }
   };
 
   const formatDob = (d: any) => {
@@ -2879,6 +2909,7 @@ export function StudentDetailModal({
       }
       tone={isActive ? "violet" : "amber"}
       onClose={onClose}
+      dirty={pupilDraft.dirty}
       headerActions={
         sequence && onNavigate ? (
           <ModalPager
@@ -2961,6 +2992,7 @@ export function StudentDetailModal({
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
         </button>
       </div>
+      <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
       {detailError ? (
         <p
           role="alert"
@@ -2972,14 +3004,14 @@ export function StudentDetailModal({
       ) : null}
 
       {parentLink && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">
-          <ExternalLink className="h-4 w-4 text-emerald-600 shrink-0" />
-          <input type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
-          <button type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
+        <InputGroup surfaceClassName="bg-emerald-50" className="my-2">
+          <ExternalLink data-field-affix="start" className="h-4 w-4 text-emerald-600 shrink-0" />
+          <SystemInput type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
+          <button data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
             {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {linkCopied ? "Copied!" : "Copy"}
           </button>
-        </div>
+        </InputGroup>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -3101,7 +3133,7 @@ export function StudentDetailModal({
           ) : (
             <div className="mt-4 space-y-3">
               <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(student.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(student.gender)} />
               <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
               <DetailRow label="Nationality" value={student.nationality || "N/A"} />
@@ -3632,6 +3664,7 @@ export function TeacherDetailModal({
   onClose: () => void;
   onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -4003,7 +4036,7 @@ export function TeacherDetailModal({
                 editable, accepted nothing, and gave no reason why.
               */}
               <div>
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Email</span>
+                <span className="sk-field-label">Email</span>
                 <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-ink-muted">
                   <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
                   <span className="truncate">{teacher.email || "No email"}</span>
@@ -4029,7 +4062,7 @@ export function TeacherDetailModal({
               <DetailRow label="Email" value={teacher.email || "N/A"} />
               <DetailRow label="Phone" value={teacher.phone || "N/A"} />
               <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
-              <DetailRow label="Date of Birth" value={formatDate(teacher.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(teacher.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
             </div>
           )}
@@ -4079,7 +4112,7 @@ export function TeacherDetailModal({
                 value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
               />
               <DetailRow label="Experience" value={teacher.experience || "N/A"} />
-              <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
+              <DetailRow label="Joining Date" value={formatCalendarDate(teacher.joiningDate)} />
             </div>
           )}
         </div>
@@ -4379,17 +4412,17 @@ function AmountRowsEditor({
   };
   return (
     <div>
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{title}</span>
+      <span className="sk-field-label">{title}</span>
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div key={index} className="flex items-center gap-2">
-            <input
+            <SystemInput
               value={row.name}
               placeholder="Label"
               onChange={(e) => update(index, "name", e.target.value)}
               className="h-10 min-w-0 flex-1 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40 focus:bg-white"
             />
-            <input
+            <SystemInput
               value={row.amount}
               type="number"
               placeholder="Rs"
@@ -4556,8 +4589,8 @@ export function FormInput({
 }) {
   return (
     <label className="block group/input">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/input:text-[#8127cf]">{label}</span>
-      <input
+      <span className="sk-field-label">{label}</span>
+      <SystemInput
         type={type}
         value={value}
         placeholder={placeholder}
@@ -4581,14 +4614,14 @@ export function FormSelect({
 }) {
   return (
     <label className="block group/select">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/select:text-[#8127cf]">{label}</span>
-      <select
+      <span className="sk-field-label">{label}</span>
+      <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)] hover:border-[#cfc2d6]/40"
       >
         {children}
-      </select>
+      </SystemSelect>
     </label>
   );
 }
@@ -4652,7 +4685,7 @@ export function ClassGroupCard({
 
   return (
     <div className={cn(
-      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
+      "sk-panel sk-rise group transition-all self-start",
       open
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10",
@@ -4757,7 +4790,7 @@ export function ClassGroupCard({
           <div className="pt-2">
             {addingSection ? (
               <div className="flex items-center gap-2">
-                <input
+                <SystemInput
                   type="text"
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
@@ -5196,7 +5229,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
 
   return (
     <div className={cn(
-      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
+      "sk-panel sk-rise group transition-all self-start",
       open
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
@@ -5594,7 +5627,7 @@ export function SpecialtyEditor({
             ) : null}
           </div>
           <div className="flex gap-2">
-            <input
+            <SystemInput
               type="text"
               value={draft}
               onChange={(e) => onDraftChange(e.target.value)}
@@ -5858,7 +5891,7 @@ function TagListCard({
   onViewStudents?: (item: any) => void;
 }) {
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
@@ -6010,8 +6043,8 @@ function TagFormModal({
         />
         {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Description</span>
-          <textarea
+          <span className="sk-field-label">Description</span>
+          <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
@@ -6240,7 +6273,7 @@ export function AdmissionQueriesPanel({
   );
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5">
         {/* Same header anatomy as the academics overview: icon tile, eyebrow,
             title, and the one action that starts new work. */}
@@ -6728,8 +6761,8 @@ function NewQueryModal({
           </FormSelect>
         </div>
         <label className="block">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</span>
-          <textarea
+          <span className="sk-field-label">Note</span>
+          <SystemTextarea
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="What is this enquiry about?"
@@ -6965,7 +6998,7 @@ function QueryDetailModal({
           </div>
           <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
             <p className="mb-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
-            <textarea
+            <SystemTextarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What happened on this call / visit?"
@@ -6973,8 +7006,8 @@ function QueryDetailModal({
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
-                <span className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Next follow-up</span>
-                <input
+                <span className="sk-field-label">Next follow-up</span>
+                <SystemInput
                   type="date"
                   value={nextDate}
                   onChange={(e) => setNextDate(e.target.value)}
@@ -7098,7 +7131,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   };
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Archive} title="Archived & Inactive Students" />
         <div className="flex items-center gap-2 pb-1.5">
@@ -7202,8 +7235,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
               className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4 transition-all duration-300 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <input
-                type="checkbox"
+              <SystemCheckbox
+
                 checked={selected.has(s.id)}
                 onChange={() =>
                   setSelected((prev) => {
@@ -7581,7 +7614,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
   };
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       {/* Header matches the academics overview. */}
       <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -7600,7 +7633,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
               Year
-              <input
+              <SystemInput
                 type="number"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
@@ -7730,7 +7763,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       ) : tab === "requests" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SystemSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -7740,7 +7773,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
               <option value="CANCELLED">Cancelled</option>
-            </select>
+            </SystemSelect>
             <SearchField
               value={requestSearch}
               onChange={setRequestSearch}
@@ -7779,7 +7812,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 </span>
                 {r.status === "PENDING" ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <input
+                    <SystemInput
                       type="text"
                       value={reviewNotes[r.id] || ""}
                       onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
@@ -7788,8 +7821,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       className="h-10 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-3 text-xs font-bold outline-none focus:border-[#8127cf]/40"
                     />
                     <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <SystemCheckbox
+
                         checked={Boolean(overrides[r.id])}
                         onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
                         className="h-3.5 w-3.5 accent-[#8127cf]"
@@ -7833,7 +7866,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
                     Default
-                    <input
+                    <SystemInput
                       type="number"
                       defaultValue={t.defaultDaysDisplay}
                       onBlur={(e) => {
@@ -8171,11 +8204,11 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
   }, [run]);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Banknote} title="Payroll" />
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <SystemSelect
             value={String(month)}
             onChange={(e) => setMonth(Number(e.target.value))}
             className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8185,8 +8218,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {new Date(0, i).toLocaleString("default", { month: "short" })}
               </option>
             ))}
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={String(year)}
             onChange={(e) => setYear(Number(e.target.value))}
             className="h-10 w-28 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8196,8 +8229,8 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {y}
               </option>
             ))}
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={role}
             onChange={(e) => setRole(e.target.value)}
             className="h-10 w-40 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -8207,7 +8240,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 {r ? r.replace("_", " ") : "All roles"}
               </option>
             ))}
-          </select>
+          </SystemSelect>
           <BrandButton variant="dark" icon={<Sparkles className="h-4 w-4" />} onClick={generate} disabled={generating}>
             {generating ? "Generating…" : run ? "Regenerate" : "Generate Payroll"}
           </BrandButton>
@@ -8382,7 +8415,7 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   }
   return (
     <td className="py-1 px-3 text-right">
-      <input
+      <SystemInput
         className="w-24 rounded-lg border border-[#cfc2d6]/25 bg-white px-2 py-1 text-right text-sm font-semibold text-ink focus:border-[#8127cf] focus:outline-none"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -8632,7 +8665,7 @@ export function RolePermissionsPanel() {
   }, [modules, search]);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       {/* Header matches the academics overview. */}
       <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -8714,7 +8747,7 @@ export function RolePermissionsPanel() {
           />
           {/* Setting a role up from scratch is seventeen rows of clicking. Most
               new roles are "like the accountant, minus payroll". */}
-          <select
+          <SystemSelect
             value={copyFrom}
             onChange={(e) => setCopyFrom(e.target.value)}
             aria-label="Copy permissions from another role"
@@ -8725,7 +8758,7 @@ export function RolePermissionsPanel() {
             {PERM_ROLES.filter((r) => r.id !== activeRole).map((r) => (
               <option key={r.id} value={r.id}>{r.label}</option>
             ))}
-          </select>
+          </SystemSelect>
           <BrandButton
             variant="soft"
             icon={<Copy className="h-4 w-4" />}
@@ -9023,7 +9056,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
   const breakMinutes = Math.max(0, dayLength - teachingMinutes);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Clock} title="Class & Exam Time Setup" />
         <div className="flex flex-wrap items-center gap-2">
@@ -9051,7 +9084,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Period #</label>
-            <input
+            <SystemInput
               type="number"
               min={1}
               className="h-10 w-20 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9061,7 +9094,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           </div>
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
-            <input
+            <SystemInput
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.startTime}
@@ -9070,7 +9103,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           </div>
           <div>
             <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
-            <input
+            <SystemInput
               type="time"
               className="h-10 w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               value={form.endTime}
@@ -9151,7 +9184,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 {p.periodNumber}
               </span>
               <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
-              <input
+              <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} start time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -9171,7 +9204,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                 }}
               />
               <span className="text-xs font-bold text-ink-subtle">to</span>
-              <input
+              <SystemInput
                 type="time"
                 aria-label={`Period ${p.periodNumber} end time`}
                 className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-white px-2.5 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"

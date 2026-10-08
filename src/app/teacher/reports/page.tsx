@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +15,7 @@ import {
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { Input as SystemInput } from "@/components/ui/input";
 
 export default function ReportsPage() {
   const { data, loading, error, loadData } = useTeacherData();
@@ -189,7 +192,7 @@ export default function ReportsPage() {
             {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
               const rcCount = exam.reportCards || 0;
               return (
-                <div key={exam.id} className="sk-rise group relative rounded-2xl bg-white border border-[#cfc2d6]/25 p-4 transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${index * 80}ms` }} title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
+                <div key={exam.id} className="sk-panel sk-rise group relative p-4 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden" style={{ animationDelay: `${index * 80}ms` }} title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-600 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -207,7 +210,7 @@ export default function ReportsPage() {
               );
             })}
             {!data.lockedExams?.length && (
-              <div className="col-span-full rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="sk-panel col-span-full p-8 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
                   <FileText className="h-7 w-7" />
                 </div>
@@ -239,9 +242,9 @@ export default function ReportsPage() {
             </p>
             {allCards.length > 0 ? (
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[190px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                  <input
+                <InputGroup surfaceClassName="bg-white" className="relative min-w-[190px]">
+                  <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+                  <SystemInput
                     value={cardQuery}
                     onChange={(e) => setCardQuery(e.target.value)}
                     placeholder="Student, roll no or exam…"
@@ -249,12 +252,12 @@ export default function ReportsPage() {
                     className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
                   />
                   {cardQuery ? (
-                    <button type="button" onClick={() => setCardQuery("")} aria-label="Clear report card search"
+                    <button data-field-affix="end" type="button" onClick={() => setCardQuery("")} aria-label="Clear report card search"
                       className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                       <X className="h-3 w-3" />
                     </button>
                   ) : null}
-                </div>
+                </InputGroup>
                 {cardStatuses.length > 1 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {["", ...cardStatuses].map((st) => (
@@ -283,7 +286,7 @@ export default function ReportsPage() {
             {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any, index: number) => (
               <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className={cn(
-                  "sk-rise group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
+                  "sk-panel sk-rise group relative w-full cursor-pointer p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99]",
                   "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 )}

@@ -1,4 +1,8 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+import { cn } from "@/lib/utils";
+
+import { pageCardSurface } from "@/components/ui/page-card";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -31,12 +35,12 @@ import {
   type LucideIcon,
   Network,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 import { addCampus } from "@/app/actions/addCampus";
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
@@ -58,6 +62,8 @@ import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dash
 import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -93,7 +99,6 @@ const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36)
 
 type SuperView = "schools" | "billing" | "fees" | "settings";
 export default function SuperAdminDashboard() {
-  const router = useRouter();
   const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
@@ -108,13 +113,13 @@ export default function SuperAdminDashboard() {
     website: "",
     principalName: "",
     board: DEFAULT_EXAM_BOARD as string,
-    regId: "",
+    regId: generateRegId(),
     autoId: true,
     adminEmail: "",
   });
   const emptyCampusForm = {
     name: "", city: "", address: "", phone: "", email: "", website: "",
-    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: "", autoId: true, adminEmail: "",
+    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: generateRegId(), autoId: true, adminEmail: "",
   };
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
@@ -155,11 +160,10 @@ export default function SuperAdminDashboard() {
     }
   }, []);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   const syncSuperUrl = (view: SuperView) => {
     const query =
       view === "billing" ? "?view=billing"
@@ -218,6 +222,35 @@ export default function SuperAdminDashboard() {
     if (!newCampusData.name.trim() || !newCampusData.city.trim()) {
       return toast.error("Campus name and city are required.");
     }
+
+    // Validate email format if provided
+    if (newCampusData.email && newCampusData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampusData.email.trim())) {
+        return toast.error("Please enter a valid email address.");
+      }
+    }
+
+    // Validate phone number format if provided
+    if (newCampusData.phone && newCampusData.phone.trim()) {
+      // Remove all non-digit characters to count actual digits
+      const digits = newCampusData.phone.replace(/\D/g, '');
+      if (digits.length < 7) {
+        return toast.error("Phone number is too short to be valid.");
+      }
+      if (digits.length > 15) {
+        return toast.error("Phone number is too long to be valid.");
+      }
+    }
+
+    // Validate admin email format if provided
+    if (newCampusData.adminEmail && newCampusData.adminEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newCampusData.adminEmail.trim())) {
+        return toast.error("Please enter a valid admin email address.");
+      }
+    }
+
     setAddingCampus(true);
     try {
       await addCampus({
@@ -238,7 +271,7 @@ export default function SuperAdminDashboard() {
           : `${newCampusData.name.trim()} created.`
       );
       setShowAddCampusModal(false);
-      setNewCampusData({ ...emptyCampusForm });
+      setNewCampusData({ ...emptyCampusForm, regId: generateRegId() });
       await refetch();
     } catch (error: any) {
       toast.error(error.message);
@@ -359,7 +392,7 @@ const bottomItems: RoleNavItem[] = [];
         </div>
       }
     >
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
+      <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
         {activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
@@ -388,6 +421,7 @@ const bottomItems: RoleNavItem[] = [];
             </div>
             <div className="p-6">
               <InstitutionSettingsPanel onSaved={refetch} />
+              <div className="mt-6"><LocaleSettingsPanel /></div>
             </div>
           </div>
         ) : activeView === "fees" ? (
@@ -454,8 +488,8 @@ const bottomItems: RoleNavItem[] = [];
                 <h3 className="text-lg font-black text-[#1f1a23] tracking-normal">AI Network Insights</h3>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5 mb-5">
-                <div className="rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 relative overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
-                <div className="rounded-[24px] bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="sk-panel p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
+                <div className="sk-panel p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <Shield className="w-5 h-5 text-[#8127cf]" />
                     <p className="text-[10px] font-black text-ink-subtle uppercase tracking-normal">AI Review</p>
@@ -585,7 +619,7 @@ const bottomItems: RoleNavItem[] = [];
                 <InfoPill label="Staff" value={selectedCampus.staffCount} active />
               </div>
 
-              <div className="mt-8 rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="sk-panel mt-8 p-6">
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <PanelTitle icon={Mail} title="Pending Access Invitations" />
                   <SuperStatusPill status={`${selectedCampus.pendingInvitations.length} Pending`} />
@@ -615,7 +649,7 @@ const bottomItems: RoleNavItem[] = [];
 
               {/* Who reports to whom on this campus. Scoped to the selected
                   campus because a reporting line never crosses one. */}
-              <div className="mt-8 rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="sk-panel mt-8 p-6">
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <PanelTitle icon={Network} title="Staff Hierarchy" />
                   <SuperStatusPill status={`${selectedCampus.staffCount} Staff`} />
@@ -649,16 +683,16 @@ const bottomItems: RoleNavItem[] = [];
             </div>
           ) : (
             <div className="space-y-6 mb-8">
-              <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-4">
-                <Mail className="w-6 h-6 text-[#8127cf]" />
-                <input
+              <InputGroup surfaceClassName="bg-indigo-50" className="my-2">
+                <Mail data-field-affix="start" className="w-6 h-6 text-[#8127cf]" />
+                <SystemInput
                   type="email"
                   placeholder="Enter official email..."
                   className="bg-transparent border-none outline-none font-bold text-sm w-full"
                   value={inviteEmail}
                   onChange={(event) => setInviteEmail(event.target.value)}
                 />
-              </div>
+              </InputGroup>
               <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf] mb-1">How it works</p>
                 <p className="text-xs font-semibold text-ink-muted">An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.</p>
@@ -679,7 +713,7 @@ const bottomItems: RoleNavItem[] = [];
       )}
 
       {showAddCampusModal && (
-        <ModalFrame onClose={() => setShowAddCampusModal(false)} title="Instantiate Facility" wide>
+        <ModalFrame onClose={() => setShowAddCampusModal(false)} title="Create campus" wide>
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <CampusInput
               label="Campus Name"
@@ -735,17 +769,18 @@ const bottomItems: RoleNavItem[] = [];
               onChange={(value) => setNewCampusData({ ...newCampusData, principalName: value })}
             />
             <div>
-              <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">Board</label>
-              <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
-                <GraduationCap className="w-5 h-5 text-ink-subtle shrink-0" />
-                <select
+              <label htmlFor="campus-board" className="sk-field-label">Board</label>
+              <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+                <GraduationCap data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
+                <SystemSelect
+                  id="campus-board"
                   value={newCampusData.board}
                   onChange={(event) => setNewCampusData({ ...newCampusData, board: event.target.value })}
                   className="w-full cursor-pointer border-none bg-transparent text-sm font-bold outline-none"
                 >
                   {EXAM_BOARDS.map((board) => <option key={board} value={board}>{board}</option>)}
-                </select>
-              </div>
+                </SystemSelect>
+              </InputGroup>
             </div>
             <CampusInput
               label="Campus Admin Email"
@@ -763,7 +798,7 @@ const bottomItems: RoleNavItem[] = [];
                     setNewCampusData({
                       ...newCampusData,
                       autoId: !newCampusData.autoId,
-                      regId: !newCampusData.autoId ? generateRegId() : ""
+                      regId: !newCampusData.autoId ? "" : generateRegId()
                     })
                   }
                   className="text-[9px] font-black uppercase tracking-normal px-3 py-1 rounded-lg bg-white text-[#8127cf] border border-[#8127cf]/20"
@@ -771,7 +806,7 @@ const bottomItems: RoleNavItem[] = [];
                   {newCampusData.autoId ? "Auto" : "Manual"}
                 </button>
               </div>
-              <input
+              <SystemInput
                 type="text"
                 placeholder={newCampusData.autoId ? "KEY-AUTO" : "BR-XXXX"}
                 readOnly={newCampusData.autoId}
@@ -790,7 +825,7 @@ const bottomItems: RoleNavItem[] = [];
               Cancel
             </BrandButton>
             <BrandButton variant="dark" className="flex-[2] h-14" onClick={handleAddCampus} disabled={addingCampus}>
-              {addingCampus ? <Loader2 className="w-5 h-5 animate-spin" /> : "Deploy Node"}
+              {addingCampus ? <Loader2 className="w-5 h-5 animate-spin" /> : "Create campus"}
             </BrandButton>
           </div>
         </ModalFrame>
@@ -875,7 +910,7 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
   const hasLeadership = hasActiveSlot(campus.admin) && hasActiveSlot(campus.principal);
 
   return (
-    <div className="bg-white p-7 rounded-[32px] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] border border-[#cfc2d6]/25 flex flex-col min-h-[330px] relative overflow-hidden group hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25 transition-all duration-500">
+    <div className="sk-panel p-7 flex flex-col min-h-[330px] relative overflow-hidden group transition-all duration-500">
       <div className="absolute top-6 right-6 z-10">
         <SuperStatusPill status={hasLeadership ? "ACTIVE" : "MISSING"} />
       </div>
@@ -928,7 +963,7 @@ function CampusMiniMetric({ label, value, active }: { label: string; value: any;
 
 function InfoPill({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className="p-5 bg-white rounded-[24px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+    <div className="sk-panel p-5 transition-all duration-300 hover:-translate-y-0.5">
       <p className="text-[8px] font-black text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
       <p className={`text-xl font-black italic tracking-normal ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
     </div>
@@ -1005,8 +1040,8 @@ function FormInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
-      <input
+      <span className="sk-field-label">{label}</span>
+      <SystemInput
         type={type}
         value={value}
         placeholder={placeholder}
@@ -1030,14 +1065,14 @@ function FormSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">{label}</span>
-      <select
+      <span className="sk-field-label">{label}</span>
+      <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
       >
         {children}
-      </select>
+      </SystemSelect>
     </label>
   );
 }
@@ -1061,19 +1096,21 @@ function CampusInput({
 }) {
   return (
     <div>
-      <label className="text-[9px] font-black text-ink-subtle uppercase tracking-normal pl-2 mb-2 block">
+      <label className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </label>
-      <div className="p-4 bg-[#f3f4f9] rounded-2xl border border-transparent focus-within:border-[#8127cf]/30 transition-all flex items-center gap-3">
-        <Icon className="w-5 h-5 text-ink-subtle shrink-0" />
-        <input
+      <InputGroup surfaceClassName="bg-[#f3f4f9]" className="my-2">
+        <Icon data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
+        <SystemInput
           type="text"
+          aria-label={label}
+          required={required}
           placeholder={placeholder}
           className="bg-transparent border-none outline-none font-bold text-sm w-full"
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
-      </div>
+      </InputGroup>
       {hint ? <p className="mt-1.5 pl-2 text-[9px] font-bold text-ink-subtle">{hint}</p> : null}
     </div>
   );

@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
       throw new ApiError("An online payment for this invoice is already in progress", 409);
     }
 
+    if (invoice.currency !== "PKR") throw new ApiError("This payment gateway supports PKR invoices only. Use a matching offline payment method.", 400);
+
     const orderRef = `SKLFEE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
     const order = await prisma.onlinePaymentOrder.create({
       data: {

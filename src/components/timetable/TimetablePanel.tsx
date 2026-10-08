@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Modal, ModalActions } from "@/components/ui/modal";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 // ─── Types ────────────────────────────────────────────────
 interface SlotData {
@@ -543,7 +545,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <select
+              <SystemSelect
                 value={selectedTeacherId}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
                 className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
@@ -552,8 +554,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 {teachers.map((t) => (
                   <option key={t.id} value={t.id}>{t.fullName}</option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
+              </SystemSelect>
+
             </div>
             {selectedTeacherId && (
               <span className="text-[10px] font-bold text-ink-muted">
@@ -580,7 +582,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           )}
 
           {selectedTeacherId && (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <div className="min-w-[800px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
@@ -799,11 +801,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
           {/* Timetable Grid */}
           {classLoading ? (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <TimetableGridSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />
             </div>
           ) : (
-          <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
             <div className="min-w-[800px]">
               {/* Header row */}
               <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
@@ -1084,20 +1086,20 @@ function PeriodConfigModal({
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-3">
               <span className="w-6 text-center text-[10px] font-black text-[#8127cf]">P{p.period}</span>
-              <input
+              <SystemInput
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
               <span className="text-[10px] font-bold text-ink-subtle">to</span>
-              <input
+              <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
                 className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
               />
-              <select
+              <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
                 className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 cursor-pointer"
@@ -1107,7 +1109,7 @@ function PeriodConfigModal({
                 <option value="PRAYER">Prayer</option>
                 <option value="ASSEMBLY">Assembly</option>
                 <option value="ACTIVITY">Activity</option>
-              </select>
+              </SystemSelect>
               <button
                 type="button"
                 onClick={() => removePeriod(i)}
@@ -1245,7 +1247,7 @@ function SlotEditorModal({
             <>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
-                <select
+                <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -1254,12 +1256,12 @@ function SlotEditorModal({
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
-                </select>
+                </SystemSelect>
               </div>
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Teacher</label>
-                <select
+                <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -1268,12 +1270,12 @@ function SlotEditorModal({
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
-                </select>
+                </SystemSelect>
               </div>
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Room (Optional)</label>
-                <select
+                <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
@@ -1284,7 +1286,7 @@ function SlotEditorModal({
                       {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
                 {selectedRoom && selectedRoom.capacity > 0 && (
                   <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
                     Room capacity is {selectedRoom.capacity} — assigned classes should not exceed this (warning only).

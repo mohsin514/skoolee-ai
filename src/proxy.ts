@@ -13,10 +13,17 @@ import {
 } from "./lib/roles";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+// Dependency-free by design, so nothing here drags Prisma or next/headers into
+// the proxy — see the note on the revocation check below.
+import {
+  SESSION_COOKIE_NAME,
+  clearedSessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",
   "/accept-invite", "/forgot-password",
+  "/api/invite/status", // Scoped by a secret invitation token before sign-in.
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
@@ -25,6 +32,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
   "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
+  "/api/reports/download", // Route authenticates session or a single-child capability.
   "/api/parent/data",
   "/api/parent/timetable",
   "/api/parent/exam-datesheet",
@@ -57,7 +65,22 @@ function isPublic(pathname: string) {
 }
 
 export async function proxy(req: NextRequest) {
+  let normalizedPath: string;
+  try {
+    normalizedPath = req.nextUrl.pathname;
+    for (let i = 0; i < 3 && normalizedPath.includes("%"); i++) normalizedPath = decodeURIComponent(normalizedPath);
+    const segments: string[] = [];
+    for (const part of normalizedPath.replace(/\\/g, "/").split("/")) {
+      if (part === "..") segments.pop();
+      else if (part && part !== ".") segments.push(part);
+    }
+    normalizedPath = `/${segments.join("/")}`;
+  } catch { return new NextResponse(null, { status: 400 }); }
+  if (normalizedPath === "/generated/reports" || normalizedPath.startsWith("/generated/reports/")) return new NextResponse(null, { status: 404 });
   const { pathname } = req.nextUrl;
+
+  // Synthetic component reference only; the page also refuses production access.
+  if (process.env.NODE_ENV === "development" && pathname === "/design-system") return NextResponse.next();
 
   // 1. Lightning-fast early exit for static assets and internal Next.js files
   if (
@@ -75,7 +98,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Protected routes — verify JWT
-  const token = req.cookies.get("skoolee_token")?.value;
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
 
   if (!token) {
     if (pathname.startsWith("/api")) {
@@ -87,6 +110,22 @@ export async function proxy(req: NextRequest) {
   }
 
   try {
+    // NOTE: this verifies the signature only, and deliberately does not check
+    // whether the session has been revoked.
+    //
+    // Revocation is a database read, and this function runs on every request
+    // that is not a static asset — including every prefetch the router fires as
+    // a user moves the mouse over navigation. Next's own guidance is explicit
+    // that proxy checks should stay optimistic and cookie-only for exactly that
+    // reason, and that the real check belongs next to the data. Proxy is also
+    // documented as something that may be hoisted to a CDN and must not depend
+    // on shared modules, which rules out reaching for Prisma here.
+    //
+    // So this stays a cheap filter, and getAuthUser() — which every page,
+    // layout and route handler already goes through — is where a revoked token
+    // is actually turned away. The consequence to be aware of: a revoked token
+    // still passes this point, so nothing downstream may infer "the proxy let
+    // it through" as evidence that a session is live.
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = normalizeUserRole(payload.role);
     const onboardingComplete = Boolean(payload.onboardingComplete);
@@ -119,8 +158,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
-    if (!onboardingComplete && !pathname.startsWith("/onboarding") && !pathname.startsWith("/api")) {
-      return NextResponse.redirect(new URL("/onboarding", req.url));
+    const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
+    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith("/api")) {
+      return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";
@@ -198,7 +238,7 @@ export async function proxy(req: NextRequest) {
     }
     const loginUrl = new URL("/login", req.url);
     const res = NextResponse.redirect(loginUrl);
-    res.cookies.set("skoolee_token", "", { maxAge: 0, path: "/" });
+    res.cookies.set(SESSION_COOKIE_NAME, "", clearedSessionCookieAttributes());
     return res;
   }
 }

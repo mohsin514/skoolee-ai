@@ -57,9 +57,11 @@ export function dashboardPathForRole(role: unknown): string {
   return normalized ? ROLE_DASHBOARD_PATHS[normalized] : "/login";
 }
 
-export function roleLabel(role: unknown): string {
+export const ROLE_LABELS_AR: Record<UserRole, string> = { APP_OWNER: "مشغّل المنصة", SUPER_ADMIN: "مدير المجموعة", ADMIN: "مدير المدرسة", CAMPUS_ADMIN: "مدير الفرع", PRINCIPAL: "المدير الأكاديمي", TEACHER: "المعلم", PARENT: "ولي الأمر", STUDENT: "الطالب", ACCOUNTANT: "المحاسب", LIBRARIAN: "أمين المكتبة", RECEPTIONIST: "موظف الاستقبال" };
+
+export function roleLabel(role: unknown, language: "en" | "ar" = "en"): string {
   const normalized = normalizeUserRole(role);
-  return normalized ? ROLE_LABELS[normalized] : "User";
+  return normalized ? (language === "ar" ? ROLE_LABELS_AR[normalized] : ROLE_LABELS[normalized]) : "User";
 }
 
 export function isCampusAdminRole(role: unknown): role is "CAMPUS_ADMIN" | "ADMIN" {

@@ -1,5 +1,9 @@
 "use client";
 
+import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { getFinancialLocale } from "@/app/actions/locale";
+import { CURRENCIES } from "@/lib/locale/package";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Banknote,
@@ -20,6 +24,8 @@ import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
 import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/components/fees/fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
 const API = "/api";
 const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
@@ -88,6 +94,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 function ChartPanel({ campusId }: { campusId?: string }) {
+  const tr = useUiText();
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -106,7 +113,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       const json = await res.json();
       if (json.success) setAccounts(json.data);
     } catch {
-      toast.error("Failed to load accounts");
+      toast.error(tr("Failed to load accounts"));
     } finally {
       setLoading(false);
     }
@@ -122,7 +129,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
+    if (!name.trim()) { toast.error(tr("Name is required")); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API}/accounts/chart`, {
@@ -135,14 +142,14 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Account saved");
+        toast.success(tr(json.message || "Account saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save account");
+      toast.error(tr("Failed to save account"));
     } finally {
       setSaving(false);
     }
@@ -154,14 +161,14 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/accounts/chart?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Account deleted");
+        toast.success(tr("Account deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
-      toast.error("Failed to delete account");
+      toast.error(tr("Failed to delete account"));
     }
   };
 
@@ -169,11 +176,11 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Chart of Accounts</p>
-          <p className="text-sm font-black text-[#1f1a23]">Bookkeeping heads used by the ledger</p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Fee income auto-posts to "Fee Income" — accounts with entries cannot be deleted.</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
+          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
+          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" — accounts with entries cannot be deleted."}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Account</BrandButton>
+        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>
       </div>
 
       {loading ? (
@@ -181,9 +188,9 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       ) : accounts.length === 0 ? (
         <EmptyState
           icon={Wallet}
-          title="No accounts yet"
-          description="Create account heads to organise income and expense entries."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Account</BrandButton>}
+          title={tr("No accounts yet")}
+          description={tr("Create account heads to organise income and expense entries.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -195,19 +202,19 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">
                   {acc.name}
-                  {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-ink-subtle">System</span> : null}
+                  {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
                 </p>
                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
-                  {acc._count ? `${acc._count.entries} entries` : ""}
+                  {acc._count ? tr("{0} entries", [acc._count.entries]) : ""}
                 </p>
               </div>
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
                 {acc.type}
               </span>
-              <button type="button" onClick={() => openModal(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit account">
+              <button type="button" onClick={() => openModal(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit account")}>
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete account">
+              <button type="button" onClick={() => setDeleting(acc)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete account")}>
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -216,18 +223,18 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Account" : "New Account"} eyebrow="Accounts · Chart" onClose={() => setShowModal(false)}>
+        <ModalFrame title={editing ? tr("Edit Account") : tr("New Account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Account Name" value={name} placeholder="e.g. Library Fee" onChange={setName} />
+            <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
             <div>
-              <label className={labelClass}>Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
-                <option value="INCOME">Income</option>
-                <option value="EXPENSE">Expense</option>
-                <option value="ASSET">Asset</option>
-                <option value="LIABILITY">Liability</option>
-                <option value="EQUITY">Equity</option>
-              </select>
+              <label className={labelClass}><UiText>{"Type"}</UiText></label>
+              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
+                <option value="INCOME"><UiText>{"Income"}</UiText></option>
+                <option value="EXPENSE"><UiText>{"Expense"}</UiText></option>
+                <option value="ASSET"><UiText>{"Asset"}</UiText></option>
+                <option value="LIABILITY"><UiText>{"Liability"}</UiText></option>
+                <option value="EQUITY"><UiText>{"Equity"}</UiText></option>
+              </SystemSelect>
             </div>
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -237,9 +244,9 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       {deleting && (
         <ConfirmAction
           open
-          title="Delete account?"
-          description={`"${deleting.name}" will be removed. Accounts with ledger entries are kept instead.`}
-          confirmLabel="Delete"
+          title={tr("Delete account?")}
+          description={tr("\"{0}\" will be removed. Accounts with ledger entries are kept instead.", [deleting.name])}
+          confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
@@ -258,6 +265,7 @@ interface MethodRow {
 }
 
 function MethodsPanel({ campusId }: { campusId?: string }) {
+  const tr = useUiText();
   const [methods, setMethods] = useState<MethodRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -275,7 +283,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       const json = await res.json();
       if (json.success) setMethods(json.data);
     } catch {
-      toast.error("Failed to load payment methods");
+      toast.error(tr("Failed to load payment methods"));
     } finally {
       setLoading(false);
     }
@@ -290,7 +298,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
+    if (!name.trim()) { toast.error(tr("Name is required")); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API}/accounts/payment-methods`, {
@@ -300,14 +308,14 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Payment method saved");
+        toast.success(tr(json.message || "Payment method saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save payment method");
+      toast.error(tr("Failed to save payment method"));
     } finally {
       setSaving(false);
     }
@@ -321,11 +329,11 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: m.id, isActive: !m.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(m.isActive ? "Method deactivated" : "Method activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(m.isActive ? "Method deactivated" : "Method activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
-      toast.error("Failed to toggle method");
+      toast.error(tr("Failed to toggle method"));
     }
   };
 
@@ -335,14 +343,14 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/accounts/payment-methods?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Payment method deleted");
+        toast.success(tr("Payment method deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
-      toast.error("Failed to delete method");
+      toast.error(tr("Failed to delete method"));
     }
   };
 
@@ -350,10 +358,10 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Payment Methods</p>
-          <p className="text-sm font-black text-[#1f1a23]">Labels used on receipts and ledger entries</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Payment Methods"}</UiText></p>
+          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Labels used on receipts and ledger entries"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Method</BrandButton>
+        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Method"}</UiText></BrandButton>
       </div>
 
       {loading ? (
@@ -361,9 +369,9 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       ) : methods.length === 0 ? (
         <EmptyState
           icon={CreditCard}
-          title="No payment methods"
-          description="Add methods like Cash, Bank Transfer, Cheque — used on receipts."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Method</BrandButton>}
+          title={tr("No payment methods")}
+          description={tr("Add methods like Cash, Bank Transfer, Cheque — used on receipts.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Method"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -374,19 +382,19 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">{m.name}</p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{m.isActive ? "Active" : "Inactive"}</p>
+                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{m.isActive ? tr("Active") : tr("Inactive")}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleToggle(m)}
                 className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
               >
-                {m.isActive ? "Active" : "Inactive"}
+                {m.isActive ? tr("Active") : tr("Inactive")}
               </button>
-              <button type="button" onClick={() => openModal(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit method">
+              <button type="button" onClick={() => openModal(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit method")}>
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete method">
+              <button type="button" onClick={() => setDeleting(m)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete method")}>
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -395,9 +403,9 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Payment Method" : "New Payment Method"} eyebrow="Accounts · Methods" onClose={() => setShowModal(false)}>
+        <ModalFrame title={editing ? tr("Edit Payment Method") : tr("New Payment Method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Name" value={name} placeholder="e.g. Cash" onChange={setName} />
+            <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Cash")} onChange={setName} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Method"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
@@ -406,9 +414,9 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       {deleting && (
         <ConfirmAction
           open
-          title="Delete payment method?"
-          description={`"${deleting.name}" will be removed everywhere.`}
-          confirmLabel="Delete"
+          title={tr("Delete payment method?")}
+          description={tr("\"{0}\" will be removed everywhere.", [deleting.name])}
+          confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
@@ -421,6 +429,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
 /* ── Bank Accounts ─────────────────────────────────────── */
 
 interface BankRow {
+  currency: string;
   id: string;
   name: string;
   bankName?: string | null;
@@ -430,6 +439,11 @@ interface BankRow {
 }
 
 function BanksPanel({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("PKR");
+  const [defaultCurrency, setDefaultCurrency] = useState("");
+  useEffect(() => { void getFinancialLocale(campusId).then(policy => setDefaultCurrency(policy.currency)); }, [campusId]);
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -450,7 +464,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       const json = await res.json();
       if (json.success) setBanks(json.data);
     } catch {
-      toast.error("Failed to load bank accounts");
+      toast.error(tr("Failed to load bank accounts"));
     } finally {
       setLoading(false);
     }
@@ -463,12 +477,14 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     setName(row?.name ?? "");
     setBankName(row?.bankName ?? "");
     setAccountNumber(row?.accountNumber ?? "");
-    setOpeningBalance(row ? String(paisaToRupees(row.openingBalance)) : "");
+    setCurrency(row?.currency || defaultCurrency);
+    setOpeningBalance(row ? String(paisaToRupees(row.openingBalance, row.currency)) : "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
+    if (!name.trim()) { toast.error(tr("Name is required")); return; }
+    if (!currency) { toast.error(tr("Currency could not be loaded")); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API}/accounts/bank-accounts`, {
@@ -479,19 +495,20 @@ function BanksPanel({ campusId }: { campusId?: string }) {
           name: name.trim(),
           bankName: bankName.trim() || undefined,
           accountNumber: accountNumber.trim() || undefined,
-          openingBalance: rupeesToPaisa(parseFloat(openingBalance) || 0),
+          currency,
+          openingBalance: rupeesToPaisa(openingBalance || "0", currency),
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Bank account saved");
+        toast.success(tr(json.message || "Bank account saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save bank account");
+      toast.error(tr("Failed to save bank account"));
     } finally {
       setSaving(false);
     }
@@ -505,11 +522,11 @@ function BanksPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: b.id, isActive: !b.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(b.isActive ? "Bank deactivated" : "Bank activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(b.isActive ? "Bank deactivated" : "Bank activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
-      toast.error("Failed to toggle bank");
+      toast.error(tr("Failed to toggle bank"));
     }
   };
 
@@ -519,14 +536,14 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/accounts/bank-accounts?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Bank account deleted");
+        toast.success(tr("Bank account deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
-      toast.error("Failed to delete bank");
+      toast.error(tr("Failed to delete bank"));
     }
   };
 
@@ -534,10 +551,10 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Bank Accounts</p>
-          <p className="text-sm font-black text-[#1f1a23]">Deposit accounts entries can be attributed to</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Bank Accounts"}</UiText></p>
+          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Deposit accounts entries can be attributed to"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Bank Account</BrandButton>
+        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Bank Account"}</UiText></BrandButton>
       </div>
 
       {loading ? (
@@ -545,9 +562,9 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       ) : banks.length === 0 ? (
         <EmptyState
           icon={Landmark}
-          title="No bank accounts"
-          description="Add a bank account to attribute ledger entries to it."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Bank Account</BrandButton>}
+          title={tr("No bank accounts")}
+          description={tr("Add a bank account to attribute ledger entries to it.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Bank Account"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -563,20 +580,20 @@ function BanksPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase text-ink-subtle">Opening Balance</p>
-                <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance)}</p>
+                <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
+                <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleToggle(b)}
                 className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full cursor-pointer transition-colors ${b.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"}`}
               >
-                {b.isActive ? "Active" : "Inactive"}
+                {b.isActive ? tr("Active") : tr("Inactive")}
               </button>
-              <button type="button" onClick={() => openModal(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label="Edit bank">
+              <button type="button" onClick={() => openModal(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer" aria-label={tr("Edit bank")}>
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setDeleting(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete bank">
+              <button type="button" onClick={() => setDeleting(b)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete bank")}>
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -585,12 +602,12 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Bank Account" : "New Bank Account"} eyebrow="Accounts · Banks" onClose={() => setShowModal(false)}>
+        <ModalFrame title={editing ? tr("Edit Bank Account") : tr("New Bank Account")} eyebrow={tr("Accounts · Banks")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Account Name" value={name} placeholder="e.g. Main School Account" onChange={setName} />
-            <FormInput label="Bank Name" value={bankName} placeholder="e.g. HBL" onChange={setBankName} />
-            <FormInput label="Account Number" value={accountNumber} placeholder="e.g. 1234-5678-90" onChange={setAccountNumber} />
-            <FormInput label="Opening Balance (PKR)" type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
+            <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Main School Account")} onChange={setName} />
+            <FormInput label={tr("Bank Name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
+            <FormInput label={tr("Account Number")} value={accountNumber} placeholder="e.g. 1234-5678-90" onChange={setAccountNumber} />
+            <FormInput label={`${tr("Opening Balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Bank Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
@@ -599,9 +616,9 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       {deleting && (
         <ConfirmAction
           open
-          title="Delete bank account?"
-          description={`"${deleting.name}" will be removed if it has no ledger entries.`}
-          confirmLabel="Delete"
+          title={tr("Delete bank account?")}
+          description={tr("\"{0}\" will be removed if it has no ledger entries.", [deleting.name])}
+          confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
@@ -614,6 +631,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
 /* ── Income / Expense entries ──────────────────────────── */
 
 interface LedgerRow {
+  currency: string;
   id: string;
   kind: string;
   sourceName: string;
@@ -627,6 +645,9 @@ interface LedgerRow {
 }
 
 function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | "EXPENSE" }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  const [currency, setCurrency] = useState("");
   const [entries, setEntries] = useState<LedgerRow[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [banks, setBanks] = useState<BankRow[]>([]);
@@ -648,29 +669,30 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     setLoading(true);
     try {
       const [eRes, aRes, bRes] = await Promise.all([
-        fetch(`${API}/accounts/ledger${qp ? `${qp}&` : "?"}kind=${kind}`),
+        fetch(`${API}/accounts/ledger${qp ? `${qp}&` : "?"}kind=${kind}${currency ? `&currency=${currency}` : ""}`),
         fetch(`${API}/accounts/chart${qp}`),
         fetch(`${API}/accounts/bank-accounts${qp}`),
       ]);
       const [eJson, aJson, bJson] = await Promise.all([eRes.json(), aRes.json(), bRes.json()]);
       if (eJson.success) {
         setEntries(eJson.data);
+        if (!currency) setCurrency(eJson.currency);
         setTotal(eJson.total);
       }
       if (aJson.success) setAccounts(aJson.data);
       if (bJson.success) setBanks(bJson.data);
     } catch {
-      toast.error("Failed to load ledger");
+      toast.error(tr("Failed to load ledger"));
     } finally {
       setLoading(false);
     }
-  }, [qp, kind]);
+  }, [qp, kind, currency]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
     if (!sourceName.trim() || !accountId || !amount) {
-      toast.error("Source, account and amount required");
+      toast.error(tr("Source, account and amount required"));
       return;
     }
     setSaving(true);
@@ -683,7 +705,8 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
           kind,
           sourceName: sourceName.trim(),
           accountId,
-          amount: rupeesToPaisa(parseFloat(amount)),
+          currency,
+          amount: rupeesToPaisa(amount, currency || "PKR"),
           date,
           bankAccountId: bankAccountId || undefined,
           note: note.trim() || undefined,
@@ -691,15 +714,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Entry recorded");
+        toast.success(tr("Entry recorded"));
         setShowModal(false);
         setSourceName(""); setAmount(""); setBankAccountId(""); setNote("");
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save entry");
+      toast.error(tr("Failed to save entry"));
     } finally {
       setSaving(false);
     }
@@ -711,14 +734,14 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       const res = await fetch(`${API}/accounts/ledger?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Entry deleted");
+        toast.success(tr("Entry deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
-      toast.error("Failed to delete entry");
+      toast.error(tr("Failed to delete entry"));
     }
   };
 
@@ -727,16 +750,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
   const pickList = kind === "INCOME" ? incomeAccounts : expenseAccounts;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><select aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? "Income Entries" : "Expense Entries"}</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
           <p className="text-sm font-black text-[#1f1a23]">
-            {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span>} total · {total} records
-          </p>
+            {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span>}<UiText>{"total ·"}</UiText>{total}<UiText>{"records"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>
-          {kind === "INCOME" ? "Record Income" : "Record Expense"}
+          {kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}
         </BrandButton>
       </div>
 
@@ -745,11 +767,11 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       ) : entries.length === 0 ? (
         <EmptyState
           icon={kind === "INCOME" ? TrendingUp : TrendingDown}
-          title={kind === "INCOME" ? "No income entries" : "No expense entries"}
+          title={kind === "INCOME" ? tr("No income entries") : tr("No expense entries")}
           description={kind === "INCOME"
-            ? "Fee collections post here automatically. Add other income manually."
-            : "Add expenses like salaries and utilities here."}
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>{kind === "INCOME" ? "Record Income" : "Record Expense"}</BrandButton>}
+            ? tr("Fee collections post here automatically. Add other income manually.")
+            : tr("Add expenses like salaries and utilities here.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -769,10 +791,10 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                 {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{e.note}</p> : null}
               </div>
               <p className={`text-sm font-black ${e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount)}
+                {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount, e.currency)}
               </p>
               {!e.paymentId && (
-                <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete entry">
+                <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label={tr("Delete entry")}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
@@ -782,29 +804,29 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       )}
 
       {showModal && (
-        <ModalFrame title={kind === "INCOME" ? "Record Income" : "Record Expense"} eyebrow="Accounts · Ledger" onClose={() => setShowModal(false)}>
+        <ModalFrame title={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")} eyebrow={tr("Accounts · Ledger")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Source / Description" value={sourceName} placeholder={kind === "INCOME" ? "e.g. Donation" : "e.g. Electricity bill"} onChange={setSourceName} />
-            <FormSelect label="Account" value={accountId} onChange={setAccountId}>
-              <option value="">Select account...</option>
+            <FormInput label={tr("Source / Description")} value={sourceName} placeholder={kind === "INCOME" ? tr("e.g. Donation") : tr("e.g. Electricity bill")} onChange={setSourceName} />
+            <FormSelect label={tr("Account")} value={accountId} onChange={setAccountId}>
+              <option value=""><UiText>{"Select account..."}</UiText></option>
               {pickList.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </FormSelect>
-            <div className="grid grid-cols-2 gap-3">
-              <FormInput label="Amount (PKR)" type="number" value={amount} placeholder="0" onChange={setAmount} />
-              <FormInput label="Date" type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
+              <FormInput label={`${tr("Amount")} (${currency || "PKR"})`} type="number" value={amount} placeholder="0" onChange={setAmount} />
+              <FormInput label={tr("Date")} type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
             </div>
             <div>
-              <label className={labelClass}>Bank Account (optional)</label>
-              <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
-                <option value="">— None —</option>
-                {banks.filter((b) => b.isActive).map((b) => (
+              <label className={labelClass}><UiText>{"Bank Account (optional)"}</UiText></label>
+              <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
+                <option value=""><UiText>{"— None —"}</UiText></option>
+                {banks.filter((b) => b.isActive && b.currency === currency).map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
-              </select>
+              </SystemSelect>
             </div>
-            <FormInput label="Note (optional)" value={note} placeholder="Extra detail" onChange={setNote} />
+            <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("Extra detail")} onChange={setNote} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={kind === "INCOME" ? "Record Income" : "Record Expense"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
@@ -813,9 +835,9 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       {deleting && (
         <ConfirmAction
           open
-          title="Delete entry?"
-          description={`"${deleting.sourceName}" (${formatPKR(deleting.amount)}) will be removed.`}
-          confirmLabel="Delete"
+          title={tr("Delete entry?")}
+          description={tr("\"{0}\" ({1}) will be removed.", [deleting.sourceName, formatPKR(deleting.amount, deleting.currency)])}
+          confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
@@ -828,6 +850,9 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 /* ── Profit report ─────────────────────────────────────── */
 
 function ProfitPanel({ campusId }: { campusId?: string }) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  const [currency, setCurrency] = useState("");
   const [from, setFrom] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-01-01`;
@@ -841,51 +866,51 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
   const [error, setError] = useState("");
 
   const run = useCallback(async () => {
-    if (!from || !to) { setError("Select a date range"); return; }
+    if (!from || !to) { setError(tr("Select a date range")); return; }
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ from, to });
+      const params = new URLSearchParams({ from, to, ...(currency ? { currency } : {}) });
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/accounts/profit?${params}`);
       const json = await res.json();
-      if (json.success) setReport(json.data);
-      else setError(json.error || "Failed to load report");
+      if (json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
+      else setError(tr(json.error || "Failed to load report"));
     } catch {
-      setError("Failed to load report");
+      setError(tr("Failed to load report"));
     } finally {
       setLoading(false);
     }
-  }, [from, to, campusId]);
+  }, [from, to, campusId, currency]);
 
   useEffect(() => { run(); }, [run]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><select aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
       <div className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className={labelClass}>From</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
+          <label className={labelClass}><UiText>{"From"}</UiText></label>
+          <SystemInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>To</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
+          <label className={labelClass}><UiText>{"To"}</UiText></label>
+          <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
         </div>
         <BrandButton icon={<Percent className="w-4 h-4" />} onClick={run} disabled={loading}>
-          {loading ? <Loader className="w-4 h-4 animate-spin" /> : "Run Report"}
+          {loading ? <Loader className="w-4 h-4 animate-spin" /> : tr("Run Report")}
         </BrandButton>
       </div>
 
       {error ? (
         <div className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>
       ) : !report ? (
-        <EmptyState icon={TrendingUp} title="Run the report" description="Pick a date range to see income, expense and net profit." />
+        <EmptyState icon={TrendingUp} title={tr("Run the report")} description={tr("Pick a date range to see income, expense and net profit.")} />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard icon={TrendingUp} label="Income" value={`Rs ${(report.income / 100).toLocaleString()}`} tone="green" />
-            <StatCard icon={TrendingDown} label="Expense" value={`Rs ${(report.expense / 100).toLocaleString()}`} tone="rose" />
-            <StatCard icon={Banknote} label="Net Profit" value={`Rs ${(report.net / 100).toLocaleString()}`} tone={report.net < 0 ? "rose" : "purple"} />
+            <StatCard icon={TrendingUp} label={tr("Income")} value={formatPKR(report.income, report.currency)} tone="green" />
+            <StatCard icon={TrendingDown} label={tr("Expense")} value={formatPKR(report.expense, report.currency)} tone="rose" />
+            <StatCard icon={Banknote} label={tr("Net Profit")} value={formatPKR(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
           </div>
 
           {report.breakdown.length > 0 ? (
@@ -897,16 +922,16 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-[#1f1a23]">{b.accountName}</p>
-                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{b.entries} entries</p>
+                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{b.entries}<UiText>{"entries"}</UiText></p>
                   </div>
                   <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                    {formatPKR(b.amount)}
+                    {formatPKR(b.amount, report.currency)}
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <EmptyState icon={Banknote} title="No ledger activity" description="No income or expense in this period." />
+            <EmptyState icon={Banknote} title={tr("No ledger activity")} description={tr("No income or expense in this period.")} />
           )}
         </div>
       )}

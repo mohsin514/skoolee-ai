@@ -1,25 +1,35 @@
 'use server';
 
+import { assertInitialInstitutionSetup } from "@/lib/auth/principal";
+import { getAuthUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { parseDateOnly, parseEstablishedYear, parseLogo, safeTimezone } from "@/lib/school/details";
+import { assertEmail, assertPhone, parseDateOnly, parseEstablishedYear, parseLogo, safeTimezone } from "@/lib/school/details";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { rotateLoginSession } from "@/lib/audit";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_DAYS,
+  sessionCookieAttributes,
+} from "@/lib/auth/session-cookie";
 
 export async function getOnboardingSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    if (payload.onboardingComplete) return { redirect: true, role: payload.role as string };
+    const payload = await getAuthUser();
+    if (!payload) throw new Error("Unauthorized");
+    if (payload.onboardingComplete || !payload.isInstitutionOwner) return { redirect: true, role: payload.role as string };
 
-    // Decodes the JWT directly, so bind tenant context before any query.
-    enterTenantContext({ schoolId: String(payload.schoolId), userId: String(payload.userId || "") });
+    // Bind the current principal for the rest of this action.
+    enterTenantContext({ schoolId: payload.schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
 
     const user = await prisma.user.findUnique({
       where: { id: String(payload.userId) },
@@ -75,14 +85,17 @@ export async function finishOnboarding(
   campuses: OnboardingCampusInput[],
 ) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("skoolee_token")?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("No session found");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
+  await assertInitialInstitutionSetup(payload);
+  if (payload.role === "ADMIN" && campuses.length > 1) throw new Error("Permission Denied");
   const userId = String(payload.userId);
   const schoolId = String(payload.schoolId);
-  // Decodes the JWT directly, so bind tenant context before any query.
-  enterTenantContext({ schoolId, userId });
+  // Bind the current principal for the rest of this action.
+  enterTenantContext({ schoolId, userId, campusId: payload.campusId, role: payload.role === "ADMIN" ? undefined : payload.role, reason: "verified first-time institution owner setup" });
   await assertPlanCapacity({ schoolId, metric: "campuses", increment: campuses.length });
 
   // ── Basic validation ─────────────────────────────
@@ -133,14 +146,21 @@ export async function finishOnboarding(
   // 2. Create All Campuses
   let primaryCampusId = null;
   for (const c of campuses) {
+    // Validate campus email and phone
+    const campusEmail = c.email?.trim() || null;
+    assertEmail(campusEmail, "Campus email");
+
+    const campusPhone = c.phone?.trim() || null;
+    assertPhone(campusPhone, "Campus phone number");
+
     const campus = await prisma.campus.create({
       data: {
         schoolId: schoolId,
         name: c.name,
         city: c.city,
         address: c.address,
-        phone: c.phone,
-        email: c.email || null,
+        phone: campusPhone,
+        email: campusEmail,
         website: c.website || null,
         principalName: c.principalName || null,
         regId: c.regId,
@@ -189,6 +209,7 @@ export async function finishOnboarding(
   // 4. Re-issue Session
   const newToken = await new SignJWT({
     userId: updatedUser.id,
+      accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,
     fullName: updatedUser.fullName,
     role: updatedUser.role,
@@ -202,13 +223,22 @@ export async function finishOnboarding(
     .setExpirationTime("7d")
     .sign(JWT_SECRET);
 
-  cookieStore.set("skoolee_token", newToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
+  // Close the row for the token being replaced and record one for its
+  // successor, so this session stays revocable across the re-mint instead of
+  // leaving a permanently-open row keyed to a token nobody holds.
+  await rotateLoginSession({
+    previousToken: token,
+    token: newToken,
+    userId: updatedUser.id,
+    schoolId: updatedUser.schoolId,
+    expiresAt: new Date(Date.now() + SESSION_DAYS.default * 24 * 60 * 60 * 1000),
   });
+
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    newToken,
+    sessionCookieAttributes(SESSION_DAYS.default)
+  );
 
   return { success: true, role: updatedUser.role };
 }

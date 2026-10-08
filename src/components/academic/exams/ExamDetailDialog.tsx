@@ -24,6 +24,7 @@ import { ReportCardsPanel } from "@/components/academic/exams/ReportCardsPanel";
 import { DatesheetBuilder } from "@/components/academic/DatesheetBuilder";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Meter } from "@/components/academic/exams/shared";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * One exam, in a centred dialog (§80).
@@ -545,7 +546,7 @@ function MarksEntry({
                     {student.fullName}
                   </span>
                   <div className="flex items-center justify-center gap-1">
-                    <input
+                    <SystemInput
                       ref={(el) => {
                         inputs.current[i] = el;
                       }}

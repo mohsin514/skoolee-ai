@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -17,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { Field, Panel, StepEmpty, inputClass } from "@/components/academic/exams/shared";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Grading rules, set per class and applied to every section of it (§80).
@@ -395,7 +398,7 @@ function RulesEditor({
                 onChange={(e) => set("passingPercentage", Number(e.target.value))}
                 className="h-1.5 w-40 cursor-pointer appearance-none rounded-full bg-[#e8e0ec] accent-[#8127cf]"
               />
-              <input
+              <SystemInput
                 type="number"
                 min={0}
                 max={100}
@@ -473,7 +476,7 @@ function RulesEditor({
                   Created by {w.who}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  <input
+                  <SystemInput
                     type="number"
                     min={0}
                     max={100}
@@ -559,15 +562,15 @@ function RulesEditor({
           <div className="grid gap-2 sm:grid-cols-5">
             {GRADES.map((g) => (
               <Field key={String(g.key)} label={`Grade ${g.label} from`}>
-                <div className="relative">
-                  <span
+                <InputGroup className="relative">
+                  <span data-field-affix="start"
                     aria-hidden
                     className={cn(
                       "absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full",
                       g.tone,
                     )}
                   />
-                  <input
+                  <SystemInput
                     type="number"
                     min={0}
                     max={100}
@@ -575,7 +578,7 @@ function RulesEditor({
                     onChange={(e) => set(g.key, Number(e.target.value))}
                     className={cn(inputClass, "pl-7 text-center")}
                   />
-                </div>
+                </InputGroup>
               </Field>
             ))}
           </div>

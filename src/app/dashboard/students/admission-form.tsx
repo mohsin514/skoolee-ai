@@ -1,6 +1,12 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { FormField, FormErrorSummary } from "@/components/ui/form-field";
+import { InputGroup } from "@/components/ui/input-group";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+
+import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -15,7 +21,9 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
+  Search,
   User,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -228,7 +236,7 @@ function UrduInput({
       </div>
 
       {showKeyboard && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-2.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel absolute left-0 right-0 top-full z-50 mt-1.5 p-2.5">
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-bold text-ink-muted">اردو کی بورڈ</span>
             <button
@@ -296,6 +304,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     ...(initialPrefill || {}),
     classId: (initialClassId && classes.some((cls) => cls.id === initialClassId) ? initialClassId : classes[0]?.id) || "",
   }));
+  const [baseline, setBaseline] = useState(form);
+  const draft = useFormDraft({ record: `admission:new:${initialClassId || "default"}`, schema: 1,
+    values: form, baseline,
+    fields: ["fullName", "nameUr", "dateOfBirth", "gender", "nationality", "phone", "classId", "rollNo", "previousSchool", "guardianName", "guardianNameUr", "guardianRelationship", "guardianPhone", "guardianWhatsapp", "guardianOccupation", "address", "city", "province", "postalCode", "categoryId", "groupId", "siblingStudentId"],
+    section: String(step), apply: (next, savedStep) => { setForm(next); setStep(Math.min(3, Math.max(0, Number(savedStep) || 0))); },
+  });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
@@ -347,6 +361,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       const data = await res.json();
       if (!controller.signal.aborted && !rollNoManuallyEdited.current) {
         setForm((prev) => ({ ...prev, rollNo: data.rollNo }));
+        setBaseline((prev) => ({ ...prev, rollNo: data.rollNo }));
       }
     } catch {
     } finally {
@@ -420,6 +435,10 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     }
 
     if (stepIndex === 1) {
+      // Guardian phone is mandatory
+      if (!form.guardianPhone.trim()) {
+        newErrors.guardianPhone = "Guardian phone number is required";
+      }
       if (form.guardianEmail && !isValidEmail(form.guardianEmail)) {
         newErrors.guardianEmail = "Enter a valid email address";
       }
@@ -429,6 +448,20 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
         form.studentEmail.toLowerCase() === form.guardianEmail.toLowerCase()
       ) {
         newErrors.guardianEmail = "Must be different from student email";
+      }
+    }
+
+    if (stepIndex === 2) {
+      // Address information is mandatory
+      if (!form.address.trim()) {
+        newErrors.address = "Street address is required";
+      }
+      if (!form.city.trim()) {
+        newErrors.city = "City is required";
+      }
+      // Medical information is mandatory
+      if (!form.medicalNotes.trim()) {
+        newErrors.medicalNotes = "Medical notes are required (enter 'None' if not applicable)";
       }
     }
 
@@ -445,7 +478,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const handleSubmit = async () => {
-    if (!validateStep(0) || !validateStep(1)) {
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) {
       toast.error("Please fix errors in the form before submitting");
       return;
     }
@@ -470,6 +503,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
       if (!res.ok) throw new Error(data.error || "Could not add student");
 
+      draft.markSaved();
       toast.success(data.message || "Student added successfully");
 
       if (data.guardianInviteFailures?.length) {
@@ -496,6 +530,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       step={step}
       onStepChange={setStep}
       onClose={onClose}
+      dirty={draft.dirty}
       onBack={goBack}
       onNext={goNext}
       onSubmit={handleSubmit}
@@ -503,6 +538,12 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       submitting={isSubmitting}
       submittingLabel="Creating…"
     >
+          <DraftRecovery draft={draft} saving={isSubmitting} excluded="Health notes, allergies, medications, special needs and login emails are never stored in a device draft." />
+          <FormErrorSummary errors={errors} onFocusField={(field) => {
+            const targetStep = ["guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
+            setStep(targetStep);
+            requestAnimationFrame(() => document.getElementById(`field-${field}`)?.focus());
+          }} />
           {step === 0 && (
             <StepPersonalInfo
               form={form}
@@ -565,7 +606,7 @@ function StepPersonalInfo({
     <div className="space-y-5">
       <FormSection icon={User} title="Identity" hint="The student's name as it should appear on records and report cards.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Full Name (English) *" error={errors.fullName}>
+        <FieldGroup name="fullName" label="Full Name (English) *" error={errors.fullName}>
           <Input
             value={form.fullName}
             onChange={(e) => onUpdate("fullName", e.target.value)}
@@ -601,6 +642,7 @@ function StepPersonalInfo({
           </div>
         </FieldGroup>
         <FieldGroup
+          name="dateOfBirth"
           label="Date of Birth"
           error={errors.dateOfBirth}
           hint={age !== null ? `Age: ${age} years old` : undefined}
@@ -629,7 +671,7 @@ function StepPersonalInfo({
 
       <FormSection icon={GraduationCap} title="Placement" hint="Which class the student joins, and the roll number they are given.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Class *" error={errors.classId}>
+        <FieldGroup name="classId" label="Class *" error={errors.classId}>
           <Select
             value={selectedGroupKey}
             onChange={(e) => onSelectClassGroup(e.target.value)}
@@ -658,15 +700,15 @@ function StepPersonalInfo({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
-          <div className="relative">
+        <FieldGroup name="rollNo" label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
+          <InputGroup className="relative">
             <Input
               value={form.rollNo}
               onChange={(e) => onUpdate("rollNo", e.target.value)}
               placeholder="NUR-Y-001"
               className="pr-10"
             />
-            <button
+            <button data-field-affix="end"
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
               onClick={onRegenerateRollNo}
@@ -678,7 +720,7 @@ function StepPersonalInfo({
                 <RefreshCw className="h-4 w-4" />
               )}
             </button>
-          </div>
+          </InputGroup>
         </FieldGroup>
         <FieldGroup label="Previous School">
           <Input
@@ -694,12 +736,13 @@ function StepPersonalInfo({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FieldGroup label="Student Phone">
           <Input
+            type="tel"
             value={form.phone}
             onChange={(e) => onUpdate("phone", e.target.value)}
             placeholder="+92 300 1234567"
           />
         </FieldGroup>
-        <FieldGroup label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
+        <FieldGroup name="studentEmail" label="Student Login Email" error={errors.studentEmail} hint="Sends a portal invite">
           <Input
             type="email"
             value={form.studentEmail}
@@ -770,6 +813,142 @@ function StepPersonalInfo({
   );
 }
 
+// ─── Existing-guardian picker ─────────────────────────────
+
+interface ExistingParent {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  parentedStudents: {
+    id: string;
+    fullName: string;
+    rollNo: string;
+    siblingGroupId: string | null;
+    class: { name: string; section: string | null } | null;
+  }[];
+}
+
+/**
+ * Admitting a second child meant retyping the guardian from memory, and the
+ * parent portal groups siblings by guardian email — so one typo split a family
+ * into two accounts, each seeing one child. /api/students/parents was written
+ * for this and never wired to anything; this is its screen.
+ *
+ * Picking a guardian fills their contact details verbatim and links the new
+ * student to one of their existing children, so the sibling group forms itself.
+ */
+function GuardianPicker({
+  onPick,
+}: {
+  onPick: (parent: ExistingParent) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<ExistingParent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const term = search.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const controller = new AbortController();
+    // Typing a full name is eight keystrokes; without a debounce that is eight
+    // roster queries, and the last one to land wins rather than the last typed.
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/students/parents?search=${encodeURIComponent(term)}`,
+          { signal: controller.signal }
+        );
+        const json = await res.json();
+        if (json.success) {
+          setResults(json.data);
+          setOpen(true);
+        }
+      } catch {
+        // Aborted by the next keystroke, or the lookup failed. Either way the
+        // guardian fields below still work by hand, so stay quiet.
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+
+  return (
+    <div className="rounded-2xl border border-[#8127cf]/20 bg-[#fbf0fe]/50 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <UserCheck className="h-4 w-4 shrink-0 text-[#8127cf]" />
+        <p className="text-xs font-black text-[#1f1a23]">
+          Already have a guardian at this school?
+        </p>
+      </div>
+      <p className="mb-3 text-[11px] font-semibold leading-relaxed text-ink-muted">
+        Search by name, phone or email to reuse their details and link this student
+        to their brothers and sisters.
+      </p>
+
+      <InputGroup className="relative">
+        <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Ahmed Khan, +92 300…, guardian@example.com"
+          className="pl-9"
+          aria-label="Search existing guardians"
+        />
+        {loading ? (
+          <Loader2 data-field-affix="end" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8127cf]" />
+        ) : null}
+      </InputGroup>
+
+      {open && search.trim().length >= 2 ? (
+        <div className="mt-3 space-y-2">
+          {results.length === 0 && !loading ? (
+            <p className="px-1 text-[11px] font-bold text-ink-muted">
+              No existing guardian matches that. Fill the fields below to add a new one.
+            </p>
+          ) : null}
+          {results.map((parent) => (
+            <button
+              key={parent.id}
+              type="button"
+              onClick={() => {
+                onPick(parent);
+                setSearch("");
+                setResults([]);
+                setOpen(false);
+              }}
+              className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/30 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md"
+            >
+              <p className="truncate text-xs font-black text-[#1f1a23]">{parent.fullName}</p>
+              <p className="truncate text-[11px] font-semibold text-ink-muted">
+                {[parent.phone, parent.email].filter(Boolean).join(" · ") || "No contact details"}
+              </p>
+              {parent.parentedStudents.length > 0 ? (
+                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">
+                  {parent.parentedStudents
+                    .map((c) => `${c.fullName}${c.class ? ` (${c.class.name}${c.class.section ? ` ${c.class.section}` : ""})` : ""}`)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── Step 2: Guardian Details ─────────────────────────────
 
 function StepGuardianDetails({
@@ -782,22 +961,29 @@ function StepGuardianDetails({
   onUpdate: (field: keyof FormData, value: string) => void;
 }) {
   const noContact = !form.guardianPhone.trim() && !form.guardianEmail.trim();
+
+  /**
+   * Copy the chosen guardian across, and link the student to one of their
+   * existing children so the sibling group forms without a second step. Only
+   * fields the guardian actually has are written — an empty phone on their
+   * record must not wipe one the registrar has already typed here.
+   */
+  const applyExistingGuardian = (parent: ExistingParent) => {
+    onUpdate("guardianName", parent.fullName);
+    if (parent.phone) onUpdate("guardianPhone", parent.phone);
+    if (parent.email) onUpdate("guardianEmail", parent.email);
+    const firstChild = parent.parentedStudents[0];
+    if (firstChild) onUpdate("siblingStudentId", firstChild.id);
+    toast.success(
+      firstChild
+        ? `Guardian copied and linked as a sibling of ${firstChild.fullName}`
+        : "Guardian details copied"
+    );
+  };
+
   return (
     <div className="space-y-5">
-      {/*
-        Neither field is required by the API, but a student with no reachable
-        guardian is a support ticket waiting to happen — so say so here rather
-        than letting the directory flag it weeks later.
-      */}
-      {noContact ? (
-        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <Users className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs font-semibold text-amber-800">
-            No guardian phone or email yet. You can finish the admission without one, but the school will have
-            no way to contact this student&apos;s family and no parent portal invite can be sent.
-          </p>
-        </div>
-      ) : null}
+      <GuardianPicker onPick={applyExistingGuardian} />
 
       <FormSection icon={Users} title="Guardian" hint="The primary contact for this student.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -844,8 +1030,9 @@ function StepGuardianDetails({
 
       <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label="Guardian Phone (WhatsApp)">
+        <FieldGroup name="guardianPhone" label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
           <Input
+            type="tel"
             value={form.guardianPhone}
             onChange={(e) => onUpdate("guardianPhone", e.target.value)}
             placeholder="+92 300 1234567"
@@ -853,6 +1040,7 @@ function StepGuardianDetails({
         </FieldGroup>
         <FieldGroup label="Guardian WhatsApp (if different)">
           <Input
+            type="tel"
             value={form.guardianWhatsapp}
             onChange={(e) => onUpdate("guardianWhatsapp", e.target.value)}
             placeholder="+92 300 1234567"
@@ -860,7 +1048,7 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
-      <FieldGroup label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
+      <FieldGroup name="guardianEmail" label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
         <Input
           type="email"
           value={form.guardianEmail}
@@ -886,9 +1074,9 @@ function StepAddressMedical({
 }) {
   return (
     <div className="space-y-5">
-      <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records.">
+      <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records. This information is required.">
         <>
-          <FieldGroup label="Street Address">
+          <FieldGroup name="address" label="Street Address *" error={errors.address}>
             <Input
               value={form.address}
               onChange={(e) => onUpdate("address", e.target.value)}
@@ -896,7 +1084,7 @@ function StepAddressMedical({
             />
           </FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FieldGroup label="City">
+            <FieldGroup name="city" label="City *" error={errors.city}>
               <Input
                 value={form.city}
                 onChange={(e) => onUpdate("city", e.target.value)}
@@ -930,14 +1118,14 @@ function StepAddressMedical({
       <FormSection
         icon={Heart}
         title="Medical Information"
-        hint="Anything staff must know in an emergency. Visible to teachers and the school office."
+        hint="Anything staff must know in an emergency. Visible to teachers and the school office. This information is required."
       >
         <>
-          <FieldGroup label="Medical Notes">
+          <FieldGroup name="medicalNotes" label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
             <Textarea
               value={form.medicalNotes}
               onChange={(e) => onUpdate("medicalNotes", e.target.value)}
-              placeholder="Any medical conditions or notes..."
+              placeholder="Any medical conditions, health notes, or write 'None' if not applicable..."
               rows={2}
             />
           </FieldGroup>
@@ -988,6 +1176,7 @@ function StepReview({
   siblings: any[];
   onEditStep: (step: number) => void;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const classDisplay = selectedClass
     ? [selectedClass.name, selectedClass.section].filter(Boolean).join(" - ")
     : "Not selected";
@@ -1023,7 +1212,7 @@ function StepReview({
           label="Date of Birth"
           value={
             form.dateOfBirth
-              ? `${new Date(form.dateOfBirth).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}${age !== null ? ` (${age} yrs)` : ""}`
+              ? `${formatCalendarDate(form.dateOfBirth)}${age !== null ? ` (${age} yrs)` : ""}`
               : ""
           }
         />
@@ -1086,17 +1275,19 @@ function StepReview({
             value={[form.address, form.city, form.province, form.postalCode]
               .filter(Boolean)
               .join(", ")}
+            required={!!(form.address && form.city)}
           />
         ) : (
-          <p className="text-sm text-ink-subtle">No address provided</p>
+          <p className="text-sm text-rose-500 font-semibold">⚠️ Address is required - please go back and fill it in</p>
+        )}
+        {form.medicalNotes ? (
+          <ReviewRow label="Medical Notes" value={form.medicalNotes} required />
+        ) : (
+          <p className="text-sm text-rose-500 font-semibold">⚠️ Medical notes are required - please go back and fill them in</p>
         )}
         {form.allergies && <ReviewRow label="Allergies" value={form.allergies} />}
-        {form.medicalNotes && <ReviewRow label="Medical Notes" value={form.medicalNotes} />}
         {form.specialNeeds && <ReviewRow label="Special Needs" value={form.specialNeeds} />}
         {form.medications && <ReviewRow label="Medications" value={form.medications} />}
-        {!form.allergies && !form.medicalNotes && !form.specialNeeds && !form.medications && !form.address && !form.city && (
-          <p className="text-sm text-ink-subtle">No medical information provided</p>
-        )}
       </ReviewSection>
     </div>
   );
@@ -1106,24 +1297,19 @@ function StepReview({
 
 
 function FieldGroup({
+  name: suppliedName,
   label,
   error,
   hint,
   children,
 }: {
+  name?: string;
   label: string;
   error?: string;
   hint?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</Label>
-      {children}
-      {error && <p className="text-xs font-semibold text-rose-500">{error}</p>}
-      {hint && !error && <p className="text-xs font-medium text-ink-muted">{hint}</p>}
-    </div>
-  );
+  const generatedName = useId();
+  const name = suppliedName ?? generatedName;
+  return <FormField name={name} label={label} error={error} hint={hint}>{children}</FormField>;
 }
-
-

@@ -1,4 +1,9 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
+import { cn } from "@/lib/utils";
+
+import { pageCardSurface } from "@/components/ui/page-card";
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
@@ -46,7 +51,6 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PlatformOverview } from "@/components/insights";
 import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
@@ -60,6 +64,8 @@ import {
   type RoleNavItem,
 } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
 
@@ -248,7 +254,6 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function OwnerDashboard() {
-  const router = useRouter();
   const [activeView, setActiveView] = useState<OwnerView>("schools");
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -268,11 +273,10 @@ export default function OwnerDashboard() {
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
+  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
+  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
+  // prop, so nothing could call it); its router.push("/login") would also have
+  // left this console renderable via Back after sign-out.
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools", onClick: () => setActiveView("schools") },
     { icon: Users, label: "Users", active: activeView === "users", onClick: () => setActiveView("users") },
@@ -302,7 +306,7 @@ export default function OwnerDashboard() {
       avatarSeed="mohsin@skooleeai.com"
       dashboardHref="/owner"
     >
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
+      <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
         {activeView === "schools" && (
           <SchoolsView
             stats={stats}
@@ -391,19 +395,19 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
         </div>
       ) : null}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
-            <input
+          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
+            <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
+            <SystemInput
               type="text"
               placeholder="Search schools by name, email, slug..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
             />
-          </div>
-          <select
+          </InputGroup>
+          <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -412,8 +416,8 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
             <option value="ACTIVE">Active</option>
             <option value="SUSPENDED">Suspended</option>
             <option value="TRIAL">Trial</option>
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -423,7 +427,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
             <option value="BASIC">Pro</option>
             <option value="PRO">Enterprise</option>
             <option value="ENTERPRISE">Custom</option>
-          </select>
+          </SystemSelect>
         </div>
 
         {loading ? (
@@ -525,7 +529,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                         {school.campuses.length > 0 ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {school.campuses.map((campus) => (
-                              <div key={campus.id} className="rounded-xl bg-white border border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                              <div key={campus.id} className="sk-panel p-4">
                                 <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
                                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
                                 {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
@@ -660,19 +664,19 @@ function UsersView() {
         />
       )}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
-            <input
+          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
+            <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
+            <SystemInput
               type="text"
               placeholder="Search by name, email, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
             />
-          </div>
-          <select
+          </InputGroup>
+          <SystemSelect
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -684,8 +688,8 @@ function UsersView() {
             <option value="TEACHER">Teacher</option>
             <option value="PARENT">Parent</option>
             <option value="STUDENT">Student</option>
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -693,7 +697,7 @@ function UsersView() {
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
-          </select>
+          </SystemSelect>
         </div>
 
         {loading ? (
@@ -833,9 +837,9 @@ function AuditLogView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <select
+          <SystemSelect
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -848,8 +852,8 @@ function AuditLogView() {
             <option value="school_suspended">School Suspended</option>
             <option value="school_activated">School Activated</option>
             <option value="session_terminated">Session Terminated</option>
-          </select>
-          <select
+          </SystemSelect>
+          <SystemSelect
             value={daysFilter}
             onChange={(e) => setDaysFilter(e.target.value)}
             className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
@@ -858,7 +862,7 @@ function AuditLogView() {
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
             <option value="365">Last year</option>
-          </select>
+          </SystemSelect>
         </div>
 
         {loading ? (
@@ -1035,7 +1039,7 @@ function SessionsView() {
         </button>
       </div>
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel p-6">
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] flex items-center justify-center">
@@ -1194,7 +1198,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="sk-panel p-6">
               <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Plan</p>
               {Object.keys(stats.schoolsByPlan).length > 0 ? (
                 <div className="space-y-3">
@@ -1230,7 +1234,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
               )}
             </div>
 
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div className="sk-panel p-6">
               <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Status</p>
               {Object.keys(stats.schoolsByStatus).length > 0 ? (
                 <div className="space-y-3">
@@ -1412,7 +1416,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="sk-panel p-6 mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Globe className="w-3 h-3" /> Default Plan Prices
         </p>
@@ -1425,9 +1429,9 @@ function PricingView({ stats }: { stats: Stats | null }) {
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
                 {planLabel(plan)}
               </span>
-              <div className="relative flex-1 max-w-[200px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
-                <input
+              <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
+                <span data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
+                <SystemInput
                   type="number"
                   min="0"
                   placeholder="Default"
@@ -1435,7 +1439,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                   onChange={(e) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
                   className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
                 />
-              </div>
+              </InputGroup>
             </div>
           ))}
         </div>
@@ -1450,7 +1454,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </button>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="sk-panel p-6 mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <DollarSign className="w-3 h-3" /> Plan Pricing Override
         </p>
@@ -1460,7 +1464,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="flex-1">
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">School</label>
-            <select
+            <SystemSelect
               value={pricingSchoolId}
               onChange={(e) => {
                 setPricingSchoolId(e.target.value);
@@ -1473,7 +1477,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
               {stats?.schools?.map((s: { id: string; name: string }) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
-            </select>
+            </SystemSelect>
           </div>
         </div>
         {pricingSchoolId && (
@@ -1483,9 +1487,9 @@ function PricingView({ stats }: { stats: Stats | null }) {
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
                   {planLabel(plan)}
                 </span>
-                <div className="relative flex-1 max-w-[200px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
-                  <input
+                <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
+                  <span data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
+                  <SystemInput
                     type="number"
                     min="0"
                     placeholder="Default"
@@ -1493,7 +1497,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                     onChange={(e) => setPricingValues(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
                     className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
                   />
-                </div>
+                </InputGroup>
               </div>
             ))}
             <div className="flex items-center gap-3 pt-2">
@@ -1601,7 +1605,7 @@ function PaymentSettingsView() {
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="sk-panel p-6 mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <WalletCards className="w-3 h-3" /> Stripe Connect
         </p>
@@ -1654,7 +1658,7 @@ function PaymentSettingsView() {
         )}
       </div>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
+      <div className="sk-panel p-6 mb-8">
         <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Building2 className="w-3 h-3" /> Bank Account (Fallback)
         </p>
@@ -1664,7 +1668,7 @@ function PaymentSettingsView() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Bank Name</label>
-            <input
+            <SystemInput
               value={bankForm.bankName}
               onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
               placeholder="e.g. HBL, Meezan Bank"
@@ -1673,7 +1677,7 @@ function PaymentSettingsView() {
           </div>
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Title</label>
-            <input
+            <SystemInput
               value={bankForm.accountTitle}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
               placeholder="Full name or business name"
@@ -1682,7 +1686,7 @@ function PaymentSettingsView() {
           </div>
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Number</label>
-            <input
+            <SystemInput
               value={bankForm.accountNumber}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
               placeholder="IBAN or account number"
@@ -1691,7 +1695,7 @@ function PaymentSettingsView() {
           </div>
           <div>
             <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">IBAN (optional)</label>
-            <input
+            <SystemInput
               value={bankForm.iban}
               onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
               placeholder="PK...XXXX"
@@ -2010,22 +2014,22 @@ function ChangePasswordModal({
             <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
               New Password
             </label>
-            <div className="relative">
-              <input
+            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
+              <SystemInput
                 type={showPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password..."
                 className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
-              <button
+              <button data-field-affix="end"
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            </div>
+            </InputGroup>
             {newPassword && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex gap-1 flex-1">
@@ -2052,7 +2056,7 @@ function ChangePasswordModal({
             <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
               Confirm Password
             </label>
-            <input
+            <SystemInput
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

@@ -93,6 +93,20 @@ export default function RootLayout({
               richColors
               closeButton
               visibleToasts={3}
+              /*
+                Below md the role consoles carry a fixed bottom tab bar — 58px
+                of primary navigation. Sonner's default 16px mobile offset put
+                every toast squarely on top of it, so for five seconds after any
+                action the navigation was simply gone. Lift it clear of the bar
+                and of the home indicator below that. Desktop keeps the 24px
+                default and the corner-free reasoning above.
+              */
+              mobileOffset={{
+                bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+                top: 16,
+                left: 16,
+                right: 16,
+              }}
               toastOptions={{
                 duration: 5000,
                 style: { 

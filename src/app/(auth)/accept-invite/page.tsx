@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -13,7 +15,10 @@ import {
   Lock,
   MailCheck,
   ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
+import { roleLabel, type UserRole } from "@/lib/roles";
+import { membershipPreview } from "@/lib/membership-access";
 import { acceptInvite } from "@/app/actions/invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,16 +26,20 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import { Label } from "@/components/ui/label";
 
 export default function AcceptInvitePage() {
+  const [language, setLanguage] = useState<"en" | "ar">("en");
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [inviteStatus, setInviteStatus] = useState<"pending" | "accepted" | "cancelled" | "expired" | "invalid" | null>(null);
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(true);
+  const [details, setDetails] = useState<{ role: UserRole; institutionName: string; campusName: string; invitedBy: string; expiresAt: string; canPurchaseSubscription: boolean; canManageMemberships: boolean } | null>(null);
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   const passwordChecks = useMemo(
     () => [
@@ -60,6 +69,7 @@ export default function AcceptInvitePage() {
           setInviteMessage("This invitation link is invalid or no longer available.");
         } else {
           setInviteStatus(data.status || "invalid");
+          if (data.status === "pending") setDetails(data);
           if (data.status === "expired") {
             setInviteMessage("This invitation has expired. Please request a new invite.");
           } else if (data.status === "cancelled") {
@@ -85,35 +95,47 @@ export default function AcceptInvitePage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setValidationError("");
 
     if (!token) {
-      toast.error("This invitation link is missing its secure token.");
+      const errorMsg = "This invitation link is missing its secure token.";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
     if (inviteStatus !== "pending") {
-      toast.error("This invitation is no longer active.");
+      const errorMsg = "This invitation is no longer active.";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
-    if (!passwordChecks.every((item) => item.met)) {
-      toast.error("Please complete the password requirements.");
+
+    // Check individual password requirements
+    const unmetRequirements = passwordChecks.filter(check => !check.met);
+    if (unmetRequirements.length > 0) {
+      const errorMsg = `Please complete the following: ${unmetRequirements.map(req => req.label).join(", ")}`;
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     setLoading(true);
     try {
-      await acceptInvite(token, password);
-      toast.success("Invitation accepted. Please log in.");
+      await acceptInvite(token, password, fullName);
+      toast.success(`Invitation accepted. Sign in to your ${details ? roleLabel(details.role, language) : "assigned"} workspace.`);
       await new Promise((resolve) => setTimeout(resolve, 140));
       router.push("/login?invite=accepted");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not accept invitation");
+      const errorMsg = error instanceof Error ? error.message : "Could not accept invitation";
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="grid min-h-screen grid-cols-1 overflow-hidden bg-[#fff7fe] font-sans text-[#1f1a23] md:grid-cols-2">
+    <main dir={language === "ar" ? "rtl" : "ltr"} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-[#fff7fe] font-sans text-[#1f1a23] md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
         <div className="absolute inset-0 z-10 bg-[#8127cf]/10 mix-blend-multiply" />
         <img
@@ -150,6 +172,7 @@ export default function AcceptInvitePage() {
                 <MailCheck className="h-3.5 w-3.5" />
                 Invitation link
               </div>
+              <button type="button" onClick={() => setLanguage(language === "en" ? "ar" : "en")}>{language === "en" ? "العربية" : "English"}</button>
               <h1 className="text-2xl font-black tracking-normal text-[#1f1a23]">Accept Invitation</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 Set your password to activate your campus account.
@@ -172,22 +195,41 @@ export default function AcceptInvitePage() {
                     Validating invitation status...
                   </div>
                 ) : null}
+                {details && <section className="mb-5 space-y-2 rounded-xl border p-4" aria-label="Your invitation scope">
+                  <h2 className="font-bold">{details.institutionName}</h2>
+                  <p>{roleLabel(details.role, language)} · {details.campusName}</p>
+                  <p>Invited by <bdi>{details.invitedBy || "your institution administrator"}</bdi></p>
+                  <p>Expires: <time dateTime={details.expiresAt}>{new Date(details.expiresAt).toLocaleString()}</time></p>
+                  <ul className="list-inside list-disc">{membershipPreview(details.role, false, false, language).tasks.map(task => <li key={task}>{task}</li>)}</ul>
+                  <p>{membershipPreview(details.role, details.canPurchaseSubscription, details.canManageMemberships, language).purchasing}</p>
+                  <p>This membership does not grant institution ownership. You will enter your assigned workspace after signing in.</p>
+                </section>}
                 <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2"><Label htmlFor="fullName">Your full name</Label><Input id="fullName" autoComplete="name" required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} /></div>
+                {validationError && (
+                  <div className="rounded-3xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="password" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Password
                   </Label>
-                  <div className="relative flex items-center">
-                    <Lock className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
+                    <Lock data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(event) => setPassword(event.target.value)}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setValidationError("");
+                      }}
                       placeholder="Create a secure password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-12 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />
-                    <button
+                    <button data-field-affix="end"
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       className="absolute right-4 cursor-pointer text-ink transition-colors hover:text-[#8127cf]"
@@ -195,24 +237,27 @@ export default function AcceptInvitePage() {
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
-                  </div>
+                  </InputGroup>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword" className="ml-1 text-xs font-bold uppercase tracking-normal text-ink">
                     Confirm Password
                   </Label>
-                  <div className="relative flex items-center">
-                    <ShieldCheck className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
+                  <InputGroup surfaceClassName="bg-[#fbf0fe]" className="relative flex items-center">
+                    <ShieldCheck data-field-affix="start" className="pointer-events-none absolute left-4 h-5 w-5 text-ink" />
                     <Input
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
                       value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        setValidationError("");
+                      }}
                       placeholder="Repeat password"
                       className="h-14 rounded-lg border-0 bg-[#fbf0fe] pl-12 pr-4 font-medium tracking-normal shadow-none focus:bg-white focus:ring-2 focus:ring-[#8127cf]/20"
                     />
-                  </div>
+                  </InputGroup>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 rounded-3xl bg-[#fbf0fe] p-4">

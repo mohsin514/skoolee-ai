@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -19,6 +21,7 @@ import { shiftDateOnly } from "@/lib/date-only";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
 import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { NavGuardPrompt } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
@@ -310,7 +313,7 @@ export default function AttendancePage() {
               <button type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronLeft className="w-4 h-4 text-ink" />
               </button>
-              <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
+              <SystemInput type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
                 className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
               <button type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
                 <ChevronRight className="w-4 h-4 text-ink" />
@@ -327,7 +330,7 @@ export default function AttendancePage() {
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="sk-rise rounded-2xl bg-white border border-[#cfc2d6]/25 px-4 py-3.5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }} title="Total students in this class">
+          <div className="sk-panel sk-rise px-4 py-3.5" style={{ animationDelay: "0ms" }} title="Total students in this class">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Total</p>
             <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{stats.total}</p>
           </div>
@@ -389,9 +392,9 @@ export default function AttendancePage() {
 
               {/* Roster search — a forty-name list is not something you scroll
                   to find one child in. */}
-              <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                <input
+              <InputGroup surfaceClassName="bg-white" className="relative ml-auto min-w-[200px] flex-1 sm:max-w-[280px] sm:flex-none">
+                <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+                <SystemInput
                   value={rosterQuery}
                   onChange={(e) => setRosterQuery(e.target.value)}
                   placeholder="Find a student…"
@@ -399,12 +402,12 @@ export default function AttendancePage() {
                   className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
                 />
                 {rosterQuery ? (
-                  <button type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
+                  <button data-field-affix="end" type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
                     className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                     <X className="h-3 w-3" />
                   </button>
                 ) : null}
-              </div>
+              </InputGroup>
 
               <button type="button" onClick={() => setKeyboardMode((v) => !v)} aria-pressed={keyboardMode}
                 title="Show the keyboard shortcuts for marking a roster without the mouse"
@@ -440,7 +443,7 @@ export default function AttendancePage() {
         )}
 
         {/* Student roster */}
-        <div className="sk-rise rounded-2xl border border-[#cfc2d6]/25 overflow-hidden bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "60ms" }}>
+        <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "60ms" }}>
           {attendanceLoading ? (
             <div className="divide-y divide-[#f3f4f9]">
               {[...Array(5)].map((_, i) => (
@@ -593,7 +596,7 @@ export default function AttendancePage() {
 
         {/* History section */}
         {historyOpen && attendanceHistory.length > 0 && (
-          <div className="sk-rise rounded-2xl border border-[#cfc2d6]/25 overflow-hidden bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
+          <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "120ms" }}>
             <div className="divide-y divide-[#f3f4f9] max-h-[320px] overflow-y-auto custom-scrollbar">
               {attendanceHistory.slice(0, 15).map((entry) => {
                 const isSelected = entry.date === attendanceDate;

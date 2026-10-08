@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requirePageSession } from "@/lib/auth/require-page-session";
 import { StudentShell } from "./student-shell";
 import { StudentDataProvider } from "./student-data-context";
 
@@ -8,7 +9,11 @@ export const metadata: Metadata = {
   title: "Student",
 };
 
-export default function StudentLayout({ children }: { children: React.ReactNode }) {
+export default async function StudentLayout({ children }: { children: React.ReactNode }) {
+  // The shell and every page inside it are client components that fetch their
+  // own data, so this is the only server-side check that a session still exists.
+  await requirePageSession();
+
   return (
     <StudentDataProvider>
       <StudentShell>{children}</StudentShell>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
 import {
   Banknote,
@@ -26,6 +28,7 @@ import {
   type ConsoleNavItem,
 } from "@/components/operations/console-page";
 import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
+import type { FeeTab } from "@/components/fees/fee-types";
 import { FeeStructuresTab } from "@/components/fees/FeeStructuresTab";
 import { FeeInvoicesTab } from "@/components/fees/FeeInvoicesTab";
 import { FeePaymentsTab } from "@/components/fees/FeePaymentsTab";
@@ -65,7 +68,24 @@ const NAV: ConsoleNavItem<AccountantView>[] = [
   { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", group: "Staff", eyebrow: "Staff", summary: "Review and decide staff leave requests." },
 ];
 
+/**
+ * The fee overview's shortcuts ("Structures", "Invoices", "Payments", "Reports")
+ * speak in FeeTab, which is the vocabulary of the combined FeesPanel. This
+ * console splits those same tabs into its own top-level sections, so the two
+ * vocabularies have to be mapped. Passing a no-op instead rendered five buttons that
+ * looked live and did nothing.
+ */
+const FEE_TAB_TO_VIEW: Record<FeeTab, AccountantView> = {
+  overview: "fee-overview",
+  structures: "fee-structures",
+  invoices: "invoices",
+  payments: "payments",
+  reports: "fee-reports",
+  accounts: "accounts",
+};
+
 export default function AccountantPage() {
+  const tr = useUiText();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +116,7 @@ export default function AccountantPage() {
       label: item.label,
       icon: item.icon,
       active: activeView === item.id,
+      module: moduleForView(item.id),
       onClick: () => setActiveView(item.id),
     })),
     { label: "Messages", icon: MessageCircle, href: "/messages" },
@@ -124,12 +145,12 @@ export default function AccountantPage() {
           navLabel="Finance sections"
           icon={current.icon}
           tone={current.tone}
-          eyebrow={current.eyebrow ?? "Finance Console"}
-          title={activeView === "dashboard" ? data.userName : current.label}
+          eyebrow={tr(current.eyebrow ?? "Finance Console")}
+          title={activeView === "dashboard" ? data.userName : tr(current.label)}
           summary={
             activeView === "dashboard"
               ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""} · ${data.schoolName}`
-              : current.summary
+              : tr(current.summary ?? "")
           }
         >
           {activeView === "dashboard" ? (
@@ -155,7 +176,7 @@ export default function AccountantPage() {
               </div>
             </div>
           ) : null}
-          {activeView === "fee-overview" ? <FeeOverviewTab campusId={data.campusId} onNavigate={() => {}} /> : null}
+          {activeView === "fee-overview" ? <FeeOverviewTab campusId={data.campusId} onNavigate={(tab) => setActiveView(FEE_TAB_TO_VIEW[tab])} /> : null}
           {activeView === "fee-structures" ? <FeeStructuresTab campusId={data.campusId} /> : null}
           {activeView === "fee-layers" ? <FeeLayersTab campusId={data.campusId} /> : null}
           {activeView === "invoices" ? <FeeInvoicesTab campusId={data.campusId} /> : null}

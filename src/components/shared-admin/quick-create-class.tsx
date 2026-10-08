@@ -27,6 +27,8 @@ import {
   useTeacherAvailability,
   type PickerTeacher,
 } from "@/components/shared-admin/teacher-picker";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /* ── Types ────────────────────────────────────────────────────────────── */
 
@@ -463,7 +465,7 @@ export function QuickCreateClass({
                   <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     Class Name
                   </span>
-                  <input
+                  <SystemInput
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -480,7 +482,7 @@ export function QuickCreateClass({
                   <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                     Academic Year
                   </span>
-                  <input
+                  <SystemInput
                     type="number"
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
@@ -658,7 +660,7 @@ export function QuickCreateClass({
                           Type <code className="rounded bg-white px-1 font-mono text-[10px] text-[#0f766e]">A-D</code> for a run
                         </span>
                       </span>
-                      <input
+                      <SystemInput
                         type="text"
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
@@ -736,7 +738,7 @@ export function QuickCreateClass({
                       Copy Subjects From...
                     </span>
                     <div className="relative">
-                      <select
+                      <SystemSelect
                         value={copyFromClassId}
                         onChange={(e) => {
                           if (e.target.value) applyCopySubjects(e.target.value);
@@ -751,8 +753,8 @@ export function QuickCreateClass({
                             {cls.subjects?.length} subjects)
                           </option>
                         ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+                      </SystemSelect>
+
                     </div>
                   </label>
                 </div>
@@ -765,7 +767,7 @@ export function QuickCreateClass({
                 </span>
                 <div className="flex items-end gap-2">
                   <div className="min-w-0 flex-1">
-                    <input
+                    <SystemInput
                       type="text"
                       value={newSubjectName}
                       onChange={(e) => setNewSubjectName(e.target.value)}
@@ -780,7 +782,7 @@ export function QuickCreateClass({
                     />
                   </div>
                   <div className="w-20">
-                    <input
+                    <SystemInput
                       type="number"
                       value={newSubjectMarks}
                       onChange={(e) => setNewSubjectMarks(e.target.value)}
@@ -822,14 +824,14 @@ export function QuickCreateClass({
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[10px] font-black text-[#8127cf]">
                             {i + 1}
                           </div>
-                          <input
+                          <SystemInput
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
                             aria-label={`Subject ${i + 1} name`}
                             className="min-w-0 flex-1 rounded-lg bg-transparent py-1 text-sm font-black text-[#1f1a23] outline-none transition-colors hover:bg-[#fbf0fe]/60 focus:bg-[#fbf0fe] focus:px-2"
                           />
                           <div className="flex shrink-0 items-baseline gap-1">
-                            <input
+                            <SystemInput
                               type="number"
                               min="1"
                               value={subject.totalMarks}

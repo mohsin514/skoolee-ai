@@ -52,6 +52,8 @@ import {
   classLabel,
   groupClasses,
 } from "@/components/shared-admin";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /* ────────────────────────── Sorting ────────────────────────── */
 
@@ -887,8 +889,8 @@ function StudentCard({
 
       <div className="relative">
         <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
+          <SystemCheckbox
+
             checked={selected}
             onChange={onToggleSelect}
             onClick={(e) => e.stopPropagation()}
@@ -1083,7 +1085,7 @@ function BulkTagModal({
         <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
           {kind === "category" ? "Category" : "Group"}
         </span>
-        <select
+        <SystemSelect
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
@@ -1094,7 +1096,7 @@ function BulkTagModal({
               {o.name}
             </option>
           ))}
-        </select>
+        </SystemSelect>
       </label>
       <p className="mt-3 text-[11px] font-semibold leading-relaxed text-ink-muted">
         This replaces whatever {noun} each selected student has now.
@@ -1146,7 +1148,7 @@ function BulkMoveModal({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Class</span>
-          <select
+          <SystemSelect
             value={groupKey}
             onChange={(e) => {
               setGroupKey(e.target.value);
@@ -1160,11 +1162,11 @@ function BulkMoveModal({
                 {g.name} · {g.academicYear}
               </option>
             ))}
-          </select>
+          </SystemSelect>
         </label>
         <label className="block">
           <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Section</span>
-          <select
+          <SystemSelect
             value={classId}
             onChange={(e) => setClassId(e.target.value)}
             disabled={!groupKey}
@@ -1176,7 +1178,7 @@ function BulkMoveModal({
                 {c.section ? `Section ${c.section}` : "Whole class"}
               </option>
             ))}
-          </select>
+          </SystemSelect>
         </label>
       </div>
       <p className="mt-3 text-[11px] font-semibold leading-relaxed text-amber-700">

@@ -1,4 +1,9 @@
 "use client";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { FormErrorSummary } from "@/components/ui/form-field";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -19,8 +24,9 @@ import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
-import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
-import { NavGuardPrompt } from "@/components/ui/confirm-action";
+
+
+import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
@@ -37,7 +43,18 @@ export default function MarksPage() {
      against this, so "8 unsaved changes" means eight cells this teacher
      typed — not eight cells that merely have a value in them. */
   const [baselineMarks, setBaselineMarks] = useState<Record<string, string>>({});
+  const draft = useFormDraft({ record: `marks:${selectedExamId}`, schema: 1, values: marksByKey, baseline: baselineMarks,
+    fields: (markSheet?.students || []).flatMap((student: { id: string }) => (markSheet?.subjects || []).map((subject: { id: string }) => `${student.id}:${subject.id}`)), enabled: !!selectedExamId && !!markSheet && !marksLoading,
+    apply: (next) => setMarksByKey(next),
+    current: async () => {
+      const response = await fetch(`/api/marks?examId=${selectedExamId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
+      const latest = await response.json();
+      return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, String(mark.marksObtained)]));
+    },
+  });
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [pendingExamId, setPendingExamId] = useState<string | null>(null);
   const [examQuery, setExamQuery] = useState("");
   const [showAllExams, setShowAllExams] = useState(false);
   const gridRef = useRef<HTMLTableSectionElement>(null);
@@ -119,17 +136,23 @@ export default function MarksPage() {
       if (payload.length === 0) { toast.error("Enter marks first"); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedExamId, entries: payload }),
+        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: baselineMarks }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
+      if (res.status === 409 && result.conflict) {
+        await loadMarks(selectedExamId);
+        toast.error(result.error);
+        return;
+      }
       if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save marks"));
+      draft.markSaved();
       toast.success("Marks saved");
       await loadMarks(selectedExamId);
       await loadData();
     } catch (error: any) { toast.error(error.message); }
     finally { setMarksSaving(false); }
-  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData]);
+  }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft]);
 
   const exportMarksCSV = useCallback(() => {
     if (!markSheet) return;
@@ -173,8 +196,8 @@ export default function MarksPage() {
 
   const resetMarks = useCallback(() => setMarksByKey(baselineMarks), [baselineMarks]);
 
-  useUnsavedGuard(dirtyKeys.size > 0);
-  const navGuard = useNavGuard(dirtyKeys.size > 0, "You have unsaved marks. Leave this page and lose them?");
+
+
 
   /* Move the caret around the sheet the way a spreadsheet does. Entering a
      column of forty marks previously meant Tab-Tab-Tab across every subject to
@@ -232,7 +255,7 @@ export default function MarksPage() {
     const { subjectId } = clearTarget;
     setMarksByKey((current) => {
       const next = { ...current };
-      for (const student of markSheet.students) delete next[`${student.id}:${subjectId}`];
+      for (const student of markSheet.students) next[`${student.id}:${subjectId}`] = "";
       return next;
     });
     setClearTarget(null);
@@ -278,12 +301,14 @@ export default function MarksPage() {
       summary={`${data.exams?.length || 0} exam cycle${(data.exams?.length || 0) === 1 ? "" : "s"} · enter marks, create assessments and manage grading`}
       actions={<GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />}
     >
+      <DraftRecovery draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
+      <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, `${student.fullName}: ${subject.name} must be between 0 and ${subject.totalMarks || 100}.`]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
       <div className="space-y-3">
 
         {/* Zero state — with no assessments the selector, sheet and save bar are
             all inert, so show the way forward instead of three dead controls. */}
         {!data.exams?.length ? (
-          <div className="sk-rise flex flex-col items-center justify-center rounded-[28px] border border-[#cfc2d6]/25 bg-white px-8 py-14 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise flex flex-col items-center justify-center px-8 py-14 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
               <Star className="h-8 w-8 text-white" />
             </div>
@@ -325,9 +350,9 @@ export default function MarksPage() {
             only one — with a filter in front of them, which is what the
             dropdown was really being used for once the list grew. */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-            <input
+          <InputGroup surfaceClassName="bg-white" className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
+            <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+            <SystemInput
               value={examQuery}
               onChange={(e) => setExamQuery(e.target.value)}
               placeholder="Find an assessment or class…"
@@ -335,12 +360,12 @@ export default function MarksPage() {
               className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
             />
             {examQuery ? (
-              <button type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
+              <button data-field-affix="end" type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
                 className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                 <X className="h-3 w-3" />
               </button>
             ) : null}
-          </div>
+          </InputGroup>
           <span className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">
             {visibleExams.length} of {data.exams.length} assessment{data.exams.length === 1 ? "" : "s"}
           </span>
@@ -369,7 +394,7 @@ export default function MarksPage() {
             const isSelected = selectedExamId === exam.id;
             const isLockedExam = exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
             return (
-              <button key={exam.id} type="button" onClick={() => setSelectedExamId(exam.id)} title={`Select ${exam.title}`}
+              <button key={exam.id} type="button" onClick={() => { if (draft.dirty && exam.id !== selectedExamId) setPendingExamId(exam.id); else setSelectedExamId(exam.id); }} title={`Select ${exam.title}`}
                 className={cn(
                   "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                   isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" : "border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"
@@ -417,7 +442,7 @@ export default function MarksPage() {
         )}
 
         {/* Marks table */}
-        <div className="sk-rise overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
+        <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "120ms" }}>
           {marksLoading ? (
             <div>
               <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">
@@ -514,7 +539,7 @@ export default function MarksPage() {
                           const isDirty = dirtyKeys.has(key);
                           return (
                             <td key={subject.id} className="px-3 py-3">
-                              <input type="number" min={0} max={max} value={value} disabled={isLocked}
+                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}
@@ -544,6 +569,7 @@ export default function MarksPage() {
                                   isDirty && !isOverLimit && "border-amber-300 bg-amber-50/70",
                                   isOverLimit ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#cfc2d6]/20"
                                 )} />
+                              {isOverLimit && <p id={`mark-${key}-error`} className="text-xs font-semibold text-destructive">Enter 0 to {max}.</p>}
                             </td>
                           );
                         })}
@@ -654,9 +680,10 @@ export default function MarksPage() {
         </>)}
       </div>
 
+      <ConfirmAction open={pendingExamId !== null} title="Change assessment?" description="Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours." confirmLabel="Change assessment" onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
       <GradingModals grading={grading} classHubs={classHubs} />
 
-      <NavGuardPrompt {...navGuard} />
+
 
       <ConfirmAction
         open={clearTarget !== null}
