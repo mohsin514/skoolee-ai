@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
@@ -62,20 +63,20 @@ function ChildSwitcher() {
       {siblings.map((s) => {
         const active = s.id === selectedStudentId;
         return (
-          <button
+          <Button variant="choice"
             key={s.id}
             type="button"
             onClick={() => selectChild(s.id)}
             aria-pressed={active}
             className={
               active
-                ? "cursor-pointer rounded-full bg-[#8127cf] px-3 py-1 text-[11px] font-bold text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+                ? "px-3 py-1"
+                : "px-3 py-1"
             }
           >
             {s.fullName}
             {s.rollNo ? <span className="ml-1.5 font-semibold opacity-60">{s.rollNo}</span> : null}
-          </button>
+          </Button>
         );
       })}
     </div>

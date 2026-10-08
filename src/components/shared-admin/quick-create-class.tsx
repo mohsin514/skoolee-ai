@@ -1,5 +1,6 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -436,14 +437,14 @@ export function QuickCreateClass({
                 </p>
               </div>
             </div>
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="cursor-pointer rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+              className="p-2"
             >
               <X className="h-5 w-5" />
-            </button>
+            </SystemButton>
           </div>
         </div>
 
@@ -471,7 +472,7 @@ export function QuickCreateClass({
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grade 8"
                     autoFocus
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-base font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle"
+                    className="h-14 w-full px-4 transition-all"
                   />
                 </label>
               </div>
@@ -487,7 +488,7 @@ export function QuickCreateClass({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
-                    className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                    className="h-14 w-full px-4 transition-all"
                   />
                 </label>
               </div>
@@ -499,11 +500,11 @@ export function QuickCreateClass({
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {/* One Teacher card */}
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => setTeachingMode("SINGLE")}
                     className={cn(
-                      "group relative cursor-pointer overflow-hidden rounded-2xl border-2 p-4 text-left transition-all",
+                      "group relative overflow-hidden p-4 text-left",
                       teachingMode === "SINGLE"
                         ? "border-[#0d9488] bg-white shadow-[0_0_0_1px_rgba(13,148,136,0.1),0_8px_22px_-4px_rgba(13,148,136,0.18)]"
                         : "border-transparent bg-white/60 hover:border-[#0d9488]/25 hover:bg-white",
@@ -551,14 +552,14 @@ export function QuickCreateClass({
                         </p>
                       </div>
                     </div>
-                  </button>
+                  </SystemButton>
 
                   {/* Teacher Per Subject card */}
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => setTeachingMode("SUBJECT")}
                     className={cn(
-                      "group relative cursor-pointer overflow-hidden rounded-2xl border-2 p-4 text-left transition-all",
+                      "group relative overflow-hidden p-4 text-left",
                       teachingMode === "SUBJECT"
                         ? "border-[#f59e0b] bg-white shadow-[0_0_0_1px_rgba(245,158,11,0.1),0_8px_22px_-4px_rgba(245,158,11,0.18)]"
                         : "border-transparent bg-white/60 hover:border-[#f59e0b]/25 hover:bg-white",
@@ -606,7 +607,7 @@ export function QuickCreateClass({
                         </p>
                       </div>
                     </div>
-                  </button>
+                  </SystemButton>
                 </div>
               </div>
             </div>
@@ -631,11 +632,11 @@ export function QuickCreateClass({
                       e.g. Grade 8 - A, Grade 8 - B
                     </p>
                   </div>
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => setHasSections(!hasSections)}
                     className={cn(
-                      "relative h-7 w-12 cursor-pointer rounded-full transition-all duration-300",
+                      "relative w-12",
                       hasSections
                         ? "bg-[#0d9488] shadow-[0_0_12px_rgba(13,148,136,0.3)]"
                         : "bg-[#cfc2d6]/40",
@@ -647,7 +648,7 @@ export function QuickCreateClass({
                         hasSections ? "left-[22px]" : "left-0.5",
                       )}
                     />
-                  </button>
+                  </SystemButton>
                 </div>
 
                 {/* Section names input */}
@@ -665,7 +666,7 @@ export function QuickCreateClass({
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
                         placeholder="A, B, C  ·  or  A-D  ·  or  1-4"
-                        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                        className="h-12 w-full px-4 transition-all"
                       />
                     </label>
 
@@ -703,14 +704,14 @@ export function QuickCreateClass({
                                 )}
                               />
                               {name.trim() || "Class"} - {sec}
-                              <button
+                              <SystemButton variant="ghost"
                                 type="button"
                                 onClick={() => removeSection(sec)}
                                 aria-label={`Remove section ${sec}`}
-                                className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full opacity-40 transition-all hover:bg-black/10 hover:opacity-100"
+                                className="flex items-center justify-center"
                               >
                                 <X className="h-2.5 w-2.5" />
-                              </button>
+                              </SystemButton>
                             </span>
                           );
                         })}
@@ -743,7 +744,7 @@ export function QuickCreateClass({
                         onChange={(e) => {
                           if (e.target.value) applyCopySubjects(e.target.value);
                         }}
-                        className="h-12 w-full cursor-pointer appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none transition-all"
+                        className="h-12 w-full cursor-pointer appearance-none px-4 pr-10 transition-all"
                       >
                         <option value="">Select a class...</option>
                         {copyableClasses.map((cls: any) => (
@@ -778,7 +779,7 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Subject name — or paste a whole list"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                      className="h-11 w-full px-3 transition-all"
                     />
                   </div>
                   <div className="w-20">
@@ -793,16 +794,16 @@ export function QuickCreateClass({
                         }
                       }}
                       placeholder="Marks"
-                      className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-3 text-center text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle"
+                      className="h-11 w-full px-3 text-center transition-all"
                     />
                   </div>
-                  <button
+                  <SystemButton variant="default"
                     type="button"
                     onClick={addSubject}
-                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-[#8127cf] text-white transition-all hover:bg-[#9c48ea] active:scale-95"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center"
                   >
                     <Plus className="h-4 w-4" />
-                  </button>
+                  </SystemButton>
                 </div>
 
                 <p className="mt-2 pl-2 text-[10px] font-bold leading-relaxed text-ink-subtle">
@@ -816,7 +817,7 @@ export function QuickCreateClass({
                     {subjects.map((subject, i) => (
                       <div
                         key={subject.key}
-                        className="group flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-2.5 transition-all hover:border-[#8127cf]/20 hover:shadow-[0_4px_12px_-4px_rgba(129,39,207,0.12)]"
+                        className="sk-panel group flex items-center justify-between px-4 py-2.5 transition-all hover:border-[#8127cf]/20 hover:shadow-[0_4px_12px_-4px_rgba(129,39,207,0.12)]"
                       >
                         {/* Editable in place: a typo in a pasted list used to
                             mean deleting the row and retyping it. */}
@@ -828,7 +829,7 @@ export function QuickCreateClass({
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
                             aria-label={`Subject ${i + 1} name`}
-                            className="min-w-0 flex-1 rounded-lg bg-transparent py-1 text-sm font-black text-[#1f1a23] outline-none transition-colors hover:bg-[#fbf0fe]/60 focus:bg-[#fbf0fe] focus:px-2"
+                            className="min-w-0 flex-1 py-1 transition-colors"
                           />
                           <div className="flex shrink-0 items-baseline gap-1">
                             <SystemInput
@@ -837,18 +838,18 @@ export function QuickCreateClass({
                               value={subject.totalMarks}
                               onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
                               aria-label={`${subject.name || "Subject"} total marks`}
-                              className="w-12 rounded-lg bg-transparent py-1 text-right text-xs font-black text-ink-muted outline-none transition-colors hover:bg-[#fbf0fe]/60 focus:bg-[#fbf0fe]"
+                              className="w-12 py-1 text-right transition-colors"
                             />
                             <span className="text-[9px] font-bold text-ink-subtle">marks</span>
                           </div>
                         </div>
-                        <button
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() => removeSubject(subject.key)}
-                          className="ml-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-subtle opacity-60 transition-all hover:bg-[#fff1f2] hover:text-[#be123c] focus-visible:opacity-100 group-hover:opacity-100 sm:opacity-0"
+                          className="ml-2 flex shrink-0 items-center justify-center"
                         >
                           <X className="h-3.5 w-3.5" />
-                        </button>
+                        </SystemButton>
                       </div>
                     ))}
                   </div>
@@ -936,26 +937,26 @@ export function QuickCreateClass({
               )}
 
               <div className="flex items-center justify-between">
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={onClose}
-                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className="flex h-12 items-center gap-2 px-5 justify-start"
                 >
                   Cancel
-                </button>
-                <button
+                </SystemButton>
+                <SystemButton variant="default"
                   type="button"
                   onClick={handleCreate}
                   disabled={Boolean(blockedReason)}
                   title={blockedReason || "Create this class (\u2318\u21A9)"}
-                  className="flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-[0_10px_26px_-8px_rgba(129,39,207,0.45)] transition-all hover:shadow-[0_16px_38px_-10px_rgba(129,39,207,0.58)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 items-center gap-2 px-6 justify-start"
                 >
                   <Sparkles className="h-4 w-4" />
                   {classRowCount > 1 ? `Create ${classRowCount} Classes` : "Create & Configure"}
                   <kbd className="ml-1 hidden rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-[9px] font-black sm:inline">
                     &#8984;&#8629;
                   </kbd>
-                </button>
+                </SystemButton>
               </div>
             </div>
           )}

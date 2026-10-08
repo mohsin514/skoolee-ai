@@ -1,4 +1,6 @@
 "use client";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
@@ -435,16 +437,14 @@ function LegacyReportCardsPanel({
                 {step.state === "done" ? (
                   <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
                 ) : (
-                  <button
+                  <Button variant="default"
                     type="button"
                     disabled={step.state !== "ready" || !!busy}
                     onClick={step.onRun}
-                    className={cn(
-                      "flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-[11px] font-black uppercase tracking-wider transition-all",
-                      step.state === "ready"
-                        ? "bg-[#8127cf] text-white hover:bg-[#6f1fb5] active:scale-95 cursor-pointer"
-                        : "cursor-not-allowed bg-[#e8e0ec] text-ink-subtle",
-                    )}
+                    className={"justify-start " + (cn(
+                      "flex shrink-0 items-center gap-1.5 px-4",
+                      "",
+                    ))}
                   >
                     {running ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -452,7 +452,7 @@ function LegacyReportCardsPanel({
                       <Icon className="h-3.5 w-3.5" />
                     )}
                     {step.cta}
-                  </button>
+                  </Button>
                 )}
               </li>
             );
@@ -472,32 +472,32 @@ function LegacyReportCardsPanel({
           isLocked ? (
             <>
               {needingRemarks > 0 && !published ? (
-                <button
+                <Button variant="default"
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
                   title={tr("Approve every remark that has been written")}
-                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6f1fb5] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+                  className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
                 >
                   {busy === "approve-all" ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   )}<UiText>{"Approve all ("}</UiText>{needingRemarks})
-                </button>
+                </Button>
               ) : null}
-              <button
+              <Button variant="outline"
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
                 title={tr("Rebuild every report card from the marks as they stand now")}
-                className="flex h-9 items-center gap-1.5 rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-[#1f1a23] transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+                className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
               >
                 {busy === "generate" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
-                )}<UiText>{"Rebuild"}</UiText></button>
+                )}<UiText>{"Rebuild"}</UiText></Button>
             </>
           ) : null
         }
@@ -514,27 +514,27 @@ function LegacyReportCardsPanel({
             }
           />
         ) : (
-          <div className="max-h-[22rem] overflow-y-auto custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 z-10 bg-[#faf7fc]">
-                <tr className="border-b border-[#cfc2d6]/20">
+
+            <Table containerClassName="max-h-[22rem] custom-scrollbar" className="w-full text-start">
+              <TableHeader className="sticky top-0 z-10 bg-[#faf7fc]">
+                <TableRow className="border-b border-[#cfc2d6]/20">
                   {["Pupil", "%", "Grade", "Remark for the report card", "Status", ""].map((h) => (
-                    <th
+                    <TableHead
                       key={h}
                       className="px-4 py-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle"
                     >
                       {h}
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {cards.map((c) => (
-                  <tr
+                  <TableRow
                     key={c.id}
                     className="border-b border-[#cfc2d6]/10 transition-colors last:border-0 hover:bg-[#faf5ff]"
                   >
-                    <td className="px-4 py-2.5">
+                    <TableCell className="px-4 py-2.5">
                       <p className="text-[13px] font-bold text-[#1f1a23]">
                         {c.student?.fullName ?? "—"}
                       </p>
@@ -542,14 +542,14 @@ function LegacyReportCardsPanel({
                         {c.student?.rollNo ?? "—"}
                         {c.rank != null ? tr(" · rank {0}", [c.rank]) : ""}
                       </p>
-                    </td>
-                    <td className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">
                       {c.percentage != null ? `${Math.round(c.percentage)}%` : "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-[12px] font-black text-[#1f1a23]">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-[12px] font-black text-[#1f1a23]">
                       {c.grade ?? "—"}
-                    </td>
-                    <td className="px-2 py-2 min-w-[16rem]">
+                    </TableCell>
+                    <TableCell className="px-2 py-2 min-w-[16rem]">
                       <SystemInput
                         type="text"
                         defaultValue={remarkOf(c)}
@@ -560,35 +560,33 @@ function LegacyReportCardsPanel({
                         }
                         onBlur={() => saveRemark(c)}
                         className={cn(
-                          "h-9 w-full rounded-lg border px-2.5 text-[12px] font-semibold text-[#1f1a23] outline-none transition-colors disabled:bg-[#f6f2fa] disabled:text-ink-subtle",
-                          c.remarksApproved
-                            ? "border-emerald-200 bg-emerald-50/40"
-                            : "border-[#cfc2d6]/30 bg-white",
+                          "w-full",
+                          "",
                         )}
                       />
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5">
                       {c.remarksApproved ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" />
                           {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
                       ) : (
-                        <button
+                        <Button variant="secondary"
                           type="button"
                           disabled={!!busy || published}
                           onClick={() => approveOne(c)}
                           title={tr("Approve this remark so the results can be reviewed")}
-                          className="inline-flex h-7 items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf]/20 disabled:opacity-50 enabled:cursor-pointer"
+                          className="justify-start inline-flex items-center gap-1 px-2.5 enabled:cursor-pointer"
                         >
                           {busy === `approve-${c.id}` ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle2 className="h-3 w-3" />
-                          )}<UiText>{"Approve"}</UiText></button>
+                          )}<UiText>{"Approve"}</UiText></Button>
                       )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-right">
                       {/* A link, not a button running window.open after an
                           await — that loses the click's gesture and the popup
                           blocker eats the window silently (§83). */}
@@ -600,12 +598,12 @@ function LegacyReportCardsPanel({
                         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
                       >
                         <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+
         )}
       </Panel>
     </div>

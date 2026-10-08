@@ -1,5 +1,12 @@
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
+  "Edit fee item": "تعديل بند الرسوم",
+  "Delete fee item": "حذف بند الرسوم",
+  "Edit fee structure": "تعديل هيكل الرسوم",
+  "Delete fee structure": "حذف هيكل الرسوم",
+  "Remove one-time fee": "إزالة الرسوم لمرة واحدة",
+  "Remove discount rule": "إزالة قاعدة الخصم",
+
   "Support Access": "الوصول للدعم",
   "Support Approvals": "موافقات الدعم",
   "Audited support access": "وصول الدعم المسجّل",
@@ -54,6 +61,7 @@ export const arabicUi: Record<string, string> = {
   "Support access started": "بدأ وصول الدعم",
   "Support access revoked; queued actions were cancelled": "أُلغي وصول الدعم وأُلغيت الإجراءات المعلقة",
   "Audited support access approvals": "موافقات وصول الدعم المسجلة",
+  "Resolve as unmatched": "اعتمادها دون مطابقة",
   "Support access approvals": "موافقات وصول الدعم",
   "Review vendor requests for this school only. Approve the named purpose, domains, actions, and expiry together.": "راجع طلبات المورّد لهذه المدرسة فقط. وافق على الغرض والمجالات والإجراءات ووقت الانتهاء المحددة معاً.",
   "No support requests need review": "لا توجد طلبات دعم للمراجعة",
@@ -312,6 +320,13 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  "Edit fee item": "فیس کی مد میں ترمیم",
+  "Delete fee item": "فیس کی مد حذف کریں",
+  "Edit fee structure": "فیس کے ڈھانچے میں ترمیم",
+  "Delete fee structure": "فیس کا ڈھانچہ حذف کریں",
+  "Remove one-time fee": "ایک بار کی فیس ہٹائیں",
+  "Remove discount rule": "رعایت کا اصول ہٹائیں",
+
   "Support Access": "سپورٹ رسائی",
   "Support Approvals": "سپورٹ منظوری",
   "Audited support access": "آڈٹ شدہ سپورٹ رسائی",
@@ -355,6 +370,9 @@ export const urduUi: Record<string, string> = {
   "Start access": "رسائی شروع کریں",
   "Revoke now": "ابھی منسوخ کریں",
   "Open": "کھولیں",
+  "Audited support access approvals": "آڈٹ شدہ سپورٹ رسائی کی منظوری",
+  "Resolve as unmatched": "غیر مطابق قرار دیں",
+  "Reconciliation": "مصالحت",
   "Audited support workspace": "آڈٹ شدہ سپورٹ ورک اسپیس",
   "The school approver uses the existing school console. Vendor platform administration remains an APP_OWNER capability; support grants do not change school roles.": "اسکول منظور کنندہ موجودہ اسکول کنسول استعمال کرتا ہے۔ وینڈر پلیٹ فارم کا اختیار APP_OWNER کے پاس رہتا ہے؛ سپورٹ اجازتیں اسکول کے کردار نہیں بدلتی۔",
   "Support access is active · read only": "سپورٹ رسائی فعال · صرف مطالعہ",

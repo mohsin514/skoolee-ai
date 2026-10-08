@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
 
 /**
  * The save bar for the two data-entry screens (attendance, marks).
@@ -121,40 +123,28 @@ export function StickySaveBar({
         {children}
 
         {onReset && dirtyCount > 0 ? (
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={onReset}
             disabled={saving}
             title="Discard every change made since this sheet was loaded"
-            className={cn(
-              "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-40",
-              blocked
-                ? "bg-white text-rose-600 hover:bg-rose-100"
-                : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white",
-            )}
+            className="inline-flex justify-start items-center gap-1.5 focus-on-dark"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Discard
-          </button>
+          </Button>
         ) : null}
 
-        <button
+        <Button variant="default" size="sm"
           type="button"
           onClick={onSave}
           disabled={saving || blocked}
           title={blocked ? blockedReason : `${saveLabel} (⌘S)`}
-          className={cn(
-            "inline-flex h-10 min-w-[132px] cursor-pointer items-center justify-center gap-2 rounded-xl px-5 text-[12px] font-black uppercase tracking-wider transition-all active:scale-[0.97]",
-            "focus-on-dark",
-            "disabled:cursor-not-allowed disabled:opacity-45",
-            blocked
-              ? "bg-rose-500 text-white"
-              : "bg-gradient-to-br from-[#9c48ea] to-[#8127cf] text-white shadow-[0_8px_20px_-6px_rgba(156,72,234,0.7)] hover:brightness-110",
-          )}
+          className="inline-flex min-w-[132px] items-center justify-center gap-2 focus-on-dark"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {saving ? savingLabel : saveLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

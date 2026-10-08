@@ -313,15 +313,13 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
 
         <div className="flex gap-2 flex-wrap">
           {(["ALL", "DUE", "PENDING", "PARTIAL", "PAID", "OVERDUE"] as const).map((item) => (
-            <button
+            <Button aria-pressed={filter === item} variant="choice"
               key={item}
               onClick={() => setFilter(item)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                filter === item ? "bg-primary text-white border-primary" : "border-border hover:border-primary/40"
-              }`}
+              className=""
             >
               {item}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -375,7 +373,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7 text-xs"
+
                                   onClick={() => {
                                     setPaymentModal(invoice);
                                     setPaymentForm({ amountPaid: String(invoice.balanceDue), method: "CASH", receiptNo: "" });
@@ -387,7 +385,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                               )}
                               {invoice.challanUrl && (
                                 <a href={invoice.challanUrl} target="_blank" rel="noreferrer">
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs">
+                                  <Button size="sm" variant="ghost" >
                                     <FileText className="h-3.5 w-3.5" />
                                     Challan
                                   </Button>

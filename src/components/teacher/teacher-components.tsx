@@ -24,6 +24,8 @@ import { TeacherSubnav } from "@/components/teacher/teacher-page";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+
 
 /* ── Pure helpers ── */
 
@@ -204,7 +206,7 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white hover:border-[#8127cf]/20" />
+        className="h-14 w-full px-4" />
     </label>
   );
 }
@@ -216,7 +218,7 @@ export function FormSelect({ label, value, children, required, onChange }: { lab
         {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemSelect value={value} onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white hover:border-[#8127cf]/20">
+        className="h-14 w-full px-4">
         {children}
       </SystemSelect>
     </label>
@@ -283,7 +285,7 @@ export function ConfigField({ label, value, onChange }: { label: string; value: 
           const n = Number(e.target.value);
           if (e.target.value !== "" && Number.isFinite(n) && n >= 0 && n <= 100) onChange(n);
         }}
-        className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white hover:border-[#8127cf]/20" />
+        className="h-12 w-full px-4" />
     </div>
   );
 }
@@ -365,7 +367,7 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
         </div>
         {/* Submits the form on Enter from any field without adding a second
             visible button next to the one in the footer. */}
-        <button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+        <Button type="submit" className="hidden" tabIndex={-1} aria-hidden />
       </form>
     </ModalFrame>
   );
@@ -458,11 +460,11 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights</p>
-            <button type="button" onClick={evenSplit}
+            <Button variant="default" size="sm" type="button" onClick={evenSplit}
               title="Split 100% evenly across the four exam types"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white">
+              className="inline-flex justify-start items-center gap-1.5">
               <RefreshCw className="h-3 w-3" /> Even split
-            </button>
+            </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {WEIGHTS.map(([key, label]) => (
@@ -649,7 +651,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                     <tr key={grade.studentId} tabIndex={0} role="link"
                       aria-label={`Open the report card for ${grade.studentName}`}
                       title={`Open ${grade.studentName}'s report card`}
-                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-visible:bg-[#fbf0fe]/50 focus-inset"
+                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-inset"
                       onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -1043,19 +1045,19 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
         <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
           <PanelTitle icon={BarChart3} title="Final Result" />
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
+            <div className="sk-panel p-4 text-center transition-colors">
               <p className="text-2xl font-bold text-[#1d1b20]">{viewReport.totalMarks || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</p>
             </div>
-            <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
+            <div className="sk-panel p-4 text-center transition-colors">
               <p className="text-2xl font-bold text-[#8127cf]">{viewReport.obtainedMarks || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Obtained</p>
             </div>
-            <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
+            <div className="sk-panel p-4 text-center transition-colors">
               <p className="text-2xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
             </div>
-            <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 text-center transition-colors hover:border-[#8127cf]/20">
+            <div className="sk-panel p-4 text-center transition-colors">
               <p className={`text-2xl font-bold ${viewReport.passed !== false ? "text-[#1d1b20]" : "text-rose-600"}`}>{viewReport.grade || "\u2014"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
             </div>
@@ -1145,7 +1147,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             <div className="mt-4 space-y-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">English</p>
-                <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5 text-sm" placeholder="Write remarks for this student..." />
+                <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5" placeholder="Write remarks for this student..." />
               </div>
               <div>
                 <div className="flex items-center justify-between">
@@ -1156,11 +1158,11 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                         <Loader2 className="h-3 w-3 animate-spin" /> Translating...
                       </span>
                     ) : null}
-                    <button type="button"
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-[#8127cf] hover:bg-[#fbf0fe] transition-colors"
+                    <Button variant="secondary" size="sm" type="button"
+                      className="inline-flex justify-start items-center gap-1"
                       onClick={handleTranslateUrdu} title="Auto-convert from English remarks">
                       <Languages className="h-3 w-3" /> Auto-translate
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <div className="mt-1.5">
@@ -1372,7 +1374,7 @@ export function MarksSkeleton() {
         {/* Exam cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white p-4 border border-[#cfc2d6]/10 shadow-sm">
+            <div key={i} className="sk-panel p-4">
               <div className="flex justify-between mb-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -1457,7 +1459,7 @@ export function AttendanceSkeleton() {
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white p-4 border border-[#cfc2d6]/10 shadow-sm flex items-center gap-3">
+            <div key={i} className="sk-panel p-4 flex items-center gap-3">
               <SkeletonBlock className="h-8 w-8 rounded-xl shrink-0" />
               <div>
                 <SkeletonBlock className="h-3 w-14 mb-1" />
@@ -1541,7 +1543,7 @@ export function ReportsSkeleton() {
           <SkeletonBlock className="h-3 w-24 mb-3" />
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="rounded-2xl bg-white p-4 border border-[#cfc2d6]/10 shadow-sm">
+              <div key={i} className="sk-panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <SkeletonBlock className="h-4 w-32 mb-1" />
@@ -1561,7 +1563,7 @@ export function ReportsSkeleton() {
           <SkeletonBlock className="h-3 w-28 mb-3" />
           <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="rounded-2xl bg-white p-4 border border-[#cfc2d6]/10 shadow-sm">
+              <div key={i} className="sk-panel p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <SkeletonBlock className="h-10 w-10 rounded-xl shrink-0" />

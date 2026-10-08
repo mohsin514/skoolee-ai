@@ -7,6 +7,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
 
 /**
@@ -34,7 +35,7 @@ const DialogContext = React.createContext<DialogContextType>({
 });
 
 /** Lets DialogContent hand its close action down to a nested DialogClose. */
-const DialogCloseContext = React.createContext<() => void>(() => {});
+const DialogCloseContext = React.createContext({ close: () => {}, dismissible: true });
 
 function Dialog({
   children,
@@ -84,6 +85,9 @@ function DialogContent({
   size,
   dirty,
   dirtyMessage,
+  dismissible,
+  initialFocusRef,
+  returnFocusRef,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -91,6 +95,9 @@ function DialogContent({
   /** Holds typed-but-unsaved input — closing then asks before discarding. */
   dirty?: boolean;
   dirtyMessage?: string;
+  dismissible?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 }) {
   const { open, setOpen } = React.useContext(DialogContext);
 
@@ -102,6 +109,9 @@ function DialogContent({
       size={size}
       dirty={dirty}
       dirtyMessage={dirtyMessage}
+      dismissible={dismissible}
+      initialFocusRef={initialFocusRef}
+      returnFocusRef={returnFocusRef}
       className={className}
     >
       <DialogBody>{children}</DialogBody>
@@ -110,10 +120,11 @@ function DialogContent({
 }
 
 function DialogBody({ children }: { children: React.ReactNode }) {
-  const { requestClose, dragHandleProps } = useModalSurface();
+  const copy = useOverlayMessages();
+  const { requestClose, dismissible, dragHandleProps } = useModalSurface();
 
   return (
-    <DialogCloseContext.Provider value={requestClose}>
+    <DialogCloseContext.Provider value={{ close: requestClose, dismissible }}>
       {/* No pinned header here — these call sites compose their own with
           DialogHeader. The grab strip is still the phone's drag target, so
           the sheet stays dismissable by gesture. */}
@@ -125,9 +136,10 @@ function DialogBody({ children }: { children: React.ReactNode }) {
         type="button"
         className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
         onClick={requestClose}
+        disabled={!dismissible}
       >
         <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{copy.close}</span>
       </button>
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
@@ -145,16 +157,18 @@ function DialogClose({
   children: React.ReactNode;
   asChild?: boolean;
 }) {
-  const close = React.useContext(DialogCloseContext);
+  const { close, dismissible } = React.useContext(DialogCloseContext);
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
+    const child = children as React.ReactElement<{ onClick?: () => void; disabled?: boolean }>;
+    return React.cloneElement(child, {
       onClick: close,
+      disabled: child.props.disabled || !dismissible,
     });
   }
 
   return (
-    <button type="button" onClick={close}>
+    <button type="button" onClick={close} disabled={!dismissible}>
       {children}
     </button>
   );

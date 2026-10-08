@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -267,22 +268,22 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
+            <Button variant="default" size="icon"
               type="button"
               onClick={() => load(true)}
               aria-label="Refresh"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-white/12 text-white/80 transition-colors hover:bg-white/20"
+              className="flex items-center justify-center"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            </button>
-            <button
+            </Button>
+            <Button variant="outline"
               type="button"
               onClick={() => setWizard(true)}
-              className="flex h-10 cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#8127cf] shadow-lg transition-all hover:scale-[1.03] active:scale-95"
+              className="justify-start flex items-center gap-2 px-4"
             >
               <Plus className="h-4 w-4" />
               Schedule exam
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -292,20 +293,18 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             {sessions.map((s) => {
               const on = s.id === activeId;
               return (
-                <button
+                <Button variant="choice"
                   key={s.id}
                   type="button"
                   onClick={() => setActiveId(s.id)}
                   aria-pressed={on}
                   className={cn(
-                    "shrink-0 cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-black transition-all",
-                    on
-                      ? "bg-white text-[#8127cf] shadow-md"
-                      : "bg-white/12 text-white/75 hover:bg-white/20",
+                    "shrink-0 px-3 py-1.5",
+                    "",
                   )}
                 >
                   {s.title}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -336,17 +335,17 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               const done = value >= 100;
               const isNext = currentStep === s.key && !done;
               return (
-                <button
+                <Button data-selected={on} variant="choice"
                   key={s.key}
                   type="button"
                   onClick={() => setStep(s.key)}
                   aria-current={on ? "step" : undefined}
-                  className={cn(
-                    "group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[18px] border px-3 py-2.5 text-left transition-all duration-200",
+                  className={"justify-start " + (cn(
+                    "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-left",
                     on
-                      ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.28)]"
-                      : "border-transparent bg-[#faf7fc] hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white",
-                  )}
+                      ? ""
+                      : "hover:-translate-y-0.5",
+                  ))}
                 >
                   <span
                     className={cn(
@@ -386,7 +385,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                       className="mt-1.5"
                     />
                   </span>
-                </button>
+                </Button>
               );
             })}
           </nav>
@@ -442,11 +441,11 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
 
       {/* ── Teachers' own assessments, out of the way ───────────────────── */}
       {legacy.length > 0 ? (
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white">
-          <button
+        <div className="sk-panel ">
+          <Button variant="ghost"
             type="button"
             onClick={() => setShowLegacy((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-3 px-5 py-3.5 text-left"
+            className="justify-start flex w-full items-center gap-3 px-5 py-3.5 text-left"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3f4f9]">
               <MoreHorizontal className="h-4 w-4 text-ink-muted" />
@@ -466,15 +465,15 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                 showLegacy && "rotate-90",
               )}
             />
-          </button>
+          </Button>
           {showLegacy ? (
             <ul className="divide-y divide-[#cfc2d6]/12 border-t border-[#cfc2d6]/12">
               {legacy.map((e) => (
                 <li key={e.id}>
-                  <button
+                  <Button variant="secondary"
                     type="button"
                     onClick={() => setOpenExam(e)}
-                    className="flex w-full cursor-pointer items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-[#faf7fc]"
+                    className="justify-start flex w-full items-center gap-3 px-5 py-2.5 text-left"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-black text-[#1f1a23]">
@@ -486,7 +485,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                       </span>
                     </span>
                     <StatusPill status={e.status} />
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -606,14 +605,14 @@ function PlanStep({
         icon={Users}
         actions={
           <>
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={onDelete}
-              className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+              className="justify-start flex items-center gap-1.5 px-3"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Remove exam
-            </button>
+            </Button>
             <BrandButton
               onClick={onNext}
               icon={<ChevronRight className="h-4 w-4" />}
@@ -627,11 +626,11 @@ function PlanStep({
       >
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {session.classes.map((cls) => (
-            <button
+            <Button variant="outline"
               key={cls.examId}
               type="button"
               onClick={() => onOpenExam(cls.examId)}
-              className="group cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/35 hover:shadow-[0_12px_28px_-18px_rgba(129,39,207,0.5)]"
+              className="block group p-3 text-left hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-black text-[#1f1a23]">
@@ -647,7 +646,7 @@ function PlanStep({
                 <MiniBar label="Seated" value={cls.seated} total={cls.scheduled} />
                 <MiniBar label="Marked" value={cls.marksEntered} total={cls.marksExpected} />
               </div>
-            </button>
+            </Button>
           ))}
         </div>
       </Panel>
@@ -734,10 +733,10 @@ function MarksStep({
             const done = cls.marksExpected > 0 && cls.marksEntered >= cls.marksExpected;
             return (
               <li key={cls.examId}>
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(cls)}
-                  className="group flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-[#faf7fc]"
+                  className="group flex w-full items-center gap-3 px-5 py-3 text-left"
                 >
                   <span
                     className={cn(
@@ -767,7 +766,7 @@ function MarksStep({
                     </span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
-                </button>
+                </Button>
               </li>
             );
           })}
@@ -893,16 +892,16 @@ function ResultsStep({
                   </span>
                 </span>
 
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(cls)}
-                  className="h-9 cursor-pointer rounded-xl bg-[#f6f2fa] px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-[#f3eeff] hover:text-[#8127cf]"
+                  className="px-3"
                 >
                   Report cards
-                </button>
+                </Button>
 
                 {action ? (
-                  <button
+                  <Button variant="default"
                     type="button"
                     disabled={busy === cls.examId || (!complete && action.next === "LOCKED")}
                     onClick={() => advance(cls, action.next)}
@@ -911,7 +910,7 @@ function ResultsStep({
                         ? "Every mark has to be in before the exam can be locked"
                         : undefined
                     }
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-3 text-[11px] font-black uppercase tracking-wider text-white shadow-[0_8px_20px_-10px_rgba(129,39,207,0.6)] transition-all enabled:cursor-pointer enabled:hover:scale-[1.03] disabled:opacity-40"
+                    className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer enabled:hover:scale-[1.03]"
                   >
                     {busy === cls.examId ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -919,7 +918,7 @@ function ResultsStep({
                       <action.icon className="h-3.5 w-3.5" />
                     )}
                     {action.label}
-                  </button>
+                  </Button>
                 ) : (
                   <span className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-600">
                     <Check className="h-3.5 w-3.5" />

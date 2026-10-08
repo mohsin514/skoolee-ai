@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
 import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 interface Cycle {
   id: string;
@@ -163,14 +165,14 @@ export function CycleManagementPanel({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button variant="outline" size="sm"
                 onClick={() => doAction("pause", activeCycle.id)}
                 disabled={acting !== null}
-                className="flex items-center gap-2 rounded-2xl border border-amber-200/40 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-700 transition-all hover:bg-amber-100 active:scale-95 cursor-pointer disabled:opacity-50"
+                className="flex justify-start items-center gap-2"
               >
                 {acting === `pause-${activeCycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                 Pause
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -226,7 +228,7 @@ export function CycleManagementPanel({
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="e.g. Session 2026-27"
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+                className="w-full px-4"
               />
             </div>
             <div>
@@ -235,17 +237,17 @@ export function CycleManagementPanel({
                 type="number"
                 value={newYear}
                 onChange={(e) => setNewYear(Number(e.target.value))}
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white"
+                className="w-full px-4"
               />
             </div>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button variant="secondary" size="sm"
               onClick={() => setShowCreate(false)}
-              className="rounded-2xl bg-[#f3f4f9] px-5 py-2.5 text-xs font-bold text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
+
             >
               Cancel
-            </button>
+            </Button>
             <BrandButton onClick={handleCreate} disabled={creating}>
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {creating ? "Creating..." : "Create Cycle"}
@@ -298,25 +300,25 @@ export function CycleManagementPanel({
                   </span>
 
                   {cycle.status === "DRAFT" && (
-                    <button
+                    <Button variant="default" size="sm"
                       onClick={() => doAction("activate", cycle.id)}
                       disabled={acting !== null}
-                      className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-4 py-2 text-xs font-bold text-white shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="flex justify-start items-center gap-1.5"
                     >
                       {acting === `activate-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                       Activate
-                    </button>
+                    </Button>
                   )}
 
                   {cycle.status === "PAUSED" && (
-                    <button
+                    <Button variant="default" size="sm"
                       onClick={() => doAction("resume", cycle.id)}
                       disabled={acting !== null}
-                      className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="flex justify-start items-center gap-1.5"
                     >
                       {acting === `resume-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
                       Resume
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

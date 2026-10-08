@@ -1,5 +1,9 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 import { cn } from "@/lib/utils";
 
@@ -371,7 +375,7 @@ function SupportSessionBanner() {
   };
   return <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
     <p className="font-semibold">{session.actions.some((action) => action === "write" || action === "export") ? t("Support access is active · scoped actions") : t("Support access is active · read only")} · {t("Expires")} <bdi dir="ltr">{formatSupportInstant(session.expiresAt)} · {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</bdi> · <bdi dir="ltr">{session.id}</bdi></p>
-    <button type="button" onClick={end} className="min-h-11 rounded-lg border border-amber-700 px-4 py-2 font-bold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">{t("End access now")}</button>
+    <Button variant="outline" type="button" onClick={end} >{t("End access now")}</Button>
   </div>;
 }
 
@@ -484,50 +488,50 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   return <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" dir="auto">
     <div className="mx-auto max-w-5xl space-y-6">
       <header><h1 className="text-xl font-extrabold">{t("Audited support access")}</h1><p className="mt-2 max-w-3xl text-sm text-ink-muted">{t("Create an incident, request least-privilege access from the school group administrator, and keep every support read and action linked to its grant.")}</p></header>
-      {supportSession ? <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 sm:p-6"><h2 className="font-bold">{t("Scoped active session")}</h2><p className="mt-1 text-sm">{supportSession.purpose}</p><p className="mt-1 text-xs">{t("Expires")}: <bdi dir="ltr" className="whitespace-nowrap">{formatSupportInstant(supportSession.expiresAt)}</bdi><br /><span dir="ltr" className="break-all">{supportSession.id}</span></p><div className="mt-4 flex flex-wrap gap-2">{supportSession.scope.map((domain) => <button key={domain} type="button" onClick={() => void inspect({ id: supportSession.id }, domain)} className="min-h-11 rounded-lg border border-amber-700 px-3 py-2 text-sm font-semibold">{t("Open")}: {t(domainLabels[domain] || domain)}</button>)}</div>
-        {(supportSession.actions.includes("write") || supportSession.actions.includes("export")) && supportSession.scope.includes("school_profile") && <div className="mt-5 rounded-lg border border-amber-700/30 bg-white p-4"><h3 className="font-bold">{t("Approved school profile actions")}</h3><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3"><label className="text-sm font-semibold">{t("Action")}<SystemSelect className="mt-1" value={supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")} onChange={(event) => setActionType(event.target.value)} aria-label={t("Action")}>{supportSession.actions.includes("write") && <option value="write">{t("Write")}</option>}{supportSession.actions.includes("export") && <option value="export">{t("Export")}</option>}</SystemSelect></label>{(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && <><label className="text-sm font-semibold">{t("Field")}<SystemSelect className="mt-1" value={writeField} onChange={(event) => setWriteField(event.target.value)} aria-label={t("Field")}><option value="phone">{t("Phone")}</option><option value="contactEmail">{t("Contact email")}</option><option value="website">{t("Website")}</option></SystemSelect></label><label className="text-sm font-semibold">{t("New value")}<SystemInput className="mt-1" value={writeValue} maxLength={180} onChange={(event) => setWriteValue(event.target.value)} aria-label={t("New value")} /></label></>}</div><button type="button" disabled={(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && !writeValue.trim()} onClick={() => void queueAction()} className="mt-3 min-h-11 rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{t("Queue action")}</button></div>}
-        {supportSession.queuedActions.length > 0 && <ul className="mt-4 space-y-2" aria-label={t("Support action queue")}>{supportSession.queuedActions.map((action) => <li key={action.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-700/30 bg-white p-3 text-sm"><span>{t(action.action[0].toUpperCase() + action.action.slice(1))} · {t(action.status)} · <bdi dir="ltr">{action.id}</bdi></span>{action.status === "queued" && <button type="button" onClick={() => void executeAction(action.id, action.action)} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 font-semibold">{t(action.action === "export" ? "Run export" : "Apply change")}</button>}</li>)}</ul>}
+      {supportSession ? <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 sm:p-6"><h2 className="font-bold">{t("Scoped active session")}</h2><p className="mt-1 text-sm">{supportSession.purpose}</p><p className="mt-1 text-xs">{t("Expires")}: <bdi dir="ltr" className="whitespace-nowrap">{formatSupportInstant(supportSession.expiresAt)}</bdi><br /><span dir="ltr" className="break-all">{supportSession.id}</span></p><div className="mt-4 flex flex-wrap gap-2">{supportSession.scope.map((domain) => <Button variant="outline" key={domain} type="button" onClick={() => void inspect({ id: supportSession.id }, domain)} >{t("Open")}: {t(domainLabels[domain] || domain)}</Button>)}</div>
+        {(supportSession.actions.includes("write") || supportSession.actions.includes("export")) && supportSession.scope.includes("school_profile") && <div className="mt-5 rounded-lg border border-amber-700/30 bg-white p-4"><h3 className="font-bold">{t("Approved school profile actions")}</h3><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3"><label className="text-sm font-semibold">{t("Action")}<SystemSelect className={"mt-1"} value={supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")} onChange={(event) => setActionType(event.target.value)} aria-label={t("Action")}>{supportSession.actions.includes("write") && <option value="write">{t("Write")}</option>}{supportSession.actions.includes("export") && <option value="export">{t("Export")}</option>}</SystemSelect></label>{(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && <><label className="text-sm font-semibold">{t("Field")}<SystemSelect className={"mt-1"} value={writeField} onChange={(event) => setWriteField(event.target.value)} aria-label={t("Field")}><option value="phone">{t("Phone")}</option><option value="contactEmail">{t("Contact email")}</option><option value="website">{t("Website")}</option></SystemSelect></label><label className="text-sm font-semibold">{t("New value")}<SystemInput className={"mt-1"} value={writeValue} maxLength={180} onChange={(event) => setWriteValue(event.target.value)} aria-label={t("New value")} /></label></>}</div><Button variant="default" type="button" disabled={(supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export")) === "write" && !writeValue.trim()} onClick={() => void queueAction()} className="mt-3">{t("Queue action")}</Button></div>}
+        {supportSession.queuedActions.length > 0 && <ul className="mt-4 space-y-2" aria-label={t("Support action queue")}>{supportSession.queuedActions.map((action) => <li key={action.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-700/30 bg-white p-3 text-sm"><span>{t(action.action[0].toUpperCase() + action.action.slice(1))} · {t(action.status)} · <bdi dir="ltr">{action.id}</bdi></span>{action.status === "queued" && <Button variant="outline" type="button" onClick={() => void executeAction(action.id, action.action)} >{t(action.action === "export" ? "Run export" : "Apply change")}</Button>}</li>)}</ul>}
       </section> : <>
-      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <div className="sk-panel p-4 sm:p-6">
         <h2 className="mb-4 text-base font-bold">{t("Request scoped access")}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold">{t("School")}
-            <SystemSelect className="mt-1" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} aria-label={t("School")}>
+            <SystemSelect className={"mt-1"} value={schoolId} onChange={(event) => setSchoolId(event.target.value)} aria-label={t("School")}>
               <option value="">{t("Choose a school")}</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
             </SystemSelect>
           </label>
           <label className="text-sm font-semibold">{t("Duration (minutes)")}
-            <SystemInput className="mt-1" type="number" min={5} max={emergency ? 60 : 480} value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))} />
+            <SystemInput className={"mt-1"} type="number" min={5} max={emergency ? 60 : 480} value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))} />
           </label>
           <label className="text-sm font-semibold sm:col-span-2">{t("Support purpose")}
-            <SystemInput className="mt-1" value={purpose} onChange={(event) => setPurpose(event.target.value)} minLength={12} maxLength={500} aria-label={t("Support purpose")} />
+            <SystemInput className={"mt-1"} value={purpose} onChange={(event) => setPurpose(event.target.value)} minLength={12} maxLength={500} aria-label={t("Support purpose")} />
           </label>
           <label className="text-sm font-semibold sm:col-span-2">{t("Impact")}
-            <textarea className="sk-field mt-1 min-h-24 w-full rounded-lg p-3" value={impact} onChange={(event) => setImpact(event.target.value)} minLength={8} maxLength={2000} aria-label={t("Impact")} />
+            <Textarea className={"mt-1 min-h-24 w-full"} value={impact} onChange={(event) => setImpact(event.target.value)} minLength={8} maxLength={2000} aria-label={t("Impact")} />
           </label>
         </div>
         <fieldset className="mt-5"><legend className="text-sm font-bold">{t("Allowed domains")}</legend><div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(domainLabels).map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input type="checkbox" checked={scope.includes(value)} onChange={() => toggle(scope, setScope, value)} />{t(label)}</label>)}
+          {Object.entries(domainLabels).map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><Checkbox checked={scope.includes(value)} onChange={() => toggle(scope, setScope, value)} />{t(label)}</label>)}
         </div><p className="mt-2 text-xs text-rose-800">{t("Safeguarding, clinic, counselling, and custody records are always excluded.")}</p></fieldset>
-        <fieldset className="mt-4"><legend className="text-sm font-bold">{t("Allowed actions")}</legend><div className="mt-2 flex flex-wrap gap-3">{["read", "write", "export"].map((value) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input type="checkbox" checked={actions.includes(value)} onChange={() => toggle(actions, setActions, value)} />{t(value[0].toUpperCase() + value.slice(1))}</label>)}</div><p className="mt-2 text-xs text-ink-muted">{t("Read access is the default. Write access and exports require explicit approval.")}</p></fieldset>
+        <fieldset className="mt-4"><legend className="text-sm font-bold">{t("Allowed actions")}</legend><div className="mt-2 flex flex-wrap gap-3">{["read", "write", "export"].map((value) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><Checkbox checked={actions.includes(value)} onChange={() => toggle(actions, setActions, value)} />{t(value[0].toUpperCase() + value.slice(1))}</label>)}</div><p className="mt-2 text-xs text-ink-muted">{t("Read access is the default. Write access and exports require explicit approval.")}</p></fieldset>
         <div className="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3">
-          <label className="flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={emergency} onChange={(event) => { setEmergency(event.target.checked); if (event.target.checked) setDurationMinutes(Math.min(durationMinutes, 60)); }} />{t("Emergency access (school review due before expiry)")}</label>
-          {emergency && <label className="mt-3 block text-sm font-semibold">{t("Emergency justification")}<textarea className="sk-field mt-1 min-h-20 w-full rounded-lg p-3" value={emergencyReason} onChange={(event) => setEmergencyReason(event.target.value)} minLength={20} aria-label={t("Emergency justification")} /></label>}
+          <label className="flex min-h-11 items-center gap-2 font-semibold"><Checkbox checked={emergency} onChange={(event) => { setEmergency(event.target.checked); if (event.target.checked) setDurationMinutes(Math.min(durationMinutes, 60)); }} />{t("Emergency access (school review due before expiry)")}</label>
+          {emergency && <label className="mt-3 block text-sm font-semibold">{t("Emergency justification")}<Textarea className={"mt-1 min-h-20 w-full"} value={emergencyReason} onChange={(event) => setEmergencyReason(event.target.value)} minLength={20} aria-label={t("Emergency justification")} /></label>}
         </div>
-        <button type="button" disabled={busy || !schoolId || purpose.trim().length < 12 || impact.trim().length < 8 || scope.length === 0 || actions.length === 0 || emergency && emergencyReason.trim().length < 20} onClick={submit} className="mt-5 min-h-11 rounded-lg bg-violet-700 px-5 py-2 font-bold text-white disabled:opacity-50">{busy ? t("Submitting…") : emergency ? t("Start emergency access") : t("Send school approval request")}</button>
+        <Button variant="default" type="button" disabled={busy || !schoolId || purpose.trim().length < 12 || impact.trim().length < 8 || scope.length === 0 || actions.length === 0 || emergency && emergencyReason.trim().length < 20} onClick={submit} className="mt-5">{busy ? t("Submitting…") : emergency ? t("Start emergency access") : t("Send school approval request")}</Button>
       </div>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold">{t("Incidents and grants")}</h2><button type="button" onClick={() => void load()} className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold">{t("Refresh")}</button></div>
+      <section className="sk-panel p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold">{t("Incidents and grants")}</h2><Button variant="outline" type="button" onClick={() => void load()} >{t("Refresh")}</Button></div>
         {loading ? <p className="py-8 text-sm">{t("Loading…")}</p> : grants.length === 0 ? <p className="py-8 text-sm text-ink-muted">{t("No support requests yet")}</p> : <div className="mt-4 space-y-3">{grants.map((grant) => <article key={grant.id} className="rounded-lg border border-slate-200 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{grant.school.name} · <bdi dir="ltr">{grant.incident.reference}</bdi></p><p className="mt-1 text-sm text-ink-muted">{grant.purpose}</p><p className="mt-1 text-xs">{t("Incident owner")}: <bdi dir="ltr">{grant.incident.ownerActorId}</bdi> · {t("Incident status")}: {t(grant.incident.status)}</p><p className="mt-1 text-xs">{t("Status")}: {t(grant.status)} · {t("Expires")}: <bdi dir="ltr">{formatSupportInstant(grant.expiresAt)}</bdi></p><p className="mt-1 text-xs">{t("Domains")}: {grant.scope.map((item) => t(domainLabels[item] || item)).join(", ")} · {t("Actions")}: {grant.actions.map((item) => t(item[0].toUpperCase() + item.slice(1))).join(", ")}</p>{grant.incident.closureEvidence && <p className="mt-2 rounded bg-emerald-50 p-2 text-sm">{t("Closure evidence")}: {grant.incident.closureEvidence}</p>}{grant.emergencyReason && <p className="mt-2 rounded bg-amber-50 p-2 text-sm">{t("Emergency")}: {grant.emergencyReason}{grant.reviewedAt ? ` · ${t("Reviewed")}` : <> · {t("Review due")}: <bdi dir="ltr">{formatSupportInstant(grant.reviewDueAt || grant.expiresAt)}</bdi></>}</p>}</div>
-          <div className="flex flex-wrap gap-2">{grant.status === "approved" && <button type="button" onClick={() => void start(grant)} className="min-h-11 rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white">{t("Start access")}</button>}{grant.status === "active" && <button type="button" onClick={() => void stop(grant)} className="min-h-11 rounded-lg border border-rose-400 px-4 py-2 font-semibold text-rose-800">{t("Revoke now")}</button>}
-            {grant.status === "active" && grant.scope.map((domain) => <button key={domain} type="button" onClick={() => void inspect(grant, domain)} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">{t("Open")}: {t(domainLabels[domain] || domain)}</button>)}
+          <div className="flex flex-wrap gap-2">{grant.status === "approved" && <Button variant="outline" type="button" onClick={() => void start(grant)} >{t("Start access")}</Button>}{grant.status === "active" && <Button variant="outline" type="button" onClick={() => void stop(grant)} >{t("Revoke now")}</Button>}
+            {grant.status === "active" && grant.scope.map((domain) => <Button variant="outline" key={domain} type="button" onClick={() => void inspect(grant, domain)} >{t("Open")}: {t(domainLabels[domain] || domain)}</Button>)}
           </div></div>
-          {grant.incident.status !== "closed" && ["revoked", "expired", "rejected", "active", "approved"].includes(grant.status) && <div className="mt-3"><label className="block text-sm font-semibold">{t("Closure evidence")}<textarea className="sk-field mt-1 min-h-20 w-full rounded-lg p-3" value={closureEvidence[grant.id] || ""} onChange={(event) => setClosureEvidence((current) => ({ ...current, [grant.id]: event.target.value }))} aria-label={t("Closure evidence")} /></label><button type="button" disabled={(closureEvidence[grant.id] || "").trim().length < 12} onClick={() => void closeIncident(grant)} className="mt-2 min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50">{t("Close incident with evidence")}</button></div>}
+          {grant.incident.status !== "closed" && ["revoked", "expired", "rejected", "active", "approved"].includes(grant.status) && <div className="mt-3"><label className="block text-sm font-semibold">{t("Closure evidence")}<Textarea className={"mt-1 min-h-20 w-full"} value={closureEvidence[grant.id] || ""} onChange={(event) => setClosureEvidence((current) => ({ ...current, [grant.id]: event.target.value }))} aria-label={t("Closure evidence")} /></label><Button variant="outline" type="button" disabled={(closureEvidence[grant.id] || "").trim().length < 12} onClick={() => void closeIncident(grant)} className="mt-2">{t("Close incident with evidence")}</Button></div>}
         </article>)}</div>}
       </section>
       </>}
-      {preview && <section className="rounded-xl border border-slate-300 bg-slate-50 p-4 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t("Audited support workspace")}: {t(domainLabels[preview.domain] || preview.domain)}</h2><button type="button" className="min-h-11 rounded-lg border px-4 py-2" onClick={() => setPreview(null)}>{t("Close")}</button></div><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white p-4 text-xs" dir="auto">{JSON.stringify(preview.data, null, 2)}</pre></section>}
+      {preview && <section className="rounded-xl border border-slate-300 bg-slate-50 p-4 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t("Audited support workspace")}: {t(domainLabels[preview.domain] || preview.domain)}</h2><Button variant="outline" type="button"  onClick={() => setPreview(null)}>{t("Close")}</Button></div><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white p-4 text-xs" dir="auto">{JSON.stringify(preview.data, null, 2)}</pre></section>}
       <p className="text-xs text-ink-muted">{t("The school approver uses the existing school console. Vendor platform administration remains an APP_OWNER capability; support grants do not change school roles.")}</p>
     </div>
   </div>;
@@ -611,13 +615,13 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
               placeholder="Search schools by name, email, slug..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle"
+              className={"w-full"}
             />
           </InputGroup>
           <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="">All Status</option>
             <option value="ACTIVE">Active</option>
@@ -627,7 +631,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
           <SystemSelect
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="">All Plans</option>
             <option value="FREE">Basic</option>
@@ -653,12 +657,12 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                 return (
                   <div
                     key={school.id}
-                    className="rounded-2xl border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 transition-all overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+                    className="sk-panel overflow-hidden"
                   >
-                    <button
+                    <Button variant="ghost"
                       type="button"
                       onClick={() => setExpandedId(isExpanded ? null : school.id)}
-                      className="w-full text-left p-5 cursor-pointer hover:bg-[#fbf0fe]/20 transition-all"
+                      className="block w-full p-5 text-start"
                     >
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
@@ -696,7 +700,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                           <ChevronRight className={`w-4 h-4 text-ink-subtle transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                         </div>
                       </div>
-                    </button>
+                    </Button>
 
                     {isExpanded && (
                       <div className="border-t border-[#f3f4f9] bg-[#fbf0fe]/10 p-5">
@@ -715,13 +719,13 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                             <span className="text-[10px] font-bold text-ink-subtle">
                               AI Credits: {school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}
                             </span>
-                            <button
+                            <Button variant="default"
                               onClick={(e) => { e.stopPropagation(); setDetailSchool(school); }}
-                              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] bg-[#fbf0fe] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                              className="items-center gap-1.5 justify-start"
                             >
                               <ExternalLink className="w-3 h-3" />
                               Details
-                            </button>
+                            </Button>
                             <span className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal ${
                               school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
                               school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
@@ -854,13 +858,13 @@ function UsersView() {
             {pagination.total} users across all schools
           </p>
         </div>
-        <button
+        <Button variant="default"
           onClick={() => { loadSchoolOptions(); setShowAddUser(true); }}
-          className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-5 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98]"
+          className="shrink-0 items-center gap-2 justify-start"
         >
           <Plus className="h-4 w-4" />
           Add User
-        </button>
+        </Button>
       </div>
 
       {showAddUser && (
@@ -880,13 +884,13 @@ function UsersView() {
               placeholder="Search by name, email, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle"
+              className={"w-full"}
             />
           </InputGroup>
           <SystemSelect
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="">All Roles</option>
             <option value="SUPER_ADMIN">Super Admin</option>
@@ -899,7 +903,7 @@ function UsersView() {
           <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="">All Status</option>
             <option value="active">Active</option>
@@ -913,23 +917,23 @@ function UsersView() {
           <EmptyState icon={Users} title="No Users Found" description="Try adjusting your filters." />
         ) : (
           <>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full min-w-[1000px] text-left">
-                <thead>
-                  <tr className="text-[9px] font-black uppercase tracking-normal text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
-                    <th className="px-4 py-3 rounded-tl-2xl">User</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">School</th>
-                    <th className="px-4 py-3">Campus</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Last Login</th>
-                    <th className="px-4 py-3 text-right rounded-tr-2xl">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f3f4f9]">
+
+              <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[1000px] text-start">
+                <TableHeader>
+                  <TableRow className="text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
+                    <TableHead className="px-4 py-3">User</TableHead>
+                    <TableHead className="px-4 py-3">Role</TableHead>
+                    <TableHead className="px-4 py-3">School</TableHead>
+                    <TableHead className="px-4 py-3">Campus</TableHead>
+                    <TableHead className="px-4 py-3">Status</TableHead>
+                    <TableHead className="px-4 py-3">Last Login</TableHead>
+                    <TableHead className="px-4 py-3 text-end">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#f3f4f9]">
                   {users.map((u) => (
-                    <tr key={u.id} className="text-sm transition-all duration-200 hover:bg-[#fbf0fe]/20">
-                      <td className="px-4 py-4">
+                    <TableRow key={u.id} className="text-sm duration-200">
+                      <TableCell className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
                             <User className="w-4 h-4" />
@@ -939,41 +943,41 @@ function UsersView() {
                             <p className="text-[10px] font-bold text-ink-subtle truncate">{u.email}</p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-[#f3f4f9] text-ink"}`}>
                           {u.role.replace("_", " ")}
                         </span>
-                      </td>
-                      <td className="px-4 py-4 text-ink font-bold text-xs">
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-ink text-xs">
                         {u.school?.name || "—"}
-                      </td>
-                      <td className="px-4 py-4 text-ink font-bold text-xs">
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-ink text-xs">
                         {u.campus?.name || "—"}
-                      </td>
-                      <td className="px-4 py-4">
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${u.isActive ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
                           {u.isActive ? "Active" : "Inactive"}
                         </span>
-                      </td>
-                      <td className="px-4 py-4 text-ink-muted text-xs font-semibold">
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-ink-muted text-xs">
                         {formatDate(u.lastLogin)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <button
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-end">
+                        <Button variant="default"
                           onClick={() => { setSelectedUser(u); setShowPasswordModal(true); }}
-                          className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] bg-[#fbf0fe] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                          className="items-center gap-1.5 justify-start"
                         >
                           <KeyRound className="w-3 h-3" />
                           Reset
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+
 
             {pagination.pages > 1 && (
               <PaginationBar pagination={pagination} label="users" onPage={(p) => loadUsers(p)} />
@@ -1035,13 +1039,13 @@ function AuditLogView() {
           <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Audit Log</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">{total} actions recorded</p>
         </div>
-        <button
+        <Button variant="default"
           onClick={() => loadLogs(1)}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+          className="items-center gap-2 justify-start"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
-        </button>
+        </Button>
       </div>
 
       <div className="sk-panel p-6">
@@ -1049,7 +1053,7 @@ function AuditLogView() {
           <SystemSelect
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="">All Actions</option>
             <option value="login">Login</option>
@@ -1063,7 +1067,7 @@ function AuditLogView() {
           <SystemSelect
             value={daysFilter}
             onChange={(e) => setDaysFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+
           >
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
@@ -1084,11 +1088,11 @@ function AuditLogView() {
               const isExpanded = expandedId === log.id;
 
               return (
-                <button
+                <Button variant="ghost"
                   key={log.id}
                   type="button"
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                  className="w-full text-left rounded-2xl border border-transparent hover:border-[#cfc2d6]/15 p-4 transition-all hover:bg-[#fbf0fe]/20 cursor-pointer"
+                  className="block w-full p-5 text-start"
                 >
                   <div className="flex items-center gap-4">
                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${meta.tone}`}>
@@ -1162,7 +1166,7 @@ function AuditLogView() {
                       )}
                     </div>
                   )}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -1237,13 +1241,13 @@ function SessionsView() {
             {pagination.total} sessions across all schools
           </p>
         </div>
-        <button
+        <Button variant="default"
           onClick={() => loadSessions(1)}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+          className="items-center gap-2 justify-start"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
-        </button>
+        </Button>
       </div>
 
       <div className="sk-panel p-6">
@@ -1255,18 +1259,18 @@ function SessionsView() {
             <h3 className="text-lg font-black text-[#1f1a23]">Login Sessions</h3>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button aria-pressed={showActiveOnly} variant="choice"
               onClick={() => setShowActiveOnly(true)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
+
             >
               Active Only
-            </button>
-            <button
+            </Button>
+            <Button aria-pressed={!showActiveOnly} variant="choice"
               onClick={() => setShowActiveOnly(false)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${!showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
+
             >
               All Sessions
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1328,10 +1332,10 @@ function SessionsView() {
                         <Clock className="w-3 h-3" /> {formatDate(session.loginAt)}
                       </p>
                       {isLive && (
-                        <button
+                        <Button variant="outline"
                           onClick={() => terminateSession(session.id)}
                           disabled={terminatingId === session.id}
-                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all cursor-pointer disabled:opacity-40"
+                          className="items-center gap-1 justify-start"
                         >
                           {terminatingId === session.id ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
@@ -1339,7 +1343,7 @@ function SessionsView() {
                             <LogOut className="w-3 h-3" />
                           )}
                           Terminate
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -1644,21 +1648,21 @@ function PricingView({ stats }: { stats: Stats | null }) {
                   placeholder="Default"
                   value={vals.price}
                   onChange={(e) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+                  className={"w-full"}
                 />
               </InputGroup>
             </div>
           ))}
         </div>
-        <button
+        <Button variant="dark"
           type="button"
           onClick={saveDefaultPricing}
           disabled={savingDefaults}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
+          className="items-center gap-2 justify-start"
         >
           {savingDefaults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {savingDefaults ? "Saving..." : "Save Defaults"}
-        </button>
+        </Button>
       </div>
 
       <div className="sk-panel p-6 mb-8">
@@ -1678,7 +1682,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                 if (e.target.value) loadPricing(e.target.value);
                 setPricingMessage("");
               }}
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
             >
               <option value="">Select a school...</option>
               {stats?.schools?.map((s: { id: string; name: string }) => (
@@ -1702,21 +1706,21 @@ function PricingView({ stats }: { stats: Stats | null }) {
                     placeholder="Default"
                     value={vals.price}
                     onChange={(e) => setPricingValues(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+                    className={"w-full"}
                   />
                 </InputGroup>
               </div>
             ))}
             <div className="flex items-center gap-3 pt-2">
-              <button
+              <Button variant="default"
                 type="button"
                 onClick={savePricing}
                 disabled={savingPricing}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+                className="items-center gap-2 justify-start"
               >
                 {savingPricing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {savingPricing ? "Saving..." : "Save Pricing"}
-              </button>
+              </Button>
               {pricingMessage && (
                 <span className="text-xs font-semibold text-emerald-600">{pricingMessage}</span>
               )}
@@ -1831,15 +1835,15 @@ function PaymentSettingsView() {
               </span>
             </div>
             {!settings.onboardingComplete && (
-              <button
+              <Button variant="default"
                 type="button"
                 onClick={startConnectOnboarding}
                 disabled={connectLoading}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+                className="items-center gap-2 justify-start"
               >
                 {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                 Complete onboarding
-              </button>
+              </Button>
             )}
             {settings.onboardingComplete && (
               <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
@@ -1853,15 +1857,15 @@ function PaymentSettingsView() {
             )}
           </div>
         ) : (
-          <button
+          <Button variant="default"
             type="button"
             onClick={startConnectOnboarding}
             disabled={connectLoading}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+            className="items-center gap-2 justify-start"
           >
             {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
             Connect Stripe account
-          </button>
+          </Button>
         )}
       </div>
 
@@ -1879,7 +1883,7 @@ function PaymentSettingsView() {
               value={bankForm.bankName}
               onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
               placeholder="e.g. HBL, Meezan Bank"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
             />
           </div>
           <div>
@@ -1888,7 +1892,7 @@ function PaymentSettingsView() {
               value={bankForm.accountTitle}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
               placeholder="Full name or business name"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
             />
           </div>
           <div>
@@ -1897,7 +1901,7 @@ function PaymentSettingsView() {
               value={bankForm.accountNumber}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
               placeholder="IBAN or account number"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
             />
           </div>
           <div>
@@ -1906,19 +1910,19 @@ function PaymentSettingsView() {
               value={bankForm.iban}
               onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
               placeholder="PK...XXXX"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
             />
           </div>
         </div>
-        <button
+        <Button variant="dark"
           type="button"
           onClick={saveBankDetails}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
+          className="items-center gap-2 justify-start"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saving ? "Saving..." : "Save Bank Details"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1933,8 +1937,6 @@ function SchoolDetailModal({
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
 }) {
-  const activeTabClass = "text-sm font-black text-[#8127cf] border-b-2 border-[#8127cf] pb-2";
-  const inactiveTabClass = "text-sm font-bold text-ink-subtle pb-2 cursor-pointer hover:text-ink transition-colors";
   const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
 
   return (
@@ -1959,7 +1961,6 @@ function SchoolDetailModal({
       }
       avatar={
         school.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
         ) : (
           <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]">
@@ -1972,9 +1973,9 @@ function SchoolDetailModal({
       bodyClassName="px-0 py-0 sm:px-0"
     >
         <div className="px-7 pt-5 flex gap-6 border-b border-[#f3f4f9]">
-          <button className={tab === "overview" ? activeTabClass : inactiveTabClass} onClick={() => setTab("overview")}>Overview</button>
-          <button className={tab === "campuses" ? activeTabClass : inactiveTabClass} onClick={() => setTab("campuses")}>Campuses</button>
-          <button className={tab === "subscription" ? activeTabClass : inactiveTabClass} onClick={() => setTab("subscription")}>Subscription</button>
+          <Button aria-pressed={tab === "overview"} variant="choice"  onClick={() => setTab("overview")}>Overview</Button>
+          <Button aria-pressed={tab === "campuses"} variant="choice"  onClick={() => setTab("campuses")}>Campuses</Button>
+          <Button aria-pressed={tab === "subscription"} variant="choice"  onClick={() => setTab("subscription")}>Subscription</Button>
         </div>
 
         <div className="p-7">
@@ -2033,7 +2034,7 @@ function SchoolDetailModal({
               {school.campuses.length > 0 ? (
                 <div className="space-y-3">
                   {school.campuses.map((campus) => (
-                    <div key={campus.id} className="rounded-2xl border border-[#cfc2d6]/10 p-5 hover:border-[#8127cf]/10 transition-all">
+                    <div key={campus.id} className="sk-panel p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
@@ -2065,12 +2066,6 @@ function SchoolDetailModal({
               <div className="grid gap-3">
                 {(["FREE", "BASIC", "PRO", "ENTERPRISE"] as const).map((plan) => {
                   const isCurrent = school.plan === plan;
-                  const planStyles: Record<string, string> = {
-                    FREE: "border-[#cfc2d6]/20 bg-white",
-                    BASIC: "border-sky-200 bg-sky-50/30",
-                    PRO: "border-[#8127cf]/20 bg-[#fbf0fe]/30",
-                    ENTERPRISE: "border-[#1f1a23]/20 bg-gradient-to-br from-[#f3f4f9] to-white",
-                  };
                   const dotStyles: Record<string, string> = {
                     FREE: "bg-[#cfc2d6]/40",
                     BASIC: "bg-sky-500",
@@ -2078,16 +2073,12 @@ function SchoolDetailModal({
                     ENTERPRISE: "bg-[#1f1a23]",
                   };
                   return (
-                    <button
+                    <Button aria-pressed={isCurrent} variant="choice"
                       key={plan}
                       type="button"
                       onClick={() => onPlanChange(school.id, plan)}
                       disabled={isCurrent}
-                      className={`relative flex items-center justify-between rounded-2xl border-2 p-4 text-left transition-all cursor-pointer disabled:cursor-default ${
-                        isCurrent
-                          ? "border-[#8127cf] bg-[#fbf0fe]/50 shadow-md"
-                          : `${planStyles[plan]} hover:border-[#8127cf]/30 hover:shadow-sm`
-                      }`}
+                      className="relative justify-between p-4 text-start"
                     >
                       <div className="flex items-center gap-3">
                         <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-[#8127cf]/30 ring-offset-2" : ""}`} />
@@ -2106,7 +2097,7 @@ function SchoolDetailModal({
                           Current
                         </span>
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -2185,20 +2176,20 @@ function ChangePasswordModal({
       dirtyMessage="The new password has not been set yet. Leave without applying it?"
       footer={
         <div className="flex gap-4">
-          <button
+          <Button variant="secondary"
             onClick={onClose}
-            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
+            className="flex-1"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button variant="dark"
             onClick={handleSubmit}
             disabled={loading || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-14 rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-sm font-black text-white hover:from-black hover:to-[#1f1a23] disabled:opacity-40 transition-all cursor-pointer flex items-center justify-center gap-2"
+            className="flex-[2] items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
             {loading ? "Updating..." : "Change Password"}
-          </button>
+          </Button>
         </div>
       }
     >
@@ -2218,24 +2209,26 @@ function ChangePasswordModal({
 
         <div className="space-y-4 mb-6">
           <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
+            <label htmlFor="owner-new-password" className="sk-field-label mb-2">
               New Password
             </label>
             <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
-              <SystemInput
+              <SystemInput id="owner-new-password"
                 type={showPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password..."
-                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+                className={"w-full"}
               />
-              <button data-field-affix="end"
+              <FieldAction   data-field-affix="end"
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+              </FieldAction>
             </InputGroup>
             {newPassword && (
               <div className="mt-2 flex items-center gap-2">
@@ -2260,15 +2253,15 @@ function ChangePasswordModal({
             )}
           </div>
           <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
+            <label htmlFor="owner-confirm-password" className="sk-field-label mb-2">
               Confirm Password
             </label>
-            <SystemInput
+            <SystemInput id="owner-confirm-password"
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter password..."
-              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
+              className={"w-full"}
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="mt-2 text-xs font-bold text-rose-500 flex items-center gap-1.5">
@@ -2324,20 +2317,20 @@ function PaginationBar({
         Page {pagination.page} of {pagination.pages} ({pagination.total} {label})
       </p>
       <div className="flex gap-2">
-        <button
-          onClick={() => onPage(pagination.page - 1)}
+        <Button size="icon" variant="default"
+          aria-label="Previous page" onClick={() => onPage(pagination.page - 1)}
           disabled={pagination.page <= 1}
-          className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
+          className="items-center justify-center"
         >
           <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => onPage(pagination.page + 1)}
+        </Button>
+        <Button size="icon" variant="default"
+          aria-label="Next page" onClick={() => onPage(pagination.page + 1)}
           disabled={pagination.page >= pagination.pages}
-          className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
+          className="items-center justify-center"
         >
           <ChevronRight className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

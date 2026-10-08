@@ -1,5 +1,7 @@
 "use client";
 
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -124,7 +126,7 @@ function PackageChoice() {
   return (
     <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] px-4 py-6 text-[#1f1a23] sm:px-8 sm:py-10">
       <div className="mx-auto max-w-7xl">
-        <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#5c5063] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">
+        <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "gap-2" })}>
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           {copy.back}
         </Link>
@@ -135,14 +137,14 @@ function PackageChoice() {
           <p className="mt-3 text-sm leading-6 text-[#615668]">{copy.intro}</p>
         </header>
 
-        <section aria-label={copy.sizing} className="mt-7 grid gap-4 rounded-2xl border border-[#e6dce9] bg-white p-4 sm:grid-cols-2 sm:p-6">
+        <section aria-label={copy.sizing} className="sk-panel mt-7 grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
           <label className="grid gap-2 text-sm font-semibold" htmlFor="expected-campuses">
             {copy.campuses}
-            <input id="expected-campuses" type="number" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} className="min-h-11 rounded-xl border border-[#cfc2d6] px-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8127cf]" />
+            <Input id="expected-campuses" type="number" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} className={"min-h-11"} />
           </label>
           <label className="grid gap-2 text-sm font-semibold" htmlFor="expected-enrollment">
             {copy.enrollment}
-            <input id="expected-enrollment" type="number" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} className="min-h-11 rounded-xl border border-[#cfc2d6] px-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8127cf]" />
+            <Input id="expected-enrollment" type="number" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} className={"min-h-11"} />
           </label>
         </section>
 
@@ -157,10 +159,10 @@ function PackageChoice() {
             </p>
             <div role="group" aria-label={copy.billingPeriod} className="inline-flex rounded-full border border-[#cfc2d6] bg-white p-1">
               {(["monthly", "annual"] as const).map((choice) => (
-                <button key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} className={`min-h-10 rounded-full px-4 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8127cf] ${period === choice ? "bg-[#8127cf] text-white" : "text-[#5c5063]"}`}>
+                <Button variant="choice" key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} >
                   {choice === "monthly" ? copy.monthly : copy.annual}
                   {choice === "annual" && <span className="ms-1">{copy.annualDiscount} ({Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -175,7 +177,7 @@ function PackageChoice() {
             const fits = (plan.maxCampuses < 0 || campuses <= plan.maxCampuses) && (plan.maxStudents < 0 || enrollment <= plan.maxStudents);
             const recommendedCurrent = plan.type === catalogue.currentPlan;
             const unavailablePaid = type !== "FREE" && type !== "ENTERPRISE" && catalogue.paymentMethods.length === 0;
-            return <article key={plan.type} className={`flex min-h-[28rem] flex-col rounded-2xl border bg-white p-5 shadow-sm ${recommendedCurrent ? "border-[#8127cf]" : "border-[#e6dce9]"}`}>
+            return <article key={plan.type} className={`sk-panel flex min-h-[28rem] flex-col p-5 ${recommendedCurrent ? "border-primary" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-base font-black">{copy.planNames[plan.type] ?? plan.name}</h2>
                 {recommendedCurrent && <span className="rounded-full bg-[#f3e9fb] px-2.5 py-1 text-xs font-bold text-[#8127cf]">{copy.current}</span>}
@@ -197,17 +199,17 @@ function PackageChoice() {
                 {plan.features.map((feature) => <li key={feature} className="flex gap-2"><Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" /><span lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span></li>)}
               </ul>
               {type === "FREE" ? (
-                <button type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-4 text-sm font-bold text-white hover:bg-[#681daf] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">
+                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
                   {busy === type ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}{copy.continueFree}
-                </button>
+                </Button>
               ) : type === "ENTERPRISE" ? (
-                <button type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#8127cf] px-4 text-sm font-bold text-[#8127cf] hover:bg-[#fbf7fc] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">
+                <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
                   <Mail className="h-4 w-4" />{copy.quote}
-                </button>
+                </Button>
               ) : (
-                <button type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-4 text-sm font-bold text-white hover:bg-[#681daf] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8127cf]">
+                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} className="mt-5 items-center justify-center gap-2">
                   {busy === type && <Loader2 className="h-4 w-4 animate-spin" />}{unavailablePaid ? copy.checkoutUnavailable : copy.choose}
-                </button>
+                </Button>
               )}
               {unavailablePaid && <p className="mt-2 text-xs text-[#615668]">{copy.paidUnavailable}</p>}
             </article>;

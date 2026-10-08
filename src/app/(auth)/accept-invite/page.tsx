@@ -1,8 +1,8 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 type InviteLanguage = "en" | "ar" | "ur";
 
@@ -85,6 +86,11 @@ export default function AcceptInvitePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (validationError) errorRef.current?.focus();
+  }, [validationError]);
 
   useEffect(() => {
     const pageLanguage = document.documentElement.lang;
@@ -227,9 +233,9 @@ export default function AcceptInvitePage() {
               </div>
               <label className="mb-4 flex items-center gap-2 text-sm font-medium text-ink-muted">
                 <span>{t.language}</span>
-                <select aria-label={t.language} value={language} onChange={event => setLanguage(event.target.value as InviteLanguage)} className="min-h-11 rounded-lg border border-input bg-background px-3 py-2 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+                <Select aria-label={t.language} value={language} onChange={event => setLanguage(event.target.value as InviteLanguage)} className="flex-1">
                   <option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option>
-                </select>
+                </Select>
               </label>
               <h1 className="text-2xl font-black tracking-normal text-foreground">{t.title}</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
@@ -238,15 +244,15 @@ export default function AcceptInvitePage() {
             </div>
 
             {!token ? (
-              <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-sm font-bold text-rose-600">
-                This invitation link is incomplete. Please open the latest invite email or ask your administrator to resend it.
+              <div role="alert" className="rounded-3xl border border-status-error-border bg-status-error-surface p-5 text-sm font-bold text-status-error-text">
+                {t.invalidToken}
               </div>
             ) : (
               <>
                 {inviteStatus && inviteStatus !== "pending" ? (
                   <div role="alert" className="rounded-3xl border border-status-error-border bg-status-error-surface p-5 text-sm font-bold text-status-error-text mb-5">
                     {inviteMessage || t.noLongerValid}
-                    {inviteStatus === "expired" && <button type="button" disabled={loading} className="mt-2 block min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" onClick={async () => { setLoading(true); try { await fetch("/api/invite/reissue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }); setInviteMessage(t.requestLinkSent); } finally { setLoading(false); } }}>{t.requestLink}</button>}
+                    {inviteStatus === "expired" && <Button variant="link" type="button" disabled={loading} aria-busy={loading} className="mt-2 block px-0 font-semibold underline" onClick={async () => { setLoading(true); try { await fetch("/api/invite/reissue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }); setInviteMessage(t.requestLinkSent); } finally { setLoading(false); } }}>{t.requestLink}</Button>}
                   </div>
                 ) : null}
                 {inviteLoading ? (
@@ -264,10 +270,10 @@ export default function AcceptInvitePage() {
                   <p><b>{t.management}:</b> {membershipPreview(details.role, details.canPurchaseSubscription, details.canManageMemberships, language).management}</p>
                   <p>{membershipPreview(details.role, details.canPurchaseSubscription, details.canManageMemberships, language).ownership} {membershipPreview(details.role, details.canPurchaseSubscription, details.canManageMemberships, language).rank}</p>
                 </section>}
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-5">
                 <div className="space-y-2"><Label htmlFor="fullName">{t.fullName}</Label><Input id="fullName" autoComplete="name" required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} /></div>
                 {validationError && (
-                  <div role="alert" className="rounded-2xl border border-status-error-border bg-status-error-surface p-4 text-sm font-bold text-status-error-text flex items-start gap-3">
+                  <div id="invite-error" ref={errorRef} tabIndex={-1} role="alert" className="rounded-2xl border border-status-error-border bg-status-error-surface p-4 text-sm font-bold text-status-error-text flex items-start gap-3">
                     <AlertCircle aria-hidden="true" className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <span>{validationError}</span>
                   </div>
@@ -281,22 +287,25 @@ export default function AcceptInvitePage() {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      aria-describedby="invite-password-requirements"
                       value={password}
                       onChange={(event) => {
                         setPassword(event.target.value);
                         setValidationError("");
                       }}
                       placeholder={t.createPassword}
-                      className="h-14 rounded-lg border-0 bg-transparent font-medium shadow-none focus:bg-transparent"
                     />
-                    <button data-field-affix="end"
+                    <FieldAction data-field-affix="end"
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       className="cursor-pointer"
+                      aria-pressed={showPassword}
+                      aria-controls="password confirmPassword"
                       aria-label={showPassword ? `${t.password}: ${language === "ar" ? "إخفاء" : language === "ur" ? "چھپائیں" : "hide"}` : `${t.password}: ${language === "ar" ? "إظهار" : language === "ur" ? "دکھائیں" : "show"}`}
                     >
                       {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
-                    </button>
+                    </FieldAction>
                   </InputGroup>
                 </div>
 
@@ -309,18 +318,19 @@ export default function AcceptInvitePage() {
                     <Input
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      aria-describedby="invite-password-requirements"
                       value={confirmPassword}
                       onChange={(event) => {
                         setConfirmPassword(event.target.value);
                         setValidationError("");
                       }}
                       placeholder={t.repeatPassword}
-                      className="h-14 rounded-lg border-0 bg-transparent font-medium shadow-none focus:bg-transparent"
                     />
                   </InputGroup>
                 </div>
 
-                <ul aria-label={t.checks} aria-live="polite" className="grid grid-cols-1 gap-2 rounded-2xl bg-surface-subtle p-4 sm:grid-cols-2">
+                <ul id="invite-password-requirements" aria-label={t.checks} aria-live="polite" className="grid grid-cols-1 gap-2 rounded-2xl bg-surface-subtle p-4 sm:grid-cols-2">
                   {passwordChecks.map((item) => (
                     <li
                       key={item.label}
@@ -334,7 +344,7 @@ export default function AcceptInvitePage() {
                   ))}
                 </ul>
 
-                <Button type="submit" disabled={!canSubmit || loading || inviteStatus !== "pending" || inviteLoading} className="min-h-14 w-full rounded-xl text-base">
+                <Button type="submit" aria-busy={loading} disabled={!canSubmit || loading || inviteStatus !== "pending" || inviteLoading} size="lg" className="w-full">
                   {loading ? <><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin motion-reduce:animate-none" /><span>{t.activating}</span></> : <span>{t.activate}</span>}
                   {!loading ? <ArrowRight aria-hidden="true" className="h-5 w-5 rtl:-scale-x-100" /> : null}
                 </Button>
@@ -343,7 +353,7 @@ export default function AcceptInvitePage() {
             )}
 
             <div className="mt-6 border-t border-[#cfc2d6]/10 pt-6 text-center">
-              <Link href="/login" className="min-h-11 inline-flex items-center text-sm font-bold text-primary underline-offset-4 transition-colors hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+              <Link href="/login" className="min-h-11 inline-flex items-center text-sm font-bold text-primary underline-offset-4 transition-colors hover:underline">
                 {t.returnLogin}
               </Link>
             </div>

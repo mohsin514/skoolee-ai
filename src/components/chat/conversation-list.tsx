@@ -10,6 +10,8 @@ import { useChat, type ConversationFilter } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import type { ConversationView } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 const FILTERS: { value: ConversationFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -83,10 +85,10 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               </span>
             </div>
 
-            <button
+            <Button variant="default" size="sm"
               type="button"
               onClick={onNewChat}
-              className="sk-sweep-trigger relative flex shrink-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-2.5 py-1.5 text-[11px] font-black text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.7)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-10px_rgba(129,39,207,0.8)] active:scale-95"
+              className="sk-sweep-trigger relative flex justify-start shrink-0 items-center gap-1.5 overflow-hidden hover:-translate-y-0.5"
             >
               <span
                 aria-hidden
@@ -94,7 +96,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               />
               <SquarePen className="relative h-3.5 w-3.5" />
               <span className="relative">New</span>
-            </button>
+            </Button>
           </div>
 
           <InputGroup surfaceClassName="bg-white/80" className="relative">
@@ -108,7 +110,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search conversations"
               aria-label="Search conversations"
-              className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white/80 py-2.5 pl-9 pr-3 text-xs font-semibold text-ink shadow-[inset_0_1px_2px_rgba(31,26,35,0.05)] transition-all placeholder:text-ink-faint focus:bg-white"
+              className="w-full py-2.5 pl-9 pr-3"
             />
           </InputGroup>
 
@@ -118,26 +120,17 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
             aria-label="Filter conversations"
           >
             {FILTERS.map((f) => (
-              <button
+              <Button data-selected={filter === f.value} variant="choice" size="sm"
                 key={f.value}
                 type="button"
                 role="tab"
                 aria-selected={filter === f.value}
                 onClick={() => setFilter(f.value)}
-                className={cn(
-                  "relative flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-[11px] font-black transition-colors",
-                  filter === f.value ? "text-white" : "text-ink-muted hover:text-[#8127cf]"
-                )}
+                className="relative flex-1"
               >
-                {filter === f.value && (
-                  <motion.span
-                    layoutId="chat-filter-pill"
-                    transition={{ type: "spring", stiffness: 520, damping: 36 }}
-                    className="absolute inset-0 rounded-lg bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-[0_6px_16px_-6px_rgba(129,39,207,0.7)]"
-                  />
-                )}
+
                 <span className="relative">{f.label}</span>
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -184,14 +177,14 @@ function ConversationRow({
   const sentByMe = Boolean(viewerId) && c.lastMessageSenderId === viewerId;
 
   return (
-    <button
+    <Button variant="ghost"
       type="button"
       onClick={onOpen}
       aria-current={isActive ? "true" : undefined}
       className={cn(
-        "group relative isolate flex w-full cursor-pointer items-start gap-3 rounded-2xl px-3 py-2.5 text-left transition-all duration-200",
+        "group relative isolate flex justify-start w-full items-start gap-3 text-left",
         isActive
-          ? "text-[#1f1a23]"
+          ? ""
           : "hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_8px_22px_-12px_rgba(31,26,35,0.28)]"
       )}
     >
@@ -269,7 +262,7 @@ function ConversationRow({
           </span>
         )}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -316,13 +309,13 @@ function EmptyList({
         <p className="mt-1 text-[11px] font-semibold leading-relaxed text-ink-muted">{copy.body}</p>
       </div>
       {filter === "all" && (
-        <button
+        <Button variant="default" size="sm"
           type="button"
           onClick={onNewChat}
-          className="cursor-pointer rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-3.5 py-2 text-[11px] font-black text-white shadow-[0_10px_24px_-8px_rgba(129,39,207,0.7)] transition-all hover:-translate-y-0.5 active:scale-95"
+          className="hover:-translate-y-0.5"
         >
           Start a conversation
-        </button>
+        </Button>
       )}
     </div>
   );

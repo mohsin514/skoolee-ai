@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -247,22 +248,15 @@ function AlertRow({
   detail: string;
   onClick: () => void;
 }) {
-  const tones = {
-    amber: "border-amber-200/70 bg-gradient-to-r from-amber-50 to-amber-50/20 text-amber-800",
-    rose: "border-rose-200/70 bg-gradient-to-r from-rose-50 to-rose-50/20 text-rose-800",
-  } as const;
   const chips = {
     amber: "bg-amber-100 text-amber-600",
     rose: "bg-rose-100 text-rose-600",
   } as const;
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
-      className={cn(
-        "group flex cursor-pointer items-center gap-3 rounded-[18px] border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(31,26,35,0.5)] active:scale-[0.99]",
-        tones[tone],
-      )}
+      className="group justify-start p-3 text-start"
     >
       <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
         <Icon className="h-4 w-4" />
@@ -272,6 +266,6 @@ function AlertRow({
         <span className="block truncate text-[11px] font-semibold opacity-70">{detail}</span>
       </span>
       <ArrowRight className="h-4 w-4 shrink-0 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
-    </button>
+    </Button>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { InputGroup , FieldAction } from "@/components/ui/input-group";
 
 
 /**
@@ -47,6 +47,8 @@ import {
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+
 
 /** Every id from `startIds` up to the root, so a search hit can be revealed. */
 function ancestorsOf(nodes: Map<string, OrgNode>, startIds: string[]) {
@@ -242,24 +244,24 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               if (e.key === "Escape") setQuery("");
             }}
             placeholder="Find a name, rank, department or staff code…"
-            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted"
+            className="w-full py-2.5 pl-9 pr-8"
           />
           {query ? (
-            <button data-field-affix="end"
+            <FieldAction   data-field-affix="end"
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink"
+              className="absolute right-2 top-1/2 -translate-y-1/2"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </FieldAction>
           ) : null}
         </InputGroup>
 
         <SystemSelect
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none"
+          className="px-3 py-2.5"
         >
           <option value="">All departments</option>
           {departments.map((d) => (
@@ -273,7 +275,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         <SystemSelect
           value={track}
           onChange={(e) => setTrack(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none"
+          className="px-3 py-2.5"
         >
           <option value="">All tracks</option>
           {Object.entries(TRACK_TONES).map(([key, tone]) => (
@@ -284,16 +286,16 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         </SystemSelect>
 
         <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
-          <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))}  aria-label="Zoom out">
             <Minus className="h-3.5 w-3.5" />
-          </button>
+          </Button>
           <span className="w-10 text-center text-[10px] font-black tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
-          <button type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom in">
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))}  aria-label="Zoom in">
             <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" onClick={fit} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Fit to screen">
+          </Button>
+          <Button variant="secondary" size="icon" type="button" onClick={fit}  aria-label="Fit to screen">
             <Maximize2 className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -431,11 +433,11 @@ function OrgCard({
       className="absolute"
       style={{ left: entry.x + CANVAS_PAD, top: entry.y + CANVAS_PAD, width: NODE_W, height: NODE_H }}
     >
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={onSelect}
         className={cn(
-          "group flex h-full w-full items-center gap-2.5 rounded-2xl border bg-white px-3 text-left shadow-sm transition-all hover:shadow-md",
+          "group flex justify-start h-full w-full items-center gap-2.5 text-left",
           selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/50",
           dimmed && "opacity-30"
         )}
@@ -488,18 +490,18 @@ function OrgCard({
             {node.employmentStatus === "NOTICE_PERIOD" ? "Notice" : "Left"}
           </span>
         ) : null}
-      </button>
+      </Button>
 
       {entry.childIds.length > 0 ? (
-        <button
+        <Button variant="outline" size="icon"
           type="button"
           onClick={onToggle}
-          className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-[#cfc2d6]/60 bg-white px-2 text-[10px] font-black text-ink-muted shadow-sm transition-colors hover:border-[#8127cf] hover:text-[#8127cf]"
+          className="absolute -bottom-3 left-1/2 z-10 flex justify-start -translate-x-1/2 items-center gap-1"
           aria-label={collapsed ? `Show ${entry.hiddenCount} below ${node.fullName}` : `Hide the team below ${node.fullName}`}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           {collapsed ? entry.hiddenCount : entry.childIds.length}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

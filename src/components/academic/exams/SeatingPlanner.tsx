@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -386,14 +387,14 @@ export function SeatingPlanner({
           {papers.length === 1 ? "" : "s"}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button
+          <Button variant="outline" size="icon"
             type="button"
             onClick={load}
             aria-label="Refresh"
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/25 bg-white text-ink-muted transition-colors hover:border-[#8127cf]/35 hover:text-[#8127cf]"
+            className="flex items-center justify-center"
           >
             <RefreshCw className="h-4 w-4" />
-          </button>
+          </Button>
           <BrandButton
             variant="dark"
             icon={<Download className="h-4 w-4" />}
@@ -447,18 +448,16 @@ export function SeatingPlanner({
                   const seats = paper.rooms.reduce((n, r) => n + roomCapacity(r.room).exam, 0);
                   const done = head > 0 && seated >= head;
                   return (
-                    <button
+                    <Button variant="outline"
                       key={paper.id}
                       type="button"
                       onClick={() => setOpen(paper)}
-                      className={cn(
-                        "group cursor-pointer rounded-2xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5",
+                      className={"block " + (cn(
+                        "group p-3 text-left hover:-translate-y-0.5",
                         done
-                          ? "border-emerald-200/70 bg-emerald-50/40 hover:border-emerald-300"
-                          : paper.rooms.length > 0
-                          ? "border-amber-200/70 bg-amber-50/40 hover:border-amber-300"
-                          : "border-[#cfc2d6]/25 bg-white hover:border-[#8127cf]/35",
-                      )}
+                          ? ""
+                          : "",
+                      ))}
                     >
                       <p className="truncate text-xs font-black text-[#1f1a23]">
                         {classLabel(paper.exam.class)}
@@ -477,7 +476,7 @@ export function SeatingPlanner({
                             : `${paper.rooms.map((r) => r.room.roomNumber).join(", ")} · ${seats} seats`}
                         </span>
                       </div>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -650,14 +649,14 @@ function RoomAssignModal({
       onClose={onClose}
       headerActions={
         plan && plan.totalStudents > 0 ? (
-          <button
+          <Button variant="secondary"
             type="button"
             onClick={downloadOne}
-            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#f3eeff] px-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#e9dcfb]"
+            className="justify-start flex items-center gap-1.5 px-3"
           >
             <Download className="h-3.5 w-3.5" />
             PDF
-          </button>
+          </Button>
         ) : null
       }
       footer={
@@ -712,22 +711,18 @@ function RoomAssignModal({
                   const on = chosen.includes(room.id);
                   const disabled = room.unmeasured || (room.busy && !on);
                   return (
-                    <button
+                    <Button variant="choice"
                       key={room.id}
                       type="button"
                       disabled={disabled}
                       onClick={() => toggle(room.id)}
                       aria-pressed={on}
                       title={room.busyReason ?? undefined}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition-all",
-                        on
-                          ? "border-[#8127cf] bg-gradient-to-r from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.3)]"
-                          : "border-[#cfc2d6]/25 bg-white",
-                        disabled
-                          ? "cursor-not-allowed opacity-45"
-                          : "cursor-pointer hover:border-[#8127cf]/40",
-                      )}
+                      className={"justify-start " + (cn(
+                        "flex w-full items-center gap-3 p-2.5 text-left",
+                        "",
+                        "",
+                      ))}
                     >
                       <span
                         className={cn(
@@ -756,7 +751,7 @@ function RoomAssignModal({
                             : `${room.examCapacity} exam seats · ${room.teachingCapacity} teaching${room.location ? ` · ${room.location}` : ""}`}
                         </span>
                       </span>
-                    </button>
+                    </Button>
                   );
                 })
               )}
@@ -806,7 +801,7 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
   }, [room.students]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white">
+    <div className="sk-panel overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-3 py-2">
         <DoorOpen className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
         <span className="text-xs font-black text-[#1f1a23]">Room {room.roomNumber}</span>

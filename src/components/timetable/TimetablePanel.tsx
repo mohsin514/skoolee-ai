@@ -23,6 +23,8 @@ import { toast } from "sonner";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 // ─── Types ────────────────────────────────────────────────
 interface SlotData {
@@ -521,24 +523,20 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     <div className="space-y-6">
       {/* View mode tabs */}
       <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit">
-        <button
+        <Button aria-pressed={viewMode === "class"} variant="choice" size="sm"
           type="button"
           onClick={() => setViewMode("class")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-          }`}
+          className="class"
         >
           <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class View
-        </button>
-        <button
+        </Button>
+        <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
           type="button"
           onClick={() => setViewMode("teacher")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-          }`}
+          className="teacher"
         >
           <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher View
-        </button>
+        </Button>
       </div>
 
       {viewMode === "teacher" ? (
@@ -548,7 +546,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               <SystemSelect
                 value={selectedTeacherId}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none appearance-none cursor-pointer"
+                className="px-4 pr-10 appearance-none"
               >
                 <option value="">— Select teacher —</option>
                 {teachers.map((t) => (
@@ -563,13 +561,13 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               </span>
             )}
             {selectedTeacherId && (
-              <button
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Printer className="h-3.5 w-3.5" />Print Routine
-              </button>
+              </Button>
             )}
           </div>
 
@@ -650,21 +648,17 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             const hasTimetable = timetables.some((t) => t.classId === cls.id);
             const isPublished = timetables.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
             return (
-              <button
+              <Button aria-pressed={selectedClassId === cls.id} variant="choice" size="sm"
                 key={cls.id}
                 type="button"
                 onClick={() => setSelectedClassId(cls.id)}
-                className={`relative flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                  selectedClassId === cls.id
-                    ? "bg-white text-[#8127cf] shadow-sm"
-                    : "text-ink-muted hover:text-[#8127cf]"
-                }`}
+                className="relative flex justify-start items-center gap-1.5 whitespace-nowrap"
               >
                 {cls.name}{cls.section ? ` - ${cls.section}` : ""}
                 {hasTimetable && (
                   <span className={`ml-1 h-1.5 w-1.5 rounded-full ${isPublished ? "bg-emerald-500" : "bg-amber-400"}`} />
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -688,23 +682,23 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
           </p>
           <div className="flex items-center gap-3">
-            <button
+            <Button variant="outline"
               type="button"
               onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
-              className="flex items-center gap-2 rounded-2xl border-2 border-[#8127cf]/20 bg-white px-6 py-3 text-sm font-black text-[#8127cf] transition-all hover:border-[#8127cf]/40 cursor-pointer"
+              className="flex justify-start items-center gap-2"
             >
               <Clock className="w-4 h-4" />
               Configure Periods
-            </button>
-            <button
+            </Button>
+            <Button variant="default"
               type="button"
               onClick={() => handleCreateTimetable()}
               disabled={creating}
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-3 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30 cursor-pointer disabled:opacity-50"
+              className="flex justify-start items-center gap-2"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Quick Create (Default)
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -731,55 +725,51 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => {
                   const p = periods.map((pp) => ({ period: pp.num, start: pp.start, end: pp.end, type: pp.type }));
                   setCustomPeriods(p);
                   setShowPeriodConfig(true);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Clock className="h-3.5 w-3.5" />Periods
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Printer className="h-3.5 w-3.5" />Print
-              </button>
-              <button
+              </Button>
+              <Button variant="destructive" size="sm"
                 type="button"
                 onClick={handleDeleteTimetable}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Trash2 className="h-3.5 w-3.5" />Delete
-              </button>
+              </Button>
               {pendingChanges.size > 0 && (
-                <button
+                <Button variant="default" size="sm"
                   type="button"
                   onClick={handleSaveAll}
                   disabled={saving}
-                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] cursor-pointer disabled:opacity-50"
+                  className="flex justify-start items-center gap-1.5"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Save Changes
-                </button>
+                </Button>
               )}
-              <button
+              <Button variant={activeTimetable?.status === "PUBLISHED" ? "secondary" : "default"} size="sm"
                 type="button"
                 onClick={handlePublish}
                 disabled={publishing}
-                className={`flex h-9 items-center gap-1.5 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 ${
-                  activeTimetable.status === "PUBLISHED"
-                    ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                    : "bg-emerald-500 text-white hover:bg-emerald-600"
-                }`}
+                className="flex justify-start items-center gap-1.5"
               >
                 {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 {activeTimetable.status === "PUBLISHED" ? "Unpublish" : "Publish"}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -903,7 +893,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                           onClick={() => setEditingSlot(slot)}
                         >
                           {subjectName ? (
-                            <div className={`h-full rounded-xl ${color?.bg || "bg-gray-50"} ${color?.border || "border-gray-200"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
+                            <div className={`h-full rounded-xl ${color?.bg || "bg-gray-50"}  ${color?.border || "border-gray-200"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
                               <div>
                                 <p className={`text-[10px] font-black leading-tight ${color?.text || "text-gray-600"}`}>
                                   {subjectName}
@@ -1090,19 +1080,19 @@ function PeriodConfigModal({
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none"
+                className="w-28 px-3 py-2"
               />
               <span className="text-[10px] font-bold text-ink-subtle">to</span>
               <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none"
+                className="w-28 px-3 py-2"
               />
               <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none cursor-pointer"
+                className="flex-1 px-3 py-2"
               >
                 <option value="CLASS">Class</option>
                 <option value="BREAK">Break</option>
@@ -1110,22 +1100,22 @@ function PeriodConfigModal({
                 <option value="ASSEMBLY">Assembly</option>
                 <option value="ACTIVITY">Activity</option>
               </SystemSelect>
-              <button
+              <Button variant="destructive" size="icon"
                 type="button"
                 onClick={() => removePeriod(i)}
-                className="h-8 w-8 rounded-xl bg-white flex items-center justify-center text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+                className="flex items-center justify-center"
               >
                 <X className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </div>
           ))}
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />Add Period
-          </button>
+          </Button>
         </div>
 
     </Modal>
@@ -1204,20 +1194,20 @@ function SlotEditorModal({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
-          <button
+          <Button variant="destructive" size="sm"
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <X className="w-3 h-3" />Clear
-          </button>
-          <button
+          </Button>
+          <Button variant="default" size="sm"
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <Check className="w-3.5 h-3.5" />Apply
-          </button>
+          </Button>
         </div>
       }
     >
@@ -1227,18 +1217,14 @@ function SlotEditorModal({
             <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
             <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
-                <button
+                <Button aria-pressed={slotType === type} variant="choice" size="sm"
                   key={type}
                   type="button"
                   onClick={() => setSlotType(type)}
-                  className={`flex-1 rounded-xl px-2 py-1.5 text-[9px] font-black uppercase transition-all cursor-pointer ${
-                    slotType === type
-                      ? "bg-white text-[#8127cf] shadow-sm"
-                      : "text-ink-subtle hover:text-[#8127cf]"
-                  }`}
+                  className="flex-1"
                 >
                   {type}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -1250,7 +1236,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No subject —</option>
                   {subjects.map((s) => (
@@ -1264,7 +1250,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No teacher —</option>
                   {teachers.map((t) => (
@@ -1278,7 +1264,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No room —</option>
                   {rooms.map((r) => (
@@ -1503,7 +1489,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                   return (
                     <div key={day.num} className="border-l border-[#f3f4f9] p-1">
                       {slot.subject ? (
-                        <div className={`h-full rounded-lg ${color?.bg || "bg-gray-50"} ${color?.border || "border-gray-200"} border p-1.5`}>
+                        <div className={`h-full rounded-lg ${color?.bg || "bg-gray-50"}  ${color?.border || "border-gray-200"} border p-1.5`}>
                           <p className={`text-[9px] font-black leading-tight ${color?.text || "text-gray-600"}`}>
                             {slot.subject.name}
                           </p>

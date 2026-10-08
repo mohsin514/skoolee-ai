@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
@@ -56,7 +57,7 @@ export function FeeOverviewTab({
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-6 animate-skeleton-in">
+        <div className="sk-panel p-6 animate-skeleton-in">
           <div className="flex items-center gap-3 mb-5">
             <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
             <div className="h-5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
@@ -139,7 +140,7 @@ export function FeeOverviewTab({
               {summary?.byClass.map((cls) => (
                 <div
                   key={cls.className}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-[#cfc2d6]/10"
+                  className="sk-panel flex items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black text-[#1f1a23]">
@@ -172,11 +173,11 @@ export function FeeOverviewTab({
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"At-Risk Students"}</UiText></h4>
               {onNavigate && summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
-                <button
+                <Button variant="link"
                   type="button"
                   onClick={() => onNavigate("reports")}
-                  className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-                ><UiText>{"View All"}</UiText></button>
+                  className="hover:underline"
+                ><UiText>{"View All"}</UiText></Button>
               )}
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -224,11 +225,11 @@ export function FeeOverviewTab({
               <h4 className="text-sm font-black text-[#1f1a23]"><UiText>{"Recent Payments"}</UiText></h4>
             </div>
             {onNavigate && (
-              <button
+              <Button variant="link"
                 type="button"
                 onClick={() => onNavigate("payments")}
-                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              ><UiText>{"View All"}</UiText></button>
+                className="hover:underline"
+              ><UiText>{"View All"}</UiText></Button>
             )}
           </div>
           <div className="space-y-2">

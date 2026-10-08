@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -82,7 +83,7 @@ export function StatCard({
   countUp = false,
   entranceDelay = 0,
 }: StatCardProps) {
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!onClick) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -123,9 +124,9 @@ export function StatCard({
 
   if (onClick) {
     return (
-      <div role="button" tabIndex={0} onClick={onClick} onKeyDown={handleKeyDown} className={className} style={style}>
+      <Button variant="ghost" type="button" role="button" tabIndex={0} onClick={onClick} onKeyDown={handleKeyDown} className={cn("block", className)} style={style}>
         {content}
-      </div>
+      </Button>
     );
   }
 

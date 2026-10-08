@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { UiText } from "@/components/locale/LocaleProvider";
 
 import { useMemo, useState } from "react";
@@ -74,7 +76,7 @@ export default function FeesPage() {
       title={tr("Fees")}
       summary={tr("Invoices, payment progress, and outstanding balances.")}
     >
-      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<Select aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</Select></label>
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <StatCard icon={Receipt} label={tr("Total invoiced")} value={formatPKR(summary.total)} sub={`${tr("Invoices")}: ${invoices.length}`} />
           <StatCard
@@ -215,15 +217,15 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
             </span>
           </div>
           {balance > 0 && invoice.currency === "PKR" && (
-            <button
+            <Button variant="default"
               type="button"
               onClick={onPay}
               disabled={paying}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#8127cf] text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+              className="justify-start inline-flex items-center gap-1.5 px-3 py-1.5"
             >
               {paying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wallet className="w-3 h-3" />}
               {paying ? tr("Starting...") : tr("Pay Now")}
-            </button>
+            </Button>
           )}
           {paid > 0 && balance <= 0 && (
             <span className="text-[9px] font-semibold text-emerald-600">{formatPKR(paid)}<UiText>{"paid"}</UiText></span>

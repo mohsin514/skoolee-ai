@@ -12,6 +12,8 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HeroFigure, Meter } from "./chart-kit";
+import { Button } from "@/components/ui/button";
+
 
 export interface HeroMeter {
   label: string;
@@ -122,16 +124,16 @@ export function CommandHero({
                 return (
                   <li key={pill.label}>
                     {pill.onClick ? (
-                      <button
+                      <Button variant="outline"
                         type="button"
                         onClick={pill.onClick}
                         className={cn(
-                          "flex cursor-pointer items-center gap-2 rounded-2xl px-3.5 py-2 backdrop-blur transition-all hover:bg-white/15",
+                          "flex justify-start items-center gap-2 backdrop-blur",
                           toneRing,
                         )}
                       >
                         {content}
-                      </button>
+                      </Button>
                     ) : (
                       <span className={cn("flex items-center gap-2 rounded-2xl px-3.5 py-2 backdrop-blur", toneRing)}>
                         {content}

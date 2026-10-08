@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useState } from "react";
@@ -185,27 +186,26 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
           {STATUSES.map((s) => (
-            <button
+            <Button aria-pressed={statusFilter === s.value} variant="choice"
               key={s.value}
               type="button"
               onClick={() => { setStatusFilter(s.value); setPage(1); }}
-              className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                statusFilter === s.value
-                  ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={`px-3 py-1.5 ${
+                ""
+              } `}
             >
               {tr(s.label)}
-            </button>
+            </Button>
           ))}
         </div>
 
         <SystemSelect
+          aria-label={tr("Class")}
           value={classFilter}
           onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none"
+          className=""
         >
           <option value=""><UiText>{"All Classes"}</UiText></option>
           {classes.map((c) => (
@@ -215,9 +215,10 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
 
         <SystemInput
           type="month"
+          aria-label={tr("Month")}
           value={monthFilter}
           onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
+          className=""
         />
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
@@ -227,18 +228,18 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
+            className="flex-1"
           />
-          <button onClick={handleSearch} className="h-9 w-9 rounded-xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer">
+          <Button aria-label={tr("Search")} variant="default" size="icon" onClick={handleSearch} className="flex items-center justify-center">
             <Search className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
       <p className="text-[9px] font-bold text-ink-subtle">{tr("Invoices")}: {total}</p>
 
       {loading ? (
-        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+        <div className="sk-panel overflow-hidden animate-skeleton-in">
           <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
             {Array.from({ length: 7 }).map((_, i) => (
               <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
@@ -302,23 +303,23 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                     {tr(inv.status)}
                   </span>
                   <div className="flex items-center gap-1 justify-end">
-                    <button
+                    <Button variant="secondary" size="icon" aria-label={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
                       type="button"
                       onClick={() => viewDetail(inv.id)}
                       title={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
-                      className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted"
+                      className="flex items-center justify-center"
                     >
                       {inv.status === "PAID" ? <Receipt className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    </button>
+                    </Button>
                     {inv.status !== "PAID" && inv.status !== "CANCELLED" && inv.status !== "OVERDUE" && (
-                      <button
+                      <Button variant="secondary" size="icon" aria-label={tr("Mark as Overdue")}
                         type="button"
                         onClick={() => handleStatusChange(inv.id, "OVERDUE")}
                         title={tr("Mark as Overdue")}
-                        className="h-7 w-7 rounded-lg bg-[#f3f4f9] flex items-center justify-center hover:bg-amber-50 hover:text-amber-600 transition-colors cursor-pointer text-ink-muted"
+                        className="flex items-center justify-center"
                       >
                         <AlertTriangle className="w-3 h-3" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -328,22 +329,22 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3">
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="justify-start flex items-center gap-1 px-3"
               >
-                <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></button>
+                <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
               <span className="text-[9px] font-black uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
               </span>
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="justify-start flex items-center gap-1 px-3"
               ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3" />
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -590,7 +591,7 @@ function GenerateInvoicesModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
+  const inputClass = "w-full";
 
   return (
     <Modal
@@ -608,25 +609,25 @@ function GenerateInvoicesModal({
       }
     >
         <div className="space-y-4">
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Month"}</UiText></label>
+          <label>
+            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Month"}</UiText></span>
             <SystemInput type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Class (optional)"}</UiText></label>
+          </label>
+          <label>
+            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Class (optional)"}</UiText></span>
             <SystemSelect value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
               <option value=""><UiText>{"All Classes"}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
             </SystemSelect>
-          </div>
+          </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <SystemCheckbox
 
               checked={includeLateFees}
               onChange={(e) => setIncludeLateFees(e.target.checked)}
-              className="accent-[#8127cf] w-4 h-4"
+              className=""
             />
             <span className="text-xs font-bold text-ink-muted"><UiText>{"Include late fees from overdue invoices"}</UiText></span>
           </label>

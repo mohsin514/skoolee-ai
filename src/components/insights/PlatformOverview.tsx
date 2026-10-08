@@ -39,6 +39,8 @@ import {
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, fromMinor } from "./palette";
+import { Button } from "@/components/ui/button";
+
 
 export interface PlatformStats {
   schoolCount: number;
@@ -383,13 +385,13 @@ export function PlatformOverview({
           delay={240}
           actions={
             onOpenUsers ? (
-              <button
+              <Button variant="link" size="sm"
                 type="button"
                 onClick={onOpenUsers}
-                className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
               >
                 Manage
-              </button>
+              </Button>
             ) : undefined
           }
           table={{ columns: ["Role", "Accounts"], rows: derived.roles.map((r) => [r.role, r.count]) }}

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
@@ -123,7 +125,7 @@ export function PricingPage() {
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="text-lg font-black text-[#8127cf]">SkooleeAI</Link>
-          <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-bold text-[#8127cf] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]">Log in</Link>
+          <Link href="/login" className={buttonVariants({ variant: "ghost" })}>Log in</Link>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
@@ -135,15 +137,15 @@ export function PricingPage() {
           <div className="grid gap-3 rounded-2xl border border-[#e8dced] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-1">
             <label className="grid gap-1.5 text-sm font-bold">
               {t.country}
-              <select className="min-h-11 rounded-lg border border-[#cfc2d6] bg-white px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" value={country} onChange={(event) => setCountry(event.target.value as Country)}>
+              <Select value={country} onChange={(event) => setCountry(event.target.value as Country)}>
                 {COUNTRIES.map((item) => <option key={item} value={item}>{t.countryNames[item]}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="grid gap-1.5 text-sm font-bold">
               {t.language}
-              <select className="min-h-11 rounded-lg border border-[#cfc2d6] bg-white px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
+              <Select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
                 <option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option>
-              </select>
+              </Select>
             </label>
           </div>
         </div>
@@ -151,7 +153,7 @@ export function PricingPage() {
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e8dced] bg-white p-4">
           <p className="text-sm font-semibold">{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-[#9a8ea0]">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
           <div className="inline-flex rounded-full border border-[#d7c5df] bg-[#fbf0fe] p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
-            {(["monthly", "annual"] as const).map((value) => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)} className={`min-h-10 rounded-full px-4 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf] ${period === value ? "bg-[#8127cf] text-white" : "text-[#5d4b66]"}`}>{value === "monthly" ? t.monthly : t.annual}{value === "annual" && <span className="ms-2 text-xs">({t.save} {Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}</button>)}
+            {(["monthly", "annual"] as const).map((value) => <Button key={value} type="button" variant={period === value ? "default" : "ghost"} aria-pressed={period === value} onClick={() => setPeriod(value)} className="rounded-full">{value === "monthly" ? t.monthly : t.annual}{value === "annual" && <span className="ms-2 text-xs">({t.save} {Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}</Button>)}
           </div>
         </div>
 
@@ -176,7 +178,7 @@ export function PricingPage() {
                 </dl>
                 <p className="mt-4 text-xs leading-5 text-[#63566a]">{t.featureList}</p>
                 <div className="mt-auto pt-5">
-                  {plan.price === 0 ? <Link href="/register" className="flex min-h-11 items-center justify-center rounded-xl bg-[#8127cf] px-4 text-sm font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8127cf]">{t.trial}</Link> : <a href={`mailto:${salesEmail}?subject=${encodeURIComponent(`Pricing enquiry — ${plan.name}`)}`} className="flex min-h-11 items-center justify-center rounded-xl border border-[#8127cf] px-4 text-center text-sm font-black text-[#8127cf] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8127cf]">{t.sales}</a>}
+                  {plan.price === 0 ? <Link href="/register" className={buttonVariants({ className: "w-full text-center" })}>{t.trial}</Link> : <a href={`mailto:${salesEmail}?subject=${encodeURIComponent(`Pricing enquiry — ${plan.name}`)}`} className={buttonVariants({ variant: "outline", className: "w-full text-center" })}>{t.sales}</a>}
                 </div>
               </article>
             );

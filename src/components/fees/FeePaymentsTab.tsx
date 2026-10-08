@@ -1,5 +1,8 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
@@ -132,7 +135,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         <SystemSelect
           value={methodFilter}
           onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none"
+          className=""
         >
           {METHODS.map((m) => (
             <option key={m.value} value={m.value}>{tr(m.label)}</option>
@@ -143,14 +146,14 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
+          className=""
           placeholder={tr("From")}
         />
         <SystemInput
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
+          className=""
           placeholder={tr("To")}
         />
 
@@ -161,18 +164,18 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
+            className="flex-1"
           />
-          <button onClick={handleSearch} className="h-9 w-9 rounded-xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer">
+          <Button aria-label={tr("Search")} variant="default" size="icon" onClick={handleSearch} className="flex items-center justify-center">
             <Search className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
       <p className="text-[9px] font-bold text-ink-subtle">{tr("Payments")}: {total}</p>
 
       {loading ? (
-        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white overflow-hidden animate-skeleton-in">
+        <div className="sk-panel overflow-hidden animate-skeleton-in">
           <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
@@ -236,22 +239,22 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3">
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.max(1, pg - 1))}
                 disabled={page <= 1}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="justify-start flex items-center gap-1 px-3"
               >
-                <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></button>
+                <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
               <span className="text-[9px] font-black uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
               </span>
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.min(totalPages, pg + 1))}
                 disabled={page >= totalPages}
-                className="flex h-9 items-center gap-1 rounded-xl bg-[#f3f4f9] px-3 text-[9px] font-black uppercase text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="justify-start flex items-center gap-1 px-3"
               ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3" />
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -413,7 +416,7 @@ function PaymentModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
+  const inputClass = "w-full";
 
   return (
     <Modal
@@ -504,17 +507,17 @@ function PaymentModal({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && searchStudents()}
                   placeholder={tr("Search by name or roll no...")}
-                  className="flex-1 h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors"
+                  className="flex-1"
                 />
-                <button onClick={searchStudents} disabled={searching} className="h-11 w-11 rounded-2xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50">
+                <Button aria-label={tr("Search")} variant="default" size="icon" onClick={searchStudents} disabled={searching} className="h-11 w-11 flex items-center justify-center">
                   {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                </button>
+                </Button>
               </div>
             </div>
             {studentsList.length > 0 && (
               <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                 {studentsList.map((s) => (
-                  <button key={s.id} onClick={() => loadStudentInvoices(s.id, s)} className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 border border-[#cfc2d6]/10 bg-[#f3f4f9]/50 hover:border-[#8127cf]/30 hover:bg-[#fbf0fe] transition-all text-left cursor-pointer">
+                  <Button variant="outline" key={s.id} onClick={() => loadStudentInvoices(s.id, s)} className="justify-start w-full flex items-center gap-3 px-4 py-3 text-left">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf] text-xs font-black">
                       {s.fullName.charAt(0)}
                     </div>
@@ -523,7 +526,7 @@ function PaymentModal({
                       <p className="text-[9px] font-bold text-ink-subtle">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
                     </div>
                     <Users className="w-4 h-4 text-[#8127cf]" />
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -547,7 +550,7 @@ function PaymentModal({
                 </div>
                 <p className="text-sm font-black text-green-800"><UiText>{"All Paid"}</UiText></p>
                 <p className="text-[10px] font-semibold text-green-600/70 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
-                <button onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"><UiText>{"Search Again"}</UiText></button>
+                <Button variant="link" onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 hover:underline"><UiText>{"Search Again"}</UiText></Button>
               </div>
             )}
             {invoices.length > 0 && !loadingInvoices && (
@@ -580,26 +583,26 @@ function PaymentModal({
                 </div>
               ) : null;
             })()}
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</label>
+            <label>
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
               <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
-            </div>
+            </label>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</label>
+              <label>
+                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</span>
                 <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</label>
+              </label>
+              <label>
+                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</span>
                 <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </div>
+              </label>
             </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment Date"}</UiText></label>
+            <label>
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment Date"}</UiText></span>
               <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></label>
+            </label>
+            <label>
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>
               <SystemSelect value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="CASH"><UiText>{"Cash"}</UiText></option>
                 <option value="BANK"><UiText>{"Bank Transfer"}</UiText></option>
@@ -607,15 +610,15 @@ function PaymentModal({
                 <option value="MOBILE_WALLET"><UiText>{"Mobile Wallet"}</UiText></option>
                 <option value="SAFEPAY"><UiText>{"SafePay / Card"}</UiText></option>
               </SystemSelect>
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Reference (optional)"}</UiText></label>
+            </label>
+            <label>
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Reference (optional)"}</UiText></span>
               <SystemInput type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder={tr("Transaction ID / Cheque #")} className={inputClass} />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></label>
+            </label>
+            <label>
+              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></span>
               <SystemInput type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("e.g. late fee waived")} className={inputClass} />
-            </div>
+            </label>
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}><UiText>{"Back"}</UiText></BrandButton>
               <BrandButton className="flex-[2] h-12" onClick={handleRecordPayment} disabled={saving}>
@@ -741,22 +744,22 @@ function BankImportModal({
           {reversal && <div className="rounded-xl bg-white p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-rose-700">{item}</p>)}</div>}
           {confirmReverse && reversal?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><p>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</p><div className="mt-3 flex gap-2"><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><BrandButton onClick={() => void reverse()} disabled={busy}>{tr("Reverse batch")}</BrandButton></div></div>}
         </section> : <>
-          <label className="block text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border p-2" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</label><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors" /></div>
+          <label className="block text-sm">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+          <label><span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full" /></label>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-            <label className="text-sm">{tr("From")}<SystemInput type="date" value={statementFrom} onChange={(event) => setStatementFrom(event.target.value)} className="mt-1 w-full h-11 rounded-xl border p-2" /></label>
-            <label className="text-sm">{tr("To")}<SystemInput type="date" value={statementTo} onChange={(event) => setStatementTo(event.target.value)} className="mt-1 w-full h-11 rounded-xl border p-2" /></label>
+            <label className="text-sm">{tr("From")}<SystemInput type="date" value={statementFrom} onChange={(event) => setStatementFrom(event.target.value)} className="mt-1 w-full" /></label>
+            <label className="text-sm">{tr("To")}<SystemInput type="date" value={statementTo} onChange={(event) => setStatementTo(event.target.value)} className="mt-1 w-full" /></label>
           </div>
-          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2">
+          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20   ">
             <input aria-label={tr("Choose CSV File")} type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
             {file ? <div className="text-center"><FileText className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{file.name}</p><p className="text-[9px]">{(file.size / 1024).toFixed(1)} KB</p></div> : <div className="text-center"><Upload className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{tr("Click to upload CSV")}</p><p className="text-[9px]">{tr("transaction_date,amount,description")}</p></div>}
           </label></div>
           {batch?.state === "STAGED" && <>
             <div className="flex flex-wrap gap-2 text-xs font-bold"><span>{tr("{0} selected", [batch.summary.accepted])}</span><span>{tr("{0} rejected", [batch.summary.rejected])}</span><span>{tr("{0} skipped", [batch.summary.skipped])}</span><span>{tr("{0} unresolved", [batch.summary.unresolved])}</span><span>{tr("{0} total rows", [batch.summary.total])}</span></div>
             <p className="text-xs text-ink-subtle">{tr("Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.")}</p>
-            <div className="overflow-x-auto rounded-xl border"><table className="w-full text-xs"><thead><tr><th>{tr("Include")}</th><th dir="ltr">{tr("Row")}</th><th>{tr("Date")}</th><th>{tr("Amount")}</th><th>{tr("Description")}</th><th>{tr("Invoice match")}</th><th>{tr("Status")}</th></tr></thead><tbody>
-              {batch.rows?.map((row: any) => <tr key={row.rowNumber} className="border-t"><td>{row.state === "ACCEPTED" && <input type="checkbox" aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</td><td dir="ltr">{row.rowNumber}</td><td dir="ltr">{String(row.proposal?.date || "")}</td><td dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</td><td>{String(row.proposal?.description || "")}</td><td><select aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52 rounded border p-1" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, { matchedInvoiceId: event.target.value || null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</select>{row.state === "UNRESOLVED" && <button type="button" className="mt-1 rounded px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</button>}</td><td>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</td></tr>)}
-            </tbody></table></div>
+            <Table className="w-full text-xs"><TableHeader><TableRow><TableHead>{tr("Include")}</TableHead><TableHead dir="ltr">{tr("Row")}</TableHead><TableHead>{tr("Date")}</TableHead><TableHead>{tr("Amount")}</TableHead><TableHead>{tr("Description")}</TableHead><TableHead>{tr("Invoice match")}</TableHead><TableHead>{tr("Status")}</TableHead></TableRow></TableHeader><TableBody>
+              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, { matchedInvoiceId: event.target.value || null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
+            </TableBody></Table>
           </>}
         </>}
       </div>

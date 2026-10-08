@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -123,7 +124,7 @@ export function YearClosureChecklist({
   const isEmptyYear = data.totals.exams === 0;
 
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
+    <div className="sk-panel p-5 sm:p-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span
@@ -164,13 +165,13 @@ export function YearClosureChecklist({
             Once exams are created and results released for {data.openCycle.label}, this checklist
             will show what is left before the year can be closed.
           </p>
-          <button
+          <Button variant="outline"
             onClick={() => onNavigate?.("exam-cycles")}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[#8127cf]/25 bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] transition-all hover:bg-white/60"
+            className="justify-start mt-3 inline-flex items-center gap-1.5 px-3 py-1.5"
           >
             Go to Exams &amp; Results
             <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       ) : (
       <div className="space-y-2">
@@ -204,13 +205,13 @@ export function YearClosureChecklist({
               </div>
             </div>
             {!s.done ? (
-              <button
+              <Button variant="outline"
                 onClick={() => onNavigate?.(s.view)}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#8127cf]/25 bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] transition-all hover:bg-[#faf7fc]"
+                className="justify-start flex shrink-0 items-center gap-1.5 px-3 py-1.5"
               >
                 Fix this
                 <ArrowRight className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             ) : null}
           </div>
         ))}
@@ -220,14 +221,14 @@ export function YearClosureChecklist({
       {/* Close action */}
       <div className="mt-5 border-t border-[#cfc2d6]/12 pt-4">
         {data.canClose ? (
-          <button
+          <Button variant="default"
             onClick={() => closeYear(false)}
             disabled={closing}
-            className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition-all hover:bg-emerald-700 disabled:opacity-60"
+            className="justify-start flex items-center gap-2 px-5 py-3"
           >
             {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
             Close {data.openCycle.label} & Start Next Year
-          </button>
+          </Button>
         ) : (
           <div className="space-y-3">
             <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -253,29 +254,29 @@ export function YearClosureChecklist({
                     stays unfinished. This cannot be undone.
                   </p>
                   <div className="mt-3 flex gap-2">
-                    <button
+                    <Button variant="destructive"
                       onClick={() => closeYear(true)}
                       disabled={closing}
-                      className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-rose-700 disabled:opacity-60"
+                      className="justify-start flex items-center gap-2 px-4 py-2"
                     >
                       {closing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                       Yes, close it anyway
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="outline"
                       onClick={() => setConfirmForce(false)}
-                      className="rounded-xl border border-[#cfc2d6]/30 bg-white px-4 py-2 text-xs font-bold text-ink"
+                      className="px-4 py-2"
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <button
+                <Button variant="link"
                   onClick={() => setConfirmForce(true)}
-                  className="text-[11px] font-bold text-rose-600 underline underline-offset-2 hover:text-rose-700"
+                  className="underline underline-offset-2"
                 >
                   Principal override — close anyway
-                </button>
+                </Button>
               )
             ) : null}
           </div>

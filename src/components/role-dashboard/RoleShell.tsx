@@ -111,7 +111,7 @@ function RoleShellContent({
   return (
     <ChatProvider>
       <div className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
-        <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:bg-card focus:p-3"><UiText>Skip to content</UiText></a>
+        <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:p-3"><UiText>Skip to content</UiText></a>
         <RoleSidebar
           tagline={tagline}
           items={navItems}

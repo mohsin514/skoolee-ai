@@ -23,6 +23,8 @@ import {
 } from "@/components/shared-admin/workspace";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 interface TeacherPerf {
   teacherId: string;
@@ -249,7 +251,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               aria-label="Academic year"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors"
+              className="px-3"
             >
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -320,7 +322,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               aria-label="Sort teachers"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors"
+              className="px-3"
             >
               <option value="avgPercentage">Sort: Avg Score</option>
               <option value="passRate">Sort: Pass Rate</option>
@@ -345,24 +347,24 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teachers..."
             aria-label="Search teachers"
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle"
+            className="w-full pl-9 pr-3"
           />
         </InputGroup>
         {lens !== "all" ? (
-          <button
+          <Button variant="secondary" size="sm"
             type="button"
             onClick={() => setLens("all")}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#f0e0f8]"
+            className="flex justify-start items-center gap-1.5"
           >
             {lens === "attention" ? "Showing: need a look" : "Showing: behind on entry"} · Clear
-          </button>
+          </Button>
         ) : null}
       </WorkspaceToolbar>
 
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="animate-skeleton-in rounded-2xl border border-[#cfc2d6]/10 bg-white p-5" style={{ animationDelay: `${i * 80}ms` }}>
+            <div key={i} className="sk-panel animate-skeleton-in p-5" style={{ animationDelay: `${i * 80}ms` }}>
               <div className="flex items-start gap-4">
                 <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
                 <div className="h-11 w-11 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
@@ -389,13 +391,13 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
           <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-rose-500" />
           <p className="text-sm font-black text-[#1f1a23]">Couldn&apos;t load teacher performance</p>
           <p className="mt-1 text-xs font-semibold text-ink-muted">{loadError}</p>
-          <button
+          <Button variant="dark" size="sm"
             type="button"
             onClick={load}
-            className="mt-4 rounded-xl bg-[#1f1a23] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#332b38] active:scale-95"
+            className="mt-4"
           >
             Try again
-          </button>
+          </Button>
         </div>
       ) : sorted.length === 0 ? (
         <EmptyState
@@ -420,7 +422,7 @@ export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
             <div
               key={teacher.teacherId}
               className={cn(
-                "sk-rise rounded-2xl border bg-white p-5 transition-all duration-200 hover:border-[#8127cf]/25 hover:shadow-md",
+                "sk-panel sk-rise p-5",
                 needsAttention(teacher) ? "border-rose-200/70" : "border-[#cfc2d6]/25",
               )}
               style={{ animationDelay: `${rank * 60}ms` }}

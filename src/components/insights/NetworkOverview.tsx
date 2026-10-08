@@ -54,6 +54,8 @@ import {
   networkStudents,
   ratio,
 } from "./metrics";
+import { Button } from "@/components/ui/button";
+
 
 interface NetworkOverviewProps {
   data: any;
@@ -232,13 +234,13 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
             <ul className="max-h-[300px] space-y-2 overflow-y-auto custom-scrollbar pr-1">
               {derived.coverage.map((campus, i) => (
                 <li key={campus.id} className="sk-rise" style={{ animationDelay: `${i * 50}ms` }}>
-                  <button
+                  <Button variant="outline"
                     type="button"
                     onClick={() => {
                       const full = campuses.find((c: any) => c.id === campus.id);
                       if (full) onSelectCampus(full);
                     }}
-                    className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/45 via-white to-white px-4 py-3 text-left transition-all hover:border-[#8127cf]/25 hover:from-[#fbf0fe]"
+                    className="flex w-full items-center justify-between gap-3 text-left"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-xs font-black text-[#1f1a23]">{campus.name}</p>
@@ -251,7 +253,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       <CoverageChip label="Admin" filled={campus.hasAdmin} />
                       <CoverageChip label="Head" filled={campus.hasPrincipal} />
                     </div>
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -269,13 +271,13 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
           className="xl:col-span-2"
           delay={120}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={onOpenFees}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Open fees
-            </button>
+            </Button>
           }
           table={{
             columns: ["Campus", "Paid", "Part paid", "Pending", "Overdue"],
@@ -493,16 +495,16 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       {campus.aiRuns.toLocaleString()}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <button
+                      <Button variant="default" size="sm"
                         type="button"
                         onClick={() => {
                           const full = campuses.find((c: any) => c.id === campus.id);
                           if (full) onSelectCampus(full);
                         }}
-                        className="cursor-pointer rounded-xl bg-[#fbf0fe] px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+
                       >
                         Manage
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

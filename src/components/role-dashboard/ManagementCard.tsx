@@ -140,7 +140,7 @@ export function ManagementCard({
         ) : (
           <Button variant="outline"
             onClick={onAdd}
-            className="w-full gap-3 group/empty"
+            className="block w-full gap-3 group/empty"
           >
             <div className="relative">
               <div className="absolute -inset-2 bg-[#8127cf]/8 rounded-full blur-md opacity-0 group-hover/empty:opacity-100 transition-opacity" />

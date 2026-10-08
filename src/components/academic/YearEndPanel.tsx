@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -202,7 +203,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   ) : (
                     <div className="space-y-2">
                       {classAvgs.map((c) => (
-                        <div key={c.classId} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 border border-[#cfc2d6]/10">
+                        <div key={c.classId} className="sk-panel flex items-center gap-3 px-3 py-2">
                           <span className="flex-1 truncate text-xs font-bold text-[#1d1b20]">{c.label}</span>
                           <div className="h-2 w-28 overflow-hidden rounded-full bg-[#e8e0ec]/50">
                             <div
@@ -257,13 +258,13 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
           footer={
             <div className="flex justify-end gap-3">
               <BrandButton variant="soft" onClick={() => setShowArchive(false)}>Cancel</BrandButton>
-              <button
+              <Button variant="destructive"
                 onClick={doArchive}
                 disabled={archiving || archiveConfirm.trim() !== activeCycle?.label}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-5 py-2.5 text-sm font-black text-white shadow-lg transition-all hover:bg-rose-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5"
               >
                 {archiving ? <><Loader2 className="h-4 w-4 animate-spin" /> Archiving…</> : <><Archive className="h-4 w-4" /> Archive Year</>}
-              </button>
+              </Button>
             </div>
           }
         >
@@ -282,7 +283,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     value={archiveConfirm}
                     onChange={(e) => setArchiveConfirm(e.target.value)}
                     placeholder={activeCycle?.label}
-                    className="w-full rounded-xl border border-[#cfc2d6]/30 px-4 py-3 text-sm font-bold outline-none"
+                    className="w-full"
                   />
                 </label>
               </div>

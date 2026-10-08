@@ -247,12 +247,10 @@ export default function ReportsPage() {
             ) : (
             <div className="flex flex-wrap gap-3">
               {exams.map((exam) => (
-                <button
+                <Button aria-pressed={selectedExam?.id === exam.id} variant="choice"
                   key={exam.id}
                   onClick={() => loadReportCards(exam)}
-                  className={`px-4 py-3 rounded-lg border text-left transition-all ${
-                    selectedExam?.id === exam.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
-                  }`}
+                  className="block p-4 text-start"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{exam.title}</span>
@@ -261,7 +259,7 @@ export default function ReportsPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {exam.term} {exam.academicYear} {classLabel(exam) ? `| ${classLabel(exam)}` : ""}
                   </p>
-                </button>
+                </Button>
               ))}
               {exams.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No locked exams yet. Lock an exam from Academic Engine first.</p>
@@ -313,12 +311,12 @@ export default function ReportsPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <Select value={tone} onChange={(event) => setTone(event.target.value as typeof tone)} className="w-[150px]">
+                    <Select value={tone} onChange={(event) => setTone(event.target.value as typeof tone)} className={"w-[150px]"}>
                       <option value="encouraging">Encouraging</option>
                       <option value="formal">Formal</option>
                       <option value="constructive">Constructive</option>
                     </Select>
-                    <Select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="w-[160px]">
+                    <Select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className={"w-[160px]"}>
                       <option value="both">English + Urdu</option>
                       <option value="en">English only</option>
                       <option value="ur">Urdu only</option>
@@ -389,7 +387,7 @@ export default function ReportsPage() {
                                     value={editedRemarks.en}
                                     onChange={(event) => setEditedRemarks((prev) => ({ ...prev, en: event.target.value }))}
                                     rows={3}
-                                    className="text-sm"
+
                                   />
                                 </div>
                                 <div>
@@ -402,7 +400,7 @@ export default function ReportsPage() {
                                     onChange={(event) => setEditedRemarks((prev) => ({ ...prev, ur: event.target.value }))}
                                     rows={3}
                                     dir="rtl"
-                                    className="text-sm"
+
                                   />
                                 </div>
                                 <div className="flex gap-2">

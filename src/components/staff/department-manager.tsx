@@ -38,6 +38,8 @@ import { cn } from "@/lib/utils";
 import { DEPARTMENT_KIND_LABELS, DEPARTMENT_ROLE_LABELS } from "@/lib/staff/hierarchy-presets";
 import type { OrgNode } from "@/lib/staff/hierarchy";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+
 
 interface Member {
   id: string;
@@ -215,14 +217,14 @@ export function DepartmentManager({
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <button
+            <Button variant="secondary" size="icon"
               type="button"
               onClick={() => toggle(unit.id)}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-ink-muted transition-colors hover:text-[#8127cf]"
+              className="flex shrink-0 items-center justify-center"
               aria-label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
             >
               {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
+            </Button>
 
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
@@ -252,15 +254,15 @@ export function DepartmentManager({
             </span>
 
             <span className="flex shrink-0 gap-1">
-              <button
+              <Button variant="secondary" size="icon"
                 type="button"
                 onClick={() => setMemberFor(unit)}
-                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+
                 aria-label={`Manage people in ${unit.name}`}
               >
                 <UserPlus className="h-3.5 w-3.5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="icon"
                 type="button"
                 onClick={() =>
                   setDraft({
@@ -272,19 +274,19 @@ export function DepartmentManager({
                     description: unit.description ?? "",
                   })
                 }
-                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+
                 aria-label={`Edit ${unit.name}`}
               >
                 <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="destructive" size="icon"
                 type="button"
                 onClick={() => setPendingRemoval(unit)}
-                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+
                 aria-label={`Remove ${unit.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </span>
           </div>
 
@@ -325,20 +327,20 @@ export function DepartmentManager({
                             `${member.user.fullName} is now ${DEPARTMENT_ROLE_LABELS[e.target.value as keyof typeof DEPARTMENT_ROLE_LABELS].toLowerCase()} of ${unit.name}`
                           )
                         }
-                        className="h-7 w-auto shrink-0 rounded-lg px-2 py-0 text-[10px]"
+                        className="w-auto shrink-0 px-2 py-0"
                       >
                         {Object.entries(DEPARTMENT_ROLE_LABELS).map(([key, label]) => (
                           <option key={key} value={key}>{label}</option>
                         ))}
                       </Select>
-                      <button
+                      <Button variant="destructive" size="icon"
                         type="button"
                         onClick={() => act({ action: "remove-member", memberId: member.id }, `${member.user.fullName} removed from ${unit.name}`)}
-                        className="shrink-0 rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
+                        className="shrink-0"
                         aria-label={`Remove ${member.user.fullName} from ${unit.name}`}
                       >
                         <Trash2 className="h-3 w-3" />
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -528,13 +530,13 @@ function MemberPicker({
             <p className="min-w-0 flex-1 text-xs font-bold text-ink">
               {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
             </p>
-            <button
+            <Button variant="destructive" size="sm"
               type="button"
               onClick={() => onAct({ action: "set-head", departmentId: unit.id, userId: null }, `${unit.name} has no head now`)}
-              className="shrink-0 text-[10px] font-black uppercase text-ink-subtle hover:text-rose-600"
+              className="shrink-0"
             >
               Clear
-            </button>
+            </Button>
           </div>
         ) : null}
 

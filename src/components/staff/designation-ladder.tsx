@@ -36,6 +36,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { cn } from "@/lib/utils";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+
 
 interface Designation {
   id: string;
@@ -299,7 +301,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                         </span>
 
                         <span className="flex shrink-0 gap-1">
-                          <button
+                          <Button variant="secondary" size="icon"
                             type="button"
                             onClick={() =>
                               setDraft({
@@ -315,19 +317,19 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                                 description: d.description ?? "",
                               })
                             }
-                            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+
                             aria-label={`Edit ${d.name}`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
+                          </Button>
+                          <Button variant="destructive" size="icon"
                             type="button"
                             onClick={() => setPendingRemoval(d)}
-                            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+
                             aria-label={`Remove ${d.name}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </Button>
                         </span>
                       </li>
                     );
@@ -367,12 +369,12 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
           <ul className="space-y-2">
             {presets.map((preset) => (
               <li key={preset.type}>
-                <button
+                <Button variant="ghost"
                   type="button"
                   disabled={applying !== null}
                   onClick={() => applyPreset(preset.type)}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all hover:border-[#8127cf] hover:bg-[#fbf0fe]/40 disabled:opacity-50",
+                    "flex justify-start w-full items-start gap-3 text-left",
                     institutionType === preset.type ? "border-[#8127cf] bg-[#fbf0fe]/40" : "border-[#cfc2d6]/40"
                   )}
                 >
@@ -393,7 +395,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                       {preset.rankCount} ranks · {preset.departmentCount} units
                     </span>
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

@@ -1,5 +1,6 @@
 "use client";
-import { InputGroup } from "@/components/ui/input-group";
+import { Button } from "@/components/ui/button";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,9 +28,9 @@ type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 type ViewTab = "marking" | "monthly";
 
 const STATUS_CONFIG = {
-  PRESENT: { label: "Present", short: "P", key: "P", activeClass: "bg-emerald-500 text-white ring-2 ring-emerald-300", chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100", dot: "bg-emerald-500" },
-  ABSENT: { label: "Absent", short: "A", key: "A", activeClass: "bg-rose-500 text-white ring-2 ring-rose-300", chipClass: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100", dot: "bg-rose-500" },
-  LEAVE: { label: "Leave", short: "L", key: "L", activeClass: "bg-amber-500 text-white ring-2 ring-amber-300", chipClass: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", dot: "bg-amber-500" },
+  PRESENT: { label: "Present", short: "P", key: "P", activeClass: "aria-checked:border-status-success-border aria-checked:bg-status-success-surface aria-checked:text-status-success-text", chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100", dot: "bg-emerald-500" },
+  ABSENT: { label: "Absent", short: "A", key: "A", activeClass: "aria-checked:border-status-error-border aria-checked:bg-status-error-surface aria-checked:text-status-error-text", chipClass: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100", dot: "bg-rose-500" },
+  LEAVE: { label: "Leave", short: "L", key: "L", activeClass: "aria-checked:border-status-warning-border aria-checked:bg-status-warning-surface aria-checked:text-status-warning-text", chipClass: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", dot: "bg-amber-500" },
 };
 
 /** Keystroke → status, for the roster's keyboard mode. */
@@ -253,21 +254,16 @@ export default function AttendancePage() {
             { key: "marking" as ViewTab, label: "Mark", icon: CalendarCheck },
             { key: "monthly" as ViewTab, label: "Monthly", icon: BarChart3 },
           ]).map(({ key, label, icon: Icon }) => (
-            <button
+            <Button variant="choice"
               key={key}
               type="button"
               onClick={() => setActiveTab(key)}
               aria-pressed={activeTab === key}
-              className={cn(
-                "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black uppercase tracking-wider transition-all",
-                activeTab === key
-                  ? "bg-white text-[#8127cf] shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
-                  : "text-ink-muted hover:text-[#8127cf]",
-              )}
+              className="min-w-0 flex-1 px-2 justify-start"
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
-            </button>
+            </Button>
           ))}
         </div>
       }
@@ -300,7 +296,7 @@ export default function AttendancePage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
             <div>
               <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Class</label>
-              <Select value={attendanceClassId} onChange={(e) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
+              <Select value={attendanceClassId} onChange={(e) => setAttendanceClassId(e.target.value)} className={"min-w-[240px]"}>
                 {classHubs.map((cls: any) => (
                   <option key={cls.id} value={cls.id}>
                     {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
@@ -310,21 +306,21 @@ export default function AttendancePage() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+              <Button size="icon" variant="outline" type="button" onClick={() => adjustDate(-1)} title="Previous day" aria-label="Previous day" className="items-center justify-center">
                 <ChevronLeft className="w-4 h-4 text-ink" />
-              </button>
+              </Button>
               <SystemInput type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}
-                className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] transition-all hover:border-[#8127cf]/20" />
-              <button type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+                 />
+              <Button size="icon" variant="outline" type="button" onClick={() => adjustDate(1)} title="Next day" aria-label="Next day" className="items-center justify-center">
                 <ChevronRight className="w-4 h-4 text-ink" />
-              </button>
+              </Button>
             </div>
           </div>
           {attendanceDate !== todayIso() ? (
-            <button type="button" onClick={() => setAttendanceDate(todayIso())} title="Reset to today's date"
-              className="text-xs font-semibold text-[#8127cf] hover:underline cursor-pointer active:text-[#6a1fa8]">
+            <Button variant="link" type="button" onClick={() => setAttendanceDate(todayIso())} title="Reset to today's date"
+              >
               Back to today
-            </button>
+            </Button>
           ) : null}
         </div>
 
@@ -374,21 +370,21 @@ export default function AttendancePage() {
                 { status: "ABSENT" as AttendanceStatus, label: "Absent", icon: UserX },
                 { status: "LEAVE" as AttendanceStatus, label: "Leave", icon: Plane },
               ]).map(({ status, label, icon: Icon }) => (
-                <button key={status} type="button"
+                <Button variant="choice" key={status} type="button"
                   onClick={() => markAllAttendance(status, new Set(visibleRows.map((r) => r.id)))}
                   title={`Mark ${visibleRows.length} shown student${visibleRows.length === 1 ? "" : "s"} as ${label.toLowerCase()}`}
-                  className={cn("inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95]", STATUS_CONFIG[status].chipClass)}>
+                  className={STATUS_CONFIG[status].chipClass}>
                   <Icon className="w-3.5 h-3.5" />
                   All {label}
                   {rosterQuery ? <span className="opacity-60">({visibleRows.length})</span> : null}
-                </button>
+                </Button>
               ))}
-              <button type="button" onClick={copyFromPrevious} disabled={copyingPrevious}
+              <Button variant="outline" type="button" onClick={copyFromPrevious} disabled={copyingPrevious}
                 title="Copy attendance from previous day"
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-[0.95] bg-[#fbf0fe] text-[#8127cf] border-[#8127cf]/15 hover:bg-[#f3eeff] hover:border-[#8127cf]/30 disabled:opacity-50">
+                className="items-center gap-1.5 justify-start">
                 {copyingPrevious ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                 Copy Yesterday
-              </button>
+              </Button>
 
               {/* Roster search — a forty-name list is not something you scroll
                   to find one child in. */}
@@ -399,27 +395,22 @@ export default function AttendancePage() {
                   onChange={(e) => setRosterQuery(e.target.value)}
                   placeholder="Find a student…"
                   aria-label="Search this roster"
-                  className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle"
+                  className={"w-full"}
                 />
                 {rosterQuery ? (
-                  <button data-field-affix="end" type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
-                    className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
+                  <FieldAction   data-field-affix="end" type="button" onClick={() => setRosterQuery("")} aria-label="Clear roster search"
+                    >
                     <X className="h-3 w-3" />
-                  </button>
+                  </FieldAction>
                 ) : null}
               </InputGroup>
 
-              <button type="button" onClick={() => setKeyboardMode((v) => !v)} aria-pressed={keyboardMode}
+              <Button className="justify-start" variant="choice" type="button" onClick={() => setKeyboardMode((v) => !v)} aria-pressed={keyboardMode}
                 title="Show the keyboard shortcuts for marking a roster without the mouse"
-                className={cn(
-                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all active:scale-[0.95]",
-                  keyboardMode
-                    ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
-                    : "border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
-                )}>
+                >
                 <Keyboard className="h-3.5 w-3.5" />
                 Keys
-              </button>
+              </Button>
             </div>
 
             {keyboardMode ? (
@@ -526,19 +517,14 @@ export default function AttendancePage() {
                     <StudentMini student={student} />
                     <div className="flex gap-1.5 sm:justify-end">
                       {(["PRESENT", "ABSENT", "LEAVE"] as AttendanceStatus[]).map((status) => (
-                        <button key={status} type="button" tabIndex={-1}
+                        <Button variant="choice" key={status} type="button" tabIndex={-1}
                           role="radio"
                           aria-checked={student.status === status}
                           onClick={() => setStatus(student.id, status)}
                           title={`Mark ${student.fullName} as ${STATUS_CONFIG[status].label.toLowerCase()} (${STATUS_CONFIG[status].key})`}
-                          className={cn(
-                            "flex-1 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer active:scale-[0.95] sm:flex-none",
-                            student.status === status
-                              ? STATUS_CONFIG[status].activeClass
-                              : "bg-white text-ink-muted border-[#cfc2d6]/20 hover:border-[#cfc2d6]/40 hover:bg-[#fbf0fe]/30"
-                          )}>
+                          className={cn("flex-1 sm:flex-none", student.status === status ? STATUS_CONFIG[status].activeClass : "")}>
                           {STATUS_CONFIG[status].label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
@@ -548,10 +534,10 @@ export default function AttendancePage() {
           ) : attendanceRows.length ? (
             <div className="flex flex-col items-center gap-3 p-10 text-center">
               <p className="text-sm font-bold text-[#1d1b20]">No student matches “{rosterQuery}”</p>
-              <button type="button" onClick={() => setRosterQuery("")}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
+              <Button variant="secondary" type="button" onClick={() => setRosterQuery("")}
+                className="items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear search
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="p-8">
@@ -582,11 +568,11 @@ export default function AttendancePage() {
 
         {/* History toggle */}
         <div className="flex items-center justify-between gap-4">
-          <button type="button" onClick={() => setHistoryOpen(!historyOpen)} title={historyOpen ? "Collapse history" : "Expand history"}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer active:scale-[0.97]">
+          <Button variant="ghost" type="button" onClick={() => setHistoryOpen(!historyOpen)} title={historyOpen ? "Collapse history" : "Expand history"}
+            className="items-center gap-2 justify-start">
             <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", historyOpen && "rotate-90")} />
             Recent Attendance ({attendanceHistory.length})
-          </button>
+          </Button>
           {attendanceHistoryLoading ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-subtle">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading history
@@ -601,8 +587,8 @@ export default function AttendancePage() {
               {attendanceHistory.slice(0, 15).map((entry) => {
                 const isSelected = entry.date === attendanceDate;
                 return (
-                  <button key={entry.date} type="button" onClick={() => setAttendanceDate(entry.date)} title={`View attendance for ${entry.date}`}
-                    className={cn("group w-full cursor-pointer px-5 py-3.5 text-left transition-all hover:bg-[#fbf0fe]/50 flex items-center justify-between gap-4 active:bg-[#fbf0fe]", isSelected && "bg-[#fbf0fe]/70")}>
+                  <Button aria-pressed={isSelected} variant="choice" key={entry.date} type="button" onClick={() => setAttendanceDate(entry.date)} title={`View attendance for ${entry.date}`}
+                    className="group w-full justify-between gap-4 px-5 py-3.5 text-start">
                     <div className="relative flex items-center gap-3 min-w-0">
                       <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
                       <div className={cn("relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors", isSelected ? "bg-[#8127cf] text-white" : "bg-[#fbf0fe] text-[#8127cf]")}>
@@ -626,7 +612,7 @@ export default function AttendancePage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{entry.leave}
                       </span>
                     </div>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -659,7 +645,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
           <div>
             <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Class</label>
-            <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)} className="min-w-[240px]">
+            <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)} className={"min-w-[240px]"}>
               {classHubs.map((cls: any) => (
                 <option key={cls.id} value={cls.id}>
                   {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
@@ -669,13 +655,13 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => adjustMonth(-1)} title="Previous month" aria-label="Previous month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+            <Button size="icon" variant="outline" type="button" onClick={() => adjustMonth(-1)} title="Previous month" aria-label="Previous month" className="items-center justify-center">
               <ChevronLeft className="w-4 h-4 text-ink" />
-            </button>
-            <div className="h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-4 flex items-center text-sm font-semibold text-[#1d1b20] min-w-[140px] justify-center">{monthLabel}</div>
-            <button type="button" onClick={() => adjustMonth(1)} title="Next month" aria-label="Next month" className="h-10 w-10 rounded-xl border border-[#cfc2d6]/20 flex items-center justify-center hover:bg-[#fbf0fe] hover:border-[#8127cf]/20 transition-all cursor-pointer active:scale-[0.9]">
+            </Button>
+            <div className="sk-panel h-10 px-4 flex items-center text-sm font-semibold text-[#1d1b20] min-w-[140px] justify-center">{monthLabel}</div>
+            <Button size="icon" variant="outline" type="button" onClick={() => adjustMonth(1)} title="Next month" aria-label="Next month" className="items-center justify-center">
               <ChevronRight className="w-4 h-4 text-ink" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -683,7 +669,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
       {monthlyLoading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-5">
+            <div key={i} className="sk-panel p-5">
               <div className="skeleton-shimmer bg-[#e8e0ec]/50 h-5 w-40 rounded-lg mb-3" />
               <div className="skeleton-shimmer bg-[#e8e0ec]/50 h-3 w-64 rounded-lg" />
             </div>
@@ -693,7 +679,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
         <>
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3.5">
+            <div className="sk-panel px-4 py-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
               <p className="mt-0.5 text-xl font-bold text-[#1d1b20]">{monthlyData.totalStudents}</p>
             </div>
@@ -720,7 +706,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
               </div>
               <div className="space-y-2">
                 {monthlyData.atRiskStudents.map((s: any) => (
-                  <div key={s.studentId} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-rose-100 px-4 py-2.5">
+                  <div key={s.studentId} className="sk-panel flex items-center justify-between gap-3 border-rose-100 px-4 py-2.5">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-8 w-8 shrink-0 rounded-lg bg-rose-100 flex items-center justify-center">
                         <span className="text-[10px] font-bold text-rose-700">{s.rollNo || "#"}</span>
@@ -738,7 +724,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           )}
 
           {/* Student breakdown table */}
-          <div className="rounded-2xl border border-[#f3f4f9] overflow-hidden bg-white">
+          <div className="sk-panel overflow-hidden">
             <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px] gap-3 px-6 py-3 bg-[#fbf0fe]/30">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Student</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 text-center">Present</span>

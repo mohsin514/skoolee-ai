@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
@@ -90,7 +91,7 @@ function SafePayForm() {
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-        <div className="sk-rise bg-white rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl" style={{ animationDelay: "0ms" }}>
+        <div className="sk-panel sk-rise p-10 max-w-sm w-full text-center" style={{ animationDelay: "0ms" }}>
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-[#1f1a23]">Payment Successful!</h2>
           <p className="text-sm text-ink-muted mt-2">Redirecting to billing...</p>
@@ -101,7 +102,7 @@ function SafePayForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-      <div className="sk-rise bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl" style={{ animationDelay: "0ms" }}>
+      <div className="sk-panel sk-rise p-8 max-w-md w-full" style={{ animationDelay: "0ms" }}>
         <div className="group relative flex items-center gap-3 mb-6">
           <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
           <div className="relative w-10 h-10 rounded-xl bg-[#8127cf] flex items-center justify-center">
@@ -137,7 +138,7 @@ function SafePayForm() {
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
               placeholder="John Doe"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
               required
             />
           </div>
@@ -147,7 +148,7 @@ function SafePayForm() {
               value={cardNumber}
               onChange={(e) => setCardNumber(formatCard(e.target.value))}
               placeholder="4242 4242 4242 4242"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+              className={"w-full"}
               required
             />
           </div>
@@ -158,7 +159,7 @@ function SafePayForm() {
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                 placeholder="MM/YY"
-                className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+                className={"w-full"}
                 required
               />
             </div>
@@ -169,15 +170,15 @@ function SafePayForm() {
                 onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
                 placeholder="123"
                 type="password"
-                className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
+                className={"w-full"}
                 required
               />
             </div>
           </div>
-          <button
+          <Button variant="default"
             type="submit"
             disabled={submitting}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-5 py-3 text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50 mt-2"
+            className="w-full items-center justify-center gap-2 mt-2"
           >
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -185,7 +186,7 @@ function SafePayForm() {
               <Lock className="w-4 h-4" />
             )}
             {submitting ? "Processing..." : `Pay ${amountLabel}`}
-          </button>
+          </Button>
           <p className="text-[10px] text-center text-ink-subtle font-semibold">
             This is a test payment page. No real payment will be charged.
           </p>

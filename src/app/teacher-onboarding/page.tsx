@@ -1,4 +1,5 @@
 'use client';
+import { Button } from "@/components/ui/button";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { FormErrorSummary } from "@/components/ui/form-field";
@@ -224,25 +225,7 @@ export default function TeacherOnboardingPage() {
 
   return (
     <main className="grid min-h-screen w-full grid-cols-1 bg-[#fff7fe] font-sans text-[#1f1a23] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise { animation: none !important; }
-          .sk-parallax { transition: none !important; }
-        }
-      `}</style>
+
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
@@ -383,11 +366,11 @@ export default function TeacherOnboardingPage() {
               const reachable = i <= step || canStep0;
               return (
                 <div key={label} className="flex flex-1 items-center gap-2">
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => { if (reachable) setStep(i); }}
                     disabled={!reachable}
-                    className={`flex items-center gap-2 transition-all ${reachable ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+                    className="justify-start px-1"
                   >
                     <span
                       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-black transition-all duration-300 ${
@@ -407,7 +390,7 @@ export default function TeacherOnboardingPage() {
                     >
                       {label}
                     </span>
-                  </button>
+                  </Button>
                   {i < STEPS.length - 1 && (
                     <span className="h-px flex-1 rounded-full bg-[#cfc2d6]/30">
                       <span className={`block h-px rounded-full bg-gradient-to-r from-[#8127cf] to-emerald-500 transition-all duration-500 ${done ? "w-full" : "w-0"}`} />
@@ -418,7 +401,7 @@ export default function TeacherOnboardingPage() {
             })}
           </div>
 
-          <div className="sk-rise rounded-[30px] border border-[#cfc2d6]/30 bg-white p-7 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+          <div className="sk-panel sk-rise p-7 sm:p-9">
             <div className="mb-6">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -490,10 +473,10 @@ export default function TeacherOnboardingPage() {
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Subjects you teach</p>
                     </div>
 
-                    <button
+                    <Button aria-pressed={teachesAll} variant="choice"
                       type="button"
                       onClick={() => setTeachesAll((v) => !v)}
-                      className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-white p-3 text-left transition-all hover:shadow-sm"
+                      className="w-full justify-start text-start"
                     >
                       <span
                         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
@@ -508,7 +491,7 @@ export default function TeacherOnboardingPage() {
                           Generalist — never warned about a subject mismatch.
                         </span>
                       </span>
-                    </button>
+                    </Button>
 
                     {!teachesAll && (
                       <>
@@ -520,14 +503,14 @@ export default function TeacherOnboardingPage() {
                                 className="inline-flex items-center gap-1.5 rounded-full bg-[#8127cf] px-3 py-1.5 text-[10px] font-black text-white shadow-sm shadow-[#8127cf]/25"
                               >
                                 {s}
-                                <button
+                                <Button size="icon" variant="ghost"
                                   type="button"
                                   onClick={() => setSpecialties((cur) => cur.filter((x) => x !== s))}
-                                  className="cursor-pointer text-white/70 transition-colors hover:text-white"
+                                  className="focus-on-dark text-white actionable-hover:bg-white/15 actionable-hover:text-white"
                                   aria-label={`Remove ${s}`}
                                 >
                                   <X className="h-2.5 w-2.5" strokeWidth={3.5} />
-                                </button>
+                                </Button>
                               </span>
                             ))}
                           </div>
@@ -542,31 +525,31 @@ export default function TeacherOnboardingPage() {
                               if (e.key === "Enter") { e.preventDefault(); addSpecialty(draft); }
                             }}
                             placeholder="Type a subject and press Enter"
-                            className="h-11 flex-1 rounded-xl border-0 bg-white px-4 text-xs font-bold shadow-none"
+                            className={"flex-1"}
                           />
-                          <button
+                          <Button size="icon" variant="default"
                             type="button"
                             onClick={() => addSpecialty(draft)}
                             disabled={!draft.trim()}
                             aria-label="Add subject"
-                            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20 transition-all hover:bg-[#9c48ea] disabled:cursor-not-allowed disabled:opacity-40"
+                            className="shrink-0"
                           >
                             <Plus className="h-4 w-4" />
-                          </button>
+                          </Button>
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 border-t border-[#cfc2d6]/20 pt-3">
                           {SUGGESTED_SUBJECTS
                             .filter((s) => !specialties.some((x) => x.toLowerCase() === s.toLowerCase()))
                             .map((s) => (
-                              <button
+                              <Button size="sm" variant="outline"
                                 key={s}
                                 type="button"
                                 onClick={() => addSpecialty(s)}
-                                className="cursor-pointer rounded-full border border-[#cfc2d6]/40 bg-white px-2.5 py-1 text-[10px] font-bold text-ink-muted transition-all hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+
                               >
                                 + {s}
-                              </button>
+                              </Button>
                             ))}
                         </div>
                       </>
@@ -602,40 +585,40 @@ export default function TeacherOnboardingPage() {
               {/* Navigation */}
               <div className="mt-7 flex items-center justify-between gap-3">
                 {step > 0 ? (
-                  <button
+                  <Button variant="secondary"
                     type="button"
                     onClick={() => setStep(step - 1)}
-                    className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-[#f3f4f9] px-5 text-sm font-black text-ink transition-all hover:bg-[#e8e0ec]"
+                    className="items-center gap-2 justify-start"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back
-                  </button>
+                  </Button>
                 ) : <div />}
 
                 {step < STEPS.length - 1 ? (
-                  <button
+                  <Button variant="default"
                     key="next-step"
                     type="button"
                     disabled={step === 0 && !canStep0}
                     onClick={goNext}
-                    className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="items-center gap-2 justify-start"
                   >
                     Next
                     <ArrowRight className="h-4 w-4" />
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button variant="default"
                     key="complete-profile"
                     type="submit"
                     disabled={!canSubmit || saving}
-                    className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="items-center gap-2 justify-start"
                   >
                     {saving ? (
                       <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
                     ) : (
                       <>Complete Profile <CheckCircle2 className="h-4 w-4" /></>
                     )}
-                  </button>
+                  </Button>
                 )}
               </div>
             </form>
@@ -699,9 +682,9 @@ function Field({
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
           aria-required={required}
           dir={["email", "tel"].includes(type) ? "ltr" : undefined}
-          className={`h-12 w-full rounded-2xl border-0 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
-            Icon ? "pl-10" : "pl-4"
-          } pr-4 ${error ? "bg-rose-50" : "bg-[#fbf0fe]"} ${inputClassName}`}
+          className={`w-full ${
+            Icon ? "" : ""
+          }  ${error ? "" : ""}  ${inputClassName} `}
         />
       </InputGroup>
       {error
@@ -727,7 +710,7 @@ function SelectField({ label, id, value, onChange, children }: {
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] px-4 text-sm font-bold text-[#1f1a23] shadow-none outline-none transition-all focus:bg-white"
+        className={"w-full"}
       >
         {children}
       </SystemSelect>

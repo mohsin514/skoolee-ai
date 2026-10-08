@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { UiText } from "@/components/locale/LocaleProvider";
 
 import { useState } from "react";
@@ -73,7 +75,7 @@ export default function ParentFeesPage() {
   }
 
   return page(
-    <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+    <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<Select aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</Select></label>
         <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
           <ParentStat icon={Receipt} label={tr("Total Invoiced")} value={formatPKR(total)} sub={`${tr("Invoices")}: ${fees.length}`} />
           <ParentStat icon={CheckCircle2} label={tr("Paid")} value={formatPKR(paid)} sub={`${total ? Math.round((paid / total) * 100) : 0}% ${tr("of total")}`} tone="green" />
@@ -104,7 +106,7 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
   const progress = fee.totalAmount ? Math.round((fee.paid / fee.totalAmount) * 100) : 0;
 
   return (
-    <div className="group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
+    <div className="sk-panel group relative overflow-hidden p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
@@ -148,15 +150,15 @@ function FeeRow({ fee, paying, onPay }: { fee: any; paying: boolean; onPay: () =
           </div>
         </div>
         {fee.balance > 0 && fee.currency === "PKR" && (
-          <button
+          <Button variant="default"
             type="button"
             onClick={onPay}
             disabled={paying}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8127cf] text-white py-2.5 text-[10px] font-black uppercase tracking-wider hover:bg-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+            className="mt-4 flex w-full items-center justify-center gap-2 py-2.5"
           >
             {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
             {paying ? tr("Starting SafePay...") : tr("Pay Now (SafePay)")}
-          </button>
+          </Button>
         )}
       </div>
     </div>

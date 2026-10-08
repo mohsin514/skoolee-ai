@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+
 
 type RequestRow = {
   id: string;
@@ -53,8 +56,8 @@ export function SubscriptionRequestReview() {
           {row.effectiveAt && <p className="text-sm">Effective date: {new Date(row.effectiveAt).toLocaleDateString()}</p>}
         </div>
         <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs">{JSON.stringify(row.details, null, 2)}</pre>
-        <label className="block text-sm">Review reason<textarea className="mt-1 block min-h-16 w-full rounded border p-2" value={reasons[row.id] || ""} onChange={event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))} placeholder="Reason recorded in the audit log" /></label>
-        <div className="flex gap-2"><button disabled={busy === row.id} className="rounded bg-purple-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</button><button disabled={busy === row.id} className="rounded border px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</button></div>
+        <label className="block text-sm">Review reason<Textarea className="mt-1 block w-full p-2" value={reasons[row.id] || ""} onChange={event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))} placeholder="Reason recorded in the audit log" /></label>
+        <div className="flex gap-2"><Button variant="default" disabled={busy === row.id}  onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</Button><Button variant="outline" disabled={busy === row.id}  onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</Button></div>
       </article>)}
     </div>}
   </div>;

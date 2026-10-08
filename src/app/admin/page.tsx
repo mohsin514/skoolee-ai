@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { pageCardSurface } from "@/components/ui/page-card";
@@ -196,7 +197,6 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
     if (!isAdminView(new URLSearchParams(window.location.search).get("view"))) {
       window.history.replaceState(null, "", `/admin?view=${activeView}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The history write stays outside the state updater: updaters must be pure,
@@ -215,7 +215,7 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
 /** Shown when a section is reachable by URL but not permitted for this role. */
 function RestrictedView({ onBack }: { onBack: () => void }) {
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel p-10 text-center">
       <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
         <Shield className="h-6 w-6" />
       </span>
@@ -223,13 +223,13 @@ function RestrictedView({ onBack }: { onBack: () => void }) {
       <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">
         Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
       </p>
-      <button
+      <Button variant="default"
         type="button"
         onClick={onBack}
-        className="mt-6 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+        className="mt-6"
       >
         Back to overview
-      </button>
+      </Button>
     </div>
   );
 }
@@ -976,7 +976,7 @@ export default function CampusAdminDashboard() {
   if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#faf7fc] p-6">
-        <div className="w-full max-w-sm rounded-[28px] border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel w-full max-w-sm p-8 text-center">
           <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
             <AlertTriangle className="h-6 w-6" />
           </span>
@@ -984,13 +984,13 @@ export default function CampusAdminDashboard() {
           <p className="mt-2 text-xs font-semibold leading-relaxed text-ink-muted">
             The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
           </p>
-          <button
+          <Button variant="default"
             type="button"
             onClick={() => loadData()}
-            className="mt-6 w-full rounded-2xl bg-[#8127cf] px-4 py-3 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+            className="mt-6 w-full"
           >
             Try again
-          </button>
+          </Button>
         </div>
       </div>
     );

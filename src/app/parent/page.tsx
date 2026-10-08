@@ -73,7 +73,7 @@ export default function ParentOverviewPage() {
         /> : null}
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {data.access.learningRecords ? <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          {data.access.learningRecords ? <div className="sk-panel p-4">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
                 <FileText className="h-4 w-4" />
@@ -113,7 +113,7 @@ export default function ParentOverviewPage() {
             ) : null}
           </div> : null}
 
-          {data.access.learningRecords || data.access.attendance || data.access.finances ? <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          {data.access.learningRecords || data.access.attendance || data.access.finances ? <div className="sk-panel p-4">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <GraduationCap className="h-4 w-4" />

@@ -13,6 +13,8 @@ import { ChatAvatar } from "./chat-avatar";
 import { ChatPortal } from "./chat-portal";
 import type { DirectoryContact } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 /**
  * Grouping order — leadership first, families last, which is roughly how often
@@ -205,14 +207,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     </div>
                   </div>
 
-                  <button
+                  <Button variant="secondary" size="icon"
                     type="button"
                     onClick={onClose}
                     aria-label="Close"
-                    className="shrink-0 cursor-pointer rounded-xl p-1.5 text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90"
+                    className="shrink-0"
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Who you are, stated on the screen where it matters.
@@ -253,7 +255,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     aria-label="Conversation type"
                   >
                     {(["direct", "group"] as const).map((m) => (
-                      <button
+                      <Button data-selected={mode === m} variant="choice" size="sm"
                         key={m}
                         type="button"
                         role="tab"
@@ -262,20 +264,11 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                           setMode(m);
                           setSelected([]);
                         }}
-                        className={cn(
-                          "relative flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-black transition-colors",
-                          mode === m ? "text-white" : "text-ink-muted hover:text-[#8127cf]"
-                        )}
+                        className="relative flex-1"
                       >
-                        {mode === m && (
-                          <motion.span
-                            layoutId="new-chat-mode-pill"
-                            transition={{ type: "spring", stiffness: 520, damping: 36 }}
-                            className="absolute inset-0 rounded-lg bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-[0_6px_16px_-6px_rgba(129,39,207,0.7)]"
-                          />
-                        )}
+
                         <span className="relative">{m === "direct" ? "One to one" : "Group"}</span>
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -297,7 +290,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Group name — e.g. Grade 6 Teachers"
                         maxLength={120}
-                        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2.5 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint"
+                        className="w-full px-3 py-2.5"
                       />
                       {selected.length > 0 && (
                         <ul className="flex flex-wrap gap-1.5">
@@ -310,14 +303,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                             >
                               <ChatAvatar name={c.fullName} seed={c.id} size="sm" className="scale-[0.78]" />
                               <span className="max-w-[110px] truncate">{c.fullName}</span>
-                              <button
+                              <Button variant="outline" size="icon"
                                 type="button"
                                 aria-label={`Remove ${c.fullName}`}
                                 onClick={() => setSelected((prev) => prev.filter((s) => s.id !== c.id))}
-                                className="cursor-pointer rounded-full p-0.5 transition-colors hover:bg-white"
+
                               >
                                 <X className="h-2.5 w-2.5" />
-                              </button>
+                              </Button>
                             </motion.li>
                           ))}
                         </ul>
@@ -340,7 +333,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search by name"
-                    className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint"
+                    className="w-full py-2.5 pl-9 pr-3"
                   />
                 </InputGroup>
               </div>
@@ -392,16 +385,11 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                             const isSelected = selected.some((s) => s.id === contact.id);
                             return (
                               <li key={contact.id}>
-                                <button
+                                <Button variant="choice" aria-pressed={mode === "group" ? isSelected : undefined}
                                   type="button"
                                   disabled={isSubmitting}
                                   onClick={() => choose(contact)}
-                                  className={cn(
-                                    "flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all disabled:opacity-50",
-                                    isSelected
-                                      ? "bg-[#fbf0fe] ring-1 ring-[#8127cf]/20"
-                                      : "hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_8px_22px_-12px_rgba(31,26,35,0.3)]"
-                                  )}
+                                  className="flex justify-start w-full items-center gap-3 text-left"
                                 >
                                   <ChatAvatar
                                     name={contact.fullName}
@@ -441,7 +429,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                       {isSelected && <Check className="sk-check-pop h-3 w-3" />}
                                     </span>
                                   )}
-                                </button>
+                                </Button>
                               </li>
                             );
                           })}
@@ -461,16 +449,16 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
               {mode === "group" && (
                 <footer className="shrink-0 border-t border-[#cfc2d6]/25 bg-white px-5 py-4">
-                  <button
+                  <Button variant="default" size="sm"
                     type="button"
                     onClick={submitGroup}
                     disabled={selected.length === 0 || !title.trim() || isSubmitting}
-                    className="w-full cursor-pointer rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-4 py-3 text-xs font-black text-white shadow-[0_12px_28px_-10px_rgba(129,39,207,0.8)] transition-all hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                    className="w-full hover:-translate-y-0.5"
                   >
                     {isSubmitting
                       ? "Creating…"
                       : `Create group${selected.length ? ` · ${selected.length}` : ""}`}
-                  </button>
+                  </Button>
                 </footer>
               )}
             </motion.div>

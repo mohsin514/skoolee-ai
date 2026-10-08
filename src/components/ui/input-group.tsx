@@ -11,3 +11,11 @@ export const InputGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
   )} />,
 );
 InputGroup.displayName = "InputGroup";
+
+/** An inline field action keeps the group's single surface and native button semantics. */
+export const FieldAction = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ className, type = "button", ...props }, ref) => (
+    <button ref={ref} type={type} data-field-affix="end" {...props} className={cn("shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:size-4", className)} />
+  ),
+);
+FieldAction.displayName = "FieldAction";

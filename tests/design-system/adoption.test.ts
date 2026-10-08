@@ -4,26 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 
-// Known field-adoption debt carried in from the `dev` branch (SKO-208 merge).
-// These screens still use raw native controls and/or forked focus utilities and
-// are tracked for migration onto the shared primitives as a follow-up. The guards
-// below exempt exactly these paths so they keep blocking NEW regressions while the
-// backlog is worked down; do not add to this list — migrate the screen instead.
-const ADOPTION_DEBT = new Set<string>([
-  'src/app/(auth)/protect-account/page.tsx',
-  'src/app/account/security/page.tsx',
-  'src/app/memberships/page.tsx',
-  'src/app/parent/fees/page.tsx',
-  'src/app/pupils/[id]/page.tsx',
-  'src/app/student/fees/page.tsx',
-  'src/components/academic/ReportCardPipeline.tsx',
-  'src/components/fees/AccountsTab.tsx',
-  'src/components/fees/FeePaymentsTab.tsx',
-  'src/components/locale/CurrencySelect.tsx',
-  'src/components/settings/LocaleSettingsPanel.tsx',
-]);
-const isDebt = (file: string) => ADOPTION_DEBT.has(file.split('\\').join('/'));
-
+// Application controls have no per-route migration exemptions. Specialized native
+// inputs below retain their browser contracts; ordinary controls belong in ui/.
 // Prevent newly added screens from silently bypassing the shared field system.
 test('application forms use shared fields; specialized native controls remain explicit', () => {
   const violations: string[] = [];
@@ -32,11 +14,11 @@ test('application forms use shared fields; specialized native controls remain ex
       const file = join(dir, entry.name);
       if (entry.isDirectory()) { if (file !== 'src/components/ui') walk(file); continue; }
       if (!file.endsWith('.tsx')) continue;
-      if (isDebt(file)) continue;
       const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
       function visit(node: ts.Node) {
         if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
           const tag = node.tagName.getText(source);
+          if (tag === 'button' || tag === 'motion.button') violations.push(`${file}: native action ${tag}`);
           if (tag === 'select' || tag === 'textarea') violations.push(`${file}: native ${tag}`);
           if (tag === 'input') {
             const type = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(source) === 'type');
@@ -76,7 +58,6 @@ function sourceFiles(dir: string, out: string[] = []) {
 test('focus styling uses the shared token; no screen forks the focus ring', () => {
   const violations: string[] = [];
   for (const file of sourceFiles('src')) {
-    if (isDebt(file)) continue;
     const text = readFileSync(file, 'utf8');
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const visit = (node: ts.Node) => {
@@ -99,4 +80,10 @@ test('focus styling uses the shared token; no screen forks the focus ring', () =
   for (const token of ['--focus-color', '--field-focus-border', '--field-focus-ring', '--field-error-ring']) {
     assert.match(css, new RegExp(`${token}\\s*:`), `globals.css must define ${token}`);
   }
+});
+
+
+test('Sonner visual configuration has one shared owner', () => {
+  const owners = sourceFiles('src').filter(file => /<Toaster(?:\s|\/>)/.test(readFileSync(file, 'utf8')));
+  assert.deepEqual(owners, ['src/components/ui/app-toaster.tsx']);
 });

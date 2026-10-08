@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 export function UnifiedAttendancePanel() {
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
@@ -115,19 +117,14 @@ export function UnifiedAttendancePanel() {
         </div>
         <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
           {(["students", "teachers"] as const).map((tab) => (
-            <button
+            <Button aria-pressed={activeTab === tab} variant="choice" size="sm"
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={cn(
-                "rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
-                activeTab === tab
-                  ? "bg-white text-[#8127cf] shadow-md"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              )}
+              className="flex justify-start items-center gap-2"
             >
               {tab === "students" ? <GraduationCap className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />}
               {tab === "students" ? "Student Attendance" : "Teacher Attendance"}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -138,24 +135,24 @@ export function UnifiedAttendancePanel() {
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => shiftDate(-1)}
-                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+              <Button variant="outline" size="icon" type="button" onClick={() => shiftDate(-1)}
+                className="flex items-center justify-center">
                 <ChevronDown className="h-4 w-4 rotate-90" />
-              </button>
+              </Button>
               <div className="flex items-center gap-2 rounded-xl border border-[#cfc2d6]/20 bg-white px-4 h-10">
                 <CalendarCheck className="h-4 w-4 text-[#8127cf]" />
                 <span className="text-sm font-black text-[#1f1a23]">{dateLabel}</span>
                 {isToday ? <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2 py-0.5">Today</span> : null}
               </div>
-              <button type="button" onClick={() => shiftDate(1)}
-                className="h-10 w-10 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+              <Button variant="outline" size="icon" type="button" onClick={() => shiftDate(1)}
+                className="flex items-center justify-center">
                 <ChevronDown className="h-4 w-4 -rotate-90" />
-              </button>
+              </Button>
               {!isToday ? (
-                <button type="button" onClick={() => setTeacherDate(new Date().toISOString().split("T")[0])}
-                  className="h-10 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#f0d6fa] transition-colors cursor-pointer">
+                <Button variant="secondary" size="sm" type="button" onClick={() => setTeacherDate(new Date().toISOString().split("T")[0])}
+                  >
                   Today
-                </button>
+                </Button>
               ) : null}
             </div>
             <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
@@ -164,7 +161,7 @@ export function UnifiedAttendancePanel() {
               </svg>
               <SystemInput type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
-                className="h-10 w-52 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none transition-all" />
+                className="w-52 pl-9 pr-3" />
             </InputGroup>
           </div>
 
@@ -297,15 +294,15 @@ export function UnifiedAttendancePanel() {
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2 mb-4">
-                <button type="button" onClick={() => shiftTeacherMonth(-1)}
-                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                <Button variant="secondary" size="icon" type="button" onClick={() => shiftTeacherMonth(-1)}
+                  className="flex items-center justify-center">
                   <ChevronDown className="h-3.5 w-3.5 rotate-90" />
-                </button>
+                </Button>
                 <span className="text-xs font-black text-[#1f1a23]">{formatMonthLbl(teacherSelectedMonth)}</span>
-                <button type="button" onClick={() => shiftTeacherMonth(1)}
-                  className="h-8 w-8 rounded-lg bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer">
+                <Button variant="secondary" size="icon" type="button" onClick={() => shiftTeacherMonth(1)}
+                  className="flex items-center justify-center">
                   <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
-                </button>
+                </Button>
               </div>
               {teacherMonthlyLoading ? (
                 <div className="space-y-2 animate-skeleton-in">

@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useId, useRef, useState, type FormEvent } from "react";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { ModalSurface } from "@/components/ui/modal";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormField } from "@/components/ui/form-field";
+import { TaskFeedback } from "@/components/ui/task-patterns";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
 
 type Locale = "en" | "ar" | "ur";
 type Student = { id: string; fullName: string; rollNo: string; campus: { name: string }; class: { name: string; section: string | null } };
@@ -50,6 +59,8 @@ const consentPermissions: Array<[keyof Permissions["consents"], LabelKey]> = [
 
 export function GuardianAccessManager({ students, locale }: { students: Student[]; locale: Locale }) {
   const t = copy[locale];
+  const formScope = useId();
+  const reviewButtonRef = useRef<HTMLButtonElement>(null);
   const [studentId, setStudentId] = useState(students[0]?.id ?? "");
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
@@ -61,7 +72,6 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [invitationUrl, setInvitationUrl] = useState("");
-  const previewDialogRef = useRef<HTMLDivElement>(null);
   const student = students.find((item) => item.id === studentId);
 
   const refresh = useCallback(async () => {
@@ -143,34 +153,16 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
   const selected = useMemo(() => students.find((item) => item.id === studentId), [students, studentId]);
   const permissionLabel = (allowed: boolean) => <span className={allowed ? "font-semibold text-emerald-700" : "font-semibold text-slate-500"}>{allowed ? t.granted : t.denied}</span>;
 
-  useEffect(() => {
-    if (!preview) return;
-    const dialog = previewDialogRef.current;
-    if (!dialog) return;
-    const focusable = () => [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
-    focusable()[0]?.focus();
-    const trapFocus = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPreview(null); return; }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (!items.length) { event.preventDefault(); dialog.focus(); return; }
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", trapFocus);
-    return () => document.removeEventListener("keydown", trapFocus);
-  }, [preview]);
+
 
   return <div className="space-y-5">
-    <section className="rounded-2xl border border-[#ded5e2] bg-white p-4 shadow-sm sm:p-5">
+    <section className="sk-panel p-4 sm:p-5">
       <label className="block space-y-2">
         <span className="text-sm font-semibold text-[#1d1b20]">{t.child}</span>
-        <select value={studentId} onChange={(event) => { setStudentId(event.target.value); setPreview(null); setEditingId(null); setForm(emptyForm()); }} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]">
+        <Select value={studentId} onChange={(event) => { setStudentId(event.target.value); setPreview(null); setEditingId(null); setForm(emptyForm()); }} className="w-full px-3">
           <option value="">{t.choose}</option>
           {students.map((item) => <option key={item.id} value={item.id}>{item.fullName} · {item.rollNo} · {item.campus.name}</option>)}
-        </select>
+        </Select>
       </label>
       {selected ? <p className="mt-3 text-xs text-ink-muted">{[selected.class.name, selected.class.section, selected.campus.name].filter(Boolean).join(" · ")}</p> : null}
     </section>
@@ -179,12 +171,12 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
       <section className="space-y-3" aria-labelledby="guardian-list-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="guardian-list-title" className="text-lg font-bold text-[#1d1b20]">{t.current}</h2>
-          <button type="button" onClick={beginNew} className="min-h-11 rounded-xl bg-[#8127cf] px-4 text-sm font-semibold text-white hover:bg-[#6b1eae] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf] focus-visible:ring-offset-2">{t.add}</button>
+          <Button variant="default" type="button" onClick={beginNew} className="min-h-11">{t.add}</Button>
         </div>
         {loading ? <p role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-ink-muted">{t.loading}</p> : null}
         {!loading && relationships.length === 0 ? <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-ink-muted">{t.none}</p> : null}
         <div className="grid gap-3 lg:grid-cols-2">
-          {relationships.filter((item) => item.status !== "DRAFT").map((relation) => <article key={relation.id} className="min-w-0 rounded-2xl border border-[#ded5e2] bg-white p-4 shadow-sm">
+          {relationships.filter((item) => item.status !== "DRAFT").map((relation) => <article key={relation.id} className="sk-panel min-w-0 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate font-bold text-[#1d1b20]">{relation.fullName}</h3>
@@ -197,14 +189,14 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
               {simplePermissions.map(([key, label]) => <div key={key} className="flex items-center justify-between gap-2"><dt className="text-ink-muted">{t[label]}</dt><dd>{permissionLabel(relation.permissions[key])}</dd></div>)}
             </dl>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => beginEdit(relation)} className="min-h-10 rounded-lg border border-[#cfc2d6] px-3 text-sm font-semibold text-[#5e277f] focus-visible:ring-2 focus-visible:ring-[#8127cf]">{t.edit}</button>
+              <Button variant="outline" type="button" disabled={busy} onClick={() => beginEdit(relation)} >{t.edit}</Button>
               {relation.status === "ACTIVE" ? <>
-                <button type="button" disabled={busy} onClick={() => beginEdit(relation, "SUSPENDED")} className="min-h-10 rounded-lg border border-amber-300 px-3 text-sm font-semibold text-amber-800 focus-visible:ring-2 focus-visible:ring-amber-600">{t.suspend}</button>
-                <button type="button" disabled={busy} onClick={() => beginEdit(relation, "REVOKED")} className="min-h-10 rounded-lg border border-rose-300 px-3 text-sm font-semibold text-rose-700 focus-visible:ring-2 focus-visible:ring-rose-600">{t.revoke}</button>
-              </> : relation.status === "SUSPENDED" ? <button type="button" disabled={busy} onClick={() => beginEdit(relation, "ACTIVE")} className="min-h-10 rounded-lg border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-600">{t.resume}</button> : null}
+                <Button variant="outline" type="button" disabled={busy} onClick={() => beginEdit(relation, "SUSPENDED")} >{t.suspend}</Button>
+                <Button variant="destructive" type="button" disabled={busy} onClick={() => beginEdit(relation, "REVOKED")} >{t.revoke}</Button>
+              </> : relation.status === "SUSPENDED" ? <Button variant="outline" type="button" disabled={busy} onClick={() => beginEdit(relation, "ACTIVE")} >{t.resume}</Button> : null}
             </div>
             <details className="mt-4 border-t border-slate-100 pt-3">
-              <summary className="cursor-pointer text-sm font-semibold text-[#5e277f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]">{t.history}</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-[#5e277f]">{t.history}</summary>
               <ol className="mt-3 space-y-2 text-xs text-ink-muted">
                 {relation.events.length ? relation.events.map((event) => <li key={event.id} className="border-s border-slate-200 ps-3"><span className="font-semibold text-[#1d1b20]">{event.action}</span> · {event.reason}<br /><span dir="ltr">{new Date(event.createdAt).toLocaleString(locale)}</span> · {event.actorName}</li>) : <li>{t.none}</li>}
               </ol>
@@ -213,42 +205,43 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
         </div>
       </section>
 
-      <section id="guardian-editor" className="scroll-mt-4 rounded-2xl border border-[#ded5e2] bg-white p-4 shadow-sm sm:p-5">
+      <section id="guardian-editor" className="sk-panel scroll-mt-4 p-4 sm:p-5">
         <h2 className="text-lg font-bold text-[#1d1b20]">{editingId ? t.edit : t.add}</h2>
         <form onSubmit={(event) => void requestPreview(event)} className="mt-4 space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.name}</span><input required minLength={2} maxLength={120} readOnly={Boolean(editingId)} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm read-only:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.email}</span><input required type="email" maxLength={254} readOnly={Boolean(editingId)} dir="ltr" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm read-only:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /><span className="block text-xs text-ink-muted">{t.samePhone}</span></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.phone}</span><input type="tel" readOnly={Boolean(editingId)} dir="ltr" maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm read-only:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.guardianRelation}</span><select disabled={Boolean(editingId)} value={form.relationship} onChange={(event) => setForm({ ...form, relationship: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]">{Object.entries(t.relationships).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.effective}</span><input required type="datetime-local" value={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.until}</span><input type="datetime-local" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /></label>
+            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.name}</span><Input required minLength={2} maxLength={120} readOnly={Boolean(editingId)} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className="w-full px-3" /></label>
+            <FormField name="guardian-email" idScope={formScope} label={t.email} hint={t.samePhone}><Input required type="email" maxLength={254} readOnly={Boolean(editingId)} dir="ltr" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full px-3" /></FormField>
+            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.phone}</span><Input type="tel" readOnly={Boolean(editingId)} dir="ltr" maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3" /></label>
+            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.guardianRelation}</span><Select disabled={Boolean(editingId)} value={form.relationship} onChange={(event) => setForm({ ...form, relationship: event.target.value })} className="w-full px-3">{Object.entries(t.relationships).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
+            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.effective}</span><Input required type="datetime-local" value={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} className="w-full px-3" /></label>
+            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.until}</span><Input type="datetime-local" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} className="w-full px-3" /></label>
           </div>
 
           <fieldset className="space-y-3">
             <legend className="text-base font-bold text-[#1d1b20]">{t.review}</legend>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {simplePermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.permissions[key]} onChange={(event) => updatePermission(key, event.target.checked)} className="h-4 w-4 rounded border-slate-400 accent-[#8127cf] focus-visible:ring-2 focus-visible:ring-[#8127cf]" /><span>{t[label]}</span></label>)}
+              {simplePermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><Checkbox checked={form.permissions[key]} onChange={(event) => updatePermission(key, event.target.checked)}  /><span>{t[label]}</span></label>)}
             </div>
           </fieldset>
           <fieldset className="space-y-3">
             <legend className="text-base font-bold text-[#1d1b20]">{t.consentTitle}</legend>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {consentPermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.permissions.consents[key]} onChange={(event) => updatePermission(`consents.${key}`, event.target.checked)} className="h-4 w-4 rounded border-slate-400 accent-[#8127cf] focus-visible:ring-2 focus-visible:ring-[#8127cf]" /><span>{t[label]}</span></label>)}
+              {consentPermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><Checkbox checked={form.permissions.consents[key]} onChange={(event) => updatePermission(`consents.${key}`, event.target.checked)}  /><span>{t[label]}</span></label>)}
             </div>
           </fieldset>
-          <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.reason}</span><textarea required minLength={5} maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} className="min-h-24 w-full rounded-xl border border-slate-300 p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]" /></label>
+          <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.reason}</span><Textarea required minLength={5} maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} className="w-full p-3" /></label>
           <div className="sticky bottom-2 z-10 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-            <button type="submit" disabled={busy || !studentId} className="min-h-11 flex-1 rounded-xl bg-[#8127cf] px-4 text-sm font-semibold text-white disabled:opacity-50 sm:flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf] focus-visible:ring-offset-2">{busy ? t.loading : t.review}</button>
-            <button type="button" disabled={busy} onClick={() => { beginNew(); setForm(emptyForm()); }} className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold">{t.cancel}</button>
+            <Button variant="default" ref={reviewButtonRef} type="submit" disabled={busy || !studentId} className="min-h-11 flex-1 sm:flex-none">{busy ? t.loading : t.review}</Button>
+            <Button variant="outline" type="button" disabled={busy} onClick={() => { beginNew(); setForm(emptyForm()); }} className="min-h-11">{t.cancel}</Button>
           </div>
         </form>
       </section>
 
-      {preview ? <section role="dialog" aria-modal="true" aria-labelledby="guardian-preview-title" className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-        <div ref={previewDialogRef} tabIndex={-1} className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
+      {preview ? <ModalSurface onClose={() => setPreview(null)} returnFocusRef={reviewButtonRef} labelledBy="guardian-preview-title" describedBy="guardian-preview-help" size="sm" disableBackdropClose dismissible={!busy}>
+        <div className="min-h-0 overflow-y-auto p-5" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
           <h2 id="guardian-preview-title" className="text-xl font-bold text-[#1d1b20]">{t.previewTitle}</h2>
-          <p className="mt-2 text-sm text-ink-muted">{t.previewHelp}</p>
+          <p id="guardian-preview-help" className="mt-2 text-sm text-ink-muted">{t.previewHelp}</p>
+          {error ? <TaskFeedback kind="error" title={error} /> : null}
           <p className="mt-3 text-sm font-semibold">{selected?.fullName} · {preview.guardianName}</p>
           <p dir="ltr" className="mt-1 text-xs text-ink-muted">{new Date(preview.effectiveAt).toLocaleString(locale)}{preview.validUntil ? ` — ${new Date(preview.validUntil).toLocaleString(locale)}` : ""}</p>
           <dl className="mt-4 space-y-2">
@@ -257,23 +250,23 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
           </dl>
           {preview.status === "INVITED" ? <p className="mt-4 rounded-xl bg-violet-50 p-3 text-sm leading-6 text-violet-900">{t.linkMessage}</p> : null}
           <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" disabled={busy} onClick={() => void applyPreview()} className="min-h-11 flex-1 rounded-xl bg-[#8127cf] px-4 text-sm font-semibold text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#8127cf] focus-visible:ring-offset-2">{busy ? t.loading : preview.status === "INVITED" ? t.send : t.apply}</button>
-            <button type="button" disabled={busy} onClick={() => setPreview(null)} className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-[#8127cf]">{t.close}</button>
+            <Button variant="default" type="button" disabled={busy} onClick={() => void applyPreview()} className="min-h-11 flex-1">{busy ? t.loading : preview.status === "INVITED" ? t.send : t.apply}</Button>
+            <Button variant="outline" type="button" disabled={busy} onClick={() => setPreview(null)} className="min-h-11">{t.close}</Button>
           </div>
         </div>
-      </section> : null}
+      </ModalSurface> : null}
 
       {reviewQueue.length ? <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
         <h2 className="text-lg font-bold text-[#1d1b20]">{t.reviews}</h2>
         <p className="text-sm text-amber-950">{t.contactOnly}</p>
         <ul className="space-y-2">{reviewQueue.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3">
           <span className="min-w-0"><strong className="block truncate text-sm">{item.contactName || item.legacyRelationship || "—"}</strong><span dir="ltr" className="block truncate text-xs text-ink-muted">{item.email || item.phone || "—"}</span></span>
-          <button type="button" disabled={busy} onClick={() => void resolveReview(item.id)} className="min-h-10 rounded-lg border border-amber-400 px-3 text-sm font-semibold text-amber-900 focus-visible:ring-2 focus-visible:ring-amber-700">{t.resolve}</button>
+          <Button variant="outline" type="button" disabled={busy} onClick={() => void resolveReview(item.id)} >{t.resolve}</Button>
         </li>)}</ul>
       </section> : null}
-      {invitationUrl ? <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><span className="flex-1">{t.linkMessage}</span><button type="button" onClick={() => { void navigator.clipboard.writeText(invitationUrl); setNotice(t.copied); }} className="min-h-10 rounded-lg border border-emerald-400 px-3 font-semibold">{t.copyLink}</button></div> : null}
+      {invitationUrl ? <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><span className="flex-1">{t.linkMessage}</span><Button variant="outline" type="button" onClick={() => { void navigator.clipboard.writeText(invitationUrl); setNotice(t.copied); }} >{t.copyLink}</Button></div> : null}
     </> : null}
-    {error ? <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
+    {error && !preview ? <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
     {notice ? <p role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
     {!students.length ? <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">{t.none}</p> : null}
   </div>;

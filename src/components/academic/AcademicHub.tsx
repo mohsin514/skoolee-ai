@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -264,7 +265,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
               <SystemSelect
                 value={stats.academicYear}
                 onChange={(e) => setYear(Number(e.target.value))}
-                className="rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2 text-xs font-bold text-[#1f1a23] shadow-sm"
+                className=""
               >
                 {stats.availableYears.map((y) => (
                   <option key={y} value={y}>
@@ -318,14 +319,14 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                 </p>
               </div>
             </div>
-            <button
+            <Button variant="default"
               onClick={() => go("promote-archive")}
-              className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition-all hover:bg-emerald-700"
+              className="flex items-center gap-2 px-5 py-3"
             >
               <GraduationCap className="h-4 w-4" />
               Promote Students
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
       ) : currentStep ? (
@@ -345,19 +346,19 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                 </p>
               </div>
             </div>
-            <button
+            <Button variant="default"
               onClick={() => go(currentStep.view)}
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30"
+              className="justify-start flex items-center gap-2 px-5 py-3"
             >
               {currentStep.cta}
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
 
       {/* ── Step tracker ── */}
-      <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
+      <div className="sk-panel p-5 sm:p-6">
         <h3 className="mb-4 text-sm font-black uppercase tracking-wider text-ink">
           Your Year at a Glance
         </h3>
@@ -366,16 +367,14 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
             const isCurrent = i === currentIndex;
             const Icon = s.icon;
             return (
-              <button
+              <Button aria-pressed={isCurrent} variant="choice"
                 key={s.id}
                 onClick={() => go(s.view)}
-                className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all ${
+                className={"justify-start " + (`flex flex-col items-start gap-2 p-4 text-left ${
                   isCurrent
-                    ? "border-[#8127cf] bg-[#faf7fc] shadow-md shadow-[#8127cf]/10"
-                    : s.done
-                      ? "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50"
-                      : "border-[#cfc2d6]/25 bg-white hover:border-[#8127cf]/40"
-                }`}
+                    ? ""
+                    : ""
+                } `)}
               >
                 <div className="flex w-full items-center justify-between">
                   <span
@@ -408,7 +407,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                     {s.detail}
                   </span>
                 ) : null}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -436,17 +435,15 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
               </p>
             </div>
           </div>
-          <button
+          <Button variant="default"
             disabled={!allDone}
             onClick={() => go("promote-archive")}
-            className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-              allDone
-                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                : "cursor-not-allowed bg-[#e8e0ec]/60 text-ink-subtle"
-            }`}
+            className={`px-4 py-2 ${
+              ""
+            } `}
           >
             Promote Students
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -462,7 +459,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ── Needs attention ── */}
-        <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
+        <div className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
             <h3 className="text-sm font-black uppercase tracking-wider text-ink">
@@ -474,17 +471,17 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
               {stats.actionItems.map((a) => {
                 const t = TONE[a.tone];
                 return (
-                  <button
+                  <Button variant="outline"
                     key={a.id}
                     onClick={() => go(ACTION_TARGET[a.id] || "timetable")}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border ${t.border} ${t.bg} px-4 py-3 text-left transition-all hover:brightness-95`}
+                    className={`flex w-full items-center justify-between gap-3 ${t.border}  ${t.bg} px-4 py-3 text-left`}
                   >
                     <span className="flex items-center gap-3">
                       <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} />
                       <span className={`text-sm font-bold ${t.text}`}>{a.label}</span>
                     </span>
                     <ArrowRight className={`h-4 w-4 ${t.text}`} />
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -498,7 +495,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         </div>
 
         {/* ── Recent activity ── */}
-        <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
+        <div className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <Clock className="h-4 w-4 text-[#8127cf]" />
             <h3 className="text-sm font-black uppercase tracking-wider text-ink">
@@ -508,10 +505,10 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           {stats && stats.activity.length > 0 ? (
             <div className="space-y-2">
               {stats.activity.map((a) => (
-                <button
+                <Button variant="outline"
                   key={a.id}
                   onClick={() => go(a.kind === "exam" ? "exam-cycles" : "timetable")}
-                  className="flex w-full items-center justify-between rounded-xl border border-[#cfc2d6]/15 bg-white px-4 py-3 text-left transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/40"
+                  className="flex w-full items-center justify-between px-4 py-3 text-left"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -529,7 +526,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-[#cfc2d6]" />
-                </button>
+                </Button>
               ))}
             </div>
           ) : (
@@ -557,7 +554,7 @@ function StatCard({
 }) {
   const t = TONE[tone];
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm">
+    <div className="sk-panel p-5">
       <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${t.bg}`}>
         <Icon className={`h-5 w-5 ${t.text}`} />
       </div>

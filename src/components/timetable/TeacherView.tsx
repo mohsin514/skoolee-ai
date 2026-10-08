@@ -3,6 +3,8 @@
 import { ChevronDown, Printer, User } from "lucide-react";
 import type { GridDay, GridPeriod, TeacherOption, TimetableData } from "./TimetableStudio";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+
 
 interface TeacherSlot {
   classLabel: string;
@@ -58,7 +60,7 @@ export function TeacherView({
           <SystemSelect
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
-            className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none appearance-none cursor-pointer"
+            className="px-4 pr-10 appearance-none"
           >
             <option value="">— Select teacher —</option>
             {teachers.map((t) => (
@@ -75,13 +77,13 @@ export function TeacherView({
           </span>
         )}
         {selectedTeacherId && (
-          <button
+          <Button variant="secondary" size="sm"
             type="button"
             onClick={() => window.print()}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <Printer className="h-3.5 w-3.5" />Print Routine
-          </button>
+          </Button>
         )}
       </div>
 

@@ -24,6 +24,10 @@ import { Label } from "./label";
 interface FormFieldProps {
   /** Must match the schema key so `field(name)` and the label agree. */
   name: string;
+  /** Explicit control ID. Takes precedence over IDs on the child. */
+  id?: string;
+  /** Stable, unique form/dialog prefix when field names are reused concurrently. */
+  idScope?: string;
   label?: React.ReactNode;
   error?: string;
   hint?: React.ReactNode;
@@ -33,8 +37,23 @@ interface FormFieldProps {
   children: React.ReactNode;
 }
 
+const controlSelector = "input:not([type=hidden]),textarea,select,[role=combobox]";
+type ControlProps = React.InputHTMLAttributes<HTMLInputElement> & { "data-form-field-control"?: string };
+
+function describedBy(caller: string | undefined, hintId?: string, errorId?: string, previousId?: string) {
+  // A scoped field() binder may still name this field's unscoped error/hint.
+  const references = (caller?.split(/\s+/) ?? []).map(reference => {
+    if (previousId && hintId && reference === `${previousId}-hint`) return hintId;
+    if (previousId && errorId && reference === `${previousId}-error`) return errorId;
+    return reference;
+  });
+  return [...new Set([...references, hintId, errorId].filter(Boolean))].join(" ") || undefined;
+}
+
 export function FormField({
   name,
+  id,
+  idScope,
   label,
   error,
   hint,
@@ -43,30 +62,48 @@ export function FormField({
   children,
 }: FormFieldProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const control = React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(children) ? children : null;
-  const fieldId = control?.props.id ?? `field-${name}`;
+  const labelRef = React.useRef<HTMLLabelElement>(null);
+  const control = React.isValidElement<ControlProps>(children) ? children : null;
+  const fieldId = id ?? (idScope ? `field-${idScope}-${name}` : control?.props.id ?? `field-${name}`);
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
   // Compound InputGroup/Urdu controls need the label and errors on the actual
   // input, not on their decorative wrapper. Resolve that shared contract here.
-  React.useEffect(() => {
-    const input = containerRef.current?.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select,[role=combobox]");
+  React.useLayoutEffect(() => {
+    const input = containerRef.current?.querySelector<HTMLElement>(controlSelector);
     if (!input) return;
-    if (containerRef.current?.querySelector(`[id="${CSS.escape(fieldId)}"]`) !== input) {
-      containerRef.current?.querySelector(`[id="${CSS.escape(fieldId)}"]`)?.removeAttribute("id");
+    const resolvedId = id || idScope || control?.props.id ? fieldId : input.id || fieldId;
+    if (labelRef.current) labelRef.current.htmlFor = resolvedId;
+    const restore: (() => void)[] = [];
+    const setAttribute = (element: HTMLElement, attribute: string, value: string | null) => {
+      const original = element.getAttribute(attribute);
+      if (value === original) return;
+      if (value === null) element.removeAttribute(attribute);
+      else element.setAttribute(attribute, value);
+      restore.push(() => {
+        // A caller may have updated this attribute during React's next commit.
+        if (element.getAttribute(attribute) !== value) return;
+        if (original === null) element.removeAttribute(attribute);
+        else element.setAttribute(attribute, original);
+      });
+    };
+    const wrapper = containerRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(fieldId)}"]`);
+    if (wrapper && wrapper !== input) setAttribute(wrapper, "id", null);
+    setAttribute(input, "id", resolvedId);
+    // Input/Select/DatePicker forward the cloned props to the native control.
+    // InputGroup/UrduInput need the same wiring on their nested control instead.
+    if (!input.hasAttribute("data-form-field-control")) {
+      if (error) setAttribute(input, "aria-invalid", "true");
+      if (required) setAttribute(input, "aria-required", "true");
+      setAttribute(input, "aria-describedby", describedBy(input.getAttribute("aria-describedby") ?? undefined, hint ? hintId : undefined, error ? errorId : undefined, control?.props.id ?? `field-${name}`) ?? null);
     }
-    input.id = fieldId;
-    if (error) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
-    if (required) input.setAttribute("aria-required", "true");
-    const described = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
-    if (described) input.setAttribute("aria-describedby", described);
-    else input.removeAttribute("aria-describedby");
-  }, [fieldId, errorId, hintId, error, hint, required]);
+    return () => { restore.reverse().forEach(undo => undo()); };
+  });
 
   return (
-    <div ref={containerRef} className={cn("flex flex-col gap-1.5", className)}>
+    <div ref={containerRef} data-form-field={name} className={cn("flex flex-col gap-1.5", className)}>
       {label ? (
-        <Label htmlFor={fieldId} className="mb-1">
+        <Label ref={labelRef} htmlFor={fieldId} className="mb-1">
           {label}
           {required ? (
             // aria-hidden because the requirement is already conveyed to
@@ -80,10 +117,11 @@ export function FormField({
       ) : null}
 
       {control ? React.cloneElement(control, {
+        "data-form-field-control": "",
         id: fieldId,
         "aria-invalid": error ? true : control.props["aria-invalid"],
         "aria-required": required || control.props["aria-required"],
-        "aria-describedby": [control.props["aria-describedby"], hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined,
+        "aria-describedby": describedBy(control.props["aria-describedby"], hint ? hintId : undefined, error ? errorId : undefined, control.props.id ?? `field-${name}`),
       }) : children}
 
       {error ? (
@@ -166,7 +204,14 @@ export function FormErrorSummary({
           <li key={field}>
             <button
               type="button"
-              onClick={() => { if (onFocusField) onFocusField(field); else document.getElementById(`field-${field}`)?.focus(); }}
+              onClick={(event) => {
+                if (onFocusField) { onFocusField(field); return; }
+                const scope = event.currentTarget.closest("form, [role=dialog], [role=alertdialog], dialog") ?? document;
+                const wrapper = scope.querySelector(`[data-form-field="${CSS.escape(field)}"]`);
+                const input = wrapper?.querySelector<HTMLElement>(controlSelector)
+                  ?? scope.querySelector<HTMLElement>(`[id="${CSS.escape(`field-${field}`)}"]`);
+                input?.focus();
+              }}
               className="min-h-6 text-start text-sm font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current"
             >
               {message}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
@@ -25,7 +26,7 @@ import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees } from "./fee-
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
-const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white";
+const inputClass = "w-full";
 const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
 
 export function FeeLayersTab({ campusId }: { campusId?: string }) {
@@ -48,17 +49,17 @@ export function FeeLayersTab({ campusId }: { campusId?: string }) {
           const Icon = tab.icon;
           const isActive = active === tab.key;
           return (
-            <button
+            <Button aria-pressed={isActive} variant="choice"
               key={tab.key}
               type="button"
               onClick={() => setActive(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
+                ""
+              } `)}
             >
               <Icon className="w-3.5 h-3.5" />
               {tab.label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -184,7 +185,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           {types.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={t.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
                 <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
@@ -192,12 +193,12 @@ function TypesPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => openModal(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
+                <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(t)} className="flex items-center justify-center">
                   <BookOpen className="w-3.5 h-3.5" />
-                </button>
-                <button type="button" onClick={() => setDeleting(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                </Button>
+                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(t)} className="flex items-center justify-center">
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
                 <ConfirmAction
                   open={deleting?.id === t.id}
                   title={tr("Delete Fee Type")}
@@ -345,12 +346,12 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                       {g.lines.length}<UiText>{"fee line(s) ·"}</UiText>{g.assignments.length}<UiText>{"class assignment(s)"}</UiText></p>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => openModal(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
+                    <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(g)} className="flex items-center justify-center">
                       <BookOpen className="w-3.5 h-3.5" />
-                    </button>
-                    <button type="button" onClick={() => setDeleting(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                    </Button>
+                    <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(g)} className="flex items-center justify-center">
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                     <ConfirmAction
                       open={deleting?.id === g.id}
                       title={tr("Delete Fee Group")}
@@ -491,15 +492,15 @@ function MasterPanel({ campusId }: { campusId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div className="w-full sm:max-w-xs">
-          <label className={labelClass}><UiText>{"Fee Group"}</UiText></label>
-          <SystemSelect value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className={inputClass}>
+        <label className="w-full sm:max-w-xs">
+          <span className={labelClass}><UiText>{"Fee Group"}</UiText></span>
+          <SystemSelect value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full">
             <option value=""><UiText>{"Select a group..."}</UiText></option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </SystemSelect>
-        </div>
+        </label>
         {selectedGroup && (
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)} disabled={types.length === 0}><UiText>{"Add Line"}</UiText></BrandButton>
         )}
@@ -519,7 +520,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
             <EmptyState icon={BookOpen} title={tr("No lines yet")} description={tr("Price the first fee type in this group.")} />
           ) : (
             selectedGroup.lines.map((line) => (
-              <div key={line.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+              <div key={line.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <p className="text-sm font-black text-[#1f1a23]">{line.feeType?.name ?? "Unknown"}</p>
                   <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
@@ -529,12 +530,12 @@ function MasterPanel({ campusId }: { campusId?: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount, selectedGroup?.currency)}</p>
-                  <button type="button" onClick={() => openModal(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
+                  <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(line)} className="flex items-center justify-center">
                     <BookOpen className="w-3.5 h-3.5" />
-                  </button>
-                  <button type="button" onClick={() => setDeleting(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                  </Button>
+                  <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(line)} className="flex items-center justify-center">
                     <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                   <ConfirmAction
                     open={deleting?.id === line.id}
                     title={tr("Delete Master Line")}
@@ -674,7 +675,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           {assignments.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={a.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">
                   {a.class ? classLabel(a.class.name, a.class.section) : tr("Unknown class")}
@@ -684,9 +685,9 @@ function AssignPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setDeleting(a)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(a)} className="flex items-center justify-center">
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
                 <ConfirmAction
                   open={deleting?.id === a.id}
                   title={tr("Remove Assignment")}
@@ -918,7 +919,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           {discounts.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={d.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
                 <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
@@ -926,14 +927,14 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                   {d.category ? tr(" · auto: {0}", [d.category.name]) : ""} · {d._count?.assignments ?? 0}<UiText>{"student(s)"}</UiText></p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => openAssign(d)} className="h-8 px-2.5 rounded-xl bg-[#fbf0fe] text-[#8127cf] flex items-center gap-1 hover:bg-white transition-colors cursor-pointer text-[9px] font-black uppercase tracking-wider">
-                  <Users className="w-3.5 h-3.5" /><UiText>{"Assign"}</UiText></button>
-                <button type="button" onClick={() => openModal(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
+                <Button variant="outline" type="button" onClick={() => openAssign(d)} className="justify-start px-2.5 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" /><UiText>{"Assign"}</UiText></Button>
+                <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(d)} className="flex items-center justify-center">
                   <BookOpen className="w-3.5 h-3.5" />
-                </button>
-                <button type="button" onClick={() => setDeleting(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                </Button>
+                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(d)} className="flex items-center justify-center">
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
                 <ConfirmAction
                   open={deleting?.id === d.id}
                   title={tr("Delete Discount")}
@@ -981,10 +982,10 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       {assigning && (
         <ModalFrame title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee Layers · Discounts")} onClose={() => setAssigning(null)} wide>
           <div className="space-y-5">
-            <div>
-              <label className={labelClass}><UiText>{"Find student"}</UiText></label>
-              <SystemInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Type name or roll no...")} className={inputClass} />
-            </div>
+            <label>
+              <span className={labelClass}><UiText>{"Find student"}</UiText></span>
+              <SystemInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Type name or roll no...")} className="w-full" />
+            </label>
 
             <div>
               <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Assigned ("}</UiText>{assigned.length})
@@ -998,12 +999,12 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                       <p className="text-xs font-black text-[#1f1a23]">
                         {a.student?.fullName} <span className="text-ink-subtle font-bold">· {a.student?.rollNo ?? ""}</span>
                       </p>
-                      <button
+                      <Button variant="secondary"
                         type="button"
                         disabled={assignBusy}
                         onClick={() => removeAssignment(a.id)}
-                        className="h-7 px-2 rounded-lg bg-rose-50 text-rose-500 text-[9px] font-black uppercase hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
-                      ><UiText>{"Remove"}</UiText></button>
+                        className="px-2"
+                      ><UiText>{"Remove"}</UiText></Button>
                     </div>
                   ))}
                 </div>
@@ -1028,12 +1029,12 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                       <p className="text-xs font-bold text-[#1f1a23]">
                         {s.fullName} <span className="text-ink-subtle font-bold">· {s.rollNo ?? ""}</span>
                       </p>
-                      <button
+                      <Button variant="outline"
                         type="button"
                         disabled={assignBusy}
                         onClick={() => addAssignment(s.id)}
-                        className="h-7 px-2 rounded-lg bg-[#fbf0fe] text-[#8127cf] text-[9px] font-black uppercase hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
-                      ><UiText>{"Add"}</UiText></button>
+                        className="px-2"
+                      ><UiText>{"Add"}</UiText></Button>
                     </div>
                   ))}
                 {students.filter((s) => !assigned.some((a) => a.studentId === s.id)).length === 0 && (
@@ -1163,7 +1164,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           {forwards.map((f) => (
-            <div key={f.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={f.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{f.student?.fullName ?? "Unknown"}</p>
                 <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
@@ -1175,9 +1176,9 @@ function CarryPanel({ campusId }: { campusId?: string }) {
                 <span className={`text-sm font-black ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
-                <button type="button" onClick={() => setDeleting(f)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
+                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(f)} className="flex items-center justify-center">
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
                 <ConfirmAction
                   open={deleting?.id === f.id}
                   title={tr("Delete Carry-Forward")}
@@ -1364,7 +1365,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {rules.map((rule) => (
-            <div key={rule.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
+            <div key={rule.id} className="sk-panel p-5 flex items-center gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
                 <Timer className="w-5 h-5" />
               </div>
@@ -1382,33 +1383,33 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
                   {" · "}{rule.graceDays > 0 ? tr("{0} day grace", [rule.graceDays]) : tr("no grace period")}
                 </p>
               </div>
-              <button
+              <Button aria-pressed={rule.isActive} variant="choice"
                 type="button"
                 onClick={() => handleToggle(rule)}
                 disabled={togglingId === rule.id}
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50 ${
-                  rule.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"
-                }`}
+                className={"justify-start " + (`flex items-center gap-2 px-3 py-1.5 ${
+                  ""
+                } `)}
               >
                 {togglingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                 {rule.isActive ? tr("Active") : tr("Inactive")}
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="icon"
                 type="button"
                 onClick={() => openModal(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer"
+                className="flex items-center justify-center"
                 aria-label={tr("Edit fine rule")}
               >
                 <Tag className="w-4 h-4" />
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="icon"
                 type="button"
                 onClick={() => setDeleting(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer"
+                className="flex items-center justify-center"
                 aria-label={tr("Delete fine rule")}
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -1419,23 +1420,23 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
           <div className="space-y-4">
             <FormInput label={tr("Rule Name")} value={name} placeholder={tr("e.g. Monthly late fine")} onChange={setName} />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}><UiText>{"Type"}</UiText></label>
-                <SystemSelect value={type} onChange={(e) => setType(e.target.value as any)} className={inputClass}>
+              <label>
+                <span className={labelClass}><UiText>{"Type"}</UiText></span>
+                <SystemSelect value={type} onChange={(e) => setType(e.target.value as any)} className="w-full">
                   <option value="PERCENT"><UiText>{"Percent of balance"}</UiText></option>
                   <option value="FLAT"><UiText>{"Flat amount"}</UiText></option>
                   <option value="PER_DAY"><UiText>{"Per day"}</UiText></option>
                 </SystemSelect>
-              </div>
-              <div>
-                <label className={labelClass}><UiText>{"Value (PKR or %)"}</UiText></label>
-                <SystemInput type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? "e.g. 5" : "e.g. 200"} className={inputClass} />
-              </div>
+              </label>
+              <label>
+                <span className={labelClass}><UiText>{"Value (PKR or %)"}</UiText></span>
+                <SystemInput type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? "e.g. 5" : "e.g. 200"} className="w-full" />
+              </label>
             </div>
-            <div>
-              <label className={labelClass}><UiText>{"Grace Days (0 = none)"}</UiText></label>
-              <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className={inputClass} />
-            </div>
+            <label>
+              <span className={labelClass}><UiText>{"Grace Days (0 = none)"}</UiText></span>
+              <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className="w-full" />
+            </label>
             <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("Shown in reports")} onChange={setDescription} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Rule"} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -1463,7 +1464,7 @@ function SkeletonRows() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+        <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
           <div className="flex items-start justify-between mb-3">
             <div className="space-y-2">
               <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />

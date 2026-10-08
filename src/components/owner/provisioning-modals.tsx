@@ -12,7 +12,7 @@
 // the generated password is ever visible.
 // ─────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useId, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
@@ -25,6 +25,9 @@ import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+
 
 // ─── shared bits ─────────────────────────────────────────
 
@@ -80,22 +83,13 @@ function Field({
 }: {
   label: string; hint?: string; required?: boolean; error?: string; children: React.ReactNode;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2 px-1">
-        <label className="text-[10px] font-black uppercase tracking-wider text-ink">
-          {label}{required && <span className="ml-0.5 text-[#8127cf]">*</span>}
-        </label>
-        {hint && <span className="text-[10px] font-bold text-ink-subtle">{hint}</span>}
-      </div>
-      {children}
-      {error && <p className="px-1 text-[11px] font-bold text-rose-500">{error}</p>}
-    </div>
-  );
+  const fieldName = useId();
+  return <FormField name={fieldName} label={label} hint={hint} required={required} error={error}>{children}</FormField>;
 }
 
+
 const inputCls =
-  "h-11 w-full rounded-xl border-0 bg-[#f3f4f9] px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:bg-white";
+  "w-full";
 
 function ErrorBanner({ message }: { message: string }) {
   return (
@@ -167,43 +161,43 @@ You will be asked to set your own password on first sign-in.`;
             <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold text-[#1f1a23]">
               {data.email}
             </code>
-            <button
+            <Button variant="outline" size="icon"
               onClick={() => copy(data.email, "email")}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
+
               aria-label="Copy email"
             >
               {copied === "email" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-            </button>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
             <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-black tracking-wide text-[#1f1a23]">
               {reveal ? data.password : "•".repeat(data.password.length)}
             </code>
-            <button
+            <Button variant="outline" size="icon"
               onClick={() => setReveal((v) => !v)}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
+
               aria-label={reveal ? "Hide password" : "Show password"}
             >
               {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-            <button
+            </Button>
+            <Button variant="outline" size="icon"
               onClick={() => copy(data.password, "pw")}
-              className="cursor-pointer rounded-xl bg-white p-2.5 text-ink-muted transition-colors hover:text-[#8127cf]"
+
               aria-label="Copy password"
             >
               {copied === "pw" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-            </button>
+            </Button>
           </div>
         </div>
 
-        <button
+        <Button variant="default" size="sm"
           onClick={() => copy(bundle, "all")}
-          className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#8127cf]/20 bg-white py-2.5 text-[12px] font-black text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"
+          className="mt-3 flex w-full items-center justify-center gap-2"
         >
           {copied === "all" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           Copy both as a message
-        </button>
+        </Button>
       </div>
 
       <p className="mt-4 flex items-start gap-2 px-1 text-[11px] font-semibold leading-relaxed text-ink-muted">
@@ -212,12 +206,12 @@ You will be asked to set your own password on first sign-in.`;
         The user must replace it the first time they sign in.
       </p>
 
-      <button
+      <Button variant="dark"
         onClick={onDone}
-        className="mt-5 h-11 w-full cursor-pointer rounded-xl bg-[#1f1a23] font-black text-white transition-opacity hover:opacity-90"
+        className="mt-5 w-full"
       >
         Done
-      </button>
+      </Button>
     </div>
   );
 }
@@ -351,13 +345,13 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           </div>
           <Field label="Temporary password" hint="user must change it on first sign-in">
             <div className="flex gap-2">
-              <SystemInput className={`${inputCls} font-mono`} value={password}
+              <SystemInput className={`${inputCls} `} value={password}
                 onChange={(e) => setPassword(e.target.value)} />
-              <button onClick={() => setPassword(makePassword())} type="button"
+              <Button variant="default" size="icon" onClick={() => setPassword(makePassword())} type="button"
                 aria-label="Regenerate password"
-                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-colors hover:bg-[#8127cf] hover:text-white">
+                className="flex shrink-0 items-center justify-center">
                 <RefreshCw className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           </Field>
           <p className="rounded-xl bg-[#f9f7fb] px-3 py-2 text-[11px] font-bold text-ink-muted">
@@ -372,16 +366,14 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               const def = PLANS[p];
               const on = form.plan === p;
               return (
-                <button key={p} type="button" onClick={() => set("plan", p)}
-                  className={`cursor-pointer rounded-2xl border-2 p-3.5 text-left transition-all ${
-                    on ? "border-[#8127cf] bg-[#fbf0fe] shadow-md shadow-[#8127cf]/10" : "border-[#cfc2d6]/30 hover:border-[#8127cf]/40"
-                  }`}>
+                <Button aria-pressed={on} variant="choice" key={p} type="button" onClick={() => set("plan", p)}
+                  className="block text-left">
                   <div className="flex items-center justify-between">
                     <span className={`text-[13px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{def.name}</span>
                     {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
                   </div>
                   <p className="mt-0.5 text-[10px] font-bold text-ink-subtle">{def.priceLabel}</p>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -408,12 +400,10 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           <Field label="Initial status">
             <div className="flex gap-2">
               {["TRIAL", "ACTIVE"].map((s) => (
-                <button key={s} type="button" onClick={() => set("status", s)}
-                  className={`h-10 flex-1 cursor-pointer rounded-xl text-[12px] font-black transition-all ${
-                    form.status === s ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink-muted hover:bg-[#e9e5ee]"
-                  }`}>
+                <Button aria-pressed={form.status === s} variant="choice" size="sm" key={s} type="button" onClick={() => set("status", s)}
+                  className="flex-1">
                   {s}
-                </button>
+                </Button>
               ))}
             </div>
           </Field>
@@ -425,15 +415,15 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
           {valid ? "Ready to provision" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">
-          <button onClick={onClose}
-            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]">
+          <Button variant="secondary" onClick={onClose}
+            >
             Cancel
-          </button>
-          <button onClick={submit} disabled={!valid || busy}
-            className="flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100">
+          </Button>
+          <Button variant="default" onClick={submit} disabled={!valid || busy}
+            className="flex justify-start items-center gap-2">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {busy ? "Provisioning…" : "Provision school"}
-          </button>
+          </Button>
         </div>
       </div>
     </Shell>
@@ -528,7 +518,7 @@ export function AddUserModal({
         {error && <ErrorBanner message={error} />}
 
         <Field label="School" required>
-          <SystemSelect className={`${inputCls} cursor-pointer`} value={form.schoolId}
+          <SystemSelect className={`${inputCls} `} value={form.schoolId}
             onChange={(e) => set("schoolId", e.target.value)}>
             <option value="">Select a school…</option>
             {schools.map((s) => (
@@ -542,16 +532,14 @@ export function AddUserModal({
             {ROLE_OPTIONS.map((r) => {
               const on = form.role === r.value;
               return (
-                <button key={r.value} type="button" onClick={() => set("role", r.value)}
-                  className={`cursor-pointer rounded-2xl border-2 p-3 text-left transition-all ${
-                    on ? "border-[#8127cf] bg-[#fbf0fe]" : "border-[#cfc2d6]/30 hover:border-[#8127cf]/40"
-                  }`}>
+                <Button aria-pressed={on} variant="choice" key={r.value} type="button" onClick={() => set("role", r.value)}
+                  className="block text-left">
                   <div className="flex items-center justify-between">
                     <span className={`text-[12.5px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{r.label}</span>
                     {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
                   </div>
                   <p className="mt-0.5 text-[10px] font-bold leading-snug text-ink-subtle">{r.hint}</p>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -564,7 +552,7 @@ export function AddUserModal({
             hint={!form.schoolId ? "pick a school first" : undefined}
             error={form.schoolId && campuses.length === 0 ? "This school has no campuses yet." : undefined}
           >
-            <SystemSelect className={`${inputCls} cursor-pointer disabled:opacity-50`} value={form.campusId}
+            <SystemSelect className={`${inputCls} `} value={form.campusId}
               disabled={!form.schoolId || campuses.length === 0}
               onChange={(e) => set("campusId", e.target.value)}>
               <option value="">Select a campus…</option>
@@ -597,13 +585,13 @@ export function AddUserModal({
 
         <Field label="Temporary password" hint="user must change it on first sign-in">
           <div className="flex gap-2">
-            <SystemInput className={`${inputCls} font-mono`} value={password}
+            <SystemInput className={`${inputCls} `} value={password}
               onChange={(e) => setPassword(e.target.value)} />
-            <button onClick={() => setPassword(makePassword())} type="button"
+            <Button variant="default" size="icon" onClick={() => setPassword(makePassword())} type="button"
               aria-label="Regenerate password"
-              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-colors hover:bg-[#8127cf] hover:text-white">
+              className="flex shrink-0 items-center justify-center">
               <RefreshCw className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </Field>
 
@@ -620,15 +608,15 @@ export function AddUserModal({
           {valid ? "Ready to create" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">
-          <button onClick={onClose}
-            className="h-11 cursor-pointer rounded-xl px-5 text-[13px] font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]">
+          <Button variant="secondary" onClick={onClose}
+            >
             Cancel
-          </button>
-          <button onClick={submit} disabled={!valid || busy}
-            className="flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100">
+          </Button>
+          <Button variant="default" onClick={submit} disabled={!valid || busy}
+            className="flex justify-start items-center gap-2">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             {busy ? "Creating…" : "Create user"}
-          </button>
+          </Button>
         </div>
       </div>
     </Shell>

@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { GridDay, SlotChange, StudioSlot, SubjectOption, TimetableData } from "./TimetableStudio";
+import { Button } from "@/components/ui/button";
+
 
 function effectiveSlots(slots: StudioSlot[], pending: Map<string, SlotChange>): StudioSlot[] {
   return slots.map((s) => {
@@ -134,15 +136,15 @@ function ResolutionSection({
           <Wand2 className="h-3 w-3" />
           Fix conflicts
         </p>
-        <button
+        <Button variant="secondary" size="sm"
           type="button"
           onClick={load}
           disabled={loading}
-          className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#fdf0fe] disabled:opacity-50"
+          className="flex justify-start items-center gap-1"
         >
           <RefreshCw className={`h-2.5 w-2.5 ${loading ? "animate-spin" : ""}`} />
           Recheck
-        </button>
+        </Button>
       </div>
 
       {error ? (
@@ -175,11 +177,11 @@ function ResolutionSection({
                     {s.description}
                   </p>
                 </div>
-                <button
+                <Button variant="default" size="sm"
                   type="button"
                   onClick={() => apply(s)}
                   disabled={applying !== null}
-                  className="mt-1.5 flex cursor-pointer items-center gap-1 rounded-lg bg-[#8127cf] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#6f1fb3] disabled:opacity-50"
+                  className="mt-1.5 flex justify-start items-center gap-1"
                 >
                   {applying === s.id ? (
                     <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -187,7 +189,7 @@ function ResolutionSection({
                     <Wand2 className="h-2.5 w-2.5" />
                   )}
                   Apply this fix
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -294,7 +296,7 @@ export function ConflictPanel({
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 rounded-2xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm">
+    <div className="sk-panel flex h-full flex-col gap-4 p-4">
       <div>
         <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Conflict Panel</p>
         <h3 className="text-sm font-black text-[#1f1a23] mt-1">Live intelligence</h3>

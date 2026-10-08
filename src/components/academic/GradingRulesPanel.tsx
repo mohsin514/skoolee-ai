@@ -1,4 +1,6 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -218,10 +220,10 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
         <ul className="divide-y divide-[#cfc2d6]/12">
           {groups.map((group) => (
             <li key={group.className}>
-              <button
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setEditing(group)}
-                className="group flex w-full cursor-pointer flex-wrap items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-[#faf7fc]"
+                className="justify-start group flex w-full flex-wrap items-center gap-3 px-5 py-3 text-left"
               >
                 <span
                   className={cn(
@@ -277,7 +279,7 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
                 </span>
 
                 <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -435,15 +437,15 @@ function RulesEditor({
             </span>
             <div className="ml-auto flex flex-wrap gap-1.5">
               {PRESETS.map((p) => (
-                <button
+                <Button variant="secondary"
                   key={p.name}
                   type="button"
                   title={p.blurb}
                   onClick={() => setCfg((c) => ({ ...c, ...p.values }))}
-                  className="cursor-pointer rounded-lg bg-[#f3eeff] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#e9dcfb]"
+                  className="px-2.5 py-1"
                 >
                   {p.name}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -467,7 +469,7 @@ function RulesEditor({
             {WEIGHTS.map((w, i) => (
               <div
                 key={w.key}
-                className="rounded-2xl border border-[#cfc2d6]/20 bg-white p-3"
+                className="sk-panel p-3"
               >
                 <div className="flex items-center gap-1.5">
                   <span
@@ -488,7 +490,7 @@ function RulesEditor({
                     max={100}
                     value={cfg[w.key]}
                     onChange={(e) => set(w.key, Number(e.target.value))}
-                    className={cn(inputClass, "h-9 text-center")}
+                    className={cn(inputClass, "text-center")}
                   />
                   <span className="text-xs font-black text-ink-subtle">%</span>
                 </div>
@@ -510,16 +512,14 @@ function RulesEditor({
             {MODES.map((m) => {
               const on = cfg.weightMode === m.key;
               return (
-                <button
+                <Button variant="choice"
                   key={m.key}
                   type="button"
                   onClick={() => setCfg((c) => ({ ...c, weightMode: m.key }))}
                   aria-pressed={on}
                   className={cn(
-                    "cursor-pointer rounded-2xl border p-3 text-left transition-all",
-                    on
-                      ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.3)]"
-                      : "border-[#cfc2d6]/25 bg-white hover:border-[#8127cf]/35",
+                    "block p-3 text-left",
+                    "",
                   )}
                 >
                   <span className="flex items-center gap-1.5">
@@ -529,7 +529,7 @@ function RulesEditor({
                   <span className="mt-1 block text-[10px] font-semibold leading-snug text-ink-muted">
                     {m.help}
                   </span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -546,29 +546,29 @@ function RulesEditor({
             ] as const).map(([key, label, help]) => (
               <label key={key} className="space-y-1.5 text-[11px] font-bold text-ink-muted">
                 <span>{tr(label)}</span>
-                <select
+                <Select
                   value={cfg[key]}
                   onChange={(event) => setCfg((current) => ({ ...current, [key]: event.target.value as Config[typeof key] }))}
-                  className="h-10 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                  className="w-full"
                 >
                   <option value="COUNT_AS_ZERO">{tr("Count as zero")}</option>
                   <option value="EXCLUDE">{tr("Exclude from the result")}</option>
                   <option value="BLOCK">{tr("Block until resolved")}</option>
-                </select>
+                </Select>
                 <span className="block text-[10px] font-medium">{tr(help)}</span>
               </label>
             ))}
             <label className="space-y-1.5 text-[11px] font-bold text-ink-muted">
               <span><UiText>Rounding</UiText></span>
-              <select
+              <Select
                 value={cfg.roundingRule}
                 onChange={(event) => setCfg((current) => ({ ...current, roundingRule: event.target.value as Config["roundingRule"] }))}
-                className="h-10 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                className="w-full"
               >
                 <option value="WHOLE">{tr("Whole percentage (half up)")}</option>
                 <option value="ONE_DECIMAL">{tr("One decimal place (half up)")}</option>
                 <option value="TWO_DECIMALS">{tr("Two decimal places (half up)")}</option>
-              </select>
+              </Select>
               <span className="block text-[10px] font-medium"><UiText>For example, 82.5 rounds to 83 with whole percentage.</UiText></span>
             </label>
           </div>
@@ -585,7 +585,7 @@ function RulesEditor({
                 Each grade must start below the one above
               </span>
             ) : null}
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={() =>
                 setCfg((c) => ({
@@ -597,11 +597,11 @@ function RulesEditor({
                   gradeD: 50,
                 }))
               }
-              className="ml-auto flex cursor-pointer items-center gap-1 rounded-lg bg-[#f6f2fa] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-[#f3eeff] hover:text-[#8127cf]"
+              className="justify-start ml-auto flex items-center gap-1 px-2.5 py-1"
             >
               <RotateCcw className="h-3 w-3" />
               Reset
-            </button>
+            </Button>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-5">

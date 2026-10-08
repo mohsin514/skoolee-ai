@@ -1,5 +1,7 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
@@ -254,32 +256,32 @@ export default function TeacherInsightsPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left">
-                <thead>
-                  <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                    <th className="px-4 py-3">Class</th>
-                    <th className="px-3 py-3 text-center">Students</th>
-                    <th className="px-3 py-3 text-center">In today</th>
-                    <th className="px-3 py-3 text-center">Assessments</th>
-                    <th className="px-3 py-3">Marks entered</th>
-                    <th className="px-3 py-3 text-center">Missing</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f3f4f9]">
+
+              <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
+                <TableHeader>
+                  <TableRow className="bg-[#fbf0fe]/40 text-ink-muted">
+                    <TableHead className="px-4 py-3">Class</TableHead>
+                    <TableHead className="px-3 py-3 text-center">Students</TableHead>
+                    <TableHead className="px-3 py-3 text-center">In today</TableHead>
+                    <TableHead className="px-3 py-3 text-center">Assessments</TableHead>
+                    <TableHead className="px-3 py-3">Marks entered</TableHead>
+                    <TableHead className="px-3 py-3 text-center">Missing</TableHead>
+                    <TableHead className="px-4 py-3" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#f3f4f9]">
                   {classBreakdown.map((cls) => (
-                    <tr key={cls.id} className="transition-colors hover:bg-[#fbf0fe]/20">
-                      <td className="px-4 py-3">
+                    <TableRow key={cls.id} >
+                      <TableCell className="px-4 py-3">
                         <p className="text-sm font-black text-[#1d1b20]">{cls.label}</p>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
                           {cls.role} · {cls.subjects} subject{cls.subjects === 1 ? "" : "s"}
                         </p>
-                      </td>
-                      <td className="px-3 py-3 text-center text-sm font-black tabular-nums text-[#1d1b20]">
+                      </TableCell>
+                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-[#1d1b20]">
                         {cls.students}
-                      </td>
-                      <td className="px-3 py-3 text-center">
+                      </TableCell>
+                      <TableCell className="px-3 py-3 text-center">
                         {cls.attendanceRate === null ? (
                           <span className="text-[11px] font-semibold text-ink-subtle">—</span>
                         ) : (
@@ -293,11 +295,11 @@ export default function TeacherInsightsPage() {
                             </span>
                           </span>
                         )}
-                      </td>
-                      <td className="px-3 py-3 text-center text-sm font-black tabular-nums text-[#1d1b20]">
+                      </TableCell>
+                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-[#1d1b20]">
                         {cls.exams}
-                      </td>
-                      <td className="px-3 py-3">
+                      </TableCell>
+                      <TableCell className="px-3 py-3">
                         {cls.completion === null ? (
                           <span className="text-[11px] font-semibold text-ink-subtle">No assessments yet</span>
                         ) : (
@@ -323,8 +325,8 @@ export default function TeacherInsightsPage() {
                             </span>
                           </div>
                         )}
-                      </td>
-                      <td className="px-3 py-3 text-center">
+                      </TableCell>
+                      <TableCell className="px-3 py-3 text-center">
                         {cls.missing > 0 ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-black tabular-nums text-rose-700">
                             <AlertCircle className="h-3 w-3" />
@@ -333,30 +335,30 @@ export default function TeacherInsightsPage() {
                         ) : (
                           <span className="text-[11px] font-bold text-emerald-600">All in</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-end">
                         {/* An insight the teacher cannot act on from where they
                             read it is just a number. */}
                         <div className="inline-flex gap-1.5">
-                          <button type="button"
+                          <Button variant="default" type="button"
                             onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}
                             title={`Mark attendance for ${cls.label}`}
-                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96]">
+                            >
                             Attendance
-                          </button>
-                          <button type="button"
+                          </Button>
+                          <Button variant="default" type="button"
                             onClick={() => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`)}
                             title={`Enter marks for ${cls.label}`}
-                            className="cursor-pointer rounded-lg bg-[#fbf0fe] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-[0.96]">
+                            >
                             Marks
-                          </button>
+                          </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+
           </div>
         ) : null}
       </div>

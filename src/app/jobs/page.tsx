@@ -1,4 +1,7 @@
 "use client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -81,8 +84,6 @@ function Jobs() {
     }
   };
   const counts = detail?.counts;
-  const input =
-    "rounded-xl border border-field-border p-3 min-w-0 bg-field-surface text-foreground shadow-sm transition-colors hover:border-field-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
   return (
     <main
       dir={language === "en" ? "ltr" : "rtl"}
@@ -90,7 +91,7 @@ function Jobs() {
     >
       <header className="flex flex-wrap gap-4 items-center justify-between">
         <h1 className="text-2xl font-semibold">{t.title}</h1>
-        <Button variant="outline" className={input} onClick={() => void refresh()}>
+        <Button variant="outline"  onClick={() => void refresh()}>
           {t.refresh}
         </Button>
       </header>
@@ -102,16 +103,16 @@ function Jobs() {
       <div className="flex flex-wrap gap-3">
         <label>
           {t.search}
-          <input
-            className={input + " block"}
+          <Input
+            className="block"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
         <label>
           {t.filter}
-          <select
-            className={input + " block"}
+          <Select
+            className="block"
             value={state}
             onChange={(e) => setState(e.target.value)}
           >
@@ -121,14 +122,14 @@ function Jobs() {
                 {t[s]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         {!id && (
           <>
             <label>
               {t.filter}
-              <select
-                className={input + " block"}
+              <Select
+                className="block"
                 value={kind}
                 onChange={(e) => setKind(e.target.value)}
               >
@@ -138,12 +139,12 @@ function Jobs() {
                     {t[k]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               {t.campus}
-              <select
-                className={input + " block"}
+              <Select
+                className="block"
                 value={campus}
                 onChange={(e) => setCampus(e.target.value)}
               >
@@ -160,12 +161,12 @@ function Jobs() {
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               {t.started}
-              <input
-                className={input + " block"}
+              <Input
+                className="block"
                 type="date"
                 value={started}
                 onChange={(e) => setStarted(e.target.value)}
@@ -176,15 +177,15 @@ function Jobs() {
         {id && (
           <label>
             {t.channel}
-            <select
-              className={input + " block"}
+            <Select
+              className="block"
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
             >
               <option value="">{t.all}</option>
               <option>WHATSAPP</option>
               <option>EMAIL</option>
-            </select>
+            </Select>
           </label>
         )}
       </div>
@@ -201,9 +202,9 @@ function Jobs() {
                 (!started || String(j.created_at) >= started),
             )
             .map((j) => (
-              <button
+              <Button variant="choice"
                 key={j.id}
-                className="w-full rounded-2xl border border-border bg-card p-5 text-start text-card-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-primary/30 hover:bg-surface-hover hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transform-none space-y-2"
+                className="block w-full space-y-2 p-5 text-start"
                 onClick={() => open(j.id)}
               >
                 <strong>{j.source_label}</strong>
@@ -215,12 +216,12 @@ function Jobs() {
                 <p dir="ltr" className="text-xs break-all">
                   {j.id}
                 </p>
-              </button>
+              </Button>
             ))}
         </section>
       ) : (
         <>
-          <Button variant="outline" className={input} onClick={() => open("")}>
+          <Button variant="outline"  onClick={() => open("")}>
             {t.back}
           </Button>
           {!detail && !error && <p role="status">{t.loading}</p>}
@@ -259,7 +260,7 @@ function Jobs() {
                   <>
                     <Button
                       variant="outline"
-                      className={input}
+
                       disabled={
                         busy ||
                         error ||
@@ -272,7 +273,7 @@ function Jobs() {
                     </Button>
                     <Button
                       variant="outline"
-                      className={input}
+
                       disabled={
                         busy ||
                         error ||
@@ -287,7 +288,7 @@ function Jobs() {
                 )}
                 <Button
                   variant="outline"
-                  className={input}
+
                   onClick={() => {
                     const url = URL.createObjectURL(
                       new Blob([JSON.stringify(detail, null, 2)], {
@@ -321,9 +322,8 @@ function Jobs() {
                     >
                       <div className="flex gap-3 items-start">
                         {detail.canEdit && i.canRetry && (
-                          <input
-                            className="mt-1 size-5"
-                            type="checkbox"
+                          <Checkbox
+                            className={"mt-1"}
                             aria-label={`${t.select}: ${i.label}`}
                             disabled={busy || error}
                             checked={selected.includes(i.id)}

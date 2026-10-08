@@ -69,6 +69,8 @@ import {
   studentAttendanceRate,
   ratio,
 } from "./metrics";
+import { Button } from "@/components/ui/button";
+
 
 interface AcademicOverviewProps {
   data: any;
@@ -176,22 +178,22 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
         actions={
           <>
             {onAddStudent ? (
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={onAddStudent}
-                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#1f1a23] shadow-sm transition-all hover:bg-[#fbf0fe] focus-on-dark"
+                className="flex justify-start items-center gap-2 focus-on-dark"
               >
                 <GraduationCap className="h-4 w-4" /> Add student
-              </button>
+              </Button>
             ) : null}
             {onAddClass ? (
-              <button
+              <Button variant="default" size="sm"
                 type="button"
                 onClick={onAddClass}
-                className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus-on-dark"
+                className="flex justify-start items-center gap-2 backdrop-blur focus-on-dark"
               >
                 <BookOpen className="h-4 w-4" /> Add class
-              </button>
+              </Button>
             ) : null}
           </>
         }
@@ -498,13 +500,13 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
           subtitle="Delivery outcomes to date"
           delay={180}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("engagement")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Open
-            </button>
+            </Button>
           }
           table={{
             columns: ["Outcome", "Messages"],
@@ -554,13 +556,13 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
           subtitle="Below 40% in results, or under 75% attendance"
           delay={120}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("students")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               All students
-            </button>
+            </Button>
           }
         >
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

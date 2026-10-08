@@ -28,6 +28,8 @@ import { useChat } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import { Composer } from "./composer";
 import type { ChatMessageView } from "@/lib/chat/types";
+import { Button } from "@/components/ui/button";
+
 
 interface MessageThreadProps {
   /**
@@ -128,18 +130,18 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
         {/* ── Header ── */}
         <header className="relative z-20 flex shrink-0 items-center gap-2.5 border-b border-[#cfc2d6]/25 bg-white/80 px-3 py-2.5 shadow-[0_4px_20px_-12px_rgba(129,39,207,0.35)] backdrop-blur-xl md:px-4">
           {showBack && (
-            <button
+            <Button variant="ghost" size="icon"
               type="button"
               onClick={onBack}
               aria-label="Back to conversations"
               className={cn(
-                "-ml-1 shrink-0 cursor-pointer rounded-xl p-2 text-ink-muted transition-all",
-                "hover:-translate-x-0.5 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90",
+                "-ml-1 shrink-0",
+                "hover:-translate-x-0.5",
                 backVisibility === "mobile" && "md:hidden"
               )}
             >
               <ArrowLeft className="h-4 w-4" />
-            </button>
+            </Button>
           )}
 
           <ChatAvatar
@@ -201,33 +203,33 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           )}
 
           {detail.kind !== "DIRECT" && (
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onClick={() => setShowMembers((v) => !v)}
               aria-expanded={showMembers}
               aria-label={`${detail.memberCount} members`}
               className={cn(
-                "flex shrink-0 cursor-pointer items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-black transition-all active:scale-95",
+                "flex justify-start shrink-0 items-center gap-1",
                 showMembers
                   ? "bg-[#8127cf] text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.6)]"
-                  : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  : "text-ink-muted hover:bg-[#fbf0fe]"
               )}
             >
               <Users className="h-3.5 w-3.5" />
               {detail.memberCount}
-            </button>
+            </Button>
           )}
 
           <div className="relative shrink-0">
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Conversation options"
               aria-expanded={menuOpen}
-              className="cursor-pointer rounded-xl p-2 text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90"
+
             >
               <MoreVertical className="h-4 w-4" />
-            </button>
+            </Button>
 
             <AnimatePresence>
               {menuOpen && (
@@ -319,13 +321,13 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
         >
           {hasOlder && (
             <div className="mb-5 flex justify-center">
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={loadOlder}
-                className="cursor-pointer rounded-full bg-white/90 px-3.5 py-1.5 text-[11px] font-black text-[#8127cf] shadow-[0_6px_18px_-6px_rgba(129,39,207,0.4)] ring-1 ring-[#cfc2d6]/30 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-8px_rgba(129,39,207,0.5)] active:scale-95"
+                className="backdrop-blur hover:-translate-y-0.5"
               >
                 Load earlier messages
-              </button>
+              </Button>
             </div>
           )}
 
@@ -455,19 +457,19 @@ function MenuItem({
   destructive?: boolean;
 }) {
   return (
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
+        "flex justify-start w-full items-center gap-2.5 text-left",
         destructive
           ? "text-rose-600 hover:bg-rose-50"
-          : "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+          : "text-ink hover:bg-[#fbf0fe]"
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -675,20 +677,20 @@ function IconAction({
   destructive?: boolean;
 }) {
   return (
-    <button
+    <Button variant="ghost" size="icon"
       type="button"
       onClick={onClick}
       aria-label={label}
       title={label}
       className={cn(
-        "cursor-pointer rounded-full p-1.5 transition-all active:scale-90",
+        "",
         destructive
           ? "text-ink-faint hover:bg-rose-50 hover:text-rose-600"
-          : "text-ink-faint hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+          : "text-ink-faint hover:bg-[#fbf0fe]"
       )}
     >
       <Icon className="h-3 w-3" />
-    </button>
+    </Button>
   );
 }
 
