@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -18,7 +18,9 @@ const db = new PrismaClient();
 const schoolId = "rehearsal-school";
 async function event(kind = "TEST", identity = randomUUID(), school = schoolId) {
   const eventId = await db.$transaction(tx => appendEvent(tx, { schoolId: school, actorId: "role-PRINCIPAL", referenceId: "rehearsal-exam", kind, version: 1, identity }));
-  return { eventId, schoolId: school };
+  const ref = { eventId, schoolId: school };
+  await ready(ref); // Avoid sub-millisecond rounding of TIMESTAMP(3) in immediate test dispatches.
+  return ref;
 }
 async function job(ref: Reference) { return (await db.$queryRaw<{ state: string; checkpoint: number; reason: string; attempts: number }[]>`SELECT state,checkpoint,reason,attempts FROM workflow_jobs WHERE id=${ref.eventId}`)[0]; }
 async function ready(ref: Reference) {
@@ -164,6 +166,13 @@ test("uncertain provider effect is preserved and cannot be automatically or manu
   await cancel(db, ref);
   const effects = await db.$queryRaw<{ state: string }[]>`SELECT state FROM workflow_effects WHERE job_id=${ref.eventId}`;
   assert.equal(effects[0].state, "uncertain");
+  const completedExternal = await event();
+  await consume(db, completedExternal, async ctx => {
+    await ctx.external("confirmed-provider-send", async () => {}, async () => { await cancel(db, completedExternal); });
+  });
+  assert.equal((await job(completedExternal)).state, "cancelled");
+  assert.equal((await job(completedExternal)).checkpoint, 1);
+  assert.equal((await db.$queryRaw<{ state: string }[]>`SELECT state FROM workflow_effects WHERE job_id=${completedExternal.eventId}`)[0].state, "committed");
 });
 
 test("execution rechecks current publication and actor, report exposes no student content", async () => {
@@ -204,4 +213,51 @@ test("expired worker token cannot commit after another worker recovers the job",
   assert.equal(await marks(), before + 1);
   assert.equal((await job(ref)).state, "completed");
   assert.equal((await job(ref)).checkpoint, 1);
+});
+
+test("production worker entry point dispatches a pending publication and emits the existing live inbox hint", async () => {
+  const ref = await event("REPORT_PUBLISHED");
+  const subscriber = new IORedis(process.env.REDIS_URL!);
+  await subscriber.subscribe("notif:role-SUPER_ADMIN");
+  const hints: unknown[] = [];
+  subscriber.on("message", (_channel, message) => hints.push(JSON.parse(message)));
+  const worker = spawn(process.execPath, ["--import", "tsx", "src/workers/outbox-worker.ts"], {
+    env: { NODE_ENV: "test", PATH: process.env.PATH, DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL },
+    stdio: "ignore",
+  });
+  try {
+    for (let i = 0; i < 300 && (await job(ref)).state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal((await job(ref)).state, "completed");
+    assert.equal(hints.length, 1);
+  } finally {
+    const exited = once(worker, "exit");
+    worker.kill("SIGTERM");
+    await exited;
+    await subscriber.quit();
+  }
+});
+
+test("optional RLS ledger policy denies an unset or different school to a non-bypass role", async () => {
+  execFileSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "-f", "prisma/rls.sql"], {
+    env: { NODE_ENV: "test", PATH: process.env.PATH, PGHOST: "127.0.0.1", PGPORT: "55420", PGUSER: "postgres", PGDATABASE: "sko220_test" }, stdio: "ignore",
+  });
+  await db.$executeRaw`CREATE ROLE sko220_outbox_probe NOLOGIN NOSUPERUSER NOBYPASSRLS`;
+  await db.$executeRaw`GRANT SELECT,INSERT ON workflow_events,workflow_jobs,workflow_effects TO sko220_outbox_probe`;
+  try {
+    await db.$transaction(async tx => {
+      await tx.$executeRaw`SET LOCAL ROLE sko220_outbox_probe`;
+      assert.equal((await tx.$queryRaw<unknown[]>`SELECT id FROM workflow_events`).length, 0);
+      await tx.$executeRaw`SELECT set_config('app.current_school_id',${schoolId},true)`;
+      assert.equal((await tx.$queryRaw<unknown[]>`SELECT id FROM workflow_events WHERE school_id='outbox-school-b'`).length, 0);
+      assert.ok((await tx.$queryRaw<unknown[]>`SELECT id FROM workflow_events`).length > 0);
+    });
+    await assert.rejects(db.$transaction(async tx => {
+      await tx.$executeRaw`SET LOCAL ROLE sko220_outbox_probe`;
+      await tx.$executeRaw`SELECT set_config('app.current_school_id',${schoolId},true)`;
+      await appendEvent(tx, { schoolId: "outbox-school-b", actorId: "role-PRINCIPAL", referenceId: "rehearsal-exam", kind: "TEST", version: 1, identity: "rls-cross-school" });
+    }));
+  } finally {
+    await db.$executeRaw`DROP OWNED BY sko220_outbox_probe`;
+    await db.$executeRaw`DROP ROLE sko220_outbox_probe`;
+  }
 });

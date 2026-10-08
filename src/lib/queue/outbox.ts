@@ -8,7 +8,10 @@ export type Reference = { eventId: string; schoolId: string };
 export type Event = Reference & { kind: string; version: number; referenceId: string; actorId: string };
 type Claim = Event & { token: string; attempts: number; checkpoint: number };
 const LEASE_SECONDS = 60;
-export class WorkflowStopped extends Error {}
+type StopReason = "LEASE_LOST" | "CANCEL_REQUESTED" | "EXTERNAL_OUTCOME_UNCERTAIN" | "UNSUPPORTED_VERSION" | "UNKNOWN_EVENT_KIND" | "AUTHORIZATION_OR_PUBLICATION_REVOKED";
+export class WorkflowStopped extends Error {
+  constructor(readonly reason: StopReason) { super(reason); }
+}
 
 /** Call ONLY inside the domain transaction. No queue/network I/O belongs here. */
 export async function appendEvent(tx: Sql, input: Omit<Event, "eventId"> & { identity: string }) {
@@ -142,7 +145,7 @@ export async function consume(db: Database, ref: Reference, handler: (ctx: Workf
   } catch (error) {
     const uncertain = await db.$queryRaw<{ id: string }[]>`SELECT id FROM workflow_effects WHERE job_id=${ref.eventId} AND school_id=${ref.schoolId} AND state='uncertain' LIMIT 1`;
     const permanent = error instanceof WorkflowStopped || uncertain.length > 0;
-    const reason = uncertain.length ? "EXTERNAL_OUTCOME_UNCERTAIN" : error instanceof WorkflowStopped ? error.message : "WORKER_FAILURE";
+    const reason = uncertain.length ? "EXTERNAL_OUTCOME_UNCERTAIN" : error instanceof WorkflowStopped ? error.reason : "WORKER_FAILURE";
     await db.$executeRaw`UPDATE workflow_jobs SET
       state=CASE WHEN cancel_requested_at IS NOT NULL THEN 'cancelled' WHEN ${permanent} OR attempts>=max_attempts THEN 'failed' ELSE 'retrying' END,
       reason=${reason}, updated_at=now(), finished_at=CASE WHEN cancel_requested_at IS NOT NULL OR ${permanent} OR attempts>=max_attempts THEN now() ELSE NULL END,
@@ -162,7 +165,7 @@ export async function cancel(db: Sql, ref: Reference) {
     WHERE id=${ref.eventId} AND school_id=${ref.schoolId} AND state NOT IN ('completed','cancelled')`;
 }
 
-export async function reconcile(db: Sql, schoolId: string) {
+export async function reconcile(db: Sql, schoolId: string, eventId?: string) {
   return db.$queryRaw`SELECT e.id,e.kind,e.version,e.created_at,e.dispatched_at,e.dispatch_count,j.state,j.attempts,j.checkpoint,j.reason,j.started_at,j.finished_at,j.cancel_requested_at,
     (SELECT count(*)::int FROM workflow_effects f WHERE f.job_id=e.id AND f.school_id=e.school_id AND f.state='uncertain') AS uncertain_effects,
     CASE WHEN j.id IS NULL THEN 'orphaned' WHEN j.state='failed' THEN 'dead-letter'
@@ -170,5 +173,6 @@ export async function reconcile(db: Sql, schoolId: string) {
       WHEN j.state IN ('queued','retrying') AND e.available_at < now()-interval '5 minutes' THEN 'overdue'
       ELSE 'tracked' END AS reconciliation
     FROM workflow_events e LEFT JOIN workflow_jobs j ON j.id=e.id AND j.school_id=e.school_id
-    WHERE e.school_id=${schoolId} ORDER BY e.created_at LIMIT 500`;
+    WHERE e.school_id=${schoolId} AND (${eventId ?? null}::text IS NULL OR e.id=${eventId ?? null})
+    ORDER BY CASE WHEN j.id IS NULL OR j.state='failed' THEN 0 WHEN j.state IN ('completed','cancelled') THEN 2 ELSE 1 END,e.created_at LIMIT 500`;
 }

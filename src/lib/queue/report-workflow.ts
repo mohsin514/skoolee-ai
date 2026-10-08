@@ -1,9 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { WorkflowStopped, type WorkflowContext } from "./outbox";
 import { moduleFlags } from "../permissions";
+import { runAsCurrentActor } from "../auth/job-policy";
+
+type Announce = (notices: Array<{ userId: string } & Record<string, unknown>>) => Promise<void>;
+
+export async function reportWorkflow(ctx: WorkflowContext, announce?: Announce) {
+  try {
+    await runAsCurrentActor(ctx.schoolId, ctx.actorId, "reports", "edit", () => applyReportWorkflow(ctx, announce));
+  } catch (error) {
+    if ((error as { status?: number }).status === 403) throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");
+    throw error;
+  }
+}
 
 /** Resolve current content and recipients in the fenced effect transaction, never from Redis. */
-export async function reportWorkflow(ctx: WorkflowContext, announce?: (notices: Array<{ userId: string } & Record<string, unknown>>) => Promise<void>) {
+async function applyReportWorkflow(ctx: WorkflowContext, announce?: Announce) {
   if (ctx.kind !== "REPORT_PUBLISHED") throw new WorkflowStopped("UNKNOWN_EVENT_KIND");
   const notices: Array<{ userId: string } & Record<string, unknown>> = [];
   const committed = await ctx.effect("published-in-app-notifications", async tx => {
@@ -14,7 +26,7 @@ export async function reportWorkflow(ctx: WorkflowContext, announce?: (notices: 
       WHERE e.id=${ctx.referenceId} AND e.school_id=${ctx.schoolId} AND e.status='PUBLISHED'
         AND u.is_active=true AND u.role IN ('SUPER_ADMIN','ADMIN','CAMPUS_ADMIN','PRINCIPAL')
         AND (u.role='SUPER_ADMIN' OR u.campus_id=e.campus_id)
-        AND s.status NOT IN ('SUSPENDED','DELETED') AND s.deleted_at IS NULL
+        AND s.status IN ('ACTIVE','TRIAL') AND s.deleted_at IS NULL
       FOR SHARE OF e,u,s`;
     const exam = exams[0];
     if (!exam) throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");

@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const workflowId = await runWithTenantContext({ schoolId: user.schoolId, userId: user.userId }, () => tenantTransaction(async tx => {
+      const workflowId = await runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () => tenantTransaction(async tx => {
         const changed = await tx.exam.updateMany({
           where: { id: examId, status: "PRINCIPAL_REVIEWED" },
           data: { status: "PUBLISHED", publishedAt: new Date() },

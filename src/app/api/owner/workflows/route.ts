@@ -10,11 +10,13 @@ export async function GET(request: Request) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const schoolId = new URL(request.url).searchParams.get("schoolId");
+  const eventId = new URL(request.url).searchParams.get("eventId") || undefined;
   if (!schoolId || schoolId.length > 100) return Response.json({ error: "schoolId required" }, { status: 400 });
+  if (eventId && !z.string().uuid().safeParse(eventId).success) return Response.json({ error: "Invalid eventId" }, { status: 400 });
   try {
     const workflows = await prisma.$transaction(async tx => {
       await requireWorkflowOperator(tx, user.userId, user.schoolId);
-      return reconcile(tx, schoolId);
+      return reconcile(tx, schoolId, eventId);
     });
     return Response.json({ workflows }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

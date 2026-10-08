@@ -26,13 +26,16 @@ test("operator API rejects anonymous and every school role; APP_OWNER sees metad
 test("operator mutation is audited, cross-school reference is denied, deactivation invalidates existing token", async () => {
   const eventId = await db.$transaction(tx => appendEvent(tx, { schoolId, actorId: "role-PRINCIPAL", kind: "TEST", version: 1, referenceId: "rehearsal-exam", identity: `api-${Date.now()}` }));
   const headers = { Cookie: `skoolee_token=${await token("APP_OWNER")}`, "Content-Type": "application/json" };
+  const selected = await (await fetch(`${base}?schoolId=${schoolId}&eventId=${eventId}`, { headers })).json();
+  assert.equal(selected.workflows.length, 1);
+  assert.equal(selected.workflows[0].id, eventId);
   const post = (body: unknown) => fetch(base, { method: "POST", headers, body: JSON.stringify(body) });
   assert.equal((await post({ schoolId: "outbox-school-b", eventId, action: "cancel" })).status, 409);
   assert.equal((await post({ schoolId, eventId, action: "cancel" })).status, 200);
   const logs = await db.$queryRaw<unknown[]>`SELECT id FROM audit_logs WHERE record_id=${eventId} AND school_id=${schoolId}`;
   assert.equal(logs.length, 1);
   await db.$executeRaw`UPDATE users SET is_active=false WHERE id='role-APP_OWNER'`;
-  try { assert.equal((await fetch(`${base}?schoolId=${schoolId}`, { headers })).status, 403); }
+  try { assert.equal((await fetch(`${base}?schoolId=${schoolId}`, { headers })).status, 401); }
   finally { await db.$executeRaw`UPDATE users SET is_active=true WHERE id='role-APP_OWNER'`; }
 });
 
