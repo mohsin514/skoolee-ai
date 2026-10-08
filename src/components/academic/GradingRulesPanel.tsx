@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -560,8 +562,8 @@ function RulesEditor({
           <div className="grid gap-2 sm:grid-cols-5">
             {GRADES.map((g) => (
               <Field key={String(g.key)} label={`Grade ${g.label} from`}>
-                <div className="relative">
-                  <span
+                <InputGroup className="relative">
+                  <span data-field-affix="start"
                     aria-hidden
                     className={cn(
                       "absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full",
@@ -576,7 +578,7 @@ function RulesEditor({
                     onChange={(e) => set(g.key, Number(e.target.value))}
                     className={cn(inputClass, "pl-7 text-center")}
                   />
-                </div>
+                </InputGroup>
               </Field>
             ))}
           </div>

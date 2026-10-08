@@ -1,4 +1,6 @@
 'use client'
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -722,8 +724,8 @@ export default function OnboardingWizard() {
                           <InputField label="Head of Campus" value={newCampus.principalName ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
-                            <div className="relative group flex items-center">
-                              <GraduationCap className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup className="min-w-0">
+                              <GraduationCap data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <SystemSelect
                                 value={newCampus.board || DEFAULT_EXAM_BOARD}
                                 onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
@@ -731,7 +733,7 @@ export default function OnboardingWizard() {
                               >
                                 {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
                               </SystemSelect>
-                            </div>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -897,8 +899,8 @@ export default function OnboardingWizard() {
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Academic Year <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <CalendarDays className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup className="relative group flex items-center">
+                              <CalendarDays data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.academicYear}
                                 onChange={e => setAcademicYear(e.target.value)}
@@ -906,21 +908,21 @@ export default function OnboardingWizard() {
                                 inputMode="numeric"
                                 className="w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                            </div>
+                            </InputGroup>
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
                               Session Name <span className="text-rose-500">*</span>
                             </Label>
-                            <div className="relative group flex items-center">
-                              <Tag className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                            <InputGroup className="relative group flex items-center">
+                              <Tag data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                               <Input
                                 value={schoolData.sessionLabel}
                                 onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
                                 placeholder={sessionLabelFor(thisYear)}
                                 className="w-full h-14 pl-12 pr-11 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none text-[#1f1a23]"
                               />
-                              <button
+                              <button data-field-affix="end"
                                 type="button"
                                 aria-label="Reset session name"
                                 onClick={() => setSchoolData({ ...schoolData, sessionLabel: sessionLabelFor(Number(schoolData.academicYear) || thisYear) })}
@@ -928,7 +930,7 @@ export default function OnboardingWizard() {
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
                               </button>
-                            </div>
+                            </InputGroup>
                           </div>
                         </div>
 
@@ -954,8 +956,8 @@ export default function OnboardingWizard() {
 
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Time Zone</Label>
-                          <div className="relative group flex items-center">
-                            <Clock className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+                          <InputGroup className="min-w-0">
+                            <Clock data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
                             <SystemSelect
                               value={schoolData.timezone}
                               onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
@@ -963,7 +965,7 @@ export default function OnboardingWizard() {
                             >
                               {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </SystemSelect>
-                          </div>
+                          </InputGroup>
                           <p className="text-[10px] font-bold text-ink-subtle ml-1">
                             Decides which calendar day an attendance mark or fee cutoff falls on.
                           </p>
@@ -1211,11 +1213,11 @@ function StepNav({ active, done, num, title, desc, disabled, onClick }: {
 function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
+      <Label className="sk-field-label">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <div className="relative group flex items-center">
-        <Icon className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
+      <InputGroup>
+        {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
           <SystemTextarea
             value={value}
@@ -1234,7 +1236,7 @@ function InputField({ label, value, onChange, placeholder, icon: Icon, isArea, r
             className={`w-full h-14 pl-12 pr-5 bg-[#f3f4f9] border-0 rounded-[20px] text-xs font-bold focus:ring-4 focus:ring-[#8127cf]/10 focus:bg-white transition-all shadow-none placeholder:text-ink-subtle text-[#1f1a23] ${readonly ? 'opacity-70 cursor-not-allowed selection:bg-transparent' : ''}`}
           />
         )}
-      </div>
+      </InputGroup>
     </div>
   );
 }

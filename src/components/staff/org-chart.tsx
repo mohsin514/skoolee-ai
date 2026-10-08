@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 /**
  * The staff hierarchy graph.
@@ -230,8 +232,8 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
     <div className="space-y-3">
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+        <InputGroup className="relative min-w-[200px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -243,7 +245,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
             className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted focus:border-[#8127cf]"
           />
           {query ? (
-            <button
+            <button data-field-affix="end"
               type="button"
               onClick={() => setQuery("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink"
@@ -252,7 +254,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               <X className="h-3.5 w-3.5" />
             </button>
           ) : null}
-        </div>
+        </InputGroup>
 
         <SystemSelect
           value={departmentId}

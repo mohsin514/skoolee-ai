@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, Clock, Copy, MailPlus, Send, Trash2, UserPlus, X } from "lucide-react";
@@ -45,7 +46,7 @@ export function ManagementCard({
     : null;
 
   return (
-    <div className="sk-rise group relative bg-white rounded-[32px] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] border border-[#cfc2d6]/25 overflow-hidden transition-all duration-500 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 hover:border-[#8127cf]/25">
+    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-500 hover:-translate-y-0.5">
       <CornerSparkles />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-60" />
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
@@ -106,49 +107,49 @@ export function ManagementCard({
             {isPendingInvite ? (
               <div className="mt-4 grid grid-cols-2 gap-2.5">
                 {user.inviteId && onResendInvite ? (
-                  <button
+                  <Button variant="outline"
                     type="button"
                     onClick={() => onResendInvite(user.inviteId!)}
-                    className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-white text-[10px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm border border-[#8127cf]/10 transition-all hover:bg-[#8127cf] hover:text-white hover:border-[#8127cf] hover:shadow-md hover:shadow-[#8127cf]/20"
+                    className="gap-2"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Resend
-                  </button>
+                  </Button>
                 ) : null}
                 {user.inviteId && onCancelInvite ? (
-                  <button
+                  <Button variant="destructive"
                     type="button"
                     onClick={() => onCancelInvite(user.inviteId!)}
-                    className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-50 text-[10px] font-black uppercase tracking-wider text-rose-600 border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20"
+                    className="gap-2"
                   >
                     <X className="w-3.5 h-3.5" />
                     Cancel Invite
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ) : user.id && onRemove ? (
               <div className="mt-4 flex justify-end">
-                <button
+                <Button variant="destructive"
                   onClick={() => onRemove(user.id!)}
-                  className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-50 px-5 text-[10px] font-black uppercase tracking-wider text-rose-600 border border-rose-100 transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-md hover:shadow-rose-500/20"
+                  className="gap-2"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   Revoke Access
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
         ) : (
-          <button
+          <Button variant="outline"
             onClick={onAdd}
-            className="w-full h-16 bg-white border-2 border-dashed border-[#cfc2d6]/25 rounded-[22px] text-ink-subtle font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-3 transition-all hover:border-[#8127cf] hover:text-[#8127cf] hover:bg-[#fbf0fe]/30 hover:shadow-md hover:-translate-y-0.5 cursor-pointer group/empty"
+            className="w-full gap-3 group/empty"
           >
             <div className="relative">
               <div className="absolute -inset-2 bg-[#8127cf]/8 rounded-full blur-md opacity-0 group-hover/empty:opacity-100 transition-opacity" />
               <UserPlus className="relative w-5 h-5 text-[#8127cf]/60 group-hover/empty:text-[#8127cf]" />
             </div>
             {emptyLabel}
-          </button>
+          </Button>
         )}
       </div>
     </div>

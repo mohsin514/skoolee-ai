@@ -1,4 +1,5 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -165,8 +166,8 @@ export function TeacherPicker({
 
       {open ? (
         <div className="relative z-20 rounded-2xl border border-[#8127cf]/30 bg-white shadow-[0_20px_50px_rgba(31,26,35,0.14)] transition-all">
-          <div className="flex items-center gap-2 border-b border-[#cfc2d6]/15 px-3 py-2.5">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
+          <InputGroup className="my-2">
+            <Search data-field-affix="start" className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
             <SystemInput
               autoFocus
               type="text"
@@ -175,7 +176,7 @@ export function TeacherPicker({
               placeholder="Search by name or subject…"
               className="h-8 w-full bg-transparent text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
             />
-          </div>
+          </InputGroup>
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5">
             {allowUnassigned ? (
               <button

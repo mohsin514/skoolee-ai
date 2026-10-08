@@ -338,7 +338,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
           {groups.map((g) => {
             const lineTotal = g.lines.reduce((s, l) => s + l.amount, 0);
             return (
-              <div key={g.id} className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10)]">
+              <div key={g.id} className="sk-panel p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="text-sm font-black text-[#1f1a23]">{g.name}</p>

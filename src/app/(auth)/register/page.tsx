@@ -1,4 +1,6 @@
 'use client'
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -600,8 +602,8 @@ export default function RegisterPage() {
                             </button>
                           </div>
                         </div>
-                        <div className="relative flex items-center">
-                          <Hash className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
+                        <InputGroup className="relative flex items-center">
+                          <Hash data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
                           <Input
                             id="regId"
                             readOnly={formData.autoId}
@@ -611,7 +613,7 @@ export default function RegisterPage() {
                             className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
                           />
                           {formData.autoId && (
-                            <button
+                            <button data-field-affix="end"
                               type="button"
                               onClick={() => set('regId', generateRegId(type))}
                               aria-label="Generate a new ID"
@@ -620,7 +622,7 @@ export default function RegisterPage() {
                               <RefreshCw className="h-3.5 w-3.5" />
                             </button>
                           )}
-                        </div>
+                        </InputGroup>
                         <p className="px-1 text-[10px] font-bold leading-snug text-ink-subtle">
                           Printed on report cards, invoices and receipts. It cannot be changed later.
                         </p>
@@ -926,8 +928,8 @@ function InputField({
       <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <div className="group relative flex items-center">
-        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+      <InputGroup className="group relative flex items-center">
+        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
         <Input
           id={id}
           type={type}
@@ -945,7 +947,7 @@ function InputField({
           } ${onToggleReveal ? "pr-11" : "pr-4"} ${className}`}
         />
         {onToggleReveal && (
-          <button
+          <button data-field-affix="end"
             type="button"
             onClick={onToggleReveal}
             aria-label={revealed ? "Hide password" : "Show password"}
@@ -954,7 +956,7 @@ function InputField({
             {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         )}
-      </div>
+      </InputGroup>
       {error
         ? <p className="px-1 text-xs font-bold text-rose-500">{error}</p>
         : hint

@@ -524,7 +524,7 @@ export function CreateClassWizard({
               </div>
 
               {!hasSections ? (
-                <div className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="sk-panel p-5">
                   <p className="mb-3 text-sm font-black text-[#1f1a23]">
                     {name.trim() || "This class"}
                     {teachingMode === "SINGLE" ? (
@@ -582,7 +582,7 @@ export function CreateClassWizard({
               {(sections.length > 0 || sectionNames.length > 0) ? (
                 <div className="space-y-3">
                   {sections.map((section) => (
-                    <div key={section.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={section.key} className="sk-panel p-5">
                       <p className="mb-3 text-sm font-black text-[#1f1a23]">
                         Section {section.name}
                         {teachingMode === "SINGLE" ? (
@@ -662,7 +662,7 @@ export function CreateClassWizard({
               {subjects.length > 0 ? (
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
-                    <div key={subject.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={subject.key} className="sk-panel p-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-black text-[#1f1a23]">Subject {index + 1}</p>
@@ -780,7 +780,7 @@ export function CreateClassWizard({
               {subjects.length > 0 ? (
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
-                    <div key={subject.key} className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                    <div key={subject.key} className="sk-panel p-5">
                       <p className="mb-3 text-sm font-black text-[#1f1a23]">{subject.name.trim() || `Subject ${index + 1}`}</p>
                       <SystemTextarea
                         value={subject.topicsText}
@@ -838,7 +838,7 @@ export function CreateClassWizard({
               </div>
 
               {subjects.length > 0 ? (
-                <div className="rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                <div className="sk-panel p-5">
                   <p className="mb-3 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject summary</p>
                   <div className="space-y-2">
                     {subjects.map((subject, index) => (

@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { motion, MotionConfig } from "framer-motion";
 import { BellOff, Inbox, Pin, Search, SquarePen, Wifi, WifiOff } from "lucide-react";
@@ -95,8 +97,8 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
             </button>
           </div>
 
-          <div className="relative">
-            <Search
+          <InputGroup className="relative">
+            <Search data-field-affix="start"
               className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
               aria-hidden
             />
@@ -108,7 +110,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               aria-label="Search conversations"
               className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white/80 py-2.5 pl-9 pr-3 text-xs font-semibold text-ink shadow-[inset_0_1px_2px_rgba(31,26,35,0.05)] transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
             />
-          </div>
+          </InputGroup>
 
           <div
             className="relative flex gap-1 rounded-xl bg-[#f4ecf8]/70 p-1"

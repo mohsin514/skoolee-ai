@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
@@ -368,8 +370,8 @@ export default function StudentsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <InputGroup className="relative flex-1 max-w-sm">
+                <Search data-field-affix="start" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search name, roll, guardian..."
                   value={searchQuery}
@@ -379,7 +381,7 @@ export default function StudentsPage() {
                   }}
                   className="pl-9"
                 />
-              </div>
+              </InputGroup>
               <Select
                 aria-label="Filter students by class"
                 className="w-full md:w-56"

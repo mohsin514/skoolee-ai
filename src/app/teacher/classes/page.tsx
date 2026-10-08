@@ -27,7 +27,7 @@ export default function TeacherClassesPage() {
     >
       <div className="space-y-3">
         {classHubs.length === 0 ? (
-          <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel sk-rise p-10 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">
               <GraduationCap className="h-7 w-7 text-[#8127cf]" />
             </div>

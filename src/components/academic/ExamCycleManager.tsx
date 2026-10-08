@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -989,7 +991,7 @@ export function ExamCycleManager({
                   </option>
                 ))}
               </SystemSelect>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+
             </div>
             <button
               type="button"
@@ -1039,8 +1041,8 @@ export function ExamCycleManager({
 
       {/* ── Toolbar ── */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <div className="relative min-w-[190px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
+        <InputGroup className="relative min-w-[190px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
           <SystemInput
             ref={searchRef}
             value={query}
@@ -1049,7 +1051,7 @@ export function ExamCycleManager({
             aria-label="Search exams"
             className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/40 focus:bg-white"
           />
-        </div>
+        </InputGroup>
 
         <FilterSelect
           value={classFilter}
@@ -1676,7 +1678,7 @@ function FilterSelect({
           </option>
         ))}
       </SystemSelect>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+
     </div>
   );
 }

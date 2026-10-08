@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -221,15 +223,15 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
       {rooms.length > 6 ? (
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+        <InputGroup className="relative max-w-sm">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find a room, block or wing…"
             className={cn(inputClass, "pl-9")}
           />
-        </div>
+        </InputGroup>
       ) : null}
 
       {loading ? (

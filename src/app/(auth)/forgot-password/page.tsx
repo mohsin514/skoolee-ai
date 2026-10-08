@@ -1,4 +1,6 @@
 'use client';
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -218,8 +220,8 @@ export default function ForgotPasswordPage() {
                       <Label htmlFor="recover-email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                         Email Identity
                       </Label>
-                      <div className="group relative flex items-center">
-                        <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
+                      <InputGroup className="group relative flex items-center">
+                        <Mail data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                         <Input
                           id="recover-email"
                           type="email"
@@ -230,7 +232,7 @@ export default function ForgotPasswordPage() {
                           }`}
                           {...requestForm.register("email")}
                         />
-                      </div>
+                      </InputGroup>
                       {requestForm.formState.errors.email && (
                         <p className="px-1 text-xs font-bold text-rose-500">
                           {(requestForm.formState.errors.email as any).message}
@@ -311,8 +313,8 @@ export default function ForgotPasswordPage() {
                     <Label htmlFor="new-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       New Password
                     </Label>
-                    <div className="group relative flex items-center">
-                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
+                    <InputGroup className="group relative flex items-center">
+                      <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="new-password"
                         type="password"
@@ -323,7 +325,7 @@ export default function ForgotPasswordPage() {
                         }`}
                         {...resetForm.register("password")}
                       />
-                    </div>
+                    </InputGroup>
                     {resetForm.formState.errors.password && (
                       <p className="px-1 text-xs font-bold text-rose-500">
                         {(resetForm.formState.errors.password as any).message}
@@ -335,8 +337,8 @@ export default function ForgotPasswordPage() {
                     <Label htmlFor="confirm-password" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                       Confirm Password
                     </Label>
-                    <div className="group relative flex items-center">
-                      <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
+                    <InputGroup className="group relative flex items-center">
+                      <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-colors group-focus-within:text-[#8127cf]" />
                       <Input
                         id="confirm-password"
                         type="password"
@@ -347,7 +349,7 @@ export default function ForgotPasswordPage() {
                         }`}
                         {...resetForm.register("confirmPassword")}
                       />
-                    </div>
+                    </InputGroup>
                     {resetForm.formState.errors.confirmPassword && (
                       <p className="px-1 text-xs font-bold text-rose-500">
                         {(resetForm.formState.errors.confirmPassword as any).message}

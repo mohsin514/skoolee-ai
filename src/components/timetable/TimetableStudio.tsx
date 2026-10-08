@@ -1,4 +1,5 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -979,7 +980,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <InputGroup className="min-w-0">
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => setSelectedClassId(e.target.value || null)}
@@ -1000,9 +1001,9 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 );
               })}
             </SystemSelect>
-            <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/50 pointer-events-none" />
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
-          </div>
+            <GraduationCap data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/50 pointer-events-none" />
+
+          </InputGroup>
         </div>
 
         <div className="flex items-center gap-2">
@@ -1289,7 +1290,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 )}
 
                 {/* CENTER: Timetable grid */}
-                <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+                <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
                   {classLoading ? (
                     <div className="p-4 text-center text-sm font-semibold text-ink-subtle">Loading slots…</div>
                   ) : (

@@ -555,7 +555,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   <option key={t.id} value={t.id}>{t.fullName}</option>
                 ))}
               </SystemSelect>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
+
             </div>
             {selectedTeacherId && (
               <span className="text-[10px] font-bold text-ink-muted">
@@ -582,7 +582,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           )}
 
           {selectedTeacherId && (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <div className="min-w-[800px]">
                 <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
@@ -801,11 +801,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
           {/* Timetable Grid */}
           {classLoading ? (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <TimetableGridSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />
             </div>
           ) : (
-          <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
             <div className="min-w-[800px]">
               {/* Header row */}
               <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>

@@ -312,7 +312,7 @@ export function AcademicCalendar({
     (layers.deadlines && day.deadlines.length > 0);
 
   return (
-    <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] overflow-hidden">
+    <div className="sk-panel border-[#cfc2d6]/15 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10">
         <div className="flex items-center gap-3">

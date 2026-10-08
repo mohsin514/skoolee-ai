@@ -1,4 +1,5 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDialogBehaviour } from "@/components/ui/modal";
@@ -154,8 +155,8 @@ export function TeacherCommandPalette({ data }: { data: any }) {
         aria-label="Quick switcher"
         className="animate-modal-enter w-full max-w-xl overflow-hidden rounded-[26px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.35)] focus:outline-none"
       >
-        <div className="flex items-center gap-3 border-b border-[#cfc2d6]/15 px-4">
-          <Search className="h-4 w-4 shrink-0 text-[#8127cf]" />
+        <InputGroup className="my-2">
+          <Search data-field-affix="start" className="h-4 w-4 shrink-0 text-[#8127cf]" />
           <SystemInput
             autoFocus
             value={query}
@@ -169,10 +170,10 @@ export function TeacherCommandPalette({ data }: { data: any }) {
             aria-label="Search sections, classes and students"
             className="h-14 w-full bg-transparent text-sm font-bold text-[#1d1b20] outline-none placeholder:font-semibold placeholder:text-ink-subtle"
           />
-          <kbd className="hidden shrink-0 rounded-md border border-[#cfc2d6]/40 px-1.5 py-0.5 text-[10px] font-black text-ink-subtle sm:block">
+          <kbd data-field-affix="end" data-field-action="text" className="hidden shrink-0 rounded-md border border-[#cfc2d6]/40 px-1.5 py-0.5 text-[10px] font-black text-ink-subtle sm:block">
             ESC
           </kbd>
-        </div>
+        </InputGroup>
 
         <div ref={listRef} className="custom-scrollbar max-h-[52vh] overflow-y-auto p-2">
           {results.length === 0 ? (

@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -466,8 +468,8 @@ export default function LoginPage() {
                 <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
                   Work Email
                 </Label>
-                <div className="group relative flex items-center">
-                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup className="group relative flex items-center">
+                  <Mail data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="email"
                     type="email"
@@ -480,7 +482,7 @@ export default function LoginPage() {
                     }`}
                     {...register("email")}
                   />
-                </div>
+                </InputGroup>
                 {errors.email && <p className="px-1 text-xs font-bold text-rose-500">{errors.email.message}</p>}
               </div>
 
@@ -496,8 +498,8 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <div className="group relative flex items-center">
-                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup className="group relative flex items-center">
+                  <Lock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
@@ -512,7 +514,7 @@ export default function LoginPage() {
                     onKeyDown={trackCaps}
                     onBlur={(e) => { setCapsOn(false); passwordField.onBlur(e); }}
                   />
-                  <button
+                  <button data-field-affix="end"
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
                     aria-label={showPass ? "Hide password" : "Show password"}
@@ -520,7 +522,7 @@ export default function LoginPage() {
                   >
                     {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
-                </div>
+                </InputGroup>
                 {errors.password && <p className="px-1 text-xs font-bold text-rose-500">{errors.password.message}</p>}
                 {capsOn && !errors.password && (
                   <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">

@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -103,8 +105,8 @@ export default function FirstLoginPage() {
               <Label htmlFor="password" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 New Password
               </Label>
-              <div className="relative flex items-center group">
-                <div className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
+              <InputGroup className="relative flex items-center group">
+                <div data-field-affix="start" className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <Lock className="h-4 w-4" />
                 </div>
                 <Input
@@ -117,7 +119,7 @@ export default function FirstLoginPage() {
                   placeholder="Choose a strong password"
                   className="w-full h-12 pl-10 pr-12 bg-[#fbf0fe] border-0 rounded-2xl focus:ring-2 focus:ring-[#8127cf]/20 focus:bg-white transition-all placeholder:text-ink-subtle text-[#1f1a23] font-bold shadow-none"
                 />
-                <button
+                <button data-field-affix="end"
                   type="button"
                   onClick={() => setShow(!show)}
                   aria-label={show ? "Hide password" : "Show password"}
@@ -125,7 +127,7 @@ export default function FirstLoginPage() {
                 >
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
-              </div>
+              </InputGroup>
 
               <div className="pt-2 px-1">
                 <div className="h-1.5 w-full rounded-full bg-[#f3f4f9] overflow-hidden">
@@ -160,8 +162,8 @@ export default function FirstLoginPage() {
               <Label htmlFor="confirm" className="text-[10px] font-black text-ink ml-1 uppercase tracking-wider">
                 Confirm Password
               </Label>
-              <div className="relative flex items-center group">
-                <div className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
+              <InputGroup className="relative flex items-center group">
+                <div data-field-affix="start" className="absolute left-3.5 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none">
                   <ShieldCheck className="h-4 w-4" />
                 </div>
                 <Input
@@ -177,7 +179,7 @@ export default function FirstLoginPage() {
                       : "bg-[#fbf0fe] focus:ring-[#8127cf]/20 focus:bg-white"
                   }`}
                 />
-              </div>
+              </InputGroup>
               {confirm.length > 0 && !matches && (
                 <p className="text-xs text-rose-500 font-bold px-1">Passwords do not match</p>
               )}

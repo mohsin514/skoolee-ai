@@ -326,7 +326,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         ))}
       </div>
 
-      <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] p-6">
+      <div className="sk-panel border-[#cfc2d6]/12 p-6">
         {/* STEP 1 */}
         {step === 0 && (
           <div className="space-y-5">

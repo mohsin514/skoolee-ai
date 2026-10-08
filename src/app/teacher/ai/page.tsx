@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useMemo, useState } from "react";
 import {
@@ -121,7 +123,7 @@ export default function AIPage() {
 
         {/* ── The tool itself ── */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
-          <section className="group relative overflow-hidden rounded-[28px] border border-[#8127cf]/10 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+          <section className="sk-panel group relative overflow-hidden border-[#8127cf]/10 transition-all duration-300">
             {/* One wash, not six. */}
             <span
               aria-hidden
@@ -190,7 +192,7 @@ export default function AIPage() {
         </div>
 
         {/* ── Saved drafts ── */}
-        <section className="overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <section className="sk-panel overflow-hidden">
           <div className="flex flex-wrap items-center gap-3 border-b border-[#cfc2d6]/12 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
@@ -206,8 +208,8 @@ export default function AIPage() {
 
             {insights.length > 0 ? (
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[180px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+                <InputGroup className="relative min-w-[180px]">
+                  <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
                   <SystemInput
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -216,12 +218,12 @@ export default function AIPage() {
                     className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
                   />
                   {query ? (
-                    <button type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
+                    <button data-field-affix="end" type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
                       className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
                       <X className="h-3 w-3" />
                     </button>
                   ) : null}
-                </div>
+                </InputGroup>
                 {features.length > 1 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {["", ...features].map((f) => (

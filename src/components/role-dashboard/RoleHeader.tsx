@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -525,7 +527,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               New Password
             </label>
-            <div className="relative">
+            <InputGroup className="relative">
               <SystemInput
                 type={showPasswords ? "text" : "password"}
                 value={newPassword}
@@ -533,14 +535,14 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
                 placeholder="Enter new password"
                 className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
               />
-              <button
+              <button data-field-affix="end"
                 type="button"
                 onClick={() => setShowPasswords(!showPasswords)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
               >
                 {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            </div>
+            </InputGroup>
             {newPassword && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex gap-1 flex-1">

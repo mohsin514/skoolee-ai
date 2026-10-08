@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -312,9 +314,9 @@ function SchoolDialog({
         <Field id="s-address" label="Address" icon={MapPin} value={form.address} placeholder="Street address" onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="s-tz" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">Time Zone</Label>
-          <div className="group relative flex items-center">
-            <Clock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
+          <Label htmlFor="s-tz" className="sk-field-label">Time Zone</Label>
+          <InputGroup className="min-w-0">
+            <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
               value={form.timezone}
@@ -323,7 +325,7 @@ function SchoolDialog({
             >
               {zones.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </SystemSelect>
-          </div>
+          </InputGroup>
           {form.timezone !== school.timezone ? (
             <p className="px-1 text-[11px] font-bold leading-snug text-amber-700">
               Changing the time zone moves the boundary of &ldquo;today&rdquo;, so attendance marks and fee
@@ -436,9 +438,9 @@ function CampusDialog({
         <Field id="c-address" label="Address" icon={MapPin} value={form.address} placeholder="Full street address" onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-board" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">Board</Label>
-          <div className="relative flex items-center">
-            <GraduationCap className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
+          <Label htmlFor="c-board" className="sk-field-label">Board</Label>
+          <InputGroup className="min-w-0">
+            <GraduationCap data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="c-board"
               value={form.board}
@@ -447,7 +449,7 @@ function CampusDialog({
             >
               {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
             </SystemSelect>
-          </div>
+          </InputGroup>
         </div>
 
         <LockedRows
@@ -527,11 +529,11 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
+      <Label htmlFor={id} className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </Label>
-      <div className="group relative flex items-center">
-        <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-[#8127cf]" />
+      <InputGroup className="group relative flex items-center">
+        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-[#8127cf]" />
         <Input
           id={id}
           value={value}
@@ -539,7 +541,7 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           className="h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
         />
-      </div>
+      </InputGroup>
     </div>
   );
 }

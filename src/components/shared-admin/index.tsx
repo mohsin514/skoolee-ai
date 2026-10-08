@@ -1,4 +1,5 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -347,7 +348,7 @@ export function LeadershipPanel({
         {/* Donut + Campus Identity */}
         <div className="space-y-6">
           {/* Donut Chart */}
-          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "80ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Leadership</p>
@@ -401,7 +402,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Campus Identity */}
-          <div className="sk-rise group bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Identity</p>
@@ -440,7 +441,7 @@ export function LeadershipPanel({
         {/* Admin Team & Principal Panel */}
         <div className="space-y-6">
           {/* Admin Team + Pending In One Card */}
-          <div className="sk-rise bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Team</p>
@@ -477,7 +478,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Principal Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel p-6 border-[#cfc2d6]/10">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Authority</p>
@@ -531,7 +532,7 @@ export function LeadershipPanel({
           </div>
 
           {/* Operations Staff Card */}
-          <div className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+          <div className="sk-panel p-6 border-[#cfc2d6]/10">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Operations</p>
@@ -1040,7 +1041,7 @@ export function ExamDetailModal({
                         { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
                         { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-ink" },
                       ].map((s) => (
-                        <div key={s.label} className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                        <div key={s.label} className="sk-panel p-5">
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
@@ -1055,7 +1056,7 @@ export function ExamDetailModal({
                     </div>
 
                     {analytics.subjectAverages?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
                         <div className="space-y-3">
                           {analytics.subjectAverages.map((sa: any) => {
@@ -1079,7 +1080,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.topStudents?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
                         <div className="space-y-2">
                           {analytics.topStudents.map((ts: any, idx: number) => (
@@ -1099,7 +1100,7 @@ export function ExamDetailModal({
                     )}
 
                     {analytics.needsAttention?.length > 0 && (
-                      <div className="bg-white rounded-[28px] border border-[#cfc2d6]/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+                      <div className="sk-panel p-6">
                         <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
                         <div className="space-y-2">
                           {analytics.needsAttention.map((ns: any) => (
@@ -1529,7 +1530,7 @@ export function ReportCardsPanel({
                   onSelect?.(report);
                 }
               }}
-              className="sk-rise group/report cursor-pointer rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-panel sk-rise group/report cursor-pointer p-5 transition-all duration-300 hover:-translate-y-0.5"
               style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -1738,7 +1739,7 @@ export function FacultyPanel({
         />
       </div>
 
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-panel sk-rise p-6">
         <div className="mb-5 flex flex-wrap items-center gap-2.5">
           <SearchField
             value={searchQuery}
@@ -2011,7 +2012,7 @@ export function AIPanel({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden" style={{ animationDelay: "80ms" }}>
+      <div className="sk-panel sk-rise p-6 relative overflow-hidden" style={{ animationDelay: "80ms" }}>
         <CornerSparkles />
         <AiActionPanel title={title} options={features} compact onComplete={onComplete} />
       </div>
@@ -2975,14 +2976,14 @@ export function StudentDetailModal({
       ) : null}
 
       {parentLink && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200/50 p-3">
-          <ExternalLink className="h-4 w-4 text-emerald-600 shrink-0" />
+        <InputGroup className="my-2">
+          <ExternalLink data-field-affix="start" className="h-4 w-4 text-emerald-600 shrink-0" />
           <SystemInput type="text" readOnly value={parentLink} className="flex-1 bg-transparent text-xs font-mono text-emerald-800 outline-none truncate" />
-          <button type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
+          <button data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex h-7 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[9px] font-black uppercase text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0">
             {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {linkCopied ? "Copied!" : "Copy"}
           </button>
-        </div>
+        </InputGroup>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -4006,7 +4007,7 @@ export function TeacherDetailModal({
                 editable, accepted nothing, and gave no reason why.
               */}
               <div>
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Email</span>
+                <span className="sk-field-label">Email</span>
                 <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-ink-muted">
                   <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
                   <span className="truncate">{teacher.email || "No email"}</span>
@@ -4382,7 +4383,7 @@ function AmountRowsEditor({
   };
   return (
     <div>
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{title}</span>
+      <span className="sk-field-label">{title}</span>
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div key={index} className="flex items-center gap-2">
@@ -4559,7 +4560,7 @@ export function FormInput({
 }) {
   return (
     <label className="block group/input">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/input:text-[#8127cf]">{label}</span>
+      <span className="sk-field-label">{label}</span>
       <SystemInput
         type={type}
         value={value}
@@ -4584,7 +4585,7 @@ export function FormSelect({
 }) {
   return (
     <label className="block group/select">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/select:text-[#8127cf]">{label}</span>
+      <span className="sk-field-label">{label}</span>
       <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -4655,7 +4656,7 @@ export function ClassGroupCard({
 
   return (
     <div className={cn(
-      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
+      "sk-panel sk-rise group transition-all self-start",
       open
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10",
@@ -5199,7 +5200,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
 
   return (
     <div className={cn(
-      "sk-rise group rounded-[32px] border bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all self-start",
+      "sk-panel sk-rise group transition-all self-start",
       open
         ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
@@ -5861,7 +5862,7 @@ function TagListCard({
   onViewStudents?: (item: any) => void;
 }) {
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
@@ -6013,7 +6014,7 @@ function TagFormModal({
         />
         {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Description</span>
+          <span className="sk-field-label">Description</span>
           <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -6243,7 +6244,7 @@ export function AdmissionQueriesPanel({
   );
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5">
         {/* Same header anatomy as the academics overview: icon tile, eyebrow,
             title, and the one action that starts new work. */}
@@ -6731,7 +6732,7 @@ function NewQueryModal({
           </FormSelect>
         </div>
         <label className="block">
-          <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</span>
+          <span className="sk-field-label">Note</span>
           <SystemTextarea
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -6976,7 +6977,7 @@ function QueryDetailModal({
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <div className="w-48">
-                <span className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Next follow-up</span>
+                <span className="sk-field-label">Next follow-up</span>
                 <SystemInput
                   type="date"
                   value={nextDate}
@@ -7101,7 +7102,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   };
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Archive} title="Archived & Inactive Students" />
         <div className="flex items-center gap-2 pb-1.5">
@@ -7584,7 +7585,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
   };
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       {/* Header matches the academics overview. */}
       <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -8174,7 +8175,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
   }, [run]);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Banknote} title="Payroll" />
         <div className="flex flex-wrap items-center gap-2">
@@ -8635,7 +8636,7 @@ export function RolePermissionsPanel() {
   }, [modules, search]);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       {/* Header matches the academics overview. */}
       <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -9026,7 +9027,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
   const breakMinutes = Math.max(0, dayLength - teachingMinutes);
 
   return (
-    <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Clock} title="Class & Exam Time Setup" />
         <div className="flex flex-wrap items-center gap-2">

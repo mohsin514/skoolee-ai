@@ -1,4 +1,6 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDialogBehaviour } from "@/components/ui/modal";
@@ -324,8 +326,8 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   )}
                 </AnimatePresence>
 
-                <div className="relative">
-                  <Search
+                <InputGroup className="relative">
+                  <Search data-field-affix="start"
                     className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
                     aria-hidden
                   />
@@ -340,7 +342,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     placeholder="Search by name"
                     className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
                   />
-                </div>
+                </InputGroup>
               </div>
 
               {/* ── Directory ──

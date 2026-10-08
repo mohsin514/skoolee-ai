@@ -102,7 +102,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
     next.setDate(next.getDate() + days);
     focusDate(next);
   };
-  return <div dir={dir} lang={locale} className="relative min-w-0">
+  return <div data-date-field="" dir={dir} lang={locale} className="relative min-w-0">
     <Input {...props} min={min} max={max} ref={(node) => {
       inputRef.current = node;
       if (typeof ref === 'function') ref(node);
