@@ -1,16 +1,15 @@
+import { errorResponse } from "@/lib/api/scope";
 import { loadPermissionMap } from "@/lib/permissions";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
-import { enterTenantContext } from "@/lib/db/tenant-context";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
-import { resolveParentScope } from "@/lib/parent/resolve-child";
+import { withParentScope } from "@/lib/parent/resolve-child";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { studentId, children } = await resolveParentScope(req);
+    return await withParentScope(req, async ({ studentId, children }) => {
     if (!studentId) {
       return Response.json({ error: "Invalid or expired access" }, { status: 401 });
     }
@@ -104,7 +103,7 @@ export async function GET(req: NextRequest) {
           totalMarks: r.totalMarks,
           remarksEn: r.remarksEn,
           remarksUr: r.remarksUr,
-          pdfUrl: r.pdfUrl,
+          pdfUrl: `/api/reports/download?reportCardId=${r.id}&redirect=1${req.nextUrl.searchParams.get("token") ? `&token=${encodeURIComponent(req.nextUrl.searchParams.get("token")!)}` : ""}`,
           status: r.status,
         })),
         marksByExam: [...marksByExam.entries()].map(([examId, data]) => ({
@@ -143,7 +142,8 @@ export async function GET(req: NextRequest) {
         })),
       },
     });
-  } catch {
-    return Response.json({ error: "Failed to load data" }, { status: 500 });
+    });
+  } catch (error) {
+    return errorResponse(error, "Failed to load data");
   }
 }

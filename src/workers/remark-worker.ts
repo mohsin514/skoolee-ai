@@ -1,3 +1,4 @@
+import { runAsCurrentActor } from "@/lib/auth/job-policy";
 import { Worker, Job } from "bullmq";
 import type { Prisma } from "@prisma/client";
 import { redis } from "@/lib/queue/connection";
@@ -15,7 +16,8 @@ const worker = new Worker<RemarkJobData>(
   "ai-remarks",
   async (job: Job<RemarkJobData>) => {
     const { tenantId, userId } = job.data;
-    // A queue job has no session, so the school travels on the job payload.
+    if (userId) return runAsCurrentActor(tenantId, userId, "ai", "add", () => processRemark(job));
+    // Trusted school automation identity when no human actor is attached.
     return runWithTenantContext({ schoolId: tenantId, userId }, () => processRemark(job));
   },
   {
@@ -39,7 +41,7 @@ async function processRemark(job: Job<RemarkJobData>) {
     }
 
     const student = await prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.campusId !== exam.campusId) {
+    if (!student || (student.campusId !== exam.campusId || student.classId !== exam.classId)) {
       throw new Error(`Student ${studentId} not found`);
     }
 

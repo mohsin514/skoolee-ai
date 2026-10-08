@@ -1,10 +1,10 @@
 'use server'
 
+import { getAuthUser } from "@/lib/auth";
+
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
 
-import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
@@ -59,13 +59,12 @@ async function requireSession(): Promise<Session> {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) throw new Error("Unauthorized");
 
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const payload = await getAuthUser();
+  if (!payload) throw new Error("Unauthorized");
   const schoolId = String(payload.schoolId);
 
-  // These actions read the JWT directly rather than going through
-  // getAuthUser(), so they must bind tenant context themselves before any
-  // query — otherwise the guard refuses it, correctly.
-  enterTenantContext({ schoolId, userId: String(payload.userId || "") });
+  // Carry the current principal into transactional tenant work.
+  enterTenantContext({ schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
   await assertSchoolOperational(schoolId);
 
   return {
