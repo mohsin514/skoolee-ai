@@ -1,5 +1,9 @@
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
+  "Uploading": "جارٍ الرفع",
+  "Logo uploaded": "تم رفع الشعار",
+  "Upload failed": "فشل الرفع",
+  "Could not prepare upload": "تعذر تجهيز الرفع",
   "Dashboard": "لوحة التحكم",
   "Main dashboard": "لوحة التحكم الرئيسية",
   "Command Centre": "مركز التحكم",
@@ -188,6 +192,10 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  "Uploading": "اپ لوڈ ہو رہا ہے",
+  "Logo uploaded": "لوگو اپ لوڈ ہو گیا",
+  "Upload failed": "اپ لوڈ ناکام ہو گیا",
+  "Could not prepare upload": "اپ لوڈ کی تیاری نہیں ہو سکی",
   "Active sessions": "فعال سیشن",
   "Dashboard": "ڈیش بورڈ",
   "Main dashboard": "مرکزی ڈیش بورڈ",

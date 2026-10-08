@@ -13,6 +13,7 @@ import { availableNavigation, isNavigationActive } from "@/lib/navigation/items"
 import { ModalSurface } from "@/components/ui/modal";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 
 export interface RoleNavItem {
   lang?: string;
@@ -47,8 +48,9 @@ interface RoleSidebarProps {
 }
 
 function InstitutionBadge({ logoUrl, name }: { logoUrl?: string | null; name: string }) {
-  return logoUrl ? (
-    <img src={logoUrl} alt="Institution logo" className="h-10 w-10 shrink-0 rounded-xl border border-border object-cover" />
+  const resolved = resolveMediaUrl(logoUrl);
+  return resolved ? (
+    <img src={resolved} alt="Institution logo" className="h-10 w-10 shrink-0 rounded-xl border border-border object-cover" />
   ) : (
     <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#7020b9] to-[#872bd3] shadow-lg shadow-primary/20 text-sm font-bold text-primary-foreground">
       {Array.from(name.trim())[0] || "S"}

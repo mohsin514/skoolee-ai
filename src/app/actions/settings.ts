@@ -171,8 +171,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
     session.role === "SUPER_ADMIN"
       ? campuses.map((c) => c.id)
       : (session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId
-      ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
-      : [];
+        ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
+        : [];
 
   return {
     canEditSchool,
@@ -251,6 +251,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     if (!timezone || timezone !== current.timezone) throw new Error("Preview timezone changes in Language and regional settings before applying them.");
   }
 
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
   const school = await prisma.$transaction(async (tx) => {
     const current = await tx.school.findUnique({ where: { id: session.schoolId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
@@ -263,7 +264,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
       address: patchText(input.address),
       phone: patchText(input.phone),
       website: patchText(input.website),
-      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
+      logoUrl: newLogoUrl,
       establishedYear:
         input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
       ...(timezone ? { timezone } : {}),
@@ -303,6 +304,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
     ? undefined
     : assertPhone(optionalText(input.phone), "Phone number");
 
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
   const campus = await prisma.$transaction(async (tx) => {
     const current = await tx.campus.findUnique({ where: { id: campusId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
@@ -319,7 +321,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
       // A board is never left blank: clearing it falls back to the default
       // rather than leaving report cards with no affiliation printed.
       board: input.board === undefined ? undefined : optionalText(input.board) || DEFAULT_EXAM_BOARD,
-      logoUrl: input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl),
+      logoUrl: newLogoUrl,
     },
   });
 
