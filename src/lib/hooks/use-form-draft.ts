@@ -39,6 +39,7 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
         const res = await fetch("/api/auth/session", { cache: "no-store" });
         const result = await res.json();
         if (!active) return;
+        if (!res.ok && res.status !== 401 && res.status !== 403) { setStorageError(true); return; }
         const next = res.ok && typeof result.user?.draftScope === "string" ? result.user.draftScope : null;
         if (!next || (previousScope && next !== previousScope)) {
           suspended.current = true;
@@ -99,6 +100,7 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
   const prepareReview = async () => {
     const response = await fetch("/api/auth/session", { cache: "no-store" });
     const session = await response.json();
+    if (!response.ok && response.status !== 401 && response.status !== 403) throw new Error("The server could not be reached. Your draft is retained; try again when connected.");
     if (!response.ok || session.user?.draftScope !== scope) { clearDeviceDrafts(); window.location.replace("/login?reason=session-changed"); throw new Error("Your session changed."); }
     if (current) {
       try { setReviewBaseline(await current()); }
@@ -113,6 +115,7 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     // Recheck session immediately before disclosing/applying recovered values.
     const res = await fetch("/api/auth/session", { cache: "no-store" });
     const result = await res.json();
+    if (!res.ok && res.status !== 401 && res.status !== 403) throw new Error("The server could not be reached. Your draft is retained; try again when connected.");
     if (!res.ok || result.user?.draftScope !== scope) { clearDeviceDrafts(); window.location.replace("/login?reason=session-changed"); return; }
     let latest = reviewBaseline ?? baseline;
     if (current) {

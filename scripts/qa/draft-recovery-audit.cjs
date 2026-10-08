@@ -47,7 +47,12 @@ async function fits(page){
  await expect(page.getByText(/Draft saved in this tab at/)).toBeVisible();
  await context.setOffline(false);
  await page.reload();await page.waitForLoadState('networkidle');await admission(page);
- await expect(name).toHaveValue('');await page.getByRole('button',{name:'Review recovered draft'}).click();
+ await expect(name).toHaveValue('');
+ await expect(page.getByRole('button',{name:'Review recovered draft'})).toBeVisible();
+ await context.setOffline(true);await page.getByRole('button',{name:'Review recovered draft'}).click();
+ await expect(page.getByRole('alert').filter({hasText:/fetch|network|connection/i})).toBeVisible();
+ assert(await page.evaluate(()=>Object.keys(sessionStorage).some(k=>k.startsWith('skoolee:draft:'))));
+ await context.setOffline(false);await page.getByRole('button',{name:'Review recovered draft'}).click();
  await expect(page.getByRole('dialog',{name:'Recover your work'})).toBeVisible();
  await page.getByRole('button',{name:'Apply selected draft'}).click();await expect(name).toHaveValue('Recoverable Pupil');
  await page.getByRole('dialog').getByRole('button',{name:'Next',exact:true}).click();
