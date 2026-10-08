@@ -1,3 +1,4 @@
+import { correctionReleased } from "@/lib/corrections/visibility";
 import { createHash, randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import {
@@ -314,6 +315,12 @@ export async function approveVersions(
         );
       if ((v.blockers as string[]).length)
         throw new ReportConflict((v.blockers as string[]).join("; "));
+      const owner = await tx.reportCard.findUniqueOrThrow({ where: { id: item.reportCardId }, select: { studentId: true } });
+      const correctionRequests = await tx.correction.findMany({ where: { kind: "MARK", status: "APPLIED", requesterId: reviewer, studentId: owner.studentId } });
+      if (correctionRequests.length) {
+        const policy = await tx.school.findUniqueOrThrow({ where: { id: v.schoolId }, select: { correctionSeparateApprover: true } });
+        for (const correction of correctionRequests) if ((policy.correctionSeparateApprover || correction.separateApprover) && !await correctionReleased(tx, correction.reportVersionIds as string[])) throw new ReportConflict("School policy requires a different reviewer to approve this correction's report version.");
+      }
       const reason = v.predecessorId
         ? correctionReason?.trim() || v.correctionReason
         : null;

@@ -746,3 +746,13 @@ DROP POLICY IF EXISTS tenant_isolation ON "visitor_logs";
 CREATE POLICY tenant_isolation ON "visitor_logs"
   USING ("school_id" = current_school_id())
   WITH CHECK ("school_id" = current_school_id());
+
+-- SKO-213 correction evidence and allocations use the same tenant boundary.
+ALTER TABLE corrections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_corrections ON corrections USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));
+ALTER TABLE correction_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_correction_notes ON correction_notes USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));
+ALTER TABLE payment_allocations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_payment_allocations ON payment_allocations USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));
+ALTER TABLE payment_receipts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_payment_receipts ON payment_receipts USING (school_id = current_setting('app.current_school_id', true)) WITH CHECK (school_id = current_setting('app.current_school_id', true));

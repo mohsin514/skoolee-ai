@@ -1,0 +1,25 @@
+✔ PKR: a partially allocated reversal conserves original units and keeps input unchanged (0.899625ms)
+✔ SAR: a partially allocated reversal conserves original units and keeps input unchanged (0.083708ms)
+✔ AED: a partially allocated reversal conserves original units and keeps input unchanged (0.079709ms)
+✔ KWD: a partially allocated reversal conserves original units and keeps input unchanged (0.073917ms)
+✔ USD: a partially allocated reversal conserves original units and keeps input unchanged (0.071708ms)
+✔ stale version cannot commit a second proposal (0.197959ms)
+✔ oversized, duplicate, foreign, fractional and unreconciled allocations fail closed (0.145459ms)
+✔ preview digest changes with consequences or revision (0.131125ms)
+✔ reason/public explanation are required and separate approval policy is enforced (0.1735ms)
+✔ family history excludes reasons/private notes and rejected proposals (0.162458ms)
+✔ published grade preview preserves release reference and requires renewed approval (1.082208ms)
+✔ role matrix enforces direct API domain access (765.39525ms)
+✔ two mark requests preserve immutable originals, stale second rejects, new report needs exact approval (342.159333ms)
+✔ missing reason, review hash, direct self-approval and stale preview are rejected (125.668125ms)
+✔ five original currencies reverse partially allocated receipt and reconcile invoice, credit and ledger (746.779083ms)
+✔ tenant, campus and unrelated family IDs are denied (86.034792ms)
+✔ one partially allocated payment reverses across both affected invoices atomically (127.109459ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2632.336292

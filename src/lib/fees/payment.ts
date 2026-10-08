@@ -1,3 +1,4 @@
+import { capturePaymentReceipt } from "./receipt";
 import { type TxClient } from "@/lib/db/prisma";
 // ─── Payment recording (single source for collecting fees) ──
 // Used by POST /api/fees/collect, POST /api/fees/payment, and the SafePay
@@ -26,6 +27,11 @@ export interface RecordPaymentInput {
 }
 
 export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
+  // Serialize allocation against collection/reversal for the same invoice.
+  // Resolve through the tenant guard before obtaining the database row lock.
+  const scopedInvoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
+  if (!scopedInvoice || scopedInvoice.campusId !== input.campusId || scopedInvoice.studentId !== input.studentId) throw new Error("Invoice unavailable for this student and campus");
+  await tx.$queryRaw`SELECT id FROM invoices WHERE id=${scopedInvoice.id} AND school_id=${scopedInvoice.schoolId} FOR UPDATE`;
   const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
   if (!invoice) throw new Error("Invoice not found");
 
@@ -57,6 +63,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       invoiceId: input.invoiceId,
       studentId: input.studentId,
       amount,
+      currency: invoice.currency,
       fineAmount,
       discountAmount,
       paymentDate: input.paymentDate,
@@ -68,7 +75,11 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
     },
   });
 
-  const totalPaid = (await tx.payment.aggregate({
+  const applied = Math.min(amount, Math.max(0, invoice.balanceDue));
+  const newCredit = amount - applied;
+  await tx.paymentAllocation.create({ data: { schoolId: invoice.schoolId, campusId: invoice.campusId, paymentId: payment.id, invoiceId: invoice.id, amount: applied, credit: newCredit, currency: invoice.currency } });
+
+  const totalPaid = (await tx.paymentAllocation.aggregate({
     where: { invoiceId: input.invoiceId },
     _sum: { amount: true },
   }))._sum.amount ?? 0;
@@ -95,8 +106,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
 
   // Overpayment → credit carried forward into the next academic year.
   let credit = 0;
-  if (newBalance < 0) {
-    credit = -newBalance;
+  if (newCredit > 0) {
+    credit = newCredit;
     const toYear = year + 1;
     const existing = await tx.feeCarryForward.findUnique({
       where: { studentId_toAcademicYear: { studentId: input.studentId, toAcademicYear: toYear } },
@@ -154,10 +165,11 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       studentId: input.studentId,
       kind: "FEE_PAID",
       title: `Fee payment recorded (${receiptNo})`,
-      detail: `PKR ${(amount / 100).toLocaleString()}${fineAmount ? ` · fine PKR ${(fineAmount / 100).toLocaleString()}` : ""}`,
+      detail: `${invoice.currency} ${amount} minor units`,
       actorId: input.recordedBy ?? null,
     },
   });
 
+  await capturePaymentReceipt(tx, payment.id);
   return { payment, credit, receiptNo, invoiceNumber: invoice.invoiceNumber };
 }

@@ -1,3 +1,4 @@
+import { recordPayment } from "@/lib/fees/payment";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -210,33 +211,15 @@ export async function POST(req: NextRequest) {
         throw new ApiError(`Payment exceeds remaining balance of Rs ${balanceBefore}`, 400);
       }
 
-      const receiptNo = `RCP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
-
-      const payment = await prisma.payment.create({
-        data: {
-          campusId: invoice.campusId,
-          invoiceId: invoice.id,
-          studentId: invoice.student.id,
-          amount: parsed.data.amount,
-          paymentDate: new Date(parsed.data.paymentDate),
-          paymentMethod: parsed.data.paymentMethod,
-          referenceNumber: parsed.data.referenceNumber ?? null,
-          receiptNo,
-          recordedBy: user.userId,
-        },
-      });
-
-      const totalPaid = paidBefore + parsed.data.amount;
-      const newBalance = invoice.totalAmount - totalPaid;
-      const status = newBalance <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "PENDING";
-      const updatedInvoice = await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          totalAmountPaid: totalPaid,
-          balanceDue: Math.max(0, newBalance),
-          status,
-        },
-      });
+      const { payment } = await prisma.$transaction(tx => recordPayment(tx, {
+        campusId: invoice.campusId, invoiceId: invoice.id, studentId: invoice.studentId,
+        amount: parsed.data.amount, paymentDate: new Date(parsed.data.paymentDate),
+        paymentMethod: parsed.data.paymentMethod, referenceNumber: parsed.data.referenceNumber,
+        recordedBy: user.userId,
+      }), { isolationLevel: "Serializable" });
+      const updatedInvoice = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      const totalPaid = updatedInvoice.totalAmountPaid;
+      const status = updatedInvoice.status;
 
       return Response.json({
         success: true,
