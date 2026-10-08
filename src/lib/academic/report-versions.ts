@@ -458,7 +458,7 @@ export async function publishExam(
       version: 1,
       identity: `report-published:${examId}:${contentHash(ids)}`,
     });
-    return { workflowId, versions: ids };
+    return { workflowId, versions: ids, backgroundDelivery: "pending" as const };
   });
 }
 
