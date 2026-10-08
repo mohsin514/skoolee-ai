@@ -693,32 +693,40 @@ export default function CampusAdminDashboard() {
     }
   };
 
-  const handleDeleteClass = (cls: any) => {
+  const handleDeleteClass = async (cls: any) => {
+    const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`);
+    const preview = await previewResponse.json();
+    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
+    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
     setConfirmAction({
-      title: `Delete ${classLabel(cls)}?`,
-      description: "This will permanently remove this class and all its subjects if no marks exist. Students must be moved first.",
-      confirmLabel: "Delete Class",
+      title: `Archive ${classLabel(cls)}?`,
+      description: `This class has ${impacts}. Archive hides it from current class lists while preserving its academic and financial history. You can restore it later.`,
+      confirmLabel: "Archive Class",
       run: async () => {
-        const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE" });
+        const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Class could not be deleted");
-        toast.success("Class deleted");
+        if (!res.ok) throw new Error(result.error || "Class could not be archived");
+        toast.success("Class archived; history preserved");
         setSelectedClass(null);
         await loadData();
       },
     });
   };
 
-  const handleDeleteStudent = (student: any) => {
+  const handleDeleteStudent = async (student: any) => {
+    const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`);
+    const preview = await previewResponse.json();
+    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate student impact");
+    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
     setConfirmAction({
-      title: `Delete ${student.fullName}?`,
-      description: "This will permanently remove this student record. This cannot be undone.",
-      confirmLabel: "Delete Student",
+      title: `Archive ${student.fullName}?`,
+      description: `This student has ${impacts}. Archive removes the student from active lists and frees the current roll number. Marks, receipts, reports, documents and audit history remain preserved.`,
+      confirmLabel: "Archive Student",
       run: async () => {
-        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE" });
+        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Student could not be deleted");
-        toast.success("Student deleted");
+        if (!res.ok) throw new Error(result.error || "Student could not be archived");
+        toast.success("Student archived; history preserved");
         setSelectedStudent(null);
         await loadData();
       },

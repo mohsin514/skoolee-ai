@@ -120,20 +120,8 @@ export async function PATCH(
 // ─────────────────────────────────────────────────────────────────
 // DELETE /api/owner/schools/<id>   — offboard a tenant.   (OWN-6, MF-3, INT-1)
 //
-// Two modes, because "delete a school" is really two different requests:
-//
-//   soft (default)  status -> DELETED + deletedAt stamped. Nothing is destroyed.
-//                   This is the right default: schools are generally required to
-//                   retain financial and academic records, and an offboarding is
-//                   far more often a billing lapse than an erasure request.
-//                   Reversible via PATCH { status: "ACTIVE" }.
-//
-//   purge           { purge: true } — irreversible hard delete for a genuine
-//                   right-to-erasure request. Only reachable from a school that
-//                   is ALREADY soft-deleted, so erasure is always a deliberate
-//                   two-step, never a slip of the wrist.
-//
-// Both require the caller to type the school name exactly (OWN-6).
+// School offboarding is reversible. Permanent erasure requires the approved
+// retention/legal workflow and is deliberately unavailable on this endpoint.
 // ─────────────────────────────────────────────────────────────────
 export async function DELETE(
   req: NextRequest,
@@ -146,6 +134,10 @@ export async function DELETE(
     const body = await req.json().catch(() => ({}));
     const confirmName = typeof body?.confirmName === "string" ? body.confirmName : "";
     const purge = body?.purge === true;
+
+    if (purge) {
+      throw new ApiError("Permanent erasure is not available through the routine school lifecycle endpoint. Use the institution's approved retention and legal process.", 409);
+    }
 
     const school = await prisma.school.findUnique({
       where: { id },
@@ -160,40 +152,6 @@ export async function DELETE(
         `Confirmation failed. Type the school name exactly to confirm: "${school.name}"`,
         400
       );
-    }
-
-    if (purge) {
-      if (school.status !== "DELETED") {
-        throw new ApiError(
-          "Soft-delete this school first. Permanent erasure is only available for an already-deleted school.",
-          409
-        );
-      }
-      // One transaction so a tenant can never be left half-erased. School->User
-      // and School->AIUsageLog now cascade, and SuperAdminAuditLog.userId is
-      // SET NULL, so the platform audit trail survives the tenant it describes.
-      await prisma.$transaction(async (tx) => {
-        await tx.studentClassHistory.deleteMany({ where: { schoolId: id } });
-        await tx.student.updateMany({ where: { schoolId: id }, data: { parentUserId: null, studentUserId: null } });
-        await tx.class.updateMany({ where: { schoolId: id }, data: { classTeacherId: null } });
-        await tx.school.delete({ where: { id } });
-      });
-
-      await logSuperAdminAction({
-        userId: user.userId,
-        action: "purge_school",
-        targetType: "school",
-        targetId: id,
-        targetName: school.name,
-        oldValues: { status: school.status, users: school._count.users, campuses: school._count.campuses },
-        newValues: { purged: true },
-      }).catch(() => {});
-
-      return Response.json({
-        success: true,
-        purged: true,
-        message: `"${school.name}" and all of its data have been permanently erased.`,
-      });
     }
 
     if (school.status === "DELETED") {
@@ -218,7 +176,7 @@ export async function DELETE(
     return Response.json({
       success: true,
       purged: false,
-      message: `"${school.name}" has been deleted. Its data is retained and the school can be restored.`,
+      message: `"${school.name}" has been archived. Its data is retained and the school can be restored.`,
     });
   } catch (error) {
     return errorResponse(error, "[owner/schools/id] DELETE failed");

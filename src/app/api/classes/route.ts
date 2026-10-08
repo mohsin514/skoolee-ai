@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         : {};
 
     const classes = await prisma.class.findMany({
-      where: { ...scopedCampusWhere(user, campusId), ...teacherScope },
+      where: { ...scopedCampusWhere(user, campusId), ...teacherScope, ...(searchParams.get("includeArchived") === "true" ? {} : { archivedAt: null }) },
       include: {
         campus: { select: { id: true, name: true } },
         classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
@@ -178,6 +178,23 @@ export async function PATCH(req: NextRequest) {
     const { id } = body;
     if (!id) throw new ApiError("Class id is required", 400);
 
+    if (body.action === "restore") {
+      const archived = await prisma.class.findFirst({
+        where: { id, archivedAt: { not: null }, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
+        select: { id: true, campusId: true, name: true, section: true, academicYear: true, archivePreviousStatus: true },
+      });
+      if (!archived) throw new ApiError("Archived class not found", 404);
+      const [campus, conflict] = await Promise.all([
+        prisma.campus.findFirst({ where: { id: archived.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
+        prisma.class.findFirst({ where: { id: { not: id }, campusId: archived.campusId, name: archived.name, section: archived.section, academicYear: archived.academicYear, archivedAt: null }, select: { id: true } }),
+      ]);
+      if (!campus) throw new ApiError("Restore requires an active campus", 409);
+      if (conflict) throw new ApiError("A class with this name, section and academic year already exists in this campus", 409);
+      await prisma.class.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: archived.archivePreviousStatus || "ACTIVE", archivePreviousStatus: null } });
+      await prisma.auditLog.create({ data: { tableName: "class", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
+      return Response.json({ success: true, restored: true });
+    }
+
     const existing = await prisma.class.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
       select: { id: true, campusId: true, classTeacherId: true, teachingMode: true },
@@ -270,14 +287,16 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.class.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true, campusId: true, name: true, _count: { select: { students: true } } },
+      select: { id: true, campusId: true, name: true, section: true, academicYear: true, status: true, archivedAt: true, archivePreviousStatus: true, _count: { select: { students: true, subjects: true, exams: true, feeStructures: true, attendance: true, timetables: true, classHistory: true, admissionQueries: true } } },
     });
     if (!existing) throw new ApiError("Class not found", 404);
-    if (existing._count.students > 0) {
-      throw new ApiError("Move students before deleting this class", 409);
-    }
-
-    await prisma.class.delete({ where: { id } });
+    const dependencies = { students: existing._count.students, subjects: existing._count.subjects, exams: existing._count.exams, feeStructures: existing._count.feeStructures, attendance: existing._count.attendance, timetables: existing._count.timetables, classHistory: existing._count.classHistory, admissionQueries: existing._count.admissionQueries };
+    if (new URL(req.url).searchParams.get("preview") === "true") return Response.json({ success: true, action: "archive", record: `${existing.name}${existing.section ? ` ${existing.section}` : ""}`, dependencies, permanentDeletion: "restricted when history exists" });
+    if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies });
+    const body = await req.json().catch(() => ({}));
+    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
+    await prisma.class.update({ where: { id }, data: { archivedAt: new Date(), archiveReason: reason, archivePreviousStatus: existing.status, status: "COMPLETED" } });
+    await prisma.auditLog.create({ data: { tableName: "class", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason, dependencies }, userId: user.userId } });
     notify("CLASS_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,
@@ -285,7 +304,7 @@ export async function DELETE(req: NextRequest) {
       actorName: user.fullName,
       className: existing.name,
     });
-    return Response.json({ success: true });
+    return Response.json({ success: true, archived: true, dependencies, message: "Class archived. Its academic and financial history is preserved." });
   } catch (error) {
     return errorResponse(error, "[classes] DELETE failed");
   }
