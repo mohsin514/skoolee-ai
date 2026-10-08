@@ -22,7 +22,10 @@
     "app:ios": "cap sync ios && cap open ios",
     "app:desktop:dev": "tauri dev",
     "app:desktop:build": "tauri build",
-    "app:icons": "tauri icon public/icon-1024.png"
+    "app:icons": "tauri icon public/icon-1024.png",
+    "test:report-versions": "node --import tsx --test tests/report-versions/version.test.ts",
+    "test:locale": "node --import tsx --test tests/locale/package.test.ts",
+    "test:locale:db": "node --import tsx --test tests/locale/database.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

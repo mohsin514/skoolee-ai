@@ -1,3 +1,4 @@
+import { reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -292,6 +293,12 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ error: "Principal review is required before publishing" }, { status: 409 });
     }
 
+    if (target === "PRINCIPAL_REVIEWED" || target === "PUBLISHED") {
+      await assertPermission(user, "reports", "edit");
+      if (target === "PRINCIPAL_REVIEWED") await reviewExam(exam.id, user.userId);
+      else await publishExam(exam.id, user.userId);
+      return Response.json({ success: true, exam: await prisma.exam.findUnique({ where: { id: exam.id } }) });
+    }
     const now = new Date();
     const updated = await prisma.exam.update({
       where: { id: parsed.data.id },
@@ -299,8 +306,6 @@ export async function PATCH(req: NextRequest) {
         status: target,
         ...(target === "ACTIVE" ? { activatedAt: exam.activatedAt || now } : {}),
         ...(target === "MARKS_ENTRY" ? { marksEntryAt: exam.marksEntryAt || now } : {}),
-        ...(target === "PRINCIPAL_REVIEWED" ? { reviewedAt: now, reviewedBy: user.userId } : {}),
-        ...(target === "PUBLISHED" ? { publishedAt: now } : {}),
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -309,17 +314,6 @@ export async function PATCH(req: NextRequest) {
         _count: { select: { marks: true, reportCards: true } },
       },
     });
-
-    if (target === "PUBLISHED") {
-      notify("REPORT_CARDS_PUBLISHED", {
-        schoolId: user.schoolId,
-        campusId: exam.campusId,
-        actorId: user.userId,
-        actorName: user.fullName,
-        examTitle: updated.title,
-        classId: updated.classId,
-      });
-    }
 
     return Response.json({ success: true, exam: updated });
   } catch (error) {

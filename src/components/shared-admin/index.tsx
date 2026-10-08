@@ -1,4 +1,5 @@
 "use client";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
@@ -2723,6 +2724,7 @@ export function StudentDetailModal({
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   // The roster carries a summary; address, medical notes, allergies,
   // medications and special needs live only on the full record and are fetched
   // when a profile is actually opened. Render the summary immediately and merge
@@ -3130,7 +3132,7 @@ export function StudentDetailModal({
           ) : (
             <div className="mt-4 space-y-3">
               <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatDob(student.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(student.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(student.gender)} />
               <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
               <DetailRow label="Nationality" value={student.nationality || "N/A"} />
@@ -3661,6 +3663,7 @@ export function TeacherDetailModal({
   onClose: () => void;
   onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
 }) {
+  const { date: formatCalendarDate } = useLocaleFormat();
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -4058,7 +4061,7 @@ export function TeacherDetailModal({
               <DetailRow label="Email" value={teacher.email || "N/A"} />
               <DetailRow label="Phone" value={teacher.phone || "N/A"} />
               <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
-              <DetailRow label="Date of Birth" value={formatDate(teacher.dateOfBirth)} />
+              <DetailRow label="Date of Birth" value={formatCalendarDate(teacher.dateOfBirth)} />
               <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
             </div>
           )}
@@ -4108,7 +4111,7 @@ export function TeacherDetailModal({
                 value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
               />
               <DetailRow label="Experience" value={teacher.experience || "N/A"} />
-              <DetailRow label="Joining Date" value={formatDate(teacher.joiningDate)} />
+              <DetailRow label="Joining Date" value={formatCalendarDate(teacher.joiningDate)} />
             </div>
           )}
         </div>
@@ -5077,6 +5080,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
     ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : null;
   const inviteName = invite.profile?.fullName || null;
+  const deliveryFailed = invite.deliveryStatus === "failed";
 
   return (
     <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
@@ -5093,9 +5097,10 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
-              <StatusPill status={expired ? "Expired" : formatStatus(invite.role)} />
+              <StatusPill status={deliveryFailed ? "Delivery failed" : expired ? "Expired" : formatStatus(invite.role)} />
             </div>
             <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            {deliveryFailed && <p role="status" className="mt-2 text-xs text-rose-700">Email could not be delivered. Resend to try again.</p>}
             {expiryLabel ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />

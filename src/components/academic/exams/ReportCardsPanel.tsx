@@ -1,4 +1,7 @@
 "use client";
+import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
+
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -58,7 +61,7 @@ interface ReportCard {
 type StepKey = "lock" | "review" | "pdf" | "publish" | "send";
 type StepState = "done" | "ready" | "blocked";
 
-export function ReportCardsPanel({
+function LegacyReportCardsPanel({
   exam,
   campusId,
   onChanged,
@@ -67,6 +70,7 @@ export function ReportCardsPanel({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,7 +117,7 @@ export function ReportCardsPanel({
         setProgress({ entered: pairs.size, expected: students.length * subjects.length });
       }
     } catch {
-      toast.error("Could not load report cards");
+      toast.error(tr("Could not load report cards"));
     } finally {
       setLoading(false);
     }
@@ -138,11 +142,11 @@ export function ReportCardsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${label} failed`);
-      toast.success(label);
+      toast.success(tr(label));
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `${label} failed`);
+      toast.error(tr(e instanceof Error ? e.message : tr("{0} failed", [label])));
     } finally {
       setBusy(null);
     }
@@ -156,14 +160,14 @@ export function ReportCardsPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not lock the exam");
       toast.success(
-        data.reportCardsGenerated
-          ? `Marks locked — ${data.reportCardsGenerated} report cards created`
-          : "Marks locked",
+        tr(data.reportCardsGenerated
+          ? tr("Marks locked — {0} report cards created", [data.reportCardsGenerated])
+          : "Marks locked"),
       );
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not lock the exam");
+      toast.error(tr(e instanceof Error ? e.message : "Could not lock the exam"));
     } finally {
       setBusy(null);
     }
@@ -190,7 +194,7 @@ export function ReportCardsPanel({
         ),
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the remark");
+      toast.error(tr(e instanceof Error ? e.message : "Could not save the remark"));
     } finally {
       setBusy(null);
     }
@@ -199,7 +203,7 @@ export function ReportCardsPanel({
   const approveOne = async (card: ReportCard, silent = false) => {
     const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
     if (!text) {
-      if (!silent) toast.error("Write a remark before approving it");
+      if (!silent) toast.error(tr("Write a remark before approving it"));
       return false;
     }
     if (!silent) setBusy(`approve-${card.id}`);
@@ -216,10 +220,10 @@ export function ReportCardsPanel({
           c.id === card.id ? { ...c, remarksEn: text, remarksApproved: true } : c,
         ),
       );
-      if (!silent) toast.success("Remark approved");
+      if (!silent) toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
-      if (!silent) toast.error(e instanceof Error ? e.message : "Could not approve");
+      if (!silent) toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
       return false;
     } finally {
       if (!silent) setBusy(null);
@@ -232,7 +236,7 @@ export function ReportCardsPanel({
       (c) => !c.remarksApproved && (remarks[c.id] ?? c.remarksEn ?? "").trim(),
     );
     if (pending.length === 0) {
-      toast.error("None of the outstanding cards have a remark written yet");
+      toast.error(tr("None of the outstanding cards have a remark written yet"));
       return;
     }
     setBusy("approve-all");
@@ -241,7 +245,7 @@ export function ReportCardsPanel({
       if (await approveOne(card, true)) ok += 1;
     }
     setBusy(null);
-    toast.success(`Approved ${ok} remark${ok === 1 ? "" : "s"}`);
+    toast.success(tr("Approved remarks: {0}", [ok]));
     onChanged?.();
   };
 
@@ -269,25 +273,25 @@ export function ReportCardsPanel({
     return [
       {
         key: "lock",
-        label: "Lock the marks",
+        label: tr("Lock the marks"),
         icon: Lock,
-        blurb: "Freezes every mark and creates one report card per pupil.",
+        blurb: tr("Freezes every mark and creates one report card per pupil."),
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
         reason: !progress
-          ? "Checking how many marks are in…"
+          ? tr("Checking how many marks are in…")
           : progress.expected === 0
-          ? "This class has no students or no subjects yet."
+          ? tr("This class has no students or no subjects yet.")
           : marksComplete
-          ? `All ${progress.expected} marks are in.`
-          : `${missing} of ${progress.expected} marks still to enter — finish them on the Enter marks tab.`,
-        cta: "Lock marks",
+          ? tr("All {0} marks are in.", [progress.expected])
+          : tr("{0} of {1} marks still to enter — finish them on the Enter marks tab.", [missing, progress.expected]),
+        cta: tr("Lock marks"),
         onRun: lockExam,
       },
       {
         key: "review",
-        label: "Review",
+        label: tr("Review"),
         icon: ShieldCheck,
-        blurb: "The principal signs the results off before families see them.",
+        blurb: tr("The principal signs the results off before families see them."),
         // The server refuses to review while any card lacks an approved
         // remark, so the step has to test the same thing. Reporting "ready"
         // and then failing on click is the defect this panel was rebuilt for.
@@ -298,20 +302,20 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first — there is nothing to review yet."
+          ? tr("Lock the marks first — there is nothing to review yet.")
           : needingRemarks > 0
-          ? `${needingRemarks} report card${needingRemarks === 1 ? "" : "s"} still need an approved remark — write and approve them below.`
-          : "Every remark is approved. Ready for sign-off.",
-        cta: "Mark reviewed",
+          ? tr("Report cards awaiting an approved remark: {0}. Write and approve them below.", [needingRemarks])
+          : tr("Every remark is approved. Ready for sign-off."),
+        cta: tr("Mark reviewed"),
         onRun: () => run("review", "Results reviewed"),
       },
       {
         // Publishing refuses while any card lacks a PDF, and building them one
         // row at a time is not a workflow — so the bulk build is its own step.
         key: "pdf",
-        label: "Build the PDFs",
+        label: tr("Build the PDFs"),
         icon: FileText,
-        blurb: "Renders every report card to a PDF, ready to publish and send.",
+        blurb: tr("Renders every report card to a PDF, ready to publish and send."),
         state:
           isLocked && cards.length > 0 && pdfsMissing === 0
             ? "done"
@@ -319,43 +323,43 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first."
+          ? tr("Lock the marks first.")
           : pdfsMissing === 0 && cards.length > 0
-          ? `All ${cards.length} PDFs are built.`
-          : `${pdfsMissing} of ${cards.length} report cards have no PDF yet.`,
-        cta: "Build PDFs",
+          ? tr("All {0} PDFs are built.", [cards.length])
+          : tr("{0} of {1} report cards have no PDF yet.", [pdfsMissing, cards.length]),
+        cta: tr("Build PDFs"),
         onRun: () => run("pdf", "Report card PDFs built"),
       },
       {
         key: "publish",
-        label: "Publish",
+        label: tr("Publish"),
         icon: Upload,
-        blurb: "Makes the report cards visible to parents and students.",
+        blurb: tr("Makes the report cards visible to parents and students."),
         state: published ? "done" : reviewed && pdfsMissing === 0 ? "ready" : "blocked",
         reason: published
-          ? "Published."
+          ? tr("Published.")
           : !reviewed
-          ? "Needs the principal's review first."
+          ? tr("Needs the principal's review first.")
           : pdfsMissing > 0
-          ? `${pdfsMissing} report card${pdfsMissing === 1 ? " has" : "s have"} no PDF yet — run the step above.`
-          : "Reviewed, PDFs built, ready to publish.",
-        cta: "Publish all",
+          ? tr("Report cards without a PDF: {0}. Run the step above.", [pdfsMissing])
+          : tr("Reviewed, PDFs built, ready to publish."),
+        cta: tr("Publish all"),
         onRun: () => run("publish", "Report cards published"),
       },
       {
         key: "send",
-        label: "Send to families",
+        label: tr("Send to families"),
         icon: Send,
-        blurb: "Delivers each report card over WhatsApp.",
+        blurb: tr("Delivers each report card over WhatsApp."),
         state: cards.length > 0 && cards.every((c) => c.isSent) ? "done" : published ? "ready" : "blocked",
         reason: published
-          ? `${cards.filter((c) => c.isSent).length} of ${cards.length} already sent.`
-          : "Publish the report cards before sending them out.",
-        cta: "Send all",
+          ? tr("{0} of {1} already sent.", [cards.filter((c) => c.isSent).length, cards.length])
+          : tr("Publish the report cards before sending them out."),
+        cta: tr("Send all"),
         onRun: () => run("send", "Report cards sent"),
       },
     ];
-  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks]);
+  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks, tr]);
 
   if (loading) {
     return (
@@ -369,8 +373,8 @@ export function ReportCardsPanel({
   return (
     <div className="space-y-4">
       <Panel
-        title="From marks to report cards"
-        subtitle="Four steps, in order. Each one says what is holding it up."
+        title={tr("From marks to report cards")}
+        subtitle={tr("Four steps, in order. Each one says what is holding it up.")}
         icon={FileText}
       >
         <ol className="space-y-2.5">
@@ -428,9 +432,7 @@ export function ReportCardsPanel({
                 </div>
 
                 {step.state === "done" ? (
-                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                    Done
-                  </span>
+                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
                 ) : (
                   <button
                     type="button"
@@ -458,11 +460,11 @@ export function ReportCardsPanel({
       </Panel>
 
       <Panel
-        title={`Report cards (${cards.length})`}
+        title={tr("Report cards ({0})", [cards.length])}
         subtitle={
           isLocked
-            ? "One per pupil. Open any of them to check before publishing."
-            : "They appear here the moment the marks are locked."
+            ? tr("One per pupil. Open any of them to check before publishing.")
+            : tr("They appear here the moment the marks are locked.")
         }
         icon={FileText}
         actions={
@@ -473,31 +475,28 @@ export function ReportCardsPanel({
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
-                  title="Approve every remark that has been written"
+                  title={tr("Approve every remark that has been written")}
                   className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6f1fb5] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
                 >
                   {busy === "approve-all" ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}
-                  Approve all ({needingRemarks})
+                  )}<UiText>{"Approve all ("}</UiText>{needingRemarks})
                 </button>
               ) : null}
               <button
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
-                title="Rebuild every report card from the marks as they stand now"
+                title={tr("Rebuild every report card from the marks as they stand now")}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-[#1f1a23] transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
               >
                 {busy === "generate" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                Rebuild
-              </button>
+                )}<UiText>{"Rebuild"}</UiText></button>
             </>
           ) : null
         }
@@ -506,7 +505,7 @@ export function ReportCardsPanel({
         {cards.length === 0 ? (
           <StepEmpty
             icon={FileText}
-            title={isLocked ? "No report cards yet" : "Nothing to show until the marks are locked"}
+            title={isLocked ? tr("No report cards yet") : tr("Nothing to show until the marks are locked")}
             body={
               isLocked
                 ? "The exam is locked but no cards were built. Use Rebuild to create them from the marks on file."
@@ -540,7 +539,7 @@ export function ReportCardsPanel({
                       </p>
                       <p className="text-[10px] font-semibold text-ink-subtle">
                         {c.student?.rollNo ?? "—"}
-                        {c.rank != null ? ` · rank ${c.rank}` : ""}
+                        {c.rank != null ? tr(" · rank {0}", [c.rank]) : ""}
                       </p>
                     </td>
                     <td className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">
@@ -554,7 +553,7 @@ export function ReportCardsPanel({
                         type="text"
                         defaultValue={remarkOf(c)}
                         disabled={published || c.isSent}
-                        placeholder="e.g. Steady progress — keep it up."
+                        placeholder={tr("e.g. Steady progress — keep it up.")}
                         onChange={(e) =>
                           setRemarks((r) => ({ ...r, [c.id]: e.target.value }))
                         }
@@ -571,23 +570,21 @@ export function ReportCardsPanel({
                       {c.remarksApproved ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" />
-                          {c.isSent ? "Sent" : "Approved"}
+                          {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
                       ) : (
                         <button
                           type="button"
                           disabled={!!busy || published}
                           onClick={() => approveOne(c)}
-                          title="Approve this remark so the results can be reviewed"
+                          title={tr("Approve this remark so the results can be reviewed")}
                           className="inline-flex h-7 items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf]/20 disabled:opacity-50 enabled:cursor-pointer"
                         >
                           {busy === `approve-${c.id}` ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle2 className="h-3 w-3" />
-                          )}
-                          Approve
-                        </button>
+                          )}<UiText>{"Approve"}</UiText></button>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -598,12 +595,10 @@ export function ReportCardsPanel({
                         href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open this report card as a PDF"
+                        title={tr("Open this report card as a PDF")}
                         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
                       >
-                        <Download className="h-3 w-3" />
-                        PDF
-                      </a>
+                        <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a>
                     </td>
                   </tr>
                 ))}
@@ -614,4 +609,9 @@ export function ReportCardsPanel({
       </Panel>
     </div>
   );
+}
+
+export function ReportCardsPanel(props: { exam: ExamItem; campusId?: string; onChanged?: () => void }) {
+ return props.exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(props.exam.status || "")
+  ? <ReportCardPipeline {...props} /> : <LegacyReportCardsPanel {...props} />;
 }

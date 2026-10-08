@@ -1,3 +1,4 @@
+import { loadCampusLocaleTimeline } from "@/lib/locale/store";
 import { errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -32,17 +33,15 @@ export async function GET(req: NextRequest) {
       return Response.json({ success: true, data: null });
     }
 
-    const weekends = await prisma.weekend.findMany({
-      where: { campusId: timetable.class.campusId },
-      select: { dayOfWeek: true },
-    });
+    const localeAt = await loadCampusLocaleTimeline(timetable.class.campusId);
+    const weekends = localeAt().weekend.map((day) => day || 7);
 
     return Response.json({
       success: true,
       data: {
         className: timetable.class.name,
         classSection: timetable.class.section,
-        weekends: weekends.map((w) => w.dayOfWeek).sort(),
+        weekends: weekends.sort(),
         slots: timetable.slots.map((s) => ({
           dayOfWeek: s.dayOfWeek,
           periodNumber: s.periodNumber,

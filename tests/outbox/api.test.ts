@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { hashSessionToken } from "../../src/lib/auth/session-cookie";
+import { randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import { appendEvent, consume } from "../../src/lib/queue/outbox";
+import { contentHash } from "../../src/lib/academic/report-versions";
 import { reportWorkflow } from "../../src/lib/queue/report-workflow";
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55420" || url.pathname !== "/sko220_test") throw new Error("Synthetic local database required");
@@ -10,8 +13,11 @@ const db = new PrismaClient();
 const base = "http://127.0.0.1:3220/api/owner/workflows";
 const schoolId = "rehearsal-school";
 async function token(role: string) {
-  return new SignJWT({ userId: `role-${role}`, schoolId, role, email: `${role.toLowerCase()}@example.invalid`, campusId: "rehearsal-campus", onboardingComplete: true, schoolStatus: "ACTIVE" })
-    .setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(new TextEncoder().encode("sko220-local-synthetic-test-secret"));
+  await db.user.update({ where: { id: `role-${role}` }, data: { mfaEnabled: true } });
+  const token = await new SignJWT({ mfaVerified: true, userId: `role-${role}`, schoolId, role, email: `${role.toLowerCase()}@example.invalid`, campusId: "rehearsal-campus", onboardingComplete: true, schoolStatus: "ACTIVE" })
+    .setJti(randomUUID()).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(new TextEncoder().encode("sko220-local-synthetic-test-secret"));
+  await db.loginSession.create({ data: { schoolId, userId: `role-${role}`, tokenHash: hashSessionToken(token), expiresAt: new Date(Date.now() + 600_000) } });
+  return token;
 }
 async function get(role: string, school = schoolId) { return fetch(`${base}?schoolId=${school}`, { headers: { Cookie: `skoolee_token=${await token(role)}` }, redirect: "manual" }); }
 after(async () => db.$disconnect());
@@ -43,13 +49,22 @@ test("report publication and required event roll back together, then commit and 
   await db.$executeRaw`INSERT INTO report_cards (id,school_id,campus_id,student_id,exam_id,status)
     VALUES ('outbox-report',${schoolId},'rehearsal-campus','rehearsal-student','rehearsal-exam','REVIEWED') ON CONFLICT (student_id,exam_id) DO UPDATE SET status='REVIEWED'`;
   await db.$executeRaw`UPDATE exams SET status='PRINCIPAL_REVIEWED',is_locked=true,reviewed_at='2026-10-08T01:00:00Z' WHERE id='rehearsal-exam'`;
-  const identity = 'report-published:rehearsal-exam:2026-10-08T01:00:00.000Z';
+  await db.$executeRaw`UPDATE report_cards SET remarks_en='Synthetic approved remark' WHERE id='outbox-report'`;
+  const reviewHeaders = { Cookie: `skoolee_token=${await token("PRINCIPAL")}`, "Content-Type": "application/json" };
+  const queueResponse = await fetch("http://127.0.0.1:3220/api/reports?examId=rehearsal-exam", { headers: reviewHeaders });
+  assert.equal(queueResponse.status, 200, await queueResponse.clone().text());
+  const queue = await queueResponse.json();
+  const card = queue.reportCards.find((card: { id: string }) => card.id === "outbox-report");
+  const approval = await fetch("http://127.0.0.1:3220/api/reports", { method: "POST", headers: reviewHeaders, body: JSON.stringify({ action: "approve", examId: "rehearsal-exam", versions: [{ reportCardId: card.id, versionId: card.review.id }] }) });
+  assert.equal(approval.status, 200, await approval.clone().text());
+  const originalStatus = (await db.reportCard.findUniqueOrThrow({ where: { id: "outbox-report" } })).status;
+  const identity = `report-published:rehearsal-exam:${contentHash([card.review.id])}`;
   const collision = await db.$transaction(tx => appendEvent(tx, { schoolId, actorId: "role-ADMIN", kind: "TEST", version: 1, referenceId: "rehearsal-exam", identity }));
   const headers = { Cookie: `skoolee_token=${await token("PRINCIPAL")}`, "Content-Type": "application/json" };
   const publish = () => fetch("http://127.0.0.1:3220/api/reports", { method: "POST", headers, body: JSON.stringify({ action: "publish", examId: "rehearsal-exam" }) });
   assert.equal((await publish()).status, 500);
   assert.equal((await db.$queryRaw<{ status: string }[]>`SELECT status FROM exams WHERE id='rehearsal-exam'`)[0].status, "PRINCIPAL_REVIEWED");
-  assert.equal((await db.$queryRaw<{ status: string }[]>`SELECT status FROM report_cards WHERE id='outbox-report'`)[0].status, "REVIEWED");
+  assert.equal((await db.$queryRaw<{ status: string }[]>`SELECT status FROM report_cards WHERE id='outbox-report'`)[0].status, originalStatus);
   await db.$executeRaw`DELETE FROM workflow_events WHERE id=${collision}`;
   const response = await publish();
   assert.equal(response.status, 200, await response.clone().text());

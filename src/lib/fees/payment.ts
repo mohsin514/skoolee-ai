@@ -102,6 +102,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       where: { studentId_toAcademicYear: { studentId: input.studentId, toAcademicYear: toYear } },
     });
     if (existing) {
+      if (existing.currency !== invoice.currency) throw new Error("Cannot combine overpayment credit across currencies");
       await tx.feeCarryForward.update({
         where: { id: existing.id },
         data: { balance: existing.balance - credit },
@@ -114,6 +115,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
           fromAcademicYear: year,
           toAcademicYear: toYear,
           balance: -credit,
+          currency: invoice.currency,
           note: "Auto credit from overpayment",
         },
       });
@@ -135,6 +137,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
     data: {
       campusId: input.campusId,
       kind: "INCOME",
+      currency: invoice.currency,
       sourceName: `Fee payment ${receiptNo}`,
       accountId: incomeAccount.id,
       paymentMethod: input.paymentMethod,

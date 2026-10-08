@@ -64,6 +64,7 @@ export const TENANT_MODELS = new Set<string>([
   "leaveType",
   "ledgerEntry",
   "libraryMember",
+  "localePolicy",
   "loginSession",
   "mark",
   "notification",
@@ -82,6 +83,7 @@ export const TENANT_MODELS = new Set<string>([
   "postalRecord",
   "promptTemplate",
   "reportCard",
+  "reportVersion",
   "rolePermission",
   "routeVehicle",
   "staffAppointment",
@@ -114,6 +116,7 @@ export const TENANT_MODELS = new Set<string>([
 ]);
 
 export const GLOBAL_MODELS = new Set<string>([
+  "authAttempt",
   "passwordReset",
   "pendingRegistration",
   "platformConfig",

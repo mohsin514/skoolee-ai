@@ -1,3 +1,4 @@
+import { requiresMfa } from "./mfa-crypto";
 import { AccessDenied } from "./policy";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
@@ -5,14 +6,15 @@ import { normalizeUserRole } from "@/lib/roles";
 import type { AuthUser } from "@/lib/auth";
 
 /** A signed identity is only a lookup key. Never authorize from stale claims. */
-export async function resolveCurrentPrincipal(claims: { userId: string; schoolId: string; role?: unknown; accessVersion?: unknown }): Promise<AuthUser | null> {
+export async function resolveCurrentPrincipal(claims: { userId: string; schoolId: string; role?: unknown; accessVersion?: unknown; mfaVerified?: unknown }): Promise<AuthUser | null> {
   const account = await runUnscoped("authenticate exact signed account and school", () => prisma.user.findFirst({
     where: { id: claims.userId, schoolId: claims.schoolId, isActive: true },
-    select: { isInstitutionOwner: true, canPurchaseSubscription: true, canManageMemberships: true, accessVersion: true, id: true, schoolId: true, campusId: true, role: true, email: true, fullName: true, onboardingComplete: true,
+    select: { mfaEnabled: true, isInstitutionOwner: true, canPurchaseSubscription: true, canManageMemberships: true, accessVersion: true, id: true, schoolId: true, campusId: true, role: true, email: true, fullName: true, onboardingComplete: true,
       campus: { select: { schoolId: true } }, school: { select: { slug: true, status: true } } },
   }));
   if (!account || (claims.role !== undefined && account.role !== normalizeUserRole(claims.role))) return null;
   if (claims.role !== undefined && account.accessVersion !== (claims.accessVersion ?? 0)) return null;
+  if (claims.role !== undefined && requiresMfa(account) && (!account.mfaEnabled || claims.mfaVerified !== true)) return null;
   if (account.campus && account.campus.schoolId !== account.schoolId) return null;
   if (account.school.status === "DELETED") return null;
   return { isInstitutionOwner: account.isInstitutionOwner, canPurchaseSubscription: account.canPurchaseSubscription, canManageMemberships: account.canManageMemberships, accessVersion: account.accessVersion, userId: account.id, schoolId: account.schoolId, campusId: account.campusId,
