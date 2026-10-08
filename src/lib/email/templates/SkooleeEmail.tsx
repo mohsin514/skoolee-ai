@@ -19,7 +19,7 @@ interface EmailAction {
 }
 
 interface SkooleeEmailProps {
-  language?: "en" | "ar";
+  language?: "en" | "ar" | "ur";
   preview: string;
   eyebrow?: string;
   title: string;
@@ -40,10 +40,10 @@ export function SkooleeEmail({
   footerText,
 }: SkooleeEmailProps) {
   return (
-    <Html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
+    <Html lang={language} dir={language !== "en" ? "rtl" : "ltr"}>
       <Head />
       <Preview>{preview}</Preview>
-      <Body style={{ ...main, textAlign: language === "ar" ? "right" : "left" }}>
+      <Body style={{ ...main, textAlign: language !== "en" ? "right" : "left" }}>
         <Container style={container}>
           <Section style={brandSection}>
             <Section style={brandRow}>
@@ -54,7 +54,7 @@ export function SkooleeEmail({
               )}
               <Section style={brandTextWrap}>
                 <Text style={brandName}>Skoolee AI</Text>
-                <Text style={brandTagline}>{language === "ar" ? "نظام إدارة المدارس للجيل القادم" : "The next-gen school operating system"}</Text>
+                <Text style={brandTagline}>{language === "ur" ? "اگلی نسل کا اسکول انتظامی نظام" : language === "ar" ? "نظام إدارة المدارس للجيل القادم" : "The next-gen school operating system"}</Text>
               </Section>
             </Section>
           </Section>
@@ -74,7 +74,7 @@ export function SkooleeEmail({
           </Section>
 
           <Hr style={hr} />
-          <Text style={footer}>{footerText || (language === "ar" ? "نظام SkooleeAI لإدارة الحرم المدرسي" : "SkooleeAI Campus Management System")}</Text>
+          <Text style={footer}>{footerText || (language === "ur" ? "SkooleeAI کیمپس انتظامی نظام" : language === "ar" ? "نظام SkooleeAI لإدارة الحرم المدرسي" : "SkooleeAI Campus Management System")}</Text>
         </Container>
       </Body>
     </Html>

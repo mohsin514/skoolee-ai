@@ -1,4 +1,5 @@
 "use client";
+import { CURRENCIES } from "@/lib/locale/package";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -616,6 +617,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
 /* ── Income / Expense entries ──────────────────────────── */
 
 interface LedgerRow {
+  currency: string;
   id: string;
   kind: string;
   sourceName: string;
@@ -629,6 +631,7 @@ interface LedgerRow {
 }
 
 function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | "EXPENSE" }) {
+  const [currency, setCurrency] = useState("");
   const [entries, setEntries] = useState<LedgerRow[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [banks, setBanks] = useState<BankRow[]>([]);
@@ -650,13 +653,14 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     setLoading(true);
     try {
       const [eRes, aRes, bRes] = await Promise.all([
-        fetch(`${API}/accounts/ledger${qp ? `${qp}&` : "?"}kind=${kind}`),
+        fetch(`${API}/accounts/ledger${qp ? `${qp}&` : "?"}kind=${kind}${currency ? `&currency=${currency}` : ""}`),
         fetch(`${API}/accounts/chart${qp}`),
         fetch(`${API}/accounts/bank-accounts${qp}`),
       ]);
       const [eJson, aJson, bJson] = await Promise.all([eRes.json(), aRes.json(), bRes.json()]);
       if (eJson.success) {
         setEntries(eJson.data);
+        if (!currency) setCurrency(eJson.currency);
         setTotal(eJson.total);
       }
       if (aJson.success) setAccounts(aJson.data);
@@ -666,7 +670,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     } finally {
       setLoading(false);
     }
-  }, [qp, kind]);
+  }, [qp, kind, currency]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -685,7 +689,8 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
           kind,
           sourceName: sourceName.trim(),
           accountId,
-          amount: rupeesToPaisa(parseFloat(amount)),
+          currency,
+          amount: rupeesToPaisa(amount, currency || "PKR"),
           date,
           bankAccountId: bankAccountId || undefined,
           note: note.trim() || undefined,
@@ -729,12 +734,12 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
   const pickList = kind === "INCOME" ? incomeAccounts : expenseAccounts;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4"><label className="block text-sm">Currency<select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value="">School default</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? "Income Entries" : "Expense Entries"}</p>
           <p className="text-sm font-black text-[#1f1a23]">
-            {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0))}</span>} total · {total} records
+            {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span>} total · {total} records
           </p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>
@@ -771,7 +776,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                 {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{e.note}</p> : null}
               </div>
               <p className={`text-sm font-black ${e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount)}
+                {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount, e.currency)}
               </p>
               {!e.paymentId && (
                 <button type="button" onClick={() => setDeleting(e)} className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer" aria-label="Delete entry">
@@ -816,7 +821,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
         <ConfirmAction
           open
           title="Delete entry?"
-          description={`"${deleting.sourceName}" (${formatPKR(deleting.amount)}) will be removed.`}
+          description={`"${deleting.sourceName}" (${formatPKR(deleting.amount, deleting.currency)}) will be removed.`}
           confirmLabel="Delete"
           tone="danger"
           onConfirm={handleDelete}
@@ -830,6 +835,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 /* ── Profit report ─────────────────────────────────────── */
 
 function ProfitPanel({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("");
   const [from, setFrom] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-01-01`;
@@ -847,23 +853,23 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ from, to });
+      const params = new URLSearchParams({ from, to, ...(currency ? { currency } : {}) });
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/accounts/profit?${params}`);
       const json = await res.json();
-      if (json.success) setReport(json.data);
+      if (json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
       else setError(json.error || "Failed to load report");
     } catch {
       setError("Failed to load report");
     } finally {
       setLoading(false);
     }
-  }, [from, to, campusId]);
+  }, [from, to, campusId, currency]);
 
   useEffect(() => { run(); }, [run]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4"><label className="block text-sm">Currency<select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}><option value="">School default</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
       <div className="flex items-end gap-3 flex-wrap">
         <div>
           <label className={labelClass}>From</label>
@@ -885,9 +891,9 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard icon={TrendingUp} label="Income" value={`Rs ${(report.income / 100).toLocaleString()}`} tone="green" />
-            <StatCard icon={TrendingDown} label="Expense" value={`Rs ${(report.expense / 100).toLocaleString()}`} tone="rose" />
-            <StatCard icon={Banknote} label="Net Profit" value={`Rs ${(report.net / 100).toLocaleString()}`} tone={report.net < 0 ? "rose" : "purple"} />
+            <StatCard icon={TrendingUp} label="Income" value={formatPKR(report.income, report.currency)} tone="green" />
+            <StatCard icon={TrendingDown} label="Expense" value={formatPKR(report.expense, report.currency)} tone="rose" />
+            <StatCard icon={Banknote} label="Net Profit" value={formatPKR(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
           </div>
 
           {report.breakdown.length > 0 ? (
@@ -902,7 +908,7 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
                     <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{b.entries} entries</p>
                   </div>
                   <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                    {formatPKR(b.amount)}
+                    {formatPKR(b.amount, report.currency)}
                   </p>
                 </div>
               ))}

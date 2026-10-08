@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
               data: {
                 campusId,
                 studentId: student.id,
-                currency: "PKR",
+                currency: feeStructure.currency,
                 localeSnapshot,
                 monthlyFee: feeStructure.monthlyFee,
                 oneTimeFees: oneTimeTotal,

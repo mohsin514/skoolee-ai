@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (existing) throw new ApiError("A fee group with this name already exists", 409);
 
     const group = await prisma.feeGroup.create({
-      data: { campusId, name, description: body.description ?? null },
+      data: { campusId, currency: (await getLocalePackage(user.schoolId, campusId)).currency, name, description: body.description ?? null },
     });
     return Response.json({ success: true, data: group }, { status: 201 });
   } catch (error) {

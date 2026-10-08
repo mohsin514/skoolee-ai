@@ -4,7 +4,7 @@ import { detailBox, mutedParagraph, paragraph, SkooleeEmail } from "./SkooleeEma
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface MessageEmailProps {
-  language?: "en" | "ar";
+  language?: "en" | "ar" | "ur";
   subject: string;
   text?: string;
   html?: string;
@@ -33,9 +33,9 @@ export function MessageEmail({
     <SkooleeEmail
       preview={subject}
       language={language}
-      eyebrow={language === "ar" ? "إشعار الحرم المدرسي" : "Campus Notification"}
+      eyebrow={language === "ur" ? "کیمپس کی اطلاع" : language === "ar" ? "إشعار الحرم المدرسي" : "Campus Notification"}
       title={subject}
-      action={actionUrl ? { label: actionLabel || (language === "ar" ? "عرض في Skoolee AI" : "View in Skoolee AI"), href: actionUrl } : undefined}
+      action={actionUrl ? { label: actionLabel || (language === "ur" ? "Skoolee AI میں دیکھیں" : language === "ar" ? "عرض في Skoolee AI" : "View in Skoolee AI"), href: actionUrl } : undefined}
       logoUrl={logoUrl}
     >
       {html ? (

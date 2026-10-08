@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
           paymentId: result.payment.id,
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
+          currency: invoice.currency,
           studentId: invoice.studentId,
           studentName: invoice.student.fullName,
           amount,

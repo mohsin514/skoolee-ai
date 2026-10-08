@@ -1,4 +1,4 @@
-import { arabicNotificationCopy } from "@/lib/locale/notification-catalog";
+import { arabicNotificationCopy, urduNotificationCopy } from "@/lib/locale/notification-catalog";
 export const NOTIFICATION_CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
@@ -149,7 +149,7 @@ export function isNotificationTemplateKey(value: unknown): value is Notification
   return typeof value === "string" && NOTIFICATION_TEMPLATE_KEYS.includes(value as NotificationTemplateKey);
 }
 
-export function defaultTemplateFor(key: NotificationTemplateKey, channel: NotificationChannel, language: "en" | "ar" = "en") {
+export function defaultTemplateFor(key: NotificationTemplateKey, channel: NotificationChannel, language: "en" | "ar" | "ur" = "en") {
   const template = DEFAULT_NOTIFICATION_TEMPLATES.find((template) => template.key === key && template.channel === channel);
-  return template && language === "ar" ? { ...template, ...arabicNotificationCopy[key] } : template;
+  return template && language !== "en" ? { ...template, ...(language === "ur" ? urduNotificationCopy : arabicNotificationCopy)[key] } : template;
 }

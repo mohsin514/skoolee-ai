@@ -11,7 +11,19 @@ export const arabicNotificationCopy: Record<NotificationTemplateKey, { title: st
  PRINCIPAL_REVIEW_PENDING: { title: "بانتظار مراجعة المدير", subject: "مراجعة المدير لاختبار {{examTitle}}", body: "عزيزي {{recipientName}}،\n\nتقارير {{examTitle}} للصف {{className}} جاهزة لمراجعة المدير.\n\nالتقارير المتبقية: {{pendingCount}}\n\n{{schoolName}}" },
  REPORT_CARD_GENERATED: { title: "إنشاء التقارير الدراسية", subject: "تم إنشاء تقارير {{examTitle}}", body: "عزيزي {{recipientName}}،\n\nتم إنشاء تقارير {{examTitle}} وهي بانتظار المراجعة والنشر.\n\nعدد التقارير: {{reportCount}}\n\n{{schoolName}}" },
 };
-export function notificationHtml(body: string, language: "en" | "ar") {
+export function notificationHtml(body: string, language: "en" | "ar" | "ur") {
  const escaped = body.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
- return `<div lang="${language}" dir="${language === "ar" ? "rtl" : "ltr"}" style="white-space:pre-wrap;text-align:${language === "ar" ? "right" : "left"}">${escaped}</div>`;
+ return `<div lang="${language}" dir="${language !== "en" ? "rtl" : "ltr"}" style="white-space:pre-wrap;text-align:${language !== "en" ? "right" : "left"}">${escaped}</div>`;
 }
+export const urduNotificationCopy: typeof arabicNotificationCopy = {
+ ATTENDANCE_ALERT: { title: "حاضری کی اطلاع", subject: "{{studentName}} کی حاضری کی اطلاع", body: "محترم {{parentName}}،\n\n{{studentName}} کی غیر حاضری {{date}} کو درج ہوئی۔ حالیہ غیر حاضریوں کی تعداد: {{absenceCount}}۔\n\nمدد کے لیے {{campusName}} سے رابطہ کریں۔\n\n{{schoolName}}" },
+ FEE_DUE_REMINDER: { title: "فیس کی یاد دہانی", subject: "{{studentName}} کی فیس کی یاد دہانی", body: "محترم {{parentName}}،\n\n{{studentName}} کی {{term}} کی فیس {{balanceDue}} ہے، جس کی آخری تاریخ {{dueDate}} ہے۔\n\nادائیگی ہو چکی ہو تو یہ پیغام نظر انداز کریں۔\n\n{{schoolName}}" },
+ FEE_OVERDUE_REMINDER: { title: "واجب الادا فیس کی یاد دہانی", subject: "{{studentName}} کی تاخیر شدہ فیس", body: "محترم {{parentName}}،\n\n{{studentName}} کی {{term}} کی فیس {{balanceDue}}، جس کی آخری تاریخ {{dueDate}} تھی، ابھی باقی ہے۔\n\nادائیگی میں مدد کے لیے {{campusName}} سے رابطہ کریں۔\n\n{{schoolName}}" },
+ EXAM_SCHEDULE: { title: "امتحانات کا شیڈول", subject: "{{studentName}} کا امتحانی شیڈول", body: "محترم {{parentName}}،\n\nتعلیمی سال {{academicYear}} کی مدت {{term}} میں جماعت {{className}} کا {{examTitle}} طے ہو گیا ہے۔ براہ کرم {{studentName}} کی تیاری میں مدد کریں اور کیمپس کی ہدایات پر عمل کریں۔\n\n{{schoolName}}" },
+ REPORT_CARD_PUBLISHED: { title: "رپورٹ کارڈ شائع ہو گیا", subject: "{{studentName}} کی رپورٹ تیار ہے", body: "محترم {{parentName}}،\n\n{{studentName}} کا {{examTitle}} کا رپورٹ کارڈ شائع ہو گیا ہے۔\n\nگریڈ: {{grade}}\nفیصد: {{percentage}}%\n\n{{viewInstruction}}\n\n{{schoolName}}" },
+ PARENT_MEETING_INVITE: { title: "والدین کی ملاقات کی دعوت", subject: "والدین کی ملاقات کی دعوت", body: "محترم {{parentName}}،\n\n{{studentName}} کے بارے میں ملاقات کے لیے {{meetingDate}} کو {{meetingTime}} پر تشریف لائیں۔\n\nمقام: {{meetingLocation}}\n\n{{schoolName}}" },
+ GENERAL_ANNOUNCEMENT: { title: "عام اعلان", subject: "{{announcementTitle}}", body: "محترم {{parentName}}،\n\n{{announcementBody}}\n\n{{schoolName}}" },
+ MARKS_ENTRY_DEADLINE_NEAR: { title: "نمبر درج کرنے کی آخری تاریخ قریب ہے", subject: "نمبر درج کرنے کی آخری تاریخ قریب ہے", body: "محترم {{recipientName}}،\n\n{{examTitle}} کے نمبر درج کرنے کی آخری تاریخ {{deadlineDate}} ہے۔ جماعت {{className}} کے باقی نمبر مکمل کریں۔\n\n{{schoolName}}" },
+ PRINCIPAL_REVIEW_PENDING: { title: "پرنسپل کے جائزے کا منتظر", subject: "{{examTitle}} کا پرنسپل جائزہ", body: "محترم {{recipientName}}،\n\nجماعت {{className}} کے {{examTitle}} کی رپورٹیں پرنسپل کے جائزے کے لیے تیار ہیں۔\n\nباقی رپورٹیں: {{pendingCount}}\n\n{{schoolName}}" },
+ REPORT_CARD_GENERATED: { title: "رپورٹ کارڈ تیار ہو گئے", subject: "{{examTitle}} کی رپورٹیں تیار ہو گئیں", body: "محترم {{recipientName}}،\n\n{{examTitle}} کی رپورٹیں تیار ہیں اور جائزے و اشاعت کی منتظر ہیں۔\n\nرپورٹوں کی تعداد: {{reportCount}}\n\n{{schoolName}}" },
+};

@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
       });
     } else {
       data.createdBy = user.userId;
+      data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
       structure = await prisma.feeStructure.create({
         data,
         include: {

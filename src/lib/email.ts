@@ -117,7 +117,7 @@ export async function sendEmailMessage({
   subject: string;
   text: string;
   html?: string;
-  language?: "en" | "ar";
+  language?: "en" | "ar" | "ur";
 }) {
   try {
     const renderedHtml = await renderTemplate(

@@ -1,3 +1,4 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     if (existing) throw new ApiError("A discount with this code already exists", 409);
 
     const discount = await prisma.feeDiscount.create({
-      data: { campusId, name, code, type, value, categoryId: body.categoryId ?? null },
+      data: { campusId, currency: (await getLocalePackage(user.schoolId, campusId)).currency, name, code, type, value, categoryId: body.categoryId ?? null },
       include: { category: { select: { id: true, name: true } } },
     });
     return Response.json({ success: true, data: discount }, { status: 201 });

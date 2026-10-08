@@ -1,4 +1,5 @@
 "use client";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -26,22 +27,23 @@ export function FeeOverviewTab({
   campusId?: string;
   onNavigate?: (tab: FeeTab) => void;
 }) {
+  const [currency, setCurrency] = useState("");
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const qp = `?${new URLSearchParams({ ...(campusId ? { campusId } : {}), ...(currency ? { currency } : {}) })}`;
 
   const loadSummary = useCallback(async () => {
     try {
       const res = await fetch(`${API}/campus/summary${qp}`);
       const json = await res.json();
-      if (json.success) setSummary(json.data);
+      if (json.success) { setSummary(json.data); if (!currency) setCurrency(json.data.currency); }
     } catch {
       toast.error("Failed to load fee summary");
     } finally {
       setLoading(false);
     }
-  }, [qp]);
+  }, [qp, currency]);
 
   useEffect(() => {
     loadSummary();
@@ -69,7 +71,7 @@ export function FeeOverviewTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><CurrencySelect value={currency} onChange={setCurrency} />
       <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <CornerSparkles />
         <div className="flex items-center justify-between gap-4 mb-5">
@@ -98,21 +100,21 @@ export function FeeOverviewTab({
           <StatCard
             icon={Receipt}
             label="Total Receivable"
-            value={formatPKR(summary?.totalReceivable ?? 0)}
+            value={formatPKR(summary?.totalReceivable ?? 0, summary?.currency)}
             tone="purple"
             entranceDelay={80}
           />
           <StatCard
             icon={Banknote}
             label="Collected"
-            value={formatPKR(summary?.totalCollected ?? 0)}
+            value={formatPKR(summary?.totalCollected ?? 0, summary?.currency)}
             tone="green"
             entranceDelay={160}
           />
           <StatCard
             icon={CreditCard}
             label="Outstanding"
-            value={formatPKR(summary?.totalOutstanding ?? 0)}
+            value={formatPKR(summary?.totalOutstanding ?? 0, summary?.currency)}
             tone="rose"
             entranceDelay={240}
           />
@@ -126,7 +128,7 @@ export function FeeOverviewTab({
           <StatCard
             icon={Shield}
             label="Overdue"
-            value={formatPKR(summary?.totalOverdue ?? 0)}
+            value={formatPKR(summary?.totalOverdue ?? 0, summary?.currency)}
             tone="dark"
             entranceDelay={400}
           />
@@ -159,7 +161,7 @@ export function FeeOverviewTab({
                       {cls.collectionRate}%
                     </p>
                     <p className="text-[9px] font-bold text-ink-subtle">
-                      {formatPKR(cls.totalPaid)} / {formatPKR(cls.totalDue)}
+                      {formatPKR(cls.totalPaid, summary?.currency)} / {formatPKR(cls.totalDue, summary?.currency)}
                     </p>
                   </div>
                 </div>
@@ -210,7 +212,7 @@ export function FeeOverviewTab({
                         : "text-ink-muted"
                     }`}
                   >
-                    {formatPKR(s.totalOverdue)}
+                    {formatPKR(s.totalOverdue, summary?.currency)}
                   </p>
                 </div>
               ))}
@@ -260,7 +262,7 @@ export function FeeOverviewTab({
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-black text-emerald-600">
-                    {formatPKR(p.amount)}
+                    {formatPKR(p.amount, summary?.currency)}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
                     {p.receiptNo}

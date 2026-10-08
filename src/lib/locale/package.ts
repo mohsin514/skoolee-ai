@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { countrySchema, currencyForCountry } from "./country";
 
-export const LANGUAGES = ["en", "ar"] as const;
+export const LANGUAGES = ["en", "ar", "ur"] as const;
 export type Language = typeof LANGUAGES[number];
 export const CURRENCIES = ["PKR", "SAR", "USD", "EUR", "GBP", "AED", "JPY", "KRW", "KWD", "BHD", "OMR"] as const;
 export const localePackageSchema = z.object({
   language: z.enum(LANGUAGES),
+  country: countrySchema.optional(),
   timezone: z.string().refine((zone) => { try { if (zone !== "UTC" && !zone.includes("/")) return false; return !!new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone; } catch { return false; } }, "timezone"),
   calendar: z.enum(["gregory", "iso8601"]),
   numberingSystem: z.enum(["latn", "arab"]),
@@ -15,10 +17,13 @@ export const localePackageSchema = z.object({
 export type LocalePackage = z.infer<typeof localePackageSchema>;
 export const POLICY_KEYS = Object.keys(localePackageSchema.shape) as (keyof LocalePackage)[];
 export const localePatchSchema = localePackageSchema.partial();
-export const defaultLocale: LocalePackage = { language: "en", timezone: "Asia/Karachi", calendar: "gregory", numberingSystem: "latn", currency: "PKR", weekStartsOn: 1, weekend: [0] };
+export const defaultLocale: LocalePackage = { language: "en", timezone: "Asia/Karachi", calendar: "gregory", numberingSystem: "latn", country: "OTHER", currency: "USD", weekStartsOn: 1, weekend: [0] };
 export function localeTag(policy: LocalePackage) { return `${policy.language}-u-ca-${policy.calendar}-nu-${policy.numberingSystem}`; }
 export function resolvePackage(school: Partial<LocalePackage>, campus: Partial<LocalePackage> = {}, personal?: Language | null): LocalePackage {
-  return localePackageSchema.parse({ ...defaultLocale, ...school, ...campus, ...(personal ? { language: personal } : {}) });
+  const merged = { ...defaultLocale, ...school, ...campus, ...(personal ? { language: personal } : {}) };
+  if (campus.country && !campus.currency) merged.currency = currencyForCountry(campus.country);
+  else if (school.country && !school.currency && !campus.currency) merged.currency = currencyForCountry(school.country);
+  return localePackageSchema.parse(merged);
 }
 export function dateOnly(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("date");

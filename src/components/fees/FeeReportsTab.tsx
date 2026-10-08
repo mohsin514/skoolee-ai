@@ -1,4 +1,5 @@
 "use client";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -22,12 +23,14 @@ import {
   classLabel,
   exportCSV,
   formatPKR,
+  paisaToRupees,
   paymentMethodLabel,
 } from "./fee-utils";
 
 type ReportTab = "defaulters" | "collection" | "methods";
 
 export function FeeReportsTab({ campusId }: { campusId?: string }) {
+  const [currency, setCurrency] = useState("");
   const [subTab, setSubTab] = useState<ReportTab>("defaulters");
 
   const TABS: { key: ReportTab; label: string; icon: typeof Users }[] = [
@@ -37,7 +40,7 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5"><CurrencySelect value={currency} onChange={setCurrency} />
       <h3 className="text-lg font-black text-[#1f1a23]">Reports</h3>
 
       <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
@@ -61,14 +64,14 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
         })}
       </div>
 
-      {subTab === "defaulters" && <DefaultersReport campusId={campusId} />}
-      {subTab === "collection" && <CollectionSummary campusId={campusId} />}
-      {subTab === "methods" && <MethodBreakdown campusId={campusId} />}
+      {subTab === "defaulters" && <DefaultersReport campusId={campusId} currency={currency} />}
+      {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} />}
+      {subTab === "methods" && <MethodBreakdown campusId={campusId} currency={currency} />}
     </div>
   );
 }
 
-function DefaultersReport({ campusId }: { campusId?: string }) {
+function DefaultersReport({ campusId, currency }: { campusId?: string; currency: string }) {
   const [defaulters, setDefaulters] = useState<DefaulterRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [remindingId, setRemindingId] = useState<string | null>(null);
@@ -76,7 +79,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/defaulters?${params}`);
       const json = await res.json();
@@ -86,7 +89,7 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -122,9 +125,9 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
       Guardian: d.guardianName ?? "",
       Phone: d.guardianPhone ?? "",
       Email: d.guardianEmail ?? "",
-      "Total Due": d.totalDue / 100,
-      "Total Paid": d.totalPaid / 100,
-      "Overdue Amount": d.totalOverdue / 100,
+      "Total Due": paisaToRupees(d.totalDue, d.currency),
+      "Total Paid": paisaToRupees(d.totalPaid, d.currency),
+      "Overdue Amount": paisaToRupees(d.totalOverdue, d.currency),
       "Days Overdue": d.daysOverdue,
       "Overdue Invoices": d.overdueInvoices,
     }));
@@ -200,8 +203,8 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
                   </p>
                 )}
               </div>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
+              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
               <span className={`text-[9px] font-black px-2 py-1 rounded-lg w-fit ${
                 d.daysOverdue > 30 ? "bg-rose-50 text-rose-600" : d.daysOverdue > 15 ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
               }`}>
@@ -224,14 +227,14 @@ function DefaultersReport({ campusId }: { campusId?: string }) {
   );
 }
 
-function CollectionSummary({ campusId }: { campusId?: string }) {
+function CollectionSummary({ campusId, currency }: { campusId?: string; currency: string }) {
   const [data, setData] = useState<CollectionReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
@@ -241,7 +244,7 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -252,9 +255,9 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
     const rows = data.map((d) => ({
       Class: d.className,
       Students: d.totalStudents,
-      "Total Due": d.totalDue / 100,
-      "Total Paid": d.totalPaid / 100,
-      "Total Overdue": d.totalOverdue / 100,
+      "Total Due": paisaToRupees(d.totalDue, d.currency),
+      "Total Paid": paisaToRupees(d.totalPaid, d.currency),
+      "Total Overdue": paisaToRupees(d.totalOverdue, d.currency),
       "Collection Rate": `${d.collectionRate}%`,
     }));
     exportCSV(rows, `collection-${new Date().toISOString().split("T")[0]}`);
@@ -351,9 +354,9 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
             >
               <p className="text-xs font-black text-[#1f1a23]">{d.className}</p>
               <p className="text-xs font-bold text-ink-muted">{d.totalStudents}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue)}</p>
-              <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid)}</p>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue)}</p>
+              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
+              <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid, d.currency)}</p>
+              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
                   <div
@@ -379,14 +382,14 @@ function CollectionSummary({ campusId }: { campusId?: string }) {
   );
 }
 
-function MethodBreakdown({ campusId }: { campusId?: string }) {
+function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: string }) {
   const [data, setData] = useState<PaymentMethodBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
@@ -396,7 +399,7 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, currency]);
 
   useEffect(() => {
     load();
@@ -456,7 +459,7 @@ function MethodBreakdown({ campusId }: { campusId?: string }) {
                 {m.count} txns
               </span>
             </div>
-            <p className="text-xl font-black text-[#8127cf] mb-2">{formatPKR(m.total)}</p>
+            <p className="text-xl font-black text-[#8127cf] mb-2">{formatPKR(m.total, m.currency)}</p>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-3 rounded-full bg-[#f3f4f9] overflow-hidden">
                 <div

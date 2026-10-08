@@ -28,6 +28,8 @@ import {
   exportCSV,
   formatDate,
   formatPKR,
+  paisaToRupees,
+  rupeesToPaisa,
   paymentMethodLabel,
   statusBadgeClass,
 } from "./fee-utils";
@@ -100,7 +102,8 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       "Roll No": p.student.rollNo ?? "",
       Class: classLabel(p.student.class.name, p.student.class.section),
       "Invoice #": p.invoice.invoiceNumber,
-      Amount: p.amount / 100,
+      Currency: p.invoice.currency,
+      Amount: paisaToRupees(p.amount, p.invoice.currency),
       Date: formatDate(p.paymentDate),
       Method: paymentMethodLabel(p.paymentMethod),
       Reference: p.referenceNumber ?? "",
@@ -217,7 +220,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                     </p>
                   </div>
                   <p className="text-[10px] font-black text-ink truncate">{p.receiptNo ?? "—"}</p>
-                  <p className="text-xs font-black text-emerald-600">{formatPKR(p.amount)}</p>
+                  <p className="text-xs font-black text-emerald-600">{formatPKR(p.amount, p.invoice.currency)}</p>
                   <p className="text-[10px] font-bold text-ink-muted">{paymentMethodLabel(p.paymentMethod)}</p>
                   <p className="text-[10px] font-bold text-ink-muted">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
@@ -355,7 +358,7 @@ function PaymentModal({
         setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.amountDue - i.amountPaid })));
         if (unpaid.length > 0) {
           setSelectedInvoiceId(unpaid[0].id);
-          setAmount(String((unpaid[0].amountDue - unpaid[0].amountPaid) / 100));
+          setAmount(String(paisaToRupees(unpaid[0].amountDue - unpaid[0].amountPaid, unpaid[0].currency)));
           setReferenceNumber(unpaid[0].invoiceNumber || "");
         }
       }
@@ -366,6 +369,7 @@ function PaymentModal({
     }
   };
 
+  const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || "PKR";
   const handleRecordPayment = async () => {
     if (!selectedInvoiceId || !amount) { toast.error("Invoice and amount required"); return; }
     setSaving(true);
@@ -376,9 +380,9 @@ function PaymentModal({
         body: JSON.stringify({
           studentId: selectedStudent?.id,
           invoiceId: selectedInvoiceId,
-          amount: Math.round(parseFloat(amount) * 100),
-          fineAmount: fineAmount ? Math.round(parseFloat(fineAmount) * 100) : undefined,
-          discountAmount: discountAmount ? Math.round(parseFloat(discountAmount) * 100) : undefined,
+          amount: rupeesToPaisa(amount, currency),
+          fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : undefined,
+          discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : undefined,
           paymentDate,
           paymentMethod,
           referenceNumber: referenceNumber || undefined,
@@ -388,13 +392,14 @@ function PaymentModal({
       const json = await res.json();
       if (json.success) {
         setReceipt({
+          currency,
           id: json.data?.paymentId || "",
           receiptNumber: json.data?.receiptNumber || "",
           studentName: json.data?.studentName || "",
           invoiceNumber: json.data?.invoiceNumber || "",
-          amount: Math.round(parseFloat(amount) * 100),
-          fineAmount: fineAmount ? Math.round(parseFloat(fineAmount) * 100) : 0,
-          discountAmount: discountAmount ? Math.round(parseFloat(discountAmount) * 100) : 0,
+          amount: rupeesToPaisa(amount, currency),
+          fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : 0,
+          discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : 0,
           creditAmount: json.data?.credit || 0,
           paymentDate,
           paymentMethod,
@@ -448,24 +453,24 @@ function PaymentModal({
               </div>
               <div className="flex justify-between">
                 <span className="text-[9px] font-black uppercase text-ink-subtle">Amount</span>
-                <span className="text-sm font-black text-[#1f1a23]">{formatPKR(receipt.amount)}</span>
+                <span className="text-sm font-black text-[#1f1a23]">{formatPKR(receipt.amount, receipt.currency)}</span>
               </div>
               {receipt.discountAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[9px] font-black uppercase text-ink-subtle">Discount</span>
-                  <span className="text-sm font-black text-emerald-600">−{formatPKR(receipt.discountAmount)}</span>
+                  <span className="text-sm font-black text-emerald-600">−{formatPKR(receipt.discountAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.fineAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[9px] font-black uppercase text-ink-subtle">Fine</span>
-                  <span className="text-sm font-black text-rose-600">{formatPKR(receipt.fineAmount)}</span>
+                  <span className="text-sm font-black text-rose-600">{formatPKR(receipt.fineAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.creditAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[9px] font-black uppercase text-ink-subtle">Carried Credit</span>
-                  <span className="text-sm font-black text-[#8127cf]">{formatPKR(receipt.creditAmount)}</span>
+                  <span className="text-sm font-black text-[#8127cf]">{formatPKR(receipt.creditAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.note ? (
@@ -556,10 +561,10 @@ function PaymentModal({
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-[#8127cf]/30 bg-[#fbf0fe]" : "border-[#cfc2d6]/10 bg-[#f3f4f9]/50 hover:border-[#8127cf]/20"}`}>
-                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String((inv.amountDue - inv.amountPaid) / 100)); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-[#8127cf]" />
+                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-[#8127cf]" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-black text-[#1f1a23]">{inv.invoiceNumber || "Invoice"}</p>
-                        <p className="text-[9px] font-bold text-ink-subtle">Due: {inv.dueDate} · {formatPKR(inv.amountDue)}</p>
+                        <p className="text-[9px] font-bold text-ink-subtle">Due: {inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
                       </div>
                       <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{inv.status}</span>
                     </label>
@@ -576,7 +581,7 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-3 border border-[#cfc2d6]/10">
                   <p className="text-xs font-black text-[#1f1a23]">{sel.invoiceNumber || "Invoice"}</p>
-                  <p className="text-[9px] font-bold text-ink-subtle">Due: {sel.dueDate} · {formatPKR(sel.amountDue)}</p>
+                  <p className="text-[9px] font-bold text-ink-subtle">Due: {sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
                 </div>
               ) : null;
             })()}

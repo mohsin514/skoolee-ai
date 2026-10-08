@@ -25,7 +25,7 @@ test("persisted policy resolves exact effective boundaries, inheritance, finance
   assert.deepEqual((await getLocalePackage(schoolId, `${schoolId}-a`, new Date("2027-03-31T23:59:59Z"))).weekend, [6, 0]);
   assert.deepEqual((await getLocalePackage(schoolId, `${schoolId}-a`, new Date("2027-04-01T00:00:00Z"))).weekend, [5, 6]);
   const campus = await getLocalePackage(schoolId, `${schoolId}-a`, new Date("2027-04-02T00:00:00Z")); assert.equal(campus.language, "en"); assert.equal(campus.timezone, "Europe/London");
-  assert.equal((await getLocalePackage(schoolId, null, new Date("2027-04-04T00:00:00Z"))).currency, "PKR");
+  assert.equal((await getLocalePackage(schoolId, null, new Date("2027-04-04T00:00:00Z"))).currency, "USD");
   const foreign = await prisma.localePolicy.findMany({ where: { id: "locale-foreign-nonexistent" } }); assert.deepEqual(foreign, []);
   await assert.rejects(() => prisma.localePolicy.findMany({ where: { schoolId: "locale-fixture" } }));
  });

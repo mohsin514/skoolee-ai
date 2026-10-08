@@ -6,7 +6,7 @@ import { workflowSample } from "../../src/lib/locale/samples";
 
 test("language and direction never mutate canonical amounts, dates or identifiers", () => {
  const original = { date: "2015-01-01", amount: { minor: 123456, currency: "SAR" }, id: "INV-014" }; const copy = structuredClone(original);
- for (const language of ["en", "ar"] as const) for (const timezone of ["America/New_York", "Asia/Riyadh", "Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
+ for (const language of ["en", "ar", "ur"] as const) for (const timezone of ["America/New_York", "Asia/Riyadh", "Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
  const p = { ...defaultLocale, language, timezone }; assert.ok(formatDateOnly(original.date, p)); assert.ok(formatMoney(original.amount, p));
  assert.equal(formatDateOnly(original.date, p), formatDateOnly(original.date, { ...p, timezone: "UTC" })); }
  assert.deepEqual(original, copy); assert.throws(() => dateOnly("2027-02-29")); assert.equal(dateOnly("2028-02-29"), "2028-02-29");
@@ -37,15 +37,16 @@ test("role and campus delegation deny vendor, sibling, and nondelegated writes",
 });
 test("enabled workflow catalogs have complete nonempty coverage and shared sample values", () => {
  assert.deepEqual(Object.keys(catalogs.ar).sort(), Object.keys(catalogs.en).sort());
+ assert.deepEqual(Object.keys(catalogs.ur).sort(), Object.keys(catalogs.en).sort());
  for (const value of Object.values(catalogs.ar)) assert.ok(Array.isArray(value) ? value.length === 7 && value.every(Boolean) : value.length > 0);
- for (const language of ["en", "ar"] as const) { const sample = workflowSample({ ...defaultLocale, language }); assert.ok(sample.notification.includes(sample.attendance)); assert.ok(sample.notification.includes(sample.amount)); assert.ok(sample.notification.includes(sample.invoiceId)); }
+ for (const language of ["en", "ar", "ur"] as const) { const sample = workflowSample({ ...defaultLocale, language }); assert.ok(sample.notification.includes(sample.attendance)); assert.ok(sample.notification.includes(sample.amount)); assert.ok(sample.notification.includes(sample.invoiceId)); }
 });
 
 test("all supported notification templates carry Arabic copy and escaped RTL HTML", async () => {
  const { defaultTemplateFor, NOTIFICATION_TEMPLATE_KEYS } = await import("../../src/lib/notifications/templates");
  const { notificationHtml } = await import("../../src/lib/locale/notification-catalog");
- for (const key of NOTIFICATION_TEMPLATE_KEYS) {
-  const en = defaultTemplateFor(key, "EMAIL", "en")!; const ar = defaultTemplateFor(key, "EMAIL", "ar")!;
+ for (const language of ["ar", "ur"] as const) for (const key of NOTIFICATION_TEMPLATE_KEYS) {
+  const en = defaultTemplateFor(key, "EMAIL", "en")!; const ar = defaultTemplateFor(key, "EMAIL", language)!;
   assert.notEqual(ar.body, en.body); assert.match(ar.body, /[\u0600-\u06ff]/);
   const placeholders = (body: string) => [...body.matchAll(/\{\{(\w+)\}\}/g)].map((v) => v[1]).sort();
   assert.deepEqual(placeholders(ar.body), placeholders(en.body));

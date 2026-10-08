@@ -366,7 +366,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                 </div>
                 <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2 flex items-center justify-between">
                   <p className="text-[9px] font-black uppercase text-ink-subtle">Bundled value</p>
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(lineTotal)}</p>
+                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(lineTotal, g.currency)}</p>
                 </div>
                 {g.description && (
                   <p className="text-[10px] font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
@@ -428,7 +428,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
   const openModal = (line: MasterLineRow | null) => {
     setEditing(line);
     setFeeTypeId(line?.feeTypeId ?? "");
-    setAmount(line ? String(paisaToRupees(line.amount)) : "");
+    setAmount(line ? String(paisaToRupees(line.amount, selectedGroup?.currency)) : "");
     setDueDate(line?.dueDate ? new Date(line.dueDate).toISOString().split("T")[0] : "");
     setShowModal(true);
   };
@@ -446,7 +446,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({
           ...(editing ? { id: editing.id } : { campusId: campusId || undefined, feeGroupId: selectedGroupId }),
           feeTypeId,
-          amount: rupeesToPaisa(parseFloat(amount)),
+          amount: rupeesToPaisa(amount, selectedGroup?.currency),
           dueDate: dueDate || null,
         }),
       });
@@ -515,7 +515,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
               {selectedGroup.name} &mdash; {selectedGroup.lines.length} line(s)
             </p>
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-              {formatPKR(selectedGroup.lines.reduce((s, l) => s + l.amount, 0))} total
+              {formatPKR(selectedGroup.lines.reduce((s, l) => s + l.amount, 0), selectedGroup.currency)} total
             </p>
           </div>
           {selectedGroup.lines.length === 0 ? (
@@ -531,7 +531,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount)}</p>
+                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount, selectedGroup?.currency)}</p>
                   <button type="button" onClick={() => openModal(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
                     <BookOpen className="w-3.5 h-3.5" />
                   </button>
@@ -926,7 +926,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
               <div>
                 <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
                 <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
-                  {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value)}
+                  {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value, d.currency)}
                   {d.category ? ` · auto: ${d.category.name}` : ""} · {d._count?.assignments ?? 0} student(s)
                 </p>
               </div>
@@ -1183,7 +1183,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="flex items-center gap-3">
                 <span className={`text-sm font-black ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance))}
+                  {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
                 <button type="button" onClick={() => setDeleting(f)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
                   <Trash2 className="w-3.5 h-3.5" />

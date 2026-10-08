@@ -6,8 +6,8 @@ import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
 
 type ReportPayload = Awaited<ReturnType<typeof getReportCardPdfPayload>>;
 
-Font.register({
-  family: "NotoNaskhArabic",
+for (const family of ["NotoNaskhArabic", "Report-en", "Report-ar", "Report-ur"]) Font.register({
+  family,
   fonts: [
     { src: path.join(process.cwd(), "public", "fonts", "NotoNaskhArabic-Regular.ttf"), fontWeight: 400 },
     { src: path.join(process.cwd(), "public", "fonts", "NotoNaskhArabic-Bold.ttf"), fontWeight: 700 },
@@ -16,7 +16,7 @@ Font.register({
 
 const styles = StyleSheet.create({
   page: {
-    padding: 32,
+    padding: 28,
     fontSize: 10,
     color: "#172033",
     fontFamily: "Helvetica",
@@ -26,8 +26,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fbf0fe",
     borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 10,
   },
   avatar: {
     width: 72,
@@ -46,14 +46,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   studentName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 700,
     color: "#1d1b20",
   },
   subline: {
     fontSize: 8,
     color: "#4d4354",
-    marginTop: 4,
+    marginTop: 2,
   },
   headerStats: {
     flexDirection: "row",
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
   },
   bigValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 700,
     color: "#8127cf",
   },
@@ -213,8 +213,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e8e0ec",
     borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
+    padding: 8,
+    marginBottom: 6,
   },
   remarkLabel: {
     fontSize: 7,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     direction: "rtl",
   },
   footer: {
-    marginTop: 24,
+    marginTop: 12,
     flexDirection: "row",
     justifyContent: "flex-end",
     color: "#667085",
@@ -273,7 +273,7 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
       {weightConfig ? (
         <View style={{ marginBottom: 10 }}>
           <Text style={styles.weightsLine}>{t.weights}</Text>
-          <View style={{ flexDirection: locale.language === "ar" ? "row-reverse" : "row", gap: 12 }}>
+          <View style={{ flexDirection: locale.language !== "en" ? "row-reverse" : "row", gap: 12 }}>
             {[[t.quiz, weightConfig.quizWeight], [t.classTest, weightConfig.classTestWeight], [t.midTerm, weightConfig.midTermWeight], [t.final, weightConfig.finalWeight]].map(([label, weight]) => <View key={String(label)} style={{ flex: 1 }}><Text style={styles.weightsLine}>{label}</Text><Text>{f(Number(weight))}%</Text></View>)}
           </View>
         </View>
@@ -283,7 +283,7 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
         <View key={subject.subjectId}>
           <Text style={[styles.subjectHeader, i === 0 ? { marginTop: 0 } : {}]}>{subject.subjectName}</Text>
           <View style={styles.table}>
-            <View style={[styles.tr, styles.th, { flexDirection: locale.language === "ar" ? "row-reverse" : "row" }]}>
+            <View style={[styles.tr, styles.th, { flexDirection: locale.language !== "en" ? "row-reverse" : "row" }]}>
               <Text style={[styles.thText, styles.flexExam]}>{t.exam}</Text>
               <Text style={[styles.thText, styles.flexCell]}>{t.weight}</Text>
               <Text style={[styles.thText, styles.flexCell]}>{t.marks}</Text>
@@ -291,7 +291,7 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
               <Text style={[styles.thText, styles.flexCell]}>{t.contribution}</Text>
             </View>
             {subject.exams.map((exam: any, j: number) => (
-              <View key={exam.examId} style={[j === subject.exams.length - 1 ? styles.trLast : styles.tr, { flexDirection: locale.language === "ar" ? "row-reverse" : "row" }]}>
+              <View key={exam.examId} style={[j === subject.exams.length - 1 ? styles.trLast : styles.tr, { flexDirection: locale.language !== "en" ? "row-reverse" : "row" }]}>
                 <Text style={[styles.tdText, styles.flexExam]}>{exam.examTitle}</Text>
                 <Text style={[styles.tdText, styles.flexCell]}>{f(exam.weight)}%</Text>
                 <Text style={[styles.tdText, styles.flexCell]}>{f(exam.obtainedMarks)}/{f(exam.totalMarks)}</Text>
@@ -339,7 +339,7 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
 
   return (
     <Document language={locale.language}>
-      <Page size="A4" style={[styles.page, { fontFamily: locale.language === "ar" ? "NotoNaskhArabic" : "Helvetica", direction: locale.language === "ar" ? "rtl" : "ltr", textAlign: locale.language === "ar" ? "right" : "left" }]}>
+      <Page size="A4" style={[styles.page, { fontFamily: `Report-${locale.language}`, direction: locale.language !== "en" ? "rtl" : "ltr", textAlign: locale.language !== "en" ? "right" : "left" }]}>
         {/* School/Campus branding header */}
         {logo ? (
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10 }}>
@@ -354,7 +354,7 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
           </View>
         ) : null}
 
-        <View style={[styles.headerCard, { flexDirection: locale.language === "ar" ? "row-reverse" : "row" }]}>
+        <View style={[styles.headerCard, { flexDirection: locale.language !== "en" ? "row-reverse" : "row" }]}>
           {avatarUrl ? <Image src={avatarUrl} style={styles.avatar} /> : null}
           <View style={styles.headerInfo}>
             <Text style={styles.eyebrow}>{exam.title}{exam.term ? ` · ${exam.term}` : ""}</Text>
@@ -363,7 +363,8 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
               {student.rollNo ? `${t.roll}: ${student.rollNo} · ` : ""}{classLabel(payload)}
             </Text>
             <Text style={styles.subline}>{t.generated}</Text>
-            <Text style={styles.subline}>{formatInstant(reportCard.generatedAt, locale).replace(/[\u200e\u200f\u061c]/g, "")}</Text>
+            <Text style={[styles.subline, { direction: "ltr" }]}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(reportCard.generatedAt)}</Text>
+            <Text style={styles.subline}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, dateStyle: "long" }).format(reportCard.generatedAt)}</Text>
           </View>
           <View style={styles.headerStats}>
             <View style={styles.bigStat}>
@@ -377,14 +378,14 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
           </View>
         </View>
 
-        <View style={[styles.statRow, { gap: 8, flexDirection: locale.language === "ar" ? "row-reverse" : "row" }]}>
+        <View style={[styles.statRow, { gap: 8, flexDirection: locale.language !== "en" ? "row-reverse" : "row" }]}>
           <StatBox label={t.roll} value={student.rollNo || t.unavailable} />
           <StatBox label={t.class} value={classLabel(payload)} />
           <StatBox label={t.status} value={state(reportCard.status || "—")} />
           <StatBox label={t.delivery} value={state(reportCard.deliveryStatus || "PENDING")} last />
         </View>
 
-        <View style={[styles.statRow, { gap: 8, flexDirection: locale.language === "ar" ? "row-reverse" : "row" }]}>
+        <View style={[styles.statRow, { gap: 8, flexDirection: locale.language !== "en" ? "row-reverse" : "row" }]}>
           <StatBox label={t.total} value={f(reportCard.totalMarks)} />
           <StatBox label={t.obtained} value={f(reportCard.obtainedMarks)} />
           <StatBox label={t.percentage} value={`${f(displayPercentage)}%`} />

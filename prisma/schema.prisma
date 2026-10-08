@@ -1513,6 +1513,7 @@ model AttendanceEditHistory {
 
 // ─── 11. FEE_STRUCTURES ───────────────────────────────────
 model FeeStructure {
+  currency String @default("PKR")
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1567,6 +1568,7 @@ model FeeType {
 }
 
 model FeeGroup {
+  currency String @default("PKR")
   id          String               @id @default(uuid())
   schoolId    String               @default("") @map("school_id")
   school      School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1618,6 +1620,7 @@ model FeeGroupAssignment {
 }
 
 model FeeDiscount {
+  currency String @default("PKR")
   id          String                  @id @default(uuid())
   schoolId    String                  @default("") @map("school_id")
   school      School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1651,6 +1654,7 @@ model FeeDiscountAssignment {
 }
 
 model FeeCarryForward {
+  currency String @default("PKR")
   id               String  @id @default(uuid())
   schoolId         String  @default("") @map("school_id")
   school           School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1798,6 +1802,7 @@ model BankAccount {
 }
 
 model LedgerEntry {
+  currency String @default("PKR")
   id            String         @id @default(uuid())
   schoolId      String         @default("") @map("school_id")
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)

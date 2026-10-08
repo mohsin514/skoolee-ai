@@ -240,13 +240,13 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     if (invoice) {
       const snapshot = localePackageSchema.safeParse(invoice.localeSnapshot);
       if (snapshot.success) locale = snapshot.data;
-      if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
+      if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar" || parent?.preferredLanguage === "ur") locale = { ...locale, language: parent.preferredLanguage };
       context.balanceDue = formatMoney({ minor: typeof context.balanceDueMinor === "number" && Number.isSafeInteger(context.balanceDueMinor) ? context.balanceDueMinor : invoice.balanceDue, currency: invoice.currency }, locale);
       context.dueDate = formatDateOnly(invoice.dueDate.toISOString().slice(0, 10), locale);
       context.term = new Intl.DateTimeFormat(localeTag(locale), { year: "numeric", month: "long", timeZone: "UTC" }).format(invoice.invoiceDate);
     }
   }
-  if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar") locale = { ...locale, language: parent.preferredLanguage };
+  if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar" || parent?.preferredLanguage === "ur") locale = { ...locale, language: parent.preferredLanguage };
   for (const key of ["date", "dueDate", "meetingDate", "deadlineDate"]) {
     const value = context[key];
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) context[key] = formatDateOnly(value, locale);

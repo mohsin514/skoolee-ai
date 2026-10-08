@@ -16,9 +16,12 @@ async function main() {
  const exam = await db.exam.create({ data: { schoolId, campusId: campus.id, classId: cls.id, subjectId: subject.id, title: "اختبار الفصل", term: "Term-1", academicYear: 2027, status: "PUBLISHED", publishedAt: new Date(), isLocked: true } });
  await db.mark.create({ data: { schoolId, campusId: campus.id, studentId: student.id, examId: exam.id, subjectId: subject.id, marksObtained: 86 } });
  const report = await db.reportCard.create({ data: { schoolId, campusId: campus.id, studentId: student.id, examId: exam.id, totalMarks: 100, obtainedMarks: 86, percentage: 86, grade: "A", status: "PUBLISHED", generatedAt: new Date("2027-04-01T00:30:00Z"), remarksEn: "Original approved English remarks remain unchanged.", remarksUr: "طالب علم کی کارکردگی اچھی ہے۔", localeSnapshot: { ...defaultLocale, language: "ar", timezone: "Asia/Riyadh", numberingSystem: "arab" } } });
- const rendered = await runWithTenantContext({ schoolId }, () => renderReportCardPdfBuffer(report.id)); await writeFile("/tmp/sko201-evidence/actual-report-ar.pdf", rendered.buffer);
+ for (const language of (["en", "ar", "ur", "en", "ar", "ur"] as const)) {
+ await db.reportCard.update({ where: { id: report.id }, data: { localeSnapshot: { ...defaultLocale, language, timezone: "Asia/Riyadh", numberingSystem: "arab" } } });
+ const rendered = await runWithTenantContext({ schoolId }, () => renderReportCardPdfBuffer(report.id)); await writeFile(`/tmp/sko201-evidence/actual-report-${language}.pdf`, rendered.buffer);
  const after = await db.reportCard.findUniqueOrThrow({ where: { id: report.id } }); assert.equal(after.obtainedMarks, 86); assert.equal(after.remarksEn, report.remarksEn); assert.deepEqual(after.generatedAt, report.generatedAt);
- console.log("Real report-card payload rendered in Arabic without changing identity, remarks, marks or generation timestamp");
+ }
+ console.log("Real report-card payload rendered twice in English, Arabic and Urdu without changing identity, remarks, marks or generation timestamp");
  } finally { await db.school.deleteMany({ where: { id: schoolId } }); await db.$disconnect(); }
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; });

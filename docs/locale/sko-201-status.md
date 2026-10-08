@@ -43,3 +43,14 @@ Use only a disposable PostgreSQL instance at `127.0.0.1:55401/sko201`, with `DAT
 7. Stop the app, drop only the disposable local database, and stop the local PostgreSQL instance.
 
 No remote database writes, emails, payments, AI calls, merges to shared branches or deployments are part of this verification.
+
+## Completion work after expanded English / Arabic / Urdu requirements
+
+- Added Urdu settings, invoice, academic report and all ten notification-template catalogs plus RTL email framing. Report font caches are separated by language after a repeated-render regression; six consecutive English/Arabic/Urdu renders passed. Urdu invoice/report visually reviewed with Latin IDs and Arabic digits; report remains one page.
+- Added validated PK/SA/AE/KW/OTHER location choices and default PKR/SAR/AED/KWD/USD mapping (Dubai normalization maps AE). Unknown new locale defaults to USD. Preview derives country currency server-side and requires currency delegation plus independent finance review.
+- Future exam preview reads actual scoped scheduled papers and their local period start times, showing before/after UTC interpretations. Dates/local times remain stored unchanged. DST gaps/overlaps are explicit. Two-zone DST tests pass.
+- Added immutable currency identity to monetary sources and ledger. Original legacy records remain PKR. Invoice generation copies source currency; cross-currency discounts, carry-forward, late fees and overpayment credit are refused. Payment collection uses invoice precision and posts its currency to ledger.
+- Actual invoice/fee collection displays and CSV amounts use record currency minor units. Ledger/profit and fee-summary reports filter currency, with selectors. PKR-only gateway rejects other invoice currencies.
+- Fresh localhost migration replay passed baseline, locale, report snapshot, money identity and outbox migrations. Real KWD payment/ledger and database immutable-currency checks passed. Policy/notification persistence passed after USD default change.
+
+Still in progress: full shared/role UI translation coverage and missing-key gate; remaining legacy financial editing/statement surfaces; complete three-language real workflow preview/role/browser coverage; final production build and recovery checks. The PR remains draft and Linear remains In Progress until these are completed.

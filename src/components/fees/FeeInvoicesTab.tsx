@@ -27,6 +27,7 @@ import {
   exportCSV,
   formatDate,
   formatPKR,
+  paisaToRupees,
   paymentMethodLabel,
   statusBadgeClass,
 } from "./fee-utils";
@@ -160,9 +161,10 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       Class: classLabel(inv.student.class.name, inv.student.class.section),
       "Invoice Date": formatDate(inv.invoiceDate),
       "Due Date": formatDate(inv.dueDate),
-      "Total Amount": inv.totalAmount / 100,
-      "Amount Paid": inv.totalAmountPaid / 100,
-      "Balance Due": inv.balanceDue / 100,
+      "Currency": inv.currency,
+      "Total Amount": paisaToRupees(inv.totalAmount, inv.currency),
+      "Amount Paid": paisaToRupees(inv.totalAmountPaid, inv.currency),
+      "Balance Due": paisaToRupees(inv.balanceDue, inv.currency),
       Status: inv.status,
     }));
     exportCSV(rows, `invoices-${new Date().toISOString().split("T")[0]}`);
@@ -294,9 +296,9 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                       Due: {formatDate(inv.dueDate)}
                     </p>
                   </div>
-                  <p className="text-xs font-black text-[#1f1a23]">{formatPKR(inv.totalAmount)}</p>
-                  <p className="text-xs font-black text-emerald-600">{formatPKR(inv.totalAmountPaid)}</p>
-                  <p className="text-xs font-black text-rose-600">{formatPKR(inv.balanceDue)}</p>
+                  <p className="text-xs font-black text-[#1f1a23]">{formatPKR(inv.totalAmount, inv.currency)}</p>
+                  <p className="text-xs font-black text-emerald-600">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
+                  <p className="text-xs font-black text-rose-600">{formatPKR(inv.balanceDue, inv.currency)}</p>
                   <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg w-fit ${statusBadgeClass(inv.status)}`}>
                     {inv.status}
                   </span>
@@ -478,16 +480,16 @@ function InvoiceDetailModal({
               <Row label="Invoice Date" value={formatDate(inv.invoiceDate)} />
               <Row label="Due Date" value={formatDate(inv.dueDate)} />
               <div className="border-t border-[#cfc2d6]/10 pt-2 mt-2" />
-              <Row label="Monthly Fee" value={formatPKR(inv.monthlyFee)} />
-              {inv.oneTimeFees > 0 && <Row label="One-Time Fees" value={formatPKR(inv.oneTimeFees)} />}
-              <Row label="Subtotal" value={formatPKR(inv.subtotal)} />
-              {inv.discountAmount > 0 && <Row label="Discount" value={`-${formatPKR(inv.discountAmount)}`} className="text-emerald-600" />}
-              {inv.lateFeeAmount > 0 && <Row label="Late Fee" value={formatPKR(inv.lateFeeAmount)} className="text-rose-600" />}
-              {inv.taxAmount > 0 && <Row label="Tax" value={formatPKR(inv.taxAmount)} />}
+              <Row label="Monthly Fee" value={formatPKR(inv.monthlyFee, inv.currency)} />
+              {inv.oneTimeFees > 0 && <Row label="One-Time Fees" value={formatPKR(inv.oneTimeFees, inv.currency)} />}
+              <Row label="Subtotal" value={formatPKR(inv.subtotal, inv.currency)} />
+              {inv.discountAmount > 0 && <Row label="Discount" value={`-${formatPKR(inv.discountAmount, inv.currency)}`} className="text-emerald-600" />}
+              {inv.lateFeeAmount > 0 && <Row label="Late Fee" value={formatPKR(inv.lateFeeAmount, inv.currency)} className="text-rose-600" />}
+              {inv.taxAmount > 0 && <Row label="Tax" value={formatPKR(inv.taxAmount, inv.currency)} />}
               <div className="border-t border-[#cfc2d6]/10 pt-2 mt-2" />
-              <Row label="Total Amount" value={formatPKR(inv.totalAmount)} bold />
-              <Row label="Amount Paid" value={formatPKR(inv.totalAmountPaid)} className="text-emerald-600" />
-              <Row label="Balance Due" value={formatPKR(inv.balanceDue)} className={inv.balanceDue > 0 ? "text-rose-600" : "text-emerald-600"} bold />
+              <Row label="Total Amount" value={formatPKR(inv.totalAmount, inv.currency)} bold />
+              <Row label="Amount Paid" value={formatPKR(inv.totalAmountPaid, inv.currency)} className="text-emerald-600" />
+              <Row label="Balance Due" value={formatPKR(inv.balanceDue, inv.currency)} className={inv.balanceDue > 0 ? "text-rose-600" : "text-emerald-600"} bold />
             </div>
 
             {inv.payments && inv.payments.length > 0 && (
@@ -499,7 +501,7 @@ function InvoiceDetailModal({
                   {inv.payments.map((p: any) => (
                     <div key={p.id} className="rounded-2xl bg-emerald-50/50 border border-emerald-100 px-4 py-3">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-black text-emerald-700">{formatPKR(p.amount)}</p>
+                        <p className="text-sm font-black text-emerald-700">{formatPKR(p.amount, inv.currency)}</p>
                         <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg">
                           {p.receiptNo ?? "—"}
                         </span>

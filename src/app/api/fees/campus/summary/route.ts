@@ -1,3 +1,5 @@
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -19,6 +21,8 @@ export async function GET(req: NextRequest) {
       ? null
       : await resolveCampusId(user, requestedCampusId);
 
+    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
     const campusWhere: Prisma.CampusWhereInput = {
       schoolId: user.schoolId,
       ...(campusId ? { id: campusId } : {}),
@@ -33,26 +37,26 @@ export async function GET(req: NextRequest) {
 
     const [invoiceAgg, overdueAgg, byClassRaw, overdueInvoices, recentPayments] = await Promise.all([
       prisma.invoice.aggregate({
-        where: { campusId: { in: campusIds } },
+        where: { currency, campusId: { in: campusIds } },
         _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
       }),
       prisma.invoice.aggregate({
-        where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] } },
+        where: { currency, campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] } },
         _sum: { balanceDue: true },
       }),
       prisma.invoice.groupBy({
         by: ["studentId"],
-        where: { campusId: { in: campusIds } },
+        where: { currency, campusId: { in: campusIds } },
         _sum: { totalAmount: true, totalAmountPaid: true },
       }),
       prisma.invoice.findMany({
-        where: { campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } },
+        where: { currency, campusId: { in: campusIds }, status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } },
         include: { student: { select: { id: true, fullName: true, class: { select: { name: true } } } } },
         orderBy: { dueDate: "asc" },
         take: 50,
       }),
       prisma.payment.findMany({
-        where: { campusId: { in: campusIds } },
+        where: { invoice: { currency }, campusId: { in: campusIds } },
         include: {
           student: { select: { fullName: true } },
           invoice: { select: { invoiceNumber: true } },
@@ -114,6 +118,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data: {
+        currency,
         totalReceivable,
         totalCollected,
         totalOutstanding,

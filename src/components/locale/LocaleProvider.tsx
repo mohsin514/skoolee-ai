@@ -8,7 +8,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
  const [locale, setLocale] = useState(defaultLocale);
  const reload = useCallback(() => { void getEffectiveDisplayLocale().then(setLocale).catch(() => {}); }, []);
  useEffect(() => { reload(); window.addEventListener("skoolee:locale-change", reload); return () => window.removeEventListener("skoolee:locale-change", reload); }, [reload]);
- useEffect(() => { const html = document.documentElement; const previous = { lang: html.lang, dir: html.dir }; html.lang = locale.language; html.dir = locale.language === "ar" ? "rtl" : "ltr"; return () => { html.lang = previous.lang; html.dir = previous.dir; }; }, [locale.language]);
+ useEffect(() => { const html = document.documentElement; const previous = { lang: html.lang, dir: html.dir }; html.lang = locale.language; html.dir = locale.language !== "en" ? "rtl" : "ltr"; return () => { html.lang = previous.lang; html.dir = previous.dir; }; }, [locale.language]);
  return <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>;
 }
 export function useLocale() { return useContext(LocaleContext); }

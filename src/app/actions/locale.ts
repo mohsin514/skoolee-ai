@@ -7,6 +7,8 @@ import { JWT_SECRET } from "@/lib/auth/secret";
 import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { wallTimeInstants } from "@/lib/locale/events";
+import { currencyForCountry } from "@/lib/locale/country";
 import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage } from "@/lib/locale/package";
 import { getLocalePackage } from "@/lib/locale/store";
 
@@ -53,6 +55,7 @@ async function revision(schoolId: string, db: Pick<typeof prisma, "localePolicy"
 }
 export async function previewLocaleChange(input: unknown) {
   const change = changeSchema.parse(input);
+  if (change.settings.country) change.settings.currency = currencyForCountry(change.settings.country);
   const user = await session();
   return runWithTenantContext(user, async () => {
     const { campuses, scopeCount } = await context(user);
@@ -70,8 +73,15 @@ export async function previewLocaleChange(input: unknown) {
       settings = { ...retained, ...settings };
     }
     const after = resolvePackage(change.campusId ? school : before, settings);
+    const scheduled = await prisma.examSchedule.findMany({ where: { schoolId: user.schoolId, campusId: change.campusId || { in: campuses.map((c) => c.id) }, date: { gte: effectiveAt }, periodDefinitionId: { not: null } }, include: { exam: { select: { title: true } }, periodDefinition: { select: { startTime: true } } }, orderBy: [{ date: "asc" }, { id: "asc" }], take: 100 });
+    const events = await Promise.all(scheduled.map(async (event) => {
+      const date = event.date.toISOString().slice(0, 10); const time = event.periodDefinition!.startTime;
+      const previous = await getLocalePackage(user.schoolId, event.campusId, event.date);
+      const proposed = change.campusId ? after : resolvePackage(after, localePatchSchema.parse((await prisma.localePolicy.findFirst({ where: { schoolId: user.schoolId, campusId: event.campusId, status: "ACTIVE", effectiveAt: { lte: event.date } }, orderBy: { effectiveAt: "desc" } }))?.settings || {}));
+      return { id: event.id, title: event.exam.title, date, time, beforeZone: previous.timezone, afterZone: proposed.timezone, beforeUtc: wallTimeInstants(date, time, previous.timezone), afterUtc: wallTimeInstants(date, time, proposed.timezone) };
+    }));
     const token = await new SignJWT({ change, revision: await revision(user.schoolId) }).setProtectedHeader({ alg: "HS256" }).setSubject(user.id).setAudience("locale-preview").setExpirationTime("20m").sign(JWT_SECRET);
-    return { before, after, settings, token, currencyReview: before.currency !== after.currency, effectiveAt: effectiveAt.toISOString() };
+    return { before, after, settings, events, token, currencyReview: before.currency !== after.currency, effectiveAt: effectiveAt.toISOString() };
   });
 }
 export async function applyLocaleChange(token: string) {
