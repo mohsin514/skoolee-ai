@@ -66,6 +66,7 @@ export async function PUT(req: NextRequest) {
     const now = new Date();
 
     await prisma.$transaction([
+      prisma.loginSession.updateMany({ where: { userId: user.id }, data: { isActive: false, logoutAt: now } }),
       prisma.passwordHistory.create({
         data: {
           userId: user.id,
@@ -77,6 +78,7 @@ export async function PUT(req: NextRequest) {
         where: { id: user.id },
         data: {
           password: hashed,
+          accessVersion: { increment: 1 },
           mustChangePassword: false,
           lastPasswordChange: now,
         },
@@ -86,8 +88,9 @@ export async function PUT(req: NextRequest) {
     // Re-issue the token so mustChangePassword is false in the cookie —
     // otherwise the proxy would keep redirecting back to /first-login.
     const token = await new SignJWT({
+      mfaVerified: auth.mfaVerified === true,
       userId: user.id,
-      accessVersion: user.accessVersion,
+      accessVersion: user.accessVersion + 1,
       email: user.email,
       fullName: user.fullName,
       role: user.role,

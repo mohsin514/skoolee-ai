@@ -1,0 +1,61 @@
+name: Account lifecycle verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["55409:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:55409/postgres
+      DIRECT_URL: postgresql://postgres@127.0.0.1:55409/postgres
+      AUTH_SECRET: sko209-local-synthetic-validation-secret-please-change
+      NEXT_PUBLIC_APP_URL: http://localhost:3209
+      EMAIL_DEV_MODE: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate && pnpm prisma migrate deploy
+      - run: pnpm exec tsc --noEmit --incremental false
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Real account flows and responsive browser matrix
+        run: |
+          pnpm exec next dev --port 3209 > /tmp/lifecycle-app.log 2>&1 &
+          LIFECYCLE_APP_PID=$!
+          trap 'kill "$LIFECYCLE_APP_PID" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3209/api/auth/session; then break; fi
+            sleep 1
+          done
+          node --import tsx --test tests/account-lifecycle/lifecycle.test.ts tests/logout/session-revocation.test.ts
+          node --import tsx --test tests/account-lifecycle/browser.test.ts
+          node --import tsx --test tests/account-lifecycle/delivery.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: account-lifecycle-${{ github.sha }}
+          path: |
+            /tmp/lifecycle-app.log
+            /tmp/sko209-browser-evidence/
+          retention-days: 7

@@ -208,6 +208,7 @@ export async function finishOnboarding(
 
   // 4. Re-issue Session
   const newToken = await new SignJWT({
+    mfaVerified: payload.mfaVerified === true,
     userId: updatedUser.id,
       accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,

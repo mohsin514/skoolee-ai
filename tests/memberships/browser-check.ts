@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { hashSessionToken } from '../../src/lib/auth/session-cookie';
 import { SignJWT } from 'jose';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -16,8 +17,9 @@ try {
  await db.campus.create({data:{id:campus,schoolId:school,name:'North campus',city:'Synthetic',regId:campus}});
  for(const role of USER_ROLES) {
   const id=randomUUID();const owner=role==='SUPER_ADMIN';
-  await db.user.create({data:{id,schoolId:school,campusId:campus,email:`${id}@example.invalid`,fullName:`Synthetic ${role}`,role,onboardingComplete:true,isInstitutionOwner:owner,canManageMemberships:owner}});
-  const token=await new SignJWT({userId:id,schoolId:school,campusId:campus,role,onboardingComplete:true,accessVersion:0}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  await db.user.create({data:{mfaEnabled:true,id,schoolId:school,campusId:campus,email:`${id}@example.invalid`,fullName:`Synthetic ${role}`,role,onboardingComplete:true,isInstitutionOwner:owner,canManageMemberships:owner}});
+  const token=await new SignJWT({mfaVerified:true,userId:id,schoolId:school,campusId:campus,role,onboardingComplete:true,accessVersion:0}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  await db.loginSession.create({data:{schoolId:school,userId:id,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
   const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.addCookies([{name:'skoolee_token',value:token,url:'http://localhost:3219'}]);
   const page=await context.newPage();page.on("pageerror", error => console.error("BROWSER", error));await page.goto('http://localhost:3219/memberships');await page.getByRole('heading',{name:'Memberships in this scope'}).waitFor();await page.getByRole('status').filter({hasText:'Synthetic one-campus group'}).waitFor();
   assert.equal(await page.getByRole('heading',{name:'Invite to institution'}).count(),owner?1:0);

@@ -22,8 +22,8 @@ import {
 
 const PUBLIC_PATHS = [
   "/", "/login", "/register", "/register-split", "/sign-up",
-  "/accept-invite", "/forgot-password",
-  "/api/invite/status", // Scoped by a secret invitation token before sign-in.
+  "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
+  "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",

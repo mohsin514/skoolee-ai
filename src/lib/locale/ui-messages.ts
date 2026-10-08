@@ -48,6 +48,7 @@ export const arabicUi: Record<string, string> = {
   "Your account": "حسابك",
   "Manage your profile details": "إدارة تفاصيل الملف الشخصي",
   "Change password": "تغيير كلمة المرور",
+  "Active sessions": "الجلسات النشطة",
   "Sign out": "تسجيل الخروج",
   "Active account": "حساب نشط",
   "Skip to content": "انتقل إلى المحتوى",
@@ -187,6 +188,7 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  "Active sessions": "فعال سیشن",
   "Dashboard": "ڈیش بورڈ",
   "Main dashboard": "مرکزی ڈیش بورڈ",
   "Command Centre": "انتظامی مرکز",

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
           status: "pending",
           campus: { schoolId: user.schoolId },
         },
-        select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+        select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
     ]);
