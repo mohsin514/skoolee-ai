@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Eye, EyeOff, Lock, Users } from "lucide-react";
+import { BookOpen, Eye, EyeOff, Lock, Mail, Users } from "lucide-react";
 import { PageCard } from "@/components/ui/page-card";
 import { InputGroup } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { WorkspaceHeader, WorkspaceToolbar, SearchField, ToolbarSelect, StatTiles, DataTable } from "@/components/shared-admin/workspace";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,20 @@ export function ApplicationPatternsReference() {
       </div>
       <div><Label htmlFor="example-board" className="sk-field-label">Board with icon</Label><InputGroup surfaceClassName="bg-[#f3f4f9]"><BookOpen data-field-affix="start" className="size-4" /><Select id="example-board"><option>Example board</option></Select></InputGroup></div>
       <ManagementCard title="Class leadership" description="A real management card with synthetic data." icon={Users} onAdd={() => {}} emptyLabel="Assign a leader" />
+      <section aria-labelledby="field-states-heading" className="space-y-4">
+        <h2 id="field-states-heading" className="text-lg font-bold text-foreground">Field states</h2>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div><Label htmlFor="field-states-text" className="sk-field-label">Standalone text</Label><Input id="field-states-text" defaultValue="Example record" /></div>
+          <div><Label htmlFor="field-states-select" className="sk-field-label">Standalone select</Label><Select id="field-states-select" defaultValue="north"><option value="north">Example north campus</option><option value="south">Example south campus</option></Select></div>
+          <div className="sm:col-span-2"><Label htmlFor="field-states-notes" className="sk-field-label">Standalone notes</Label><Textarea id="field-states-notes" defaultValue="Example note for review." /></div>
+          <div><Label htmlFor="field-states-invalid" className="sk-field-label">Invalid text</Label><Input id="field-states-invalid" aria-invalid="true" aria-describedby="field-states-invalid-error" defaultValue="Example" /><p id="field-states-invalid-error" className="mt-2 text-sm font-semibold text-destructive">Enter at least 10 characters.</p></div>
+          <div><Label htmlFor="field-states-disabled" className="sk-field-label">Disabled text</Label><Input id="field-states-disabled" disabled value="Read only example" readOnly /></div>
+          <div><Label htmlFor="field-states-invalid-group" className="sk-field-label">Invalid group</Label><InputGroup surfaceClassName="bg-[#fdf2f8]"><Mail data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="field-states-invalid-group" type="email" aria-invalid="true" aria-describedby="field-states-invalid-group-error" defaultValue="example@" /></InputGroup><p id="field-states-invalid-group-error" className="mt-2 text-sm font-semibold text-destructive">Enter a complete email address.</p></div>
+          <div><Label htmlFor="field-states-grouped-date" className="sk-field-label">Grouped date</Label><InputGroup surfaceClassName="bg-[#eff6ff]"><Input id="field-states-grouped-date" type="date" aria-label="Grouped date" defaultValue="2026-10-08" /></InputGroup></div>
+          <div><Label htmlFor="field-states-disabled-group" className="sk-field-label">Disabled group</Label><InputGroup><Lock data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="field-states-disabled-group" disabled value="Locked example" readOnly /></InputGroup></div>
+        </div>
+        <div className="rounded-2xl bg-[#3b1d5a] p-4"><Button variant="ghost" className="text-white focus-on-dark">Dark surface action</Button></div>
+      </section>
     </PageCard>
   </main>;
 }

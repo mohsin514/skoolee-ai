@@ -88,7 +88,7 @@ export function StatCard({
   const className = cn(
     "sk-panel group p-6 transition-all",
     entranceDelay > 0 && "sk-rise",
-    onClick && "w-full cursor-pointer text-left hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/10"
+    onClick && "w-full cursor-pointer text-left hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
   );
   const content = (
     <>

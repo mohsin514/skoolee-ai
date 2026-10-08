@@ -153,7 +153,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
         role="dialog"
         aria-modal="true"
         aria-label="Quick switcher"
-        className="animate-modal-enter w-full max-w-xl overflow-hidden rounded-[26px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.35)] focus:outline-none"
+        className="animate-modal-enter w-full max-w-xl overflow-hidden rounded-[26px] border border-[#cfc2d6]/20 bg-white shadow-[0_34px_90px_rgba(31,26,35,0.35)]"
       >
         <InputGroup className="my-2">
           <Search data-field-affix="start" className="h-4 w-4 shrink-0 text-[#8127cf]" />

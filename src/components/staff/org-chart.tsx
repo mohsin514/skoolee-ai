@@ -242,7 +242,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               if (e.key === "Escape") setQuery("");
             }}
             placeholder="Find a name, rank, department or staff code…"
-            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted focus:border-[#8127cf]"
+            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted"
           />
           {query ? (
             <button data-field-affix="end"
@@ -259,7 +259,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         <SystemSelect
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
+          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none"
         >
           <option value="">All departments</option>
           {departments.map((d) => (
@@ -273,7 +273,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         <SystemSelect
           value={track}
           onChange={(e) => setTrack(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
+          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none"
         >
           <option value="">All tracks</option>
           {Object.entries(TRACK_TONES).map(([key, tone]) => (

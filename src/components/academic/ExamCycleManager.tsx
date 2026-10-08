@@ -982,7 +982,7 @@ export function ExamCycleManager({
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 aria-label="Filter by term"
-                className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] outline-none transition-all hover:border-[#8127cf]/30"
               >
                 <option value="ALL">All Terms</option>
                 {termOptions.map((t) => (
@@ -1049,7 +1049,7 @@ export function ExamCycleManager({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exams, classes, subjects…   ( / )"
             aria-label="Search exams"
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/40 focus:bg-white"
+            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:bg-white"
           />
         </InputGroup>
 
@@ -1670,7 +1670,7 @@ function FilterSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white py-2.5 pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+        className="appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white py-2.5 pl-3 pr-8 text-[11px] font-bold text-[#1d1b20]"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -1931,7 +1931,7 @@ function RejectMarksModal({
             autoFocus
             maxLength={2000}
             placeholder="e.g. Mathematics totals need re-checking against the answer sheets."
-            className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/50"
+            className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition"
           />
         </label>
         {/* Send back was simply disabled until the reason was long enough,
@@ -2130,7 +2130,7 @@ function CreateExamModal({
                 <SystemSelect
                   value={form.classId}
                   onChange={(e) => setForm({ ...form, classId: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
                 >
                   <option value="">Select class…</option>
                   {classes.map((c) => (
@@ -2146,7 +2146,7 @@ function CreateExamModal({
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Mid-Term Examination"
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
                 />
               </Field>
 
@@ -2155,7 +2155,7 @@ function CreateExamModal({
                   <SystemInput
                     value={form.term}
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
                   />
                 </Field>
                 <Field label="Academic Year">
@@ -2163,7 +2163,7 @@ function CreateExamModal({
                     type="number"
                     value={form.academicYear}
                     onChange={(e) => setForm({ ...form, academicYear: Number(e.target.value) })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
                   />
                 </Field>
               </div>
@@ -2172,7 +2172,7 @@ function CreateExamModal({
                 <SystemSelect
                   value={form.examType}
                   onChange={(e) => setForm({ ...form, examType: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20]"
                 >
                   {typeOptions.map((t) => (
                     <option key={t} value={t}>

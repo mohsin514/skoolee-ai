@@ -58,7 +58,7 @@ export function TeacherView({
           <SystemSelect
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
-            className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
+            className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none appearance-none cursor-pointer"
           >
             <option value="">— Select teacher —</option>
             {teachers.map((t) => (

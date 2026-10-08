@@ -178,7 +178,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] focus:outline-none sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
+              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
             >
               {/* ── Head ── */}
               <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-br from-white via-white to-[#fbf0fe]/70 px-5 pb-4 pt-4">
@@ -297,7 +297,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Group name — e.g. Grade 6 Teachers"
                         maxLength={120}
-                        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2.5 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
+                        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2.5 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint"
                       />
                       {selected.length > 0 && (
                         <ul className="flex flex-wrap gap-1.5">
@@ -340,7 +340,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search by name"
-                    className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint focus:border-[#8127cf]/40 focus:shadow-[0_0_0_4px_rgba(129,39,207,0.10)] focus:outline-none"
+                    className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold text-ink transition-all placeholder:text-ink-faint"
                   />
                 </InputGroup>
               </div>

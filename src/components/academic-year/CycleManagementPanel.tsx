@@ -226,7 +226,7 @@ export function CycleManagementPanel({
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="e.g. Session 2026-27"
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:bg-white"
               />
             </div>
             <div>
@@ -235,7 +235,7 @@ export function CycleManagementPanel({
                 type="number"
                 value={newYear}
                 onChange={(e) => setNewYear(Number(e.target.value))}
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
+                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:bg-white"
               />
             </div>
           </div>

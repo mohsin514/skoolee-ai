@@ -569,14 +569,14 @@ function MarksEntry({
                       }}
                       placeholder="—"
                       className={cn(
-                        "w-16 rounded-lg border px-2 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all focus:ring-4 focus:ring-[#8127cf]/15",
+                        "w-16 rounded-lg border px-2 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all",
                         absent
                           ? "border-[#cfc2d6]/25 bg-[#f3f4f9] text-ink-subtle"
                           : pct === null
-                          ? "border-[#cfc2d6]/25 bg-white text-[#1f1a23] focus:border-[#8127cf]/50"
+                          ? "border-[#cfc2d6]/25 bg-white text-[#1f1a23]"
                           : pass
-                          ? "border-emerald-200 bg-emerald-50/60 text-emerald-700 focus:border-emerald-400"
-                          : "border-rose-200 bg-rose-50/60 text-rose-600 focus:border-rose-400",
+                          ? "border-emerald-200 bg-emerald-50/60 text-emerald-700"
+                          : "border-rose-200 bg-rose-50/60 text-rose-600",
                       )}
                     />
                     <button

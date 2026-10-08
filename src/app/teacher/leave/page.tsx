@@ -298,7 +298,6 @@ export default function LeavePage() {
                       aria-pressed={statusFilter === st}
                       className={cn(
                         "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
                         statusFilter === st
                           ? "border-[#8127cf] bg-[#8127cf] text-white"
                           : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
@@ -408,7 +407,7 @@ export default function LeavePage() {
               <SystemSelect
                 value={applyForm.leaveTypeId}
                 onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
-                className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
+                className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white"
               >
                 <option value="">Select leave type</option>
                 {types.map((t) => {
@@ -429,7 +428,7 @@ export default function LeavePage() {
                   type="date"
                   value={applyForm.fromDate}
                   onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
-                  className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white"
+                  className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white"
                 />
               </label>
               <label className="block">
@@ -442,7 +441,7 @@ export default function LeavePage() {
                   min={applyForm.fromDate || undefined}
                   onChange={(e) => setApplyForm((p) => ({ ...p, toDate: e.target.value }))}
                   className={`h-14 w-full rounded-2xl border bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white ${
-                    datesReversed ? "border-rose-300 focus:border-rose-400" : "border-[#cfc2d6]/20 focus:border-[#8127cf]/40"
+                    datesReversed ? "border-rose-300" : "border-[#cfc2d6]/20"
                   }`}
                 />
               </label>
@@ -482,7 +481,7 @@ export default function LeavePage() {
                 onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
                 rows={3}
                 placeholder="Brief reason for the leave"
-                className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:border-[#8127cf]/40 focus:bg-white placeholder:text-ink-subtle"
+                className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 text-sm font-bold text-[#1f1a23] outline-none transition-all duration-250 focus:bg-white placeholder:text-ink-subtle"
               />
             </label>
             <button type="submit" className="hidden" tabIndex={-1} aria-hidden />

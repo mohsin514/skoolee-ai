@@ -442,7 +442,7 @@ export function PlansPanel() {
                 value={receiptRef}
                 onChange={(e) => setReceiptRef(e.target.value)}
                 placeholder="e.g. Transaction ID, receipt number"
-                className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23]"
               />
             </div>
         </Modal>

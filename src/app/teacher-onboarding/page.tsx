@@ -542,7 +542,7 @@ export default function TeacherOnboardingPage() {
                               if (e.key === "Enter") { e.preventDefault(); addSpecialty(draft); }
                             }}
                             placeholder="Type a subject and press Enter"
-                            className="h-11 flex-1 rounded-xl border-0 bg-white px-4 text-xs font-bold shadow-none focus:ring-2 focus:ring-[#8127cf]/20"
+                            className="h-11 flex-1 rounded-xl border-0 bg-white px-4 text-xs font-bold shadow-none"
                           />
                           <button
                             type="button"
@@ -699,9 +699,9 @@ function Field({
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
           aria-required={required}
           dir={["email", "tel"].includes(type) ? "ltr" : undefined}
-          className={`h-12 w-full rounded-2xl border-0 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
+          className={`h-12 w-full rounded-2xl border-0 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
             Icon ? "pl-10" : "pl-4"
-          } pr-4 ${error ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"} ${inputClassName}`}
+          } pr-4 ${error ? "bg-rose-50" : "bg-[#fbf0fe]"} ${inputClassName}`}
         />
       </InputGroup>
       {error
@@ -727,7 +727,7 @@ function SelectField({ label, id, value, onChange, children }: {
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] px-4 text-sm font-bold text-[#1f1a23] shadow-none outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+        className="flex h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] px-4 text-sm font-bold text-[#1f1a23] shadow-none outline-none transition-all focus:bg-white"
       >
         {children}
       </SystemSelect>

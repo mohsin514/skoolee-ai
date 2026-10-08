@@ -478,8 +478,8 @@ export default function LoginPage() {
                     autoFocus
                     aria-invalid={!!errors.email}
                     placeholder="principal@institution.edu.pk"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                      errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+                      errors.email ? "bg-rose-50" : "bg-[#fbf0fe]"
                     }`}
                     {...register("email")}
                   />
@@ -507,8 +507,8 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     aria-invalid={!!errors.password}
                     placeholder="••••••••"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                      errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+                      errors.password ? "bg-rose-50" : "bg-[#fbf0fe]"
                     }`}
                     {...passwordField}
                     onKeyUp={trackCaps}
@@ -544,7 +544,7 @@ export default function LoginPage() {
                   />
                   <span
                     aria-hidden
-                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                       remember
                         ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
                         : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"

@@ -610,7 +610,7 @@ export default function RegisterPage() {
                             value={formData.regId}
                             placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
                             onChange={e => set('regId', e.target.value.toUpperCase())}
-                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
+                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none"
                           />
                           {formData.autoId && (
                             <button data-field-affix="end"
@@ -702,7 +702,7 @@ export default function RegisterPage() {
                           />
                           <span
                             aria-hidden
-                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                               formData.acceptedTerms
                                 ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
                                 : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
@@ -942,8 +942,8 @@ function InputField({
           onKeyUp={trackCaps}
           onKeyDown={trackCaps}
           onBlur={onCapsChange ? () => onCapsChange(false) : undefined}
-          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-            error ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
+          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white ${
+            error ? "bg-rose-50" : "bg-[#fbf0fe]"
           } ${onToggleReveal ? "pr-11" : "pr-4"} ${className}`}
         />
         {onToggleReveal && (

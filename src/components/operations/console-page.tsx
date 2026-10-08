@@ -245,7 +245,7 @@ export function ConsoleQuickLink({
     <button
       type="button"
       onClick={onClick}
-      className="group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 text-left shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+      className="group relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 text-left shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]"
     >
       <span
         aria-hidden

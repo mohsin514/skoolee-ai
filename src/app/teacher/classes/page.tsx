@@ -96,7 +96,7 @@ export default function TeacherClassesPage() {
                           type="button"
                           title={`${label} for ${classLabel(cls)}`}
                           onClick={() => router.push(`${href}?classId=${encodeURIComponent(cls.id)}`)}
-                          className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                          className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] hover:shadow-sm active:scale-[0.97]"
                         >
                           <ActionIcon className="h-3.5 w-3.5" />
                           {label}

@@ -197,7 +197,7 @@ export function TodaySchedule({
                 onClick={onOpenTimetable}
                 title="Open the full timetable"
                 className={cn(
-                  "sk-sweep-trigger group relative isolate shrink-0 snap-start overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25 cursor-pointer min-w-[196px] w-[212px]",
+                  "sk-sweep-trigger group relative isolate shrink-0 snap-start overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-[0.97] cursor-pointer min-w-[196px] w-[212px]",
                   active
                     ? "border-transparent bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#b10e6b] shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
                     : clashing

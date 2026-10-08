@@ -205,7 +205,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         <SystemSelect
           value={classFilter}
           onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none focus:border-[#8127cf]/30"
+          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-black uppercase outline-none"
         >
           <option value=""><UiText>{"All Classes"}</UiText></option>
           {classes.map((c) => (
@@ -217,7 +217,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
           type="month"
           value={monthFilter}
           onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none focus:border-[#8127cf]/30"
+          className="h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-[10px] font-bold outline-none"
         />
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
@@ -227,7 +227,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+            className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none"
           />
           <button onClick={handleSearch} className="h-9 w-9 rounded-xl bg-[#8127cf] text-white flex items-center justify-center hover:bg-[#6a1fb0] transition-colors cursor-pointer">
             <Search className="w-3.5 h-3.5" />
@@ -590,7 +590,7 @@ function GenerateInvoicesModal({
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
+  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none transition-colors";
 
   return (
     <Modal

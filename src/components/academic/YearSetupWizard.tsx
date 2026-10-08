@@ -554,7 +554,7 @@ function Field({ label, value, onChange, type = "text", placeholder }: { label: 
     <label className="block">
       <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label}</span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/60" />
+        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1f1a23] outline-none" />
     </label>
   );
 }
