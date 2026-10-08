@@ -11,6 +11,8 @@ import {
   stripeStatusToSchoolStatus,
 } from "@/lib/billing/entitlements";
 import type { PlanType } from "@/types";
+import { settleVerifiedCheckoutIntent } from "@/lib/billing/checkout-intents";
+import { getPriceId, verifyStripePrice } from "@/lib/stripe/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +60,16 @@ async function findSchoolForSubscription(subscription: Stripe.Subscription) {
 async function syncSubscription(subscription: Stripe.Subscription) {
   const schoolId = await findSchoolForSubscription(subscription);
   if (!schoolId) return;
+  const checkoutIntentId = subscription.metadata?.checkoutIntentId;
+  if (checkoutIntentId) {
+    const intent = await prisma.onboardingCheckoutIntent.findFirst({
+      where: { id: checkoutIntentId, schoolId, provider: "STRIPE" },
+      select: { status: true },
+    });
+    // A subscription lifecycle event can arrive before checkout settlement.
+    // Do not let it bypass the saved checkout intent's paid-session checks.
+    if (intent?.status !== "SETTLED") return;
+  }
 
   const metadataPlan = subscription.metadata?.plan ? normalizePlan(subscription.metadata.plan) : null;
   const pricePlan = planFromStripePriceId(subscriptionPriceId(subscription));
@@ -123,6 +135,77 @@ async function handleWebhook(req: NextRequest) {
   }
 
   try {
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded" ||
+      event.type === "checkout.session.expired" ||
+      event.type === "checkout.session.async_payment_failed"
+    ) {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const checkoutIntentId = session.metadata?.checkoutIntentId;
+      if (checkoutIntentId) {
+        const schoolId = session.metadata?.schoolId;
+        const plan = session.metadata?.plan;
+        const billingPeriod = session.metadata?.billingPeriod;
+        const intent = await prisma.onboardingCheckoutIntent.findFirst({
+          where: { id: checkoutIntentId, schoolId: schoolId || undefined, provider: "STRIPE" },
+        });
+        if (!intent || !schoolId || !plan || intent.schoolId !== schoolId ||
+            intent.plan !== plan || intent.billingPeriod !== billingPeriod) {
+          throw new Error("Stripe checkout does not match a saved purchase intent");
+        }
+        if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+          await prisma.onboardingCheckoutIntent.updateMany({
+            where: { id: intent.id, schoolId, provider: "STRIPE", providerReference: session.id,
+              status: { in: ["CHECKOUT_PENDING", "PENDING_SETTLEMENT"] } },
+            data: { status: event.type === "checkout.session.expired" ? "CANCELLED" : "FAILED",
+              failureReason: event.type === "checkout.session.expired" ? null : "Stripe reported a failed payment." },
+          });
+          return Response.json({ received: true });
+        }
+        if (session.payment_status !== "paid" || session.mode !== "subscription") {
+          await prisma.onboardingCheckoutIntent.updateMany({
+            where: { id: intent.id, schoolId, status: "CHECKOUT_PENDING" },
+            data: { status: "PENDING_SETTLEMENT" },
+          });
+          return Response.json({ received: true, pending: true });
+        }
+        const subscriptionId = stringId(session.subscription);
+        if (!subscriptionId || !stripe) throw new Error("Stripe subscription reference is missing");
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const savedContract = intent.contractSnapshot as { price?: number | null; plan?: string };
+        const priceId = subscriptionPriceId(subscription);
+        const expectedPriceId = getPriceId(plan as PlanType, billingPeriod as "monthly" | "annual");
+        if (
+          subscription.status !== "active" ||
+          subscription.metadata?.checkoutIntentId !== intent.id ||
+          subscription.metadata?.schoolId !== schoolId ||
+          subscription.metadata?.plan !== plan ||
+          subscription.metadata?.billingPeriod !== billingPeriod ||
+          !priceId || priceId !== expectedPriceId ||
+          savedContract.plan !== plan || savedContract.price == null
+        ) {
+          await prisma.onboardingCheckoutIntent.updateMany({
+            where: { id: intent.id, schoolId, status: "CHECKOUT_PENDING" },
+            data: { status: "PENDING_SETTLEMENT" },
+          });
+          return Response.json({ received: true, pending: true });
+        }
+        await verifyStripePrice(priceId, plan as PlanType, billingPeriod as "monthly" | "annual", savedContract.price);
+        await settleVerifiedCheckoutIntent({
+          id: intent.id,
+          schoolId,
+          provider: "STRIPE",
+          providerReference: session.id,
+          plan: plan as PlanType,
+          billingPeriod: billingPeriod as "monthly" | "annual",
+          stripeSubscriptionId: subscription.id,
+          stripeCustomerId: stringId(session.customer),
+        });
+        return Response.json({ received: true });
+      }
+    }
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const schoolId = session.metadata?.schoolId || session.client_reference_id;

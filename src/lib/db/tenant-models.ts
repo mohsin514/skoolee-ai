@@ -80,6 +80,7 @@ export const TENANT_MODELS = new Set<string>([
   "mark",
   "notification",
   "notificationTemplate",
+  "onboardingCheckoutIntent",
   "onlinePaymentOrder",
   "parentCommunication",
   "parentConversation",
