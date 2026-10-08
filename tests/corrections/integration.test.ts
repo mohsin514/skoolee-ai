@@ -186,3 +186,20 @@ test("immutable record deletion remains denied while full tenant cleanup complet
     assert.equal(await raw.correction.count({ where: { schoolId: sid } }), 0);
     assert.equal(await raw.correctionNote.count({ where: { schoolId: sid } }), 0);
 });
+
+test("legacy receipt capture preserves invoice enrollment after a pupil transition", async () => {
+    const { applyEnrollment } = await import("../../src/lib/students/enrollment");
+    const oldClass = await raw.class.create({ data: { schoolId, campusId, name: "Original enrollment class", academicYear: 2020 } });
+    const newClass = await raw.class.create({ data: { schoolId, campusId, name: "Later enrollment class", academicYear: 2022 } });
+    const pupil = await raw.student.create({ data: { schoolId, campusId, classId: oldClass.id, fullName: "Synthetic historical pupil", rollNo: "ORIGINAL-ROLL", gender: "MALE", enrollmentDate: new Date("2020-01-01") } });
+    const invoice = await raw.invoice.create({ data: { schoolId, campusId, studentId: pupil.id, currency: "KWD", invoiceDate: new Date("2021-01-01"), dueDate: new Date("2021-02-01"), monthlyFee: 1234, subtotal: 1234, totalAmount: 1234, totalAmountPaid: 1234, balanceDue: 0, status: "PAID" } });
+    const payment = await raw.payment.create({ data: { schoolId, campusId, studentId: pupil.id, invoiceId: invoice.id, currency: "KWD", amount: 1234, paymentDate: new Date("2021-01-02"), paymentMethod: "CASH", createdAt: new Date("2021-01-02") } });
+    await scoped(() => prisma.$transaction(tx => applyEnrollment(tx, { studentId: pupil.id, fromId: invoice.enrollmentId!, targetClassId: newClass.id, effectiveDate: new Date("2022-01-01"), rollNo: "LATER-ROLL", actorId: users.PRINCIPAL, reason: "Synthetic reviewed transition" })));
+    await scoped(() => immutablePaymentPdf(payment.id));
+    const frozen = await raw.paymentReceipt.findUniqueOrThrow({ where: { paymentId: payment.id } });
+    const snapshot = frozen.snapshot as any;
+    assert.equal(snapshot.student.rollNo, "ORIGINAL-ROLL");
+    assert.equal(snapshot.student.class.name, "Original enrollment class");
+    assert.equal(snapshot.invoice.enrollment.id, invoice.enrollmentId);
+    assert.equal((await raw.student.findUniqueOrThrow({ where: { id: pupil.id } })).rollNo, "LATER-ROLL");
+});

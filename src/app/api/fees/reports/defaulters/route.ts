@@ -46,7 +46,8 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, studentId: true, invoiceNumber: true, totalAmount: true, totalAmountPaid: true,
         balanceDue: true, dueDate: true, status: true,
-        student: {
+        enrollment: true,
+          student: {
           select: {
             id: true, fullName: true, rollNo: true, guardianName: true, guardianPhone: true,
             guardianEmail: true, class: { select: { name: true, section: true } },
@@ -89,9 +90,9 @@ export async function GET(req: NextRequest) {
         studentMap.set(inv.studentId, {
           studentId: inv.studentId,
           studentName: inv.student.fullName,
-          rollNo: inv.student.rollNo,
-          className: inv.student.class.name,
-          section: inv.student.class.section,
+          rollNo: inv.enrollment?.rollNo || inv.student.rollNo,
+          className: inv.enrollment?.className || inv.student.class.name,
+          section: inv.enrollment ? null : inv.student.class.section,
           guardianName: inv.student.guardianName,
           guardianPhone: inv.student.guardianPhone,
           guardianEmail: inv.student.guardianEmail,
