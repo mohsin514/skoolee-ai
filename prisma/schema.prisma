@@ -29,6 +29,9 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  workflowEvents       WorkflowEvent[]
+  workflowJobs         WorkflowJob[]
+  workflowEffects      WorkflowEffect[]
   id                   String    @id @default(uuid())
   name                 String
   slug                 String    @unique // subdomain routing
@@ -169,6 +172,68 @@ model School {
   staffReportingLines     StaffReportingLine[]
 
   @@map("schools")
+}
+
+// Reference-only durable orchestration ledger. Sensitive content stays in domain tables.
+model WorkflowEvent {
+  id String @id
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  kind String
+  version Int @default(1)
+  referenceId String @map("reference_id")
+  actorId String @map("actor_id")
+  identity String
+  createdAt DateTime @default(now()) @map("created_at")
+  availableAt DateTime @default(now()) @map("available_at")
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  dispatchCount Int @default(0) @map("dispatch_count")
+  dispatchedAt DateTime? @map("dispatched_at")
+  job WorkflowJob?
+  @@unique([schoolId, identity])
+  @@unique([id, schoolId])
+  @@index([availableAt, leaseUntil])
+  @@map("workflow_events")
+}
+
+model WorkflowJob {
+  id String @id
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  event WorkflowEvent @relation(fields: [id, schoolId], references: [id, schoolId], onDelete: Cascade)
+  state String @default("queued")
+  attempts Int @default(0)
+  maxAttempts Int @default(5) @map("max_attempts")
+  checkpoint Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  reason String?
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  cancelRequestedAt DateTime? @map("cancel_requested_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+  startedAt DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  effects WorkflowEffect[]
+  @@unique([id, schoolId])
+  @@index([state, leaseUntil])
+  @@map("workflow_jobs")
+}
+
+model WorkflowEffect {
+  id String @id
+  schoolId String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  jobId String @map("job_id")
+  job WorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  identity String
+  // committed = atomic database effect; uncertain = external call may have happened.
+  state String
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  @@unique([jobId, identity])
+  @@map("workflow_effects")
 }
 
 // ─── 1d. ROLE PERMISSIONS MATRIX ─────────────────────────
