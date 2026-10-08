@@ -114,7 +114,10 @@ def main():
         after = snapshot(upgrade)
         preserved = snapshot(upgrade, predecessor=before)
         check('populated-schema-push-adoption-and-upgrade', all(preserved.get(name) == value for name, value in before.items()))
-        check('additive-migration-tables-initially-empty', all(value['rows'] == 0 for name, value in after.items() if name not in before))
+        # Enrollment migration deliberately backfills retained source context;
+        # every other newly introduced table must still start empty.
+        check('additive-migration-tables-initially-empty', all(value['rows'] == 0 for name, value in after.items() if name not in before and name != 'student_enrollments'))
+        check('enrollment-backfill-complete', sql(upgrade, "SELECT (SELECT count(*) FROM student_enrollments) = (SELECT count(*) FROM students) + (SELECT count(*) FROM attendance) + (SELECT count(*) FROM report_cards) + (SELECT count(*) FROM invoices) AND NOT EXISTS (SELECT 1 FROM invoices WHERE enrollment_id IS NULL);") == 't')
         sql(upgrade, (ROOT / 'scripts/recovery/outbox-fixtures.sql').read_text())
         migrate(upgrade, 'diff', '--from-schema-datasource', schema, '--to-schema-datamodel', schema, '--exit-code')
         report['supportedUpgradePaths'] = ['dev-9c5193d-schema-push-to-versioned-baseline', 'verified-baseline-to-head']

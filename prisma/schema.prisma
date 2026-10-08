@@ -27,6 +27,8 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  studentEnrollments StudentEnrollment[]
+  enrollmentProposals EnrollmentProposal[]
   localePolicies LocalePolicy[]
   workflowEvents       WorkflowEvent[]
   workflowJobs         WorkflowJob[]
@@ -987,6 +989,11 @@ model Class {
 
 // ─── 5. STUDENTS ──────────────────────────────────────────
 model Student {
+  enrollments StudentEnrollment[]
+  enrollmentProposals EnrollmentProposal[]
+  consolidatedIntoId String? @map("consolidated_into_id")
+  consolidatedInto Student? @relation("ConsolidatedIdentity", fields: [consolidatedIntoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  identityAliases Student[] @relation("ConsolidatedIdentity")
   id                   String    @id @default(uuid())
   schoolId             String    @default("") @map("school_id")
   school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1000,7 +1007,7 @@ model Student {
   studentUser          User?     @relation("StudentUser", fields: [studentUserId], references: [id], onDelete: SetNull)
   parentUserId         String?   @map("parent_user_id")
   parent               User?     @relation("Parent", fields: [parentUserId], references: [id], onDelete: SetNull)
-  admissionNo          String?   @unique @map("admission_no") // Permanent ID across years
+  admissionNo          String?   @map("admission_no") // Institution-scoped identifier; id is the immutable identity
   fullName             String    @map("full_name")
   nameUr               String?   @map("name_ur")
   rollNo               String    @map("roll_no")
@@ -1054,6 +1061,7 @@ model Student {
   dormRoomId             String?                 @map("dorm_room_id")
   dormRoom               DormRoom?               @relation("StudentDormRoom", fields: [dormRoomId], references: [id], onDelete: SetNull)
 
+  @@unique([schoolId, admissionNo])
   @@unique([campusId, rollNo])
   @@index([schoolId])
   @@map("students")
@@ -1471,6 +1479,8 @@ model ReportVersion {
 }
 
 model ReportCard {
+  enrollmentId String? @map("enrollment_id")
+  enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   localeSnapshot Json? @map("locale_snapshot")
   id                String    @id @default(uuid())
   schoolId          String    @default("") @map("school_id")
@@ -1516,6 +1526,8 @@ model ReportCard {
 
 // ─── 10. ATTENDANCE ───────────────────────────────────────
 model Attendance {
+  enrollmentId String? @map("enrollment_id")
+  enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   id        String           @id @default(uuid())
   schoolId  String           @default("") @map("school_id")
   school    School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1722,6 +1734,8 @@ model FeeCarryForward {
 
 // ─── 12. INVOICES ─────────────────────────────────────────
 model Invoice {
+  enrollmentId String? @map("enrollment_id")
+  enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   currency String @default("PKR")
   localeSnapshot Json? @map("locale_snapshot")
   id              String        @id @default(uuid())
@@ -3192,6 +3206,52 @@ model ChatSetting {
   @@map("chat_settings")
 }
 
+// Periods use half-open date ranges [startDate, endDate). Snapshot labels never
+// follow later campus/class edits. Existing records retain their own period.
+model StudentEnrollment {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId String @map("student_id")
+  student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
+  campusId String @map("campus_id")
+  classId String @map("class_id")
+  campusName String @map("campus_name")
+  className String @map("class_name")
+  curriculum String
+  academicYear Int @map("academic_year")
+  rollNo String @map("roll_no")
+  status String @default("ACTIVE")
+  startDate DateTime @db.Date @map("start_date")
+  endDate DateTime? @db.Date @map("end_date")
+  origin String @default("REVIEWED")
+  attendance Attendance[]
+  invoices Invoice[]
+  reports ReportCard[]
+  @@index([schoolId, studentId, startDate])
+  @@map("student_enrollments")
+}
+
+model EnrollmentProposal {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId String @map("student_id")
+  student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
+  campusId String @map("campus_id")
+  fromEnrollmentId String @map("from_enrollment_id")
+  targetClassId String @map("target_class_id")
+  rollNo String @map("roll_no")
+  effectiveDate DateTime @db.Date @map("effective_date")
+  reason String
+  createdBy String @map("created_by")
+  confirmedBy String? @map("confirmed_by")
+  status String @default("PROPOSED")
+  createdAt DateTime @default(now()) @map("created_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  @@index([schoolId, studentId])
+  @@map("enrollment_proposals")
+}
 // Shared authentication counters: keys are hashed and contain no plaintext identifiers.
 model AuthAttempt {
   key String @id

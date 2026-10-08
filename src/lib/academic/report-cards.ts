@@ -337,6 +337,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
   const reportCard = await db.reportCard.findUnique({
     where: { id: reportCardId },
     include: {
+      enrollment: true,
       campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
       exam: {
         select: {
@@ -361,6 +362,12 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
   // print the wrong class on a document families keep as a permanent record.
   if (reportCard.exam.class) {
     reportCard.student.class = reportCard.exam.class;
+  }
+
+  if (reportCard.enrollment) {
+    reportCard.student.rollNo = reportCard.enrollment.rollNo;
+    reportCard.student.class = { id: reportCard.enrollment.classId, name: reportCard.enrollment.className, section: null, academicYear: reportCard.enrollment.academicYear };
+    reportCard.campus.name = reportCard.enrollment.campusName;
   }
 
   const marks = await db.mark.findMany({
