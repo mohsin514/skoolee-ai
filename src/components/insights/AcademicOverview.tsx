@@ -89,7 +89,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
     const graded = perClass.filter((c) => c.average !== null);
     const cards = latestReportCards(students);
     const trend = attendanceTrend(students, 21);
-    const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? []);
+    const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? [], data?.invoiceSummary?.currency);
 
     // Attendance and marks in one place, per class — the two levers a principal
     // actually pulls, and the pairing that shows when one is dragging the other.

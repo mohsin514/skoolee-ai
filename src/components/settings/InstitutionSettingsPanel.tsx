@@ -75,7 +75,7 @@ export function InstitutionSettingsPanel({
     try {
       setData(await getInstitutionSettings());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load institution settings.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not load institution settings."));
     } finally {
       setLoading(false);
     }
@@ -277,7 +277,7 @@ function SchoolDialog({
       onClose();
     } catch (error) {
       if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
-      toast.error(error instanceof Error ? error.message : "Could not save school details.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not save school details."));
     } finally {
       setSaving(false);
     }
@@ -404,13 +404,13 @@ function CampusDialog({
         board: form.board,
         logoUrl: form.logoUrl,
       });
-      toast.success(`${form.name.trim()} updated.`);
+      toast.success(tr("{0} updated.", [form.name.trim()]));
       draft.markSaved();
       await onSaved();
       onClose();
     } catch (error) {
       if (error instanceof Error && error.message.includes("changed")) { try { await draft.reviewCurrent(); } catch { /* Keep the local draft while the server is unavailable. */ } }
-      toast.error(error instanceof Error ? error.message : "Could not save campus details.");
+      toast.error(tr(error instanceof Error ? error.message : "Could not save campus details."));
     } finally {
       setSaving(false);
     }
@@ -420,7 +420,7 @@ function CampusDialog({
     <Modal
       title={tr("Edit campus")}
       eyebrow={tr("Campus")}
-      subtitle={`Details for ${campus.name}.`}
+      subtitle={tr("Details for {0}.", [campus.name])}
       icon={Building2}
       size="lg"
       dirty={dirty}

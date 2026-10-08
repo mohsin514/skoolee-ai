@@ -16,13 +16,14 @@ import {
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
-import { formatPKR } from "@/components/fees/fee-utils";
+import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentOverviewPage() {
+  const { money } = useLocaleFormat();
   const { data, loading, error, refetch, token } = useParentData();
 
   if (loading && !data) return <ParentOverviewSkeleton />;
@@ -33,7 +34,9 @@ export default function ParentOverviewPage() {
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const profileImage = student.profileImageUrl;
   const latestPct = data.reportCards?.[0]?.percentage;
-  const feeOutstanding = data.fees?.reduce((sum, f) => sum + (f.balance || 0), 0) || 0;
+  const feeOutstanding = data.fees?.some((fee) => fee.balance > 0);
+  const balances = new Map<string, number>();
+  for (const fee of data.fees) balances.set(fee.currency, (balances.get(fee.currency) ?? 0) + fee.balance);
 
   const stats = [
     { icon: FileText, label: "Report Cards", value: data.reportCards.length, sub: "Published to date", tone: "violet" as const },
@@ -142,7 +145,7 @@ export default function ParentOverviewPage() {
                 href={`/parent/fees${q}`}
                 icon={CreditCard}
                 label={feeOutstanding ? "Outstanding" : "Fees"}
-                value={feeOutstanding ? formatPKR(feeOutstanding) : "Cleared"}
+                value={feeOutstanding ? [...balances].filter(([, amount]) => amount > 0).map(([currency, amount]) => money(amount, currency)).join(" · ") : "Cleared"}
                 sub={feeOutstanding ? "Tap to pay" : "Nothing due"}
                 tone={feeOutstanding ? "rose" : "emerald"}
               />

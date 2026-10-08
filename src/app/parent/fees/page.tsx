@@ -73,7 +73,7 @@ export default function ParentFeesPage() {
   }
 
   return page(
-    <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+    <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
           <ParentStat icon={Receipt} label={tr("Total Invoiced")} value={formatPKR(total)} sub={`${tr("Invoices")}: ${fees.length}`} />
           <ParentStat icon={CheckCircle2} label={tr("Paid")} value={formatPKR(paid)} sub={`${total ? Math.round((paid / total) * 100) : 0}% ${tr("of total")}`} tone="green" />

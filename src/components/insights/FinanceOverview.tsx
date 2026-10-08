@@ -8,6 +8,8 @@
  * curve and the defaulter count are three views of the same gap.
  */
 
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { localeTag, minorUnits } from "@/lib/locale/package";
 import { useMemo } from "react";
 import {
   AlertTriangle,
@@ -38,6 +40,7 @@ import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact
 
 export interface FinanceSummary {
   kind: "ACCOUNTANT";
+  currency: string;
   byStatus: { status: string; count: number; billed: number; paid: number; outstanding: number }[];
   collectionByMonth: { month: string; count: number; value: number }[];
   byMethod: { method: string; count: number; amount: number }[];
@@ -87,6 +90,9 @@ export function FinanceOverview({
   campusLabel: string;
   onNavigate: (view: string) => void;
 }) {
+  const locale = useLocale();
+  const fromMinor = (value: number) => value / 10 ** minorUnits(summary.currency);
+  const money = (value: number) => new Intl.NumberFormat(localeTag(locale), { style: "currency", currency: summary.currency, minimumFractionDigits: minorUnits(summary.currency), maximumFractionDigits: minorUnits(summary.currency) }).format(value);
   const derived = useMemo(() => {
     const live = summary.byStatus.filter((r) => r.status !== "CANCELLED");
     const billed = fromMinor(live.reduce((sum, r) => sum + r.billed, 0));

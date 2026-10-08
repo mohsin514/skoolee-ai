@@ -330,7 +330,7 @@ export function AcademicCalendar({
             <h3 className="text-lg font-black tracking-tight text-[#1d1b20]"><UiText>{"Academic Calendar"}</UiText></h3>
             <p className="text-[11px] font-semibold text-ink-muted">
               {calendarView === "month" ? new Intl.DateTimeFormat(localeTag(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(viewYear, viewMonth, 1))) : `${viewYear}`}
-              {upcoming.length > 0 ? ` · ${upcoming.length} still to come` : tr(" · nothing else scheduled")}
+              {upcoming.length > 0 ? tr(" · {0} still to come", [upcoming.length]) : tr(" · nothing else scheduled")}
             </p>
           </div>
         </div>
@@ -456,7 +456,7 @@ export function AcademicCalendar({
                     )}
                   </div>
                   <div className="mt-auto flex flex-wrap gap-1">
-                    {layers.exams && cell.exams.length > 0 && <Dot color="#8127cf" title={`${cell.exams.length} exam(s)`} />}
+                    {layers.exams && cell.exams.length > 0 && <Dot color="#8127cf" title={tr("{0} exam(s)", [cell.exams.length])} />}
                     {layers.deadlines && cell.deadlines.length > 0 && <Dot color="#f43f5e" title={tr("Deadline")} />}
                     {layers.terms && cell.terms.length > 0 && (
                       <Dot color="#d97706" title={cell.terms.map((t) => `${t.term.label} ${t.type}`).join(", ")} />
@@ -594,7 +594,7 @@ function DayPopover({
       });
       const json = await res.json();
       if (json.success) { toast.success(tr("Holiday added")); onHolidayAdded(); }
-      else toast.error(json.error || "Failed to add holiday");
+      else toast.error(tr(json.error || "Failed to add holiday"));
     } catch {
       toast.error(tr("Failed to add holiday"));
     } finally {
@@ -619,7 +619,7 @@ function DayPopover({
       ref={ref}
       style={pos}
       role="dialog"
-      aria-label={`Events on ${dayLabel}`}
+      aria-label={tr("Events on {0}", [dayLabel])}
       className="fixed z-[200] w-[290px] rounded-2xl border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_24px_70px_rgba(31,26,35,0.28)] animate-modal-enter"
     >
       <div className="mb-3 flex items-center justify-between">
@@ -665,7 +665,7 @@ function DayPopover({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !blockedReason && !saving) addHoliday(); }}
             placeholder={tr("Holiday name")}
-            aria-label={`Holiday name for ${dayLabel}`}
+            aria-label={tr("Holiday name for {0}", [dayLabel])}
             className="w-full rounded-lg border border-[#cfc2d6]/30 px-3 py-2 text-xs font-semibold outline-none focus:border-[#8127cf]/60"
           />
           {blockedReason ? (
@@ -676,7 +676,7 @@ function DayPopover({
               type="button"
               onClick={addHoliday}
               disabled={saving || Boolean(blockedReason)}
-              title={blockedReason || `Add a holiday from ${fromDate} to ${toDate}`}
+              title={blockedReason || tr("Add a holiday from {0} to {1}", [fromDate, toDate])}
               className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-[#0d9488] px-3 py-2 text-[11px] font-black text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add Holiday"}</UiText></button>

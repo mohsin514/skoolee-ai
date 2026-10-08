@@ -97,7 +97,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/types${qp}`);
       const json = await res.json();
       if (json.success) setTypes(json.data);
-      else toast.error(json.error || "Failed to load fee types");
+      else toast.error(tr(json.error || "Failed to load fee types"));
     } catch {
       toast.error(tr("Failed to load fee types"));
     } finally {
@@ -129,11 +129,11 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee type saved");
+        toast.success(tr(json.message || "Fee type saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save fee type"));
@@ -151,7 +151,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
@@ -201,7 +201,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
                 <ConfirmAction
                   open={deleting?.id === t.id}
                   title={tr("Delete Fee Type")}
-                  description={`Delete "${t.name}"? Lines using it in any group will also be removed.`}
+                  description={tr("Delete \"{0}\"? Lines using it in any group will also be removed.", [t.name])}
                   onConfirm={() => handleDelete(t)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
@@ -249,7 +249,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/groups${qp}`);
       const json = await res.json();
       if (json.success) setGroups(json.data);
-      else toast.error(json.error || "Failed to load fee groups");
+      else toast.error(tr(json.error || "Failed to load fee groups"));
     } catch {
       toast.error(tr("Failed to load fee groups"));
     } finally {
@@ -280,11 +280,11 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee group saved");
+        toast.success(tr(json.message || "Fee group saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save fee group"));
@@ -302,7 +302,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
@@ -354,7 +354,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                     <ConfirmAction
                       open={deleting?.id === g.id}
                       title={tr("Delete Fee Group")}
-                      description={`Delete "${g.name}"? Its lines and class assignments will be removed.`}
+                      description={tr("Delete \"{0}\"? Its lines and class assignments will be removed.", [g.name])}
                       onConfirm={() => handleDelete(g)}
                       onCancel={() => setDeleting(null)}
                       tone="danger"
@@ -457,7 +457,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save master line"));
@@ -475,7 +475,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
@@ -524,7 +524,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
                   <p className="text-sm font-black text-[#1f1a23]">{line.feeType?.name ?? "Unknown"}</p>
                   <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                     {line.feeType?.code}
-                    {line.dueDate ? ` · due ${new Date(line.dueDate).toLocaleDateString()}` : ""}
+                    {line.dueDate ? tr(" · due {0}", [new Date(line.dueDate).toLocaleDateString()]) : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -538,7 +538,7 @@ function MasterPanel({ campusId }: { campusId?: string }) {
                   <ConfirmAction
                     open={deleting?.id === line.id}
                     title={tr("Delete Master Line")}
-                    description={`Remove "${line.feeType?.name}" from ${selectedGroup.name}?`}
+                    description={tr("Remove \"{0}\" from {1}?", [line.feeType?.name, selectedGroup.name])}
                     onConfirm={() => handleDelete(line)}
                     onCancel={() => setDeleting(null)}
                     tone="danger"
@@ -628,7 +628,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
         setClassId("");
         load();
       } else {
-        toast.error(json.error || "Failed to assign");
+        toast.error(tr(json.error || "Failed to assign"));
       }
     } catch {
       toast.error(tr("Failed to assign group"));
@@ -646,7 +646,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to remove");
+        toast.error(tr(json.error || "Failed to remove"));
         setDeleting(null);
       }
     } catch {
@@ -805,11 +805,11 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Discount saved");
+        toast.success(tr(json.message || "Discount saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save discount"));
@@ -827,7 +827,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
@@ -869,7 +869,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
         if (aJson.success) setAssigned(aJson.data);
         load();
       } else {
-        toast.error(json.error || "Failed to assign");
+        toast.error(tr(json.error || "Failed to assign"));
       }
     } catch {
       toast.error(tr("Failed to assign discount"));
@@ -890,7 +890,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
         if (aJson.success) setAssigned(aJson.data);
         load();
       } else {
-        toast.error(json.error || "Failed to remove");
+        toast.error(tr(json.error || "Failed to remove"));
       }
     } catch {
       toast.error(tr("Failed to remove assignment"));
@@ -923,7 +923,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                 <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
                 <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
                   {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value, d.currency)}
-                  {d.category ? ` · auto: ${d.category.name}` : ""} · {d._count?.assignments ?? 0}<UiText>{"student(s)"}</UiText></p>
+                  {d.category ? tr(" · auto: {0}", [d.category.name]) : ""} · {d._count?.assignments ?? 0}<UiText>{"student(s)"}</UiText></p>
               </div>
               <div className="flex items-center gap-1.5">
                 <button type="button" onClick={() => openAssign(d)} className="h-8 px-2.5 rounded-xl bg-[#fbf0fe] text-[#8127cf] flex items-center gap-1 hover:bg-white transition-colors cursor-pointer text-[9px] font-black uppercase tracking-wider">
@@ -937,7 +937,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                 <ConfirmAction
                   open={deleting?.id === d.id}
                   title={tr("Delete Discount")}
-                  description={`Delete "${d.name}"? All student assignments for it will be removed.`}
+                  description={tr("Delete \"{0}\"? All student assignments for it will be removed.", [d.name])}
                   onConfirm={() => handleDelete(d)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
@@ -979,7 +979,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       )}
 
       {assigning && (
-        <ModalFrame title={`Assign: ${assigning.name}`} eyebrow={tr("Fee Layers · Discounts")} onClose={() => setAssigning(null)} wide>
+        <ModalFrame title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee Layers · Discounts")} onClose={() => setAssigning(null)} wide>
           <div className="space-y-5">
             <div>
               <label className={labelClass}><UiText>{"Find student"}</UiText></label>
@@ -1117,7 +1117,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
         setNote("");
         load();
       } else {
-        toast.error(json.error || "Failed to create");
+        toast.error(tr(json.error || "Failed to create"));
       }
     } catch {
       toast.error(tr("Failed to create carry-forward"));
@@ -1135,7 +1135,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
@@ -1181,7 +1181,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
                 <ConfirmAction
                   open={deleting?.id === f.id}
                   title={tr("Delete Carry-Forward")}
-                  description={`Remove the ${f.toAcademicYear} carry-forward for ${f.student?.fullName ?? "this student"}?`}
+                  description={tr("Remove the {0} carry-forward for {1}?", [f.toAcademicYear, f.student?.fullName ?? "this student"])}
                   onConfirm={() => handleDelete(f)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
@@ -1292,11 +1292,11 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fine rule saved");
+        toast.success(tr(json.message || "Fine rule saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save fine rule"));
@@ -1314,8 +1314,8 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: rule.id, isActive: !rule.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(rule.isActive ? "Rule deactivated" : "Rule activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(rule.isActive ? "Rule deactivated" : "Rule activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
       toast.error(tr("Failed to toggle rule"));
@@ -1334,7 +1334,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
       toast.error(tr("Failed to delete fine rule"));
@@ -1375,11 +1375,11 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
                 </p>
                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {rule.type === "PERCENT"
-                    ? `${rule.value}% of balance`
+                    ? tr("{0}% of balance", [rule.value])
                     : rule.type === "PER_DAY"
-                      ? `${formatPKR(rule.value)} per day`
+                      ? tr("{0} per day", [formatPKR(rule.value)])
                       : formatPKR(rule.value) + " flat"}
-                  {" · "}{rule.graceDays > 0 ? `${rule.graceDays} day grace` : tr("no grace period")}
+                  {" · "}{rule.graceDays > 0 ? tr("{0} day grace", [rule.graceDays]) : tr("no grace period")}
                 </p>
               </div>
               <button
@@ -1446,7 +1446,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         <ConfirmAction
           open
           title={tr("Delete fine rule?")}
-          description={`"${deleting.name}" will no longer be available for late fines.`}
+          description={tr("\"{0}\" will no longer be available for late fines.", [deleting.name])}
           confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}

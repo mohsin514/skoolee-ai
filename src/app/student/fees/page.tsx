@@ -74,7 +74,7 @@ export default function FeesPage() {
       title={tr("Fees")}
       summary={tr("Invoices, payment progress, and outstanding balances.")}
     >
-      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border bg-white p-2" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <StatCard icon={Receipt} label={tr("Total invoiced")} value={formatPKR(summary.total)} sub={`${tr("Invoices")}: ${invoices.length}`} />
           <StatCard

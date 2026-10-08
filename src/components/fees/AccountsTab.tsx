@@ -141,11 +141,11 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Account saved");
+        toast.success(tr(json.message || "Account saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save account"));
@@ -164,7 +164,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
       toast.error(tr("Failed to delete account"));
@@ -204,7 +204,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
                   {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
                 </p>
                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
-                  {acc._count ? `${acc._count.entries} entries` : ""}
+                  {acc._count ? tr("{0} entries", [acc._count.entries]) : ""}
                 </p>
               </div>
               <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
@@ -244,7 +244,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
         <ConfirmAction
           open
           title={tr("Delete account?")}
-          description={`"${deleting.name}" will be removed. Accounts with ledger entries are kept instead.`}
+          description={tr("\"{0}\" will be removed. Accounts with ledger entries are kept instead.", [deleting.name])}
           confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
@@ -307,11 +307,11 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Payment method saved");
+        toast.success(tr(json.message || "Payment method saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save payment method"));
@@ -328,8 +328,8 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: m.id, isActive: !m.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(m.isActive ? "Method deactivated" : "Method activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(m.isActive ? "Method deactivated" : "Method activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
       toast.error(tr("Failed to toggle method"));
@@ -346,7 +346,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
       toast.error(tr("Failed to delete method"));
@@ -414,7 +414,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         <ConfirmAction
           open
           title={tr("Delete payment method?")}
-          description={`"${deleting.name}" will be removed everywhere.`}
+          description={tr("\"{0}\" will be removed everywhere.", [deleting.name])}
           confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
@@ -493,11 +493,11 @@ function BanksPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Bank account saved");
+        toast.success(tr(json.message || "Bank account saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save bank account"));
@@ -514,8 +514,8 @@ function BanksPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: b.id, isActive: !b.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(b.isActive ? "Bank deactivated" : "Bank activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(b.isActive ? "Bank deactivated" : "Bank activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
       toast.error(tr("Failed to toggle bank"));
@@ -532,7 +532,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
       toast.error(tr("Failed to delete bank"));
@@ -609,7 +609,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
         <ConfirmAction
           open
           title={tr("Delete bank account?")}
-          description={`"${deleting.name}" will be removed if it has no ledger entries.`}
+          description={tr("\"{0}\" will be removed if it has no ledger entries.", [deleting.name])}
           confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
@@ -711,7 +711,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
         setSourceName(""); setAmount(""); setBankAccountId(""); setNote("");
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save entry"));
@@ -730,7 +730,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
       toast.error(tr("Failed to delete entry"));
@@ -828,7 +828,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
         <ConfirmAction
           open
           title={tr("Delete entry?")}
-          description={`"${deleting.sourceName}" (${formatPKR(deleting.amount, deleting.currency)}) will be removed.`}
+          description={tr("\"{0}\" ({1}) will be removed.", [deleting.sourceName, formatPKR(deleting.amount, deleting.currency)])}
           confirmLabel={tr("Delete")}
           tone="danger"
           onConfirm={handleDelete}
@@ -867,7 +867,7 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/accounts/profit?${params}`);
       const json = await res.json();
       if (json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
-      else setError(json.error || "Failed to load report");
+      else setError(tr(json.error || "Failed to load report"));
     } catch {
       setError(tr("Failed to load report"));
     } finally {

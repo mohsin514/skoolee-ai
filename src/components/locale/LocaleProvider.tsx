@@ -12,7 +12,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
  return <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>;
 }
 export function useLocale() { return useContext(LocaleContext); }
-export function useUiText() { const { language } = useLocale(); return useCallback((source: string) => translateUi(source, language), [language]); }
+export function useUiText() { const { language } = useLocale(); return useCallback((source: string, values: unknown[] = []) => translateUi(source, language).replace(/\{(\d+)\}/g, (match, index) => index in values ? String(values[Number(index)]) : match), [language]); }
 /** Only explicit interface copy enters this component; student names and authored content do not. */
 export function UiText({ children }: { children: string }) { const t = useUiText(); return t(children); }
 
@@ -21,6 +21,6 @@ export function useLocaleFormat() {
  const locale = useLocale();
  return {
   money: (minor: number, currency = "PKR") => formatMoney({ minor, currency }, locale),
-  date: (value: string) => formatDateOnly(value.slice(0, 10), locale),
+  date: (value: string | Date | null | undefined) => value ? formatDateOnly((value instanceof Date ? value.toISOString() : value).slice(0, 10), locale) : "—",
  };
 }

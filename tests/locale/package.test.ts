@@ -53,3 +53,8 @@ test("all supported notification templates carry Arabic copy and escaped RTL HTM
  }
  const html = notificationHtml('<script>alert("x")</script> DEMO-014', "ar"); assert.match(html, /dir="rtl"/); assert.ok(!html.includes("<script>")); assert.ok(html.includes("&lt;script&gt;"));
 });
+
+ test("country currency precision is stable across runtime CLDR versions",()=>{
+ for(const currency of ["PKR","SAR","AED","USD"]) {assert.equal(parseMoney("1234.56",currency).minor,123456);assert.match(formatMoney({minor:123456,currency},defaultLocale),/1,234\.56/);}
+ assert.equal(parseMoney("1234.567","KWD").minor,1234567);
+ });

@@ -110,9 +110,9 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.data?.delivered ? `Reminder sent to ${json.data.sentTo}` : "Reminder logged (channel unavailable)");
+        toast.success(tr(json.data?.delivered ? tr("Reminder sent to {0}", [json.data.sentTo]) : "Reminder logged (channel unavailable)"));
       } else {
-        toast.error(json.error || "Reminder failed");
+        toast.error(tr(json.error || "Reminder failed"));
       }
     } catch {
       toast.error(tr("Failed to send reminder"));

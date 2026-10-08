@@ -41,7 +41,9 @@ export function formatInstant(value: string | Date, policy: LocalePackage): stri
 }
 export function minorUnits(currency: string): number {
   if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new Error("currency");
-  return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits!;
+  // Financial units are a versioned application contract, independent of runtime CLDR updates.
+  const units: Record<typeof CURRENCIES[number], number> = { PKR: 2, SAR: 2, USD: 2, EUR: 2, GBP: 2, AED: 2, JPY: 0, KRW: 0, KWD: 3, BHD: 3, OMR: 3 };
+  return units[currency as typeof CURRENCIES[number]];
 }
 export type Money = { minor: number; currency: string };
 export function parseMoney(decimal: string, currency: string): Money {
@@ -71,7 +73,7 @@ export function formatMoney(value: Money, policy: LocalePackage): string {
   const exact = `${value.minor < 0 ? "-" : ""}${precision ? `${digits.slice(0, -precision)}.${digits.slice(-precision)}` : digits}`;
   // ECMA-402 ToIntlMathematicalValue preserves decimal strings exactly;
   // TypeScript's NumberFormat declaration predates string inputs.
-  return new Intl.NumberFormat(localeTag(policy), { style: "currency", currency: value.currency }).format(exact as unknown as number);
+  return new Intl.NumberFormat(localeTag(policy), { style: "currency", currency: value.currency, minimumFractionDigits: precision, maximumFractionDigits: precision }).format(exact as unknown as number);
 }
 export function canManageSchool(role: string, campusCount: number) { return role === "SUPER_ADMIN" || role === "ADMIN" && campusCount <= 1; }
 export function assertDelegatedChanges(role: string, ownCampus: string | null, targetCampus: string | null, count: number, delegated: string[], patch: Partial<LocalePackage>) {

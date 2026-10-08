@@ -117,10 +117,10 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/structure/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Structure deactivated");
+        toast.success(tr(json.message || "Structure deactivated"));
         loadData();
       } else {
-        toast.error(json.error || "Failed to deactivate");
+        toast.error(tr(json.error || "Failed to deactivate"));
       }
     } catch {
       toast.error(tr("Failed to deactivate structure"));
@@ -287,7 +287,7 @@ function StructureCard({
           <ConfirmAction
             open={confirmOpen}
             title={tr("Deactivate Structure")}
-            description={`This will deactivate the fee structure for ${classLabel(fs.class.name, fs.class.section)}. Existing invoices won't be affected.`}
+            description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
             onConfirm={() => { setConfirmOpen(false); onDeactivate(); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
@@ -423,10 +423,10 @@ function StructureModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee structure saved");
+        toast.success(tr(json.message || "Fee structure saved"));
         onSaved();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
       toast.error(tr("Failed to save fee structure"));

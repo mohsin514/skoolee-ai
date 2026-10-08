@@ -1,5 +1,7 @@
 "use client";
 
+import { getFinancialLocale } from "@/app/actions/locale";
+import { CURRENCIES } from "@/lib/locale/package";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useState } from "react";
@@ -311,7 +313,7 @@ function PaymentModal({
       await downloadPdfFile(`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`, `receipt-${receipt.receiptNumber || "payment"}.pdf`);
       toast.success(tr("Receipt PDF downloaded"));
     } catch (error: any) {
-      toast.error(error?.message || "Failed to download PDF");
+      toast.error(tr(error?.message || "Failed to download PDF"));
     } finally {
       setDownloadingPdf(false);
     }
@@ -402,7 +404,7 @@ function PaymentModal({
         });
         setStep("receipt");
       } else {
-        toast.error(json.error || "Payment failed");
+        toast.error(tr(json.error || "Payment failed"));
       }
     } catch {
       toast.error(tr("Failed to record payment"));
@@ -637,6 +639,8 @@ function BankImportModal({
   onImported: () => void;
 }) {
   const tr = useUiText();
+  const [currency, setCurrency] = useState("USD");
+  useEffect(() => { void getFinancialLocale(campusId).then((locale) => setCurrency(locale.currency)).catch(() => {}); }, [campusId]);
   const [file, setFile] = useState<File | null>(null);
   const [accountName, setAccountName] = useState("");
   const [statementFrom, setStatementFrom] = useState("");
@@ -653,6 +657,7 @@ function BankImportModal({
       const form = new FormData();
       form.append("file", file);
       form.append("accountName", accountName);
+      form.append("currency", currency);
       form.append("statementFrom", statementFrom);
       form.append("statementTo", statementTo);
       if (campusId) form.append("campusId", campusId);
@@ -660,10 +665,10 @@ function BankImportModal({
       const res = await fetch(`${API}/bank-import`, { method: "POST", body: form });
       const json = await res.json();
       if (json.success) {
-        toast.success(`Matched ${json.data.matched} of ${json.data.totalTransactions} transactions`);
+        toast.success(tr("Matched {0} of {1} transactions", [json.data.matched, json.data.totalTransactions]));
         onImported();
       } else {
-        toast.error(json.error || "Import failed");
+        toast.error(tr(json.error || "Import failed"));
       }
     } catch {
       toast.error(tr("Import failed"));
@@ -688,6 +693,7 @@ function BankImportModal({
       }
     >
         <div className="space-y-4">
+          <label className="block text-sm">{tr("Currency")}<select aria-label={tr("Currency")} className="mt-1 w-full rounded-xl border p-2" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
           <div>
             <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Account Name"}</UiText></label>
             <SystemInput type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder={tr("School Savings Account")} className="w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors" />

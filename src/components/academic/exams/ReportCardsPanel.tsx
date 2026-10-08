@@ -141,11 +141,11 @@ export function ReportCardsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${label} failed`);
-      toast.success(label);
+      toast.success(tr(label));
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `${label} failed`);
+      toast.error(tr(e instanceof Error ? e.message : tr("{0} failed", [label])));
     } finally {
       setBusy(null);
     }
@@ -159,14 +159,14 @@ export function ReportCardsPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not lock the exam");
       toast.success(
-        data.reportCardsGenerated
-          ? `Marks locked — ${data.reportCardsGenerated} report cards created`
-          : "Marks locked",
+        tr(data.reportCardsGenerated
+          ? tr("Marks locked — {0} report cards created", [data.reportCardsGenerated])
+          : "Marks locked"),
       );
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not lock the exam");
+      toast.error(tr(e instanceof Error ? e.message : "Could not lock the exam"));
     } finally {
       setBusy(null);
     }
@@ -193,7 +193,7 @@ export function ReportCardsPanel({
         ),
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the remark");
+      toast.error(tr(e instanceof Error ? e.message : "Could not save the remark"));
     } finally {
       setBusy(null);
     }
@@ -222,7 +222,7 @@ export function ReportCardsPanel({
       if (!silent) toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
-      if (!silent) toast.error(e instanceof Error ? e.message : "Could not approve");
+      if (!silent) toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
       return false;
     } finally {
       if (!silent) setBusy(null);
@@ -244,7 +244,7 @@ export function ReportCardsPanel({
       if (await approveOne(card, true)) ok += 1;
     }
     setBusy(null);
-    toast.success(`Approved ${ok} remark${ok === 1 ? "" : "s"}`);
+    toast.success(tr("Approved remarks: {0}", [ok]));
     onChanged?.();
   };
 
@@ -459,7 +459,7 @@ export function ReportCardsPanel({
       </Panel>
 
       <Panel
-        title={`Report cards (${cards.length})`}
+        title={tr("Report cards ({0})", [cards.length])}
         subtitle={
           isLocked
             ? tr("One per pupil. Open any of them to check before publishing.")
@@ -538,7 +538,7 @@ export function ReportCardsPanel({
                       </p>
                       <p className="text-[10px] font-semibold text-ink-subtle">
                         {c.student?.rollNo ?? "—"}
-                        {c.rank != null ? ` · rank ${c.rank}` : ""}
+                        {c.rank != null ? tr(" · rank {0}", [c.rank]) : ""}
                       </p>
                     </td>
                     <td className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">

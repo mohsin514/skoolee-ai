@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
@@ -40,6 +41,8 @@ function greeting() {
 }
 
 export default function StudentDashboard() {
+  const { money } = useLocaleFormat();
+  const tr = useUiText();
   const { data, loading, refetch, error } = useStudentData();
   const [downloading, setDownloading] = useState(false);
   const [upcomingPapers, setUpcomingPapers] = useState<any[]>([]);
@@ -147,7 +150,7 @@ export default function StudentDashboard() {
           user.marks.length
       )
     : 0;
-  const invoiced = user.invoices?.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0) || 0;
+  const invoiced = user.invoices?.filter((invoice: any) => invoice.currency === user.balanceCurrency).reduce((s: number, i: any) => s + (i.totalAmount || 0), 0) || 0;
   const feePaidPct = invoiced ? Math.round(((invoiced - user.balanceDue) / invoiced) * 100) : 100;
 
   const studentAIFeatures = [
@@ -250,7 +253,7 @@ export default function StudentDashboard() {
               label="Balance Due"
               /* Invoice amounts are stored in paisa — the guardian portal
                  already divides, and this card was reading 100x high. */
-              value={<CountUp value={user.balanceDue / 100} prefix="Rs " />}
+              value={money(user.balanceDue, user.balanceCurrency)}
               sub={user.balanceDue > 0 ? `${feePaidPct}% of fees cleared` : "All fees cleared"}
               tone={user.balanceDue > 0 ? "amber" : "green"}
               ring={invoiced ? feePaidPct : null}

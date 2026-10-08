@@ -145,11 +145,11 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message);
+        toast.success(tr(json.message));
         loadInvoices();
         if (detailInvoice?.id === id) setDetailInvoice(null);
       } else {
-        toast.error(json.error || "Failed to update status");
+        toast.error(tr(json.error || "Failed to update status"));
       }
     } catch {
       toast.error(tr("Failed to update invoice"));
@@ -394,7 +394,7 @@ function InvoiceDetailModal({
       await downloadPdfFile(`/api/fees/invoice-pdf?id=${encodeURIComponent(inv.id)}`, `invoice-${inv.invoiceNumber || "receipt"}.pdf`);
       toast.success(tr("Invoice PDF downloaded"));
     } catch (error: any) {
-      toast.error(error?.message || "Failed to download PDF");
+      toast.error(tr(error?.message || "Failed to download PDF"));
     } finally {
       setDownloadingPdf(false);
     }
@@ -502,7 +502,7 @@ function InvoiceDetailModal({
                       <div className="flex items-center justify-between">
                         <p className="text-[9px] font-bold text-ink-subtle">
                           {formatDate(p.paymentDate)} · {tr(paymentMethodLabel(p.paymentMethod))}
-                          {p.referenceNumber ? ` · Ref: ${p.referenceNumber}` : ""}
+                          {p.referenceNumber ? tr(" · Ref: {0}", [p.referenceNumber]) : ""}
                         </p>
                         {p.recorder?.fullName && (
                           <p className="text-[9px] font-bold text-ink-subtle"><UiText>{"by"}</UiText>{p.recorder.fullName}</p>
@@ -578,10 +578,10 @@ function GenerateInvoicesModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Invoices generated");
+        toast.success(tr(json.message || "Invoices generated"));
         onGenerated();
       } else {
-        toast.error(json.error || "Generation failed");
+        toast.error(tr(json.error || "Generation failed"));
       }
     } catch {
       toast.error(tr("Failed to generate invoices"));

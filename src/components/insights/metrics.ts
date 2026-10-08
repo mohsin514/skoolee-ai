@@ -7,6 +7,7 @@
  * the card renders its empty state rather than a fabricated trend.
  */
 
+import { minorUnits } from "@/lib/locale/package";
 import { fromMinor, GRADE_COLOR, GRADE_ORDER, RAMP_BRAND, STATUS } from "./palette";
 
 /** Matches the server's ON_ROLL filter, so counts agree with the headline. */
@@ -286,7 +287,7 @@ const FEE_COLOR: Record<string, string> = {
 
 /** Normalises Prisma groupBy rows, whose `_count` is a number in one payload
  *  and an object in another. */
-export function feeBuckets(byStatus: any[]): FeeBucket[] {
+export function feeBuckets(byStatus: any[], currency = "PKR"): FeeBucket[] {
   return (byStatus ?? [])
     .map((row: any) => {
       const status = String(row.status ?? "").toUpperCase();
@@ -295,7 +296,7 @@ export function feeBuckets(byStatus: any[]): FeeBucket[] {
         status,
         label: FEE_LABEL[status] ?? status,
         count,
-        amount: fromMinor(row._sum?.totalAmount ?? 0),
+        amount: (row._sum?.totalAmount ?? 0) / 10 ** minorUnits(currency),
         color: FEE_COLOR[status] ?? STATUS.neutral,
       };
     })
