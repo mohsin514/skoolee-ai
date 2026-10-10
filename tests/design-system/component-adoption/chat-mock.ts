@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 const contacts = [{id:'fixture-contact',fullName:'Synthetic Teacher',role:'TEACHER',email:'fixture@example.test',profileImageUrl:null,campusName:'Example campus',context:'Example classroom'}];
 const api = {
  viewer: {id:'fixture-viewer',fullName:'Synthetic Coordinator',role:'CAMPUS_ADMIN',email:'coordinator@example.test',canCreateGroup:true},
@@ -8,3 +9,6 @@ const api = {
  notifyTyping: ()=>{},
 };
 export function useChat(){return api;}
+
+export function ChatProvider({ children }: { children: ReactNode }) { return children; }
+export function ChatDock() { return null; }

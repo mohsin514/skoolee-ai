@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Skoolee AI — Autopilot Roadmap, Wireframes & Flows</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose', flowchart:{ htmlLabels:true, curve:'basis' } });
+</script>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#121828; --panel2:#1a2235; --ink:#e8edf7; --mut:#9aa7c2;
+    --acc:#8b5cf6; --acc2:#ec4899; --acc3:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --line:#263150; --chip:#1e2740;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(160deg,#0b0f1a,#0d1322 60%,#0b0f1a);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:34px 26px 20px;border-bottom:1px solid var(--line);
+    background:radial-gradient(900px 300px at 20% -40%,rgba(139,92,246,.25),transparent),
+               radial-gradient(900px 300px at 85% -60%,rgba(236,72,153,.18),transparent);}
+  h1{margin:0 0 6px;font-size:30px;letter-spacing:.3px}
+  h1 .em{background:linear-gradient(90deg,var(--acc),var(--acc2),var(--acc3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--mut);max-width:900px}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 80px}
+  nav{position:sticky;top:0;z-index:9;background:rgba(11,15,26,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:10px 22px;display:flex;gap:8px;flex-wrap:wrap}
+  nav a{color:var(--mut);text-decoration:none;font-size:12.5px;padding:6px 11px;border:1px solid var(--line);
+    border-radius:999px;background:var(--chip)}
+  nav a:hover{color:var(--ink);border-color:var(--acc)}
+  section{margin:40px 0;scroll-margin-top:60px}
+  h2{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:13px;color:#0b0f1a;background:linear-gradient(90deg,var(--acc),var(--acc2));
+    border-radius:8px;padding:2px 9px;font-weight:700}
+  h3{font-size:16.5px;margin:26px 0 8px;color:#cdd7ef}
+  p{color:#d4dcf0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:860px){.g2,.g3{grid-template-columns:1fr}}
+  .mermaid{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;overflow:auto}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#cdd7ef}
+  code{background:#0e1526;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#9ad7ff}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--mut);margin:2px 4px 2px 0}
+  .ok{color:var(--ok);border-color:#1d5a44}
+  .warn{color:var(--warn);border-color:#5a4a16}
+  .bad{color:var(--bad);border-color:#5a2222}
+  .acc{color:#c4b5fd;border-color:#4c3a8a}
+  /* wireframe */
+  .wf{background:#0e1424;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:12px 0}
+  .wf .bar{background:var(--panel2);padding:8px 12px;border-bottom:1px solid var(--line);display:flex;gap:7px;align-items:center;font-size:12px;color:var(--mut)}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .wf .body{padding:14px;display:grid;gap:10px}
+  .box{border:1px dashed #3b466f;border-radius:9px;padding:10px 12px;background:#111831;color:#c7d2ec;font-size:13px}
+  .box .t{font-size:11px;color:#8aa0cf;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+  .row{display:grid;gap:10px}
+  .r3{grid-template-columns:1fr 1fr 1fr}.r2{grid-template-columns:1fr 1fr}.r4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:760px){.r3,.r2,.r4{grid-template-columns:1fr}}
+  .ghost{opacity:.6;font-style:italic}
+  .btn{display:inline-block;background:linear-gradient(90deg,var(--acc),var(--acc2));color:#fff;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600}
+  .btn.sec{background:transparent;border:1px solid var(--acc);color:#c4b5fd}
+  .callout{border-left:3px solid var(--acc);background:#141b30;padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .callout.good{border-color:var(--ok);background:#102418}
+  .callout.risk{border-color:var(--warn);background:#241f10}
+  ul{margin:8px 0 8px 2px;padding-left:20px}
+  li{margin:4px 0;color:#d4dcf0}
+  .kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:760px){.kgrid{grid-template-columns:1fr 1fr}}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .kpi b{font-size:22px;display:block;background:linear-gradient(90deg,var(--acc),var(--acc3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .kpi span{font-size:12px;color:var(--mut)}
+  footer{color:var(--mut);font-size:12px;text-align:center;padding:30px 0 10px;border-top:1px solid var(--line);margin-top:40px}
+  .lead{font-size:16px;color:#dbe3f6}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="padding-bottom:0">
+    <h1>Skoolee <span class="em">AI Autopilot</span> — Roadmap, Wireframes & Flows</h1>
+    <p class="sub">A goal-driven school operating system: users describe the outcome, AI gathers what's missing (chat · voice · scan · upload), prepares linked work, and executes approved changes. Every artifact stays visible, editable and versioned. Includes a Tauri-based secure exam browser, the multi-modal capture pipeline, the paper/quiz generation engine, full UI wireframes, end-to-end sequence flows, and a LEAP 2027 Riyadh go-to-market read.</p>
+  </div>
+</header>
+
+<nav>
+  <a href="#north">① North Star</a>
+  <a href="#arch">② Architecture</a>
+  <a href="#wire">③ Wireframes</a>
+  <a href="#onboard">④ First-time Onboarding</a>
+  <a href="#capture">⑤ Multi-modal Capture + Scan</a>
+  <a href="#paper">⑥ Paper / Quiz Engine</a>
+  <a href="#secure">⑦ Secure Exam Browser</a>
+  <a href="#flows">⑧ End-to-End Flows</a>
+  <a href="#ux">⑨ UX Principles</a>
+  <a href="#build">⑩ Build Sequence</a>
+  <a href="#leap">⑪ LEAP 2027 Riyadh</a>
+</nav>
+
+<div class="wrap">
+
+<!-- 1 -->
+<section id="north">
+  <h2><span class="n">01</span> The North Star — a goal-driven school OS</h2>
+  <p class="lead">Today Skoolee is a set of manual modules. The leap is to make the <b>goal</b> the interface. The user states an outcome; AI prepares a connected package; the user reviews, edits, pins decisions and approves.</p>
+  <div class="card">
+    <p>Instead of 40 screens the staff must learn, there is one line they can type or say:</p>
+    <ul>
+      <li>“Set up our new academic year.”</li>
+      <li>“Prepare and manage the Grade 8 term exams.”</li>
+      <li>“Handle this month's fees and tell me the exceptions.”</li>
+      <li>“Create a quiz from what Class 7-B studied this week.”</li>
+      <li>“Arrange cover for absent teachers tomorrow.”</li>
+      <li>“Show where students need support and prepare follow-up.”</li>
+    </ul>
+    <p>AI checks existing records first, asks only about <b>missing info, conflicts, or changed policy</b>, prepares a linked plan, validates rules/permissions, and either executes (if covered by an approved policy) or routes to a <b>Decision Inbox</b> for approval.</p>
+  </div>
+  <div class="grid g3">
+    <div class="card"><span class="pill acc">Level 1 · Assistant</span><p>Answers, drafts, suggests. Staff still perform most actions.</p></div>
+    <div class="card"><span class="pill ok">Level 2 · Workflow Manager — start here</span><p>Gathers info, prepares linked records, validates, executes <i>approved</i> changes.</p></div>
+    <div class="card"><span class="pill warn">Level 3 · School Autopilot</span><p>Runs recurring workflows under saved policies + limits. Decision inbox + full history.</p></div>
+  </div>
+  <div class="callout">Different features sit at different levels at the same time. Reminders can be fully automatic; final exam results always require human approval. Automation expands <b>per feature</b> as measured accuracy and correction-rate justify it.</div>
+</section>
+
+<!-- 2 -->
+<section id="arch">
+  <h2><span class="n">02</span> System Architecture — one Coordinator + typed Tools</h2>
+  <p>One <b>AI Coordinator</b> plans and sequences. It never owns business math — it calls <b>deterministic engines</b> (scheduling solver, fee engine, grading) and your existing services. “Specialists” are logical responsibilities, not necessarily separate expensive models.</p>
+  <div class="mermaid">
+flowchart TD
+  U["User goal<br/>(chat · voice · scan · upload)"] --> CO["AI Coordinator<br/>(plan → gather → validate → route)"]
+  CO --> CTX["School Records + Approved Policies<br/>(tenant-scoped, RLS)"]
+  CO --> MISS{"Essential info<br/>missing?"}
+  MISS -- Yes --> ASK["Ask ONE focused question<br/>(or request a scan/upload)"] --> CO
+  MISS -- No --> PLAN["Prepare linked work plan<br/>(draft package)"]
+  PLAN --> T1["Academic & Scheduling tools<br/>(timetable · datesheet · seating)"]
+  PLAN --> T2["Assessment & Results tools<br/>(papers · quizzes · marking)"]
+  PLAN --> T3["Finance & Comms tools<br/>(fees · invoices · announcements)"]
+  T1 & T2 & T3 --> VAL["Validate rules · permissions · evidence<br/>(deterministic engines)"]
+  VAL --> POL{"Covered by an<br/>approved automation policy?"}
+  POL -- Yes --> EXEC["Execute through existing services"]
+  POL -- No --> INBOX["Decision Inbox<br/>(review · edit · explain · approve)"]
+  INBOX --> EXEC
+  EXEC --> REC["Editable records & pages"]
+  REC --> MON["Monitor outcomes · handle changes"]
+  MON --> CO
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Where AI judges vs. where rules decide</h3>
+      <table>
+        <tr><th>Domain</th><th>AI (judgment)</th><th>Engine (exact)</th></tr>
+        <tr><td>Timetable / datesheet / seating</td><td>Gather constraints, explain trade-offs</td><td>Constraint solver: availability, capacity, clashes</td></tr>
+        <tr><td>Fees / finance</td><td>Coordinate, explain exceptions</td><td>Your fee engine owns amounts & balances</td></tr>
+        <tr><td>Papers / quizzes</td><td>Draft Qs, variants, keys, rubrics</td><td>Curriculum coverage check, difficulty mix</td></tr>
+        <tr><td>Marking</td><td>Suggest evidence-linked marks</td><td>Objective = scored vs. approved key</td></tr>
+        <tr><td>Performance / risk</td><td>Summarize evidence, propose support</td><td>Thresholds, anomaly detection</td></tr>
+      </table>
+    </div>
+    <div class="card"><h3>Non-negotiable guardrails</h3>
+      <ul>
+        <li><span class="pill bad">Never</span> invent marks without student work.</li>
+        <li><span class="pill bad">Never</span> silently overwrite a newer human edit — show impact, prepare a new version.</li>
+        <li>Published results / sent announcements / issued invoices get <b>versioned corrections</b>, never deletes.</li>
+        <li>Every AI action is tenant-scoped (fail-closed <code>schoolId</code> guard) and permission-checked.</li>
+        <li>Findings stay <b>distinguishable</b> from confirmed problems.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">This is the mainstream “predictable workflows + flexible agent planning” pattern (Anthropic's building-effective-agents guidance; constraint-solver for scheduling à la Google OR-Tools). Start with <b>one coordinator and well-defined tools</b>; add parallel agents only where they genuinely help.</div>
+</section>
+
+<!-- 3 WIREFRAMES -->
+<section id="wire">
+  <h2><span class="n">03</span> UI Wireframe Ideas (the four new surfaces + the goal bar)</h2>
+  <p>The existing module pages stay — they are where staff inspect and edit detail. On top of them sit <b>four shared surfaces</b> and a persistent <b>goal bar</b>.</p>
+
+  <h3>3.1 — AI Command Center (home)</h3>
+  <div class="wf">
+    <div class="bar"><span class="dot" style="background:#f87171"></span><span class="dot" style="background:#fbbf24"></span><span class="dot" style="background:#34d399"></span>&nbsp; Skoolee · Command Center</div>
+    <div class="body">
+      <div class="box"><div class="t">Goal Bar (always present)</div>🎙️ “Prepare Grade 8 term exams…”  <span class="ghost">— type, speak, or 📷 scan / 📎 upload</span>  <span class="btn">Go</span></div>
+      <div class="row r3">
+        <div class="box"><div class="t">Daily Briefing</div>3 approvals waiting · 2 conflicts · Fees due in 4 days · 1 teacher absent tomorrow</div>
+        <div class="box"><div class="t">Suggested Next Actions</div>• Approve datesheet draft<br/>• Resolve 2 invigilation clashes<br/>• Send fee reminder (eligible: 212)</div>
+        <div class="box"><div class="t">What's Running</div>Quiz 7-B · generating<br/>Promotions · ready to review</div>
+      </div>
+      <div class="row r4">
+        <div class="box"><div class="t">Attendance</div>94% today</div>
+        <div class="box"><div class="t">Collection</div>SAR 182k / 240k</div>
+        <div class="box"><div class="t">At-risk students</div>18 flagged</div>
+        <div class="box"><div class="t">Exam readiness</div>Grade 8 · 80%</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>3.2 — Decision Inbox (the heart of trust)</h3>
+  <div class="wf">
+    <div class="bar"><span class="dot" style="background:#f87171"></span><span class="dot" style="background:#fbbf24"></span><span class="dot" style="background:#34d399"></span>&nbsp; Decision Inbox</div>
+    <div class="body">
+      <div class="row r2">
+        <div class="box"><div class="t">Approval Package · “Grade 8 Term Exams”</div>
+          Datesheet (12 papers) · Seating (6 rooms) · Invigilation (14 staff) · Papers (12 drafts)<br/>
+          <span class="pill warn">2 conflicts need you</span> <span class="pill ok">rules validated</span><br/>
+          <span class="btn">Review</span> <span class="btn sec">Edit</span> <span class="btn sec">Explain</span> <span class="btn">Approve</span> <span class="btn sec">History</span>
+        </div>
+        <div class="box"><div class="t">Conflict 1 of 2</div>
+          Mr. Khan invigilates Room 3 & Room 5 at 10:00.<br/>
+          AI proposes: move Room 5 to Ms. Noor (free, qualified).<br/>
+          <span class="btn">Accept proposal</span> <span class="btn sec">Pick someone else</span> <span class="btn sec">Keep & flag</span>
+        </div>
+      </div>
+      <div class="box"><div class="t">Why this plan? (Explain)</div><span class="ghost">AI shows the constraints it used, which records it read, and what it changed — evidence-linked, not a black box.</span></div>
+    </div>
+  </div>
+
+  <h3>3.3 — Work Tracker &nbsp;·&nbsp; 3.4 — School Policies</h3>
+  <div class="row r2">
+    <div class="wf">
+      <div class="bar"><span class="dot" style="background:#8b5cf6"></span>&nbsp; Work Tracker</div>
+      <div class="body">
+        <div class="box"><div class="t">Queued</div>Fee reminders (scheduled 8:00)</div>
+        <div class="box"><div class="t">Running</div>Quiz 7-B · 60%</div>
+        <div class="box"><div class="t">Blocked</div>Report cards · waiting marks moderation</div>
+        <div class="box"><div class="t">Done</div>Timetable published · <span class="pill ok">view result</span></div>
+      </div>
+    </div>
+    <div class="wf">
+      <div class="bar"><span class="dot" style="background:#ec4899"></span>&nbsp; School Policies (remembered preferences)</div>
+      <div class="body">
+        <div class="box"><div class="t">Automation permissions</div>Fee reminders · <span class="pill ok">auto</span><br/>Exam results · <span class="pill warn">approval required</span></div>
+        <div class="box"><div class="t">Saved defaults</div>Paper spacing: 1 rest day · Grading scale: A–F · Working week: Sun–Thu</div>
+        <div class="box"><div class="t">Limits</div>Max auto-send audience: 500 · Spend cap on AI gen: set</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>3.5 — Goal Workspace (one goal, expanded)</h3>
+  <div class="wf">
+    <div class="bar"><span class="dot" style="background:#22d3ee"></span>&nbsp; Goal · Prepare Grade 8 Term Exams</div>
+    <div class="body">
+      <div class="box"><div class="t">Conversation + evidence rail (right side)</div>
+        <span class="ghost">Chat transcript · voice notes · scanned syllabus · uploaded last paper — all pinned as sources the AI used.</span></div>
+      <div class="row r3">
+        <div class="box"><div class="t">Datesheet</div>editable grid · pinned slots respected</div>
+        <div class="box"><div class="t">Papers</div>12 drafts · coverage map</div>
+        <div class="box"><div class="t">Seating + Invigilation</div>auto, with override</div>
+      </div>
+      <div class="box">🔒 <b>“Keep this fixed”</b> — any slot/mark/choice the user pins becomes a hard constraint when AI regenerates the rest.</div>
+    </div>
+  </div>
+  <div class="callout good"><b>UX thesis:</b> the staff member never has to <i>know which module</i> to open. They state a goal; the system assembles the right screens, pre-filled, with one clear decision at a time. The old pages remain for power users and audits.</div>
+</section>
+
+<!-- 4 ONBOARDING -->
+<section id="onboard">
+  <h2><span class="n">04</span> First-time School Onboarding — AI interviews the school</h2>
+  <p>A brand-new school has no records, so AI runs a guided interview. It never dumps a 60-field form — it asks in <b>plain, batched steps</b>, accepts chat/voice/scan/upload at every step, and can bulk-import from a scanned register, a spreadsheet, or a previous system export.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant S as School admin
+  participant AI as Coordinator
+  participant SC as Scan/Upload pipeline
+  participant DB as Records (tenant)
+  S->>AI: "We're a new school, set us up."
+  AI->>S: Identity: name, country, curriculum, grading scale, working week, language(s)?
+  S-->>AI: (types) + 📷 scans school letterhead / license
+  AI->>SC: OCR letterhead → prefill name/address
+  SC-->>AI: structured fields (confidence shown)
+  AI->>S: Academic structure: grades, sections, subjects per grade?
+  S-->>AI: 📎 uploads subject list spreadsheet
+  AI->>DB: create grades/sections/subjects (draft)
+  AI->>S: People: import students & teachers? (scan register / upload CSV / enter manually)
+  S-->>AI: 📷 scans paper admission register
+  AI->>SC: OCR rows → student records (needs review)
+  AI->>S: Calendar: term dates, holidays, periods/day?
+  AI->>S: Fees: structure, due dates, late policy?
+  AI->>S: Policies: which tasks may AI do automatically vs. ask?
+  AI->>DB: assemble full "School Setup" package (draft)
+  AI->>S: Review package — 4 items need your confirmation
+  S-->>AI: edits + approves
+  AI->>DB: commit · school is live
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Onboarding principles</h3>
+      <ul>
+        <li><b>Progressive:</b> only ask what's needed for the next useful outcome; defer the rest.</li>
+        <li><b>Every answer is reusable:</b> confirmed answers become <i>School Policies</i>, so AI never re-asks.</li>
+        <li><b>Confidence-visible imports:</b> OCR'd rows show a confidence badge; low-confidence rows queue for review, never silently committed.</li>
+        <li><b>Resume anywhere:</b> setup is a draft package; closing the tab never loses entered data.</li>
+      </ul>
+    </div>
+    <div class="card"><h3>Three ways to populate a new school</h3>
+      <ul>
+        <li><span class="pill acc">Scan</span> paper registers, fee sheets, timetables → OCR → reviewable drafts.</li>
+        <li><span class="pill acc">Upload</span> CSV/Excel/PDF exports from a previous system.</li>
+        <li><span class="pill acc">Converse</span> for small schools: AI builds records from a 10-minute chat/voice interview.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 5 CAPTURE -->
+<section id="capture">
+  <h2><span class="n">05</span> Multi-modal Capture + Scan pipeline</h2>
+  <p>At <b>any</b> step the user can chat, speak, upload a file, or scan with a phone/document camera. All inputs normalize into the same structured intake the Coordinator reads.</p>
+  <div class="mermaid">
+flowchart LR
+  subgraph IN["Inputs (any step)"]
+    C["💬 Chat text"]
+    V["🎙️ Voice note"]
+    F["📎 Upload (PDF/CSV/XLSX/DOCX)"]
+    SCAN["📷 Scan (phone / doc cam)"]
+  end
+  V --> ASR["Speech-to-text<br/>(+ translation if needed)"]
+  SCAN --> IMG["Image clean-up<br/>deskew · denoise · page-split"]
+  F --> PARSE["Parser<br/>tables · text · layout"]
+  IMG --> OCR["OCR + layout model<br/>(printed + handwriting)"]
+  OCR --> EX["Field / question extraction<br/>+ confidence scores"]
+  PARSE --> EX
+  ASR --> NORM["Normalized intake JSON"]
+  C --> NORM
+  EX --> NORM
+  NORM --> REV{"Confidence<br/>high?"}
+  REV -- Yes --> CO["Coordinator uses directly"]
+  REV -- Low --> RVW["Human review queue<br/>(edit before commit)"]
+  RVW --> CO
+  </div>
+  <div class="grid g3">
+    <div class="card"><h3>Scan a past paper</h3><p>OCR → detects questions, marks, sections → produces an editable <b>question bank entry</b> and a <b>paper pattern</b> the generator can reuse.</p></div>
+    <div class="card"><h3>Scan a syllabus</h3><p>OCR → topic tree per subject/grade → becomes the <b>curriculum coverage map</b> that question generation must satisfy.</p></div>
+    <div class="card"><h3>Scan marksheets / registers</h3><p>OCR rows → candidate records with confidence → review queue → commit. Handwriting goes to moderation, never auto-committed.</p></div>
+  </div>
+  <div class="callout risk"><b>Reality check:</b> OCR of handwriting and messy scans is never 100%. The pipeline's job is not to be perfect — it's to <b>get to “review & fix” fast</b> with confidence surfaced, so staff correct a few rows instead of typing hundreds.</div>
+</section>
+
+<!-- 6 PAPER ENGINE -->
+<section id="paper">
+  <h2><span class="n">06</span> Paper / Quiz / Marking Engine — how AI “knows” the syllabus</h2>
+  <p>AI doesn't guess the syllabus — it generates <b>only</b> from an approved curriculum source. You feed it the syllabus three possible ways; it builds a topic tree; generation and coverage checks run against that tree.</p>
+  <div class="mermaid">
+flowchart TD
+  SRC["Curriculum source<br/>(scanned syllabus · uploaded curriculum doc · board standard · past papers)"] --> TREE["Topic tree per subject/grade<br/>(approved curriculum map)"]
+  TREE --> BANK["Question bank<br/>(tagged: topic · difficulty · type · marks)"]
+  REQ["Request: 'Grade 8 Science, 50 marks, 1hr, same pattern as last term'"] --> GEN["Generator"]
+  TREE --> GEN
+  BANK --> GEN
+  PATTERN["Paper pattern<br/>(from scanned last paper)"] --> GEN
+  GEN --> DRAFT["Draft paper + variants<br/>+ answer key + rubric"]
+  DRAFT --> COV["Coverage & difficulty check<br/>(every required topic hit? mix balanced?)"]
+  COV --> REVIEW["Teacher review<br/>edit · pin · approve"]
+  REVIEW --> PUB["Approved paper<br/>(print / deliver to Secure Browser)"]
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Generation rules</h3>
+      <ul>
+        <li>Questions trace to a <b>topic + source</b> — teacher sees provenance.</li>
+        <li><b>Variants</b> (A/B/C) for anti-cheating, same difficulty profile.</li>
+        <li>Every paper ships with <b>answer key + rubric</b>; nothing publishes unreviewed.</li>
+        <li>Difficulty mix and topic coverage are <b>checked by rule</b>, not vibes.</li>
+      </ul>
+    </div>
+    <div class="card"><h3>Marking (the careful part)</h3>
+      <ul>
+        <li><span class="pill ok">Objective (MCQ/short)</span> auto-scored vs. approved key.</li>
+        <li><span class="pill warn">Written</span> → <b>evidence-linked suggestions</b> for teacher moderation.</li>
+        <li><span class="pill bad">Never</span> a mark without the student's actual work attached.</li>
+        <li>Results are versioned; corrections leave an audit trail.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 7 SECURE BROWSER -->
+<section id="secure">
+  <h2><span class="n">07</span> Secure Exam Browser (lockdown + proctoring)</h2>
+  <p>For online papers you need a <b>true lockdown environment</b>, not just a webpage. Your repo already has a <b>Tauri desktop shell</b> — that is the strongest, most honest path: a desktop app can enforce OS-level restrictions a browser tab physically cannot.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Option A — Tauri lockdown app <span class="pill ok">recommended</span></h3><p>Kiosk/fullscreen, blocks app & tab switching, disables copy/paste & screenshots, single-process, camera + screen capture for proctoring. Real enforcement.</p></div>
+    <div class="card"><h3>Option B — Browser extension</h3><p>Lighter to ship, but bypassable; weak enforcement. Fine for low-stakes quizzes only.</p></div>
+    <div class="card"><h3>Option C — Web kiosk + proctoring</h3><p>Pure web; captures camera/screen and AI-flags anomalies, but cannot truly lock the OS. Good fallback where installing an app isn't possible.</p></div>
+  </div>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant St as Student
+  participant SB as Secure Exam App (Tauri)
+  participant OS as OS Lockdown layer
+  participant Pr as Proctoring (camera+screen)
+  participant Srv as Exam server
+  St->>SB: Launch exam · enter code
+  SB->>OS: Enter kiosk · block switching · disable copy/screenshot
+  SB->>Pr: Start camera + screen capture · identity check
+  Pr-->>Srv: Baseline face · environment scan
+  SB->>Srv: Fetch paper (variant assigned)
+  loop During exam
+    St->>SB: Answer questions (autosave)
+    Pr->>Srv: Stream events · flag anomalies (second face, tab-attempt, gaze-away)
+    OS-->>SB: Block & log any switch attempt
+  end
+  St->>SB: Submit
+  SB->>OS: Release lockdown
+  Srv-->>St: Confirmation
+  Srv->>Srv: Attach proctoring evidence to result (for moderation)
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Enforcement (what the Tauri app can really do)</h3>
+      <ul>
+        <li>Fullscreen kiosk; intercept/kill <code>Alt-Tab</code>, <code>Cmd-Tab</code>, Win key, mission control.</li>
+        <li>Disable clipboard, right-click, print-screen; block new windows & external links.</li>
+        <li>Detect virtual machines / second displays / screen-recorders and refuse to start.</li>
+        <li>Camera + screen stream to proctor; local buffer if network drops.</li>
+      </ul>
+    </div>
+    <div class="card"><h3>Honesty + ethics guardrails</h3>
+      <ul>
+        <li>AI flags are <b>evidence for a human</b>, never auto-fail.</li>
+        <li>Consent + privacy notice before camera starts; data retention policy.</li>
+        <li>Accessibility & accommodations path (extra time, screen reader exemptions).</li>
+        <li>Graceful fallback to web-kiosk when a student can't install the app.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout risk">No lockdown is unbreakable (a second phone/camera always exists). Position it as <b>strong deterrence + evidence capture + human review</b>, and lean on <b>question variants + time limits + randomized order</b> to blunt collusion. That framing sells better than claiming “uncheatable.”</div>
+</section>
+
+<!-- 8 FLOWS -->
+<section id="flows">
+  <h2><span class="n">08</span> End-to-End Flows (in sequence)</h2>
+
+  <h3>8.1 — “Prepare Grade 8 exams” (the flagship flow)</h3>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as Teacher
+  participant AI as Coordinator
+  participant E as Engines
+  participant I as Decision Inbox
+  U->>AI: "Prepare Grade 8 exams."
+  AI->>AI: Read subjects, class lists, rooms, last pattern
+  AI->>U: "Exam window? Keep last term's spacing?"
+  U-->>AI: "Dec 2–12, keep spacing."
+  AI->>E: Datesheet (solver) · Seating · Invigilation
+  AI->>E: Generate 12 papers from curriculum + pattern
+  E-->>AI: Drafts + 2 staffing conflicts
+  AI->>I: Approval package (edit/explain/approve) + 2 conflicts
+  U-->>I: Resolve conflicts · pin one room · approve
+  I->>E: Commit · publish datesheet · queue papers to Secure Browser
+  E-->>U: Published; Work Tracker shows status
+  </div>
+
+  <h3>8.2 — Pin & regenerate (“Keep this fixed”)</h3>
+  <div class="mermaid">
+flowchart LR
+  A["AI draft"] --> B["User edits & pins decisions 🔒"]
+  B --> C["Revalidate affected records"]
+  C --> D["Approve & publish"]
+  D --> E["Later change / correction"]
+  E --> F["Show impact · prepare NEW version"]
+  F --> C
+  </div>
+
+  <h3>8.3 — Fees for the month</h3>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as Accountant
+  participant AI as Coordinator
+  participant FE as Fee engine
+  participant CM as Comms
+  U->>AI: "Handle this month's fees."
+  AI->>FE: Compute dues, balances, late fees (engine owns math)
+  FE-->>AI: Amounts + exception list (scholarships, disputes)
+  AI->>U: Draft reminders · eligible audience 212 · 6 exceptions need you
+  U-->>AI: Approve sends · resolve 6 exceptions
+  AI->>CM: Send under approved comms policy (translated per family)
+  CM-->>U: Delivery report · Work Tracker updated
+  </div>
+
+  <h3>8.4 — Teacher absence / cover</h3>
+  <div class="mermaid">
+flowchart TD
+  A["'Arrange cover for Ms. Fatima tomorrow'"] --> B["AI reads timetable + free/qualified staff"]
+  B --> C["Solver proposes cover per period"]
+  C --> D{"Conflicts?"}
+  D -- No --> E["Approve → notify staff + classes"]
+  D -- Yes --> F["Decision Inbox: pick alternative"]
+  F --> E
+  </div>
+</section>
+
+<!-- 9 UX -->
+<section id="ux">
+  <h2><span class="n">09</span> UX Principles (so no one is afraid of it)</h2>
+  <div class="grid g2">
+    <div class="card">
+      <ul>
+        <li><b>One decision at a time.</b> Never a wall of fields; AI asks the single next thing it needs.</li>
+        <li><b>Draft, not do.</b> Default is “prepared for your approval,” so staff feel in control from day one.</li>
+        <li><b>Every artifact has View · Edit · Explain · Approve · History.</b> No black boxes.</li>
+        <li><b>“Keep this fixed.”</b> Human edits become constraints, never discarded on regenerate.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <ul>
+        <li><b>Confidence is visible.</b> OCR/AI outputs show how sure they are; low confidence routes to review.</li>
+        <li><b>Bilingual by default</b> (Arabic + English, RTL-aware) — essential for Riyadh.</li>
+        <li><b>Works on a phone.</b> Scan, approve, resolve a conflict from the hallway.</li>
+        <li><b>Reversible.</b> Versioned corrections, never silent deletes; staff trust what they can undo.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout good">The emotional design goal: a principal who has never used “AI” should feel like they <b>hired a competent assistant</b> — one that prepares the work, explains itself, and waits for the nod.</div>
+</section>
+
+<!-- 10 BUILD -->
+<section id="build">
+  <h2><span class="n">10</span> Build Sequence (what to ship, in order)</h2>
+  <table>
+    <tr><th>Phase</th><th>Deliverable</th><th>Why first</th></tr>
+    <tr><td>0 · Foundation</td><td>Connect school context, permissions, existing tools to one Coordinator</td><td>Nothing works without the tool layer + tenant guard</td></tr>
+    <tr><td>1 · One killer workflow</td><td><b>Exam-prep package</b>: editable drafts + validation + Decision Inbox</td><td>One end-to-end “wow” beats ten half-features; demo-ready for LEAP</td></tr>
+    <tr><td>2 · Trust layer</td><td>Versioned approvals, resumable execution, duplicate protection, change history</td><td>Required before anyone trusts automation</td></tr>
+    <tr><td>3 · Capture</td><td>Scan/upload/voice pipeline + onboarding interview</td><td>Removes the data-entry wall; makes new-school signup fast</td></tr>
+    <tr><td>4 · Chain workflows</td><td>Exams → marks → reports → authorized updates</td><td>Compounding value across modules</td></tr>
+    <tr><td>5 · Secure browser</td><td>Tauri lockdown + proctoring for online papers</td><td>Differentiator; also the hardest — do it once the loop is proven</td></tr>
+    <tr><td>6 · Autopilot</td><td>Recurring work under saved policies, pause controls, exception inbox</td><td>Expand automation on measured accuracy + time-saved</td></tr>
+  </table>
+  <div class="callout"><b>For LEAP specifically:</b> you need Phase 1 polished + a convincing <i>scripted</i> demo of Phases 3 & 5. You do not need the whole thing built — you need one flow that makes a principal say “I want that.”</div>
+</section>
+
+<!-- 11 LEAP -->
+<section id="leap">
+  <h2><span class="n">11</span> Will this attract people? — LEAP 2027 Riyadh read</h2>
+  <p class="lead">Short answer: <b>yes, the concept is well-aimed for this market and this moment</b> — if you lead with one undeniable workflow and the Saudi-specific fit, not a feature list.</p>
+
+  <div class="kgrid">
+    <div class="kpi"><b>Vision 2030</b><span>Education + AI are national priorities; buyers expect AI, don't fear it.</span></div>
+    <div class="kpi"><b>Arabic-first</b><span>RTL + Arabic AI is a real moat vs. generic Western SIS tools.</span></div>
+    <div class="kpi"><b>Time-saved</b><span>Admin overload is universal; “prepare the work” is a visceral pitch.</span></div>
+    <div class="kpi"><b>LEAP stage</b><span>One of the largest tech events globally — huge top-of-funnel if the demo lands.</span></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>Why it can attract people</h3>
+      <ul>
+        <li><b>The pitch is a feeling, not features:</b> “Describe the outcome, we prepare it, you approve.” Every overworked administrator gets it in one sentence.</li>
+        <li><b>Saudi fit:</b> Arabic/RTL, local curriculum boards, Vision 2030 AI narrative, Hijri calendar, SAR fees — these are table stakes competitors often miss.</li>
+        <li><b>Secure exam browser</b> is a concrete, boardroom-friendly differentiator (exam integrity is a hot topic).</li>
+        <li><b>Trust-first UX</b> (approve, explain, undo) answers the #1 objection to “AI in schools.”</li>
+      </ul>
+    </div>
+    <div class="card"><h3>What would make it NOT attract people <span class="pill bad">risks</span></h3>
+      <ul>
+        <li><b>Demo breadth over depth.</b> Showing 20 half-working AI buttons reads as a toy. Show <b>one</b> flawless flow.</li>
+        <li><b>“Uncheatable” claims.</b> Over-promising on the secure browser invites easy rebuttals. Sell deterrence + evidence.</li>
+        <li><b>No Arabic / no local curriculum.</b> A generic English demo in Riyadh signals “not built for us.”</li>
+        <li><b>No proof it's safe.</b> Without visible approval/version/audit, decision-makers won't trust AI near grades & money.</li>
+        <li><b>Pricing & data residency unanswered.</b> KSA buyers will ask where data lives — have a PDPL/residency answer.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout good"><b>LEAP demo recipe:</b> (1) Principal says one sentence → (2) AI asks ONE smart question → (3) a full exam package appears, editable → (4) resolve one conflict → (5) approve → (6) flash the secure exam browser locking down. 90 seconds. In Arabic. That is a booth-stopping demo.</div>
+
+  <div class="card">
+    <h3>Honest verdict</h3>
+    <p>The <b>idea</b> is strong and timely — goal-driven, trust-first, Arabic-native school automation is genuinely differentiated and lands squarely in Saudi Arabia's 2030 education-tech push. Attraction at LEAP will depend far more on <b>demo craft and local fit</b> than on how many modules are automated. Build narrow and deep: one flawless, Arabic, end-to-end flow with the secure-browser flourish will out-pull a broad-but-shallow product every time. Pair it with a credible trust/safety/data-residency story and you have something a Riyadh school leader will remember.</p>
+  </div>
+</section>
+
+<footer>
+  Skoolee AI Autopilot — roadmap, wireframes & flows · generated for planning · diagrams render via Mermaid · open in a browser and refresh after edits.
+</footer>
+
+</div>
+</body>
+</html>

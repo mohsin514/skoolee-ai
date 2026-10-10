@@ -18,7 +18,8 @@ import { Maximize2, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "./chat-provider";
 import { ChatWorkspace } from "./chat-workspace";
-import { Button } from "@/components/ui/button";
+import { chatHeader, chatUnreadBadge } from "./chat-styles";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 const MotionButton = motion.create(Button);
 
@@ -66,21 +67,17 @@ export function ChatDock() {
         whileTap={{ scale: 0.92 }}
         transition={{ type: "spring", stiffness: 520, damping: 26 }}
         className={cn(
-          "group fixed bottom-24 right-4 z-[60] grid h-14 w-14 place-items-center",
-          "md:bottom-6 md:right-6"
+          "chat-launcher group fixed bottom-24 end-4 z-[60] grid h-14 w-14 place-items-center rounded-full",
+          "md:bottom-6 md:end-6"
         )}
       >
-        {/* Soft halo, and an expanding ring while something is waiting. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[20px] bg-gradient-to-br from-white/25 to-transparent"
-        />
-        {hasUnread && !isOpen && (
-          <span
-            aria-hidden
-            className="sk-ping pointer-events-none absolute inset-0 rounded-[20px] bg-[#8127cf]/40"
-          />
-        )}
+        <span aria-hidden="true" className="chat-launcher-ring" />
+        <span aria-hidden="true" className="chat-launcher-ring chat-launcher-ring-delayed" />
+        <span aria-hidden="true" className="chat-launcher-background">
+          <span className="chat-launcher-orb" />
+          <span className="chat-launcher-orb" />
+          <span className="chat-launcher-orb" />
+        </span>
 
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
@@ -89,7 +86,7 @@ export function ChatDock() {
             animate={{ opacity: 1, rotate: 0, scale: 1 }}
             exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
             transition={{ duration: 0.18 }}
-            className="relative"
+            className="relative z-10 text-white"
           >
             {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
           </motion.span>
@@ -102,7 +99,7 @@ export function ChatDock() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
               transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              className="absolute -right-1.5 -top-1.5 grid h-6 min-w-6 place-items-center rounded-full border-[2.5px] border-white bg-gradient-to-br from-[#b10e6b] to-[#e0559a] px-1 text-[10px] font-black text-white shadow-[0_4px_12px_-2px_rgba(177,14,107,0.8)]"
+              className={cn(chatUnreadBadge, "absolute -end-1.5 -top-1.5 border-2 border-card")}
             >
               {unreadTotal > 99 ? "99+" : unreadTotal}
             </motion.span>
@@ -130,37 +127,18 @@ export function ChatDock() {
               transition={{ type: "spring", stiffness: 400, damping: 32 }}
               style={{ transformOrigin: "bottom right" }}
               className={cn(
-                "fixed z-[58] flex flex-col overflow-hidden rounded-[26px] bg-white/95 backdrop-blur-2xl",
-                "ring-1 ring-[#cfc2d6]/40",
+                "fixed z-[58] flex flex-col overflow-hidden rounded-3xl border border-border bg-card",
+
                 "shadow-[0_32px_80px_-20px_rgba(31,26,35,0.45),0_0_0_1px_rgba(129,39,207,0.06)]",
-                "inset-x-3 bottom-40 top-16",
-                "md:inset-auto md:bottom-24 md:right-6 md:top-auto md:h-[600px] md:w-[400px]"
+                "inset-x-3 bottom-40 top-3",
+                "md:inset-auto md:bottom-24 md:end-6 md:top-auto md:h-[620px] md:max-h-[calc(100dvh-8rem)] md:w-[420px]"
               )}
             >
-              <header className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-4 py-3">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl"
-                />
-                <p className="relative text-xs font-black tracking-tight text-white">Messages</p>
-                <div className="relative flex items-center gap-1">
-                  <Link
-                    href="/messages"
-                    onClick={() => setIsOpen(false)}
-                    aria-label="Open full messages page"
-                    title="Open full page"
-                    className="cursor-pointer rounded-xl p-1.5 text-white/80 transition-all hover:bg-white/20 hover:text-white active:scale-90"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </Link>
-                  <Button variant="default" size="icon"
-                    type="button"
-                    onClick={() => setIsOpen(false)}
-                    aria-label="Close messages"
-
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+              <header className={cn(chatHeader, "justify-between")}>
+                <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><MessageCircle className="h-5 w-5" /></span><p className="text-sm font-semibold text-foreground">School messaging</p></div>
+                <div className="flex items-center gap-1">
+                  <Link href="/messages" onClick={() => setIsOpen(false)} aria-label="Open full messages page" title="Open full page" className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 className="h-4 w-4" /></Link>
+                  <Button variant="ghost" size="icon" type="button" onClick={() => setIsOpen(false)} aria-label="Close messages"><X className="h-4 w-4" /></Button>
                 </div>
               </header>
 

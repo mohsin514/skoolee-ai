@@ -48,8 +48,10 @@ import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Input as SystemInput } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
+
+const accountMenuItemClass = "flex w-full justify-start items-center gap-3 text-start";
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -243,12 +245,12 @@ export function RoleHeader({
           <CycleBadge />
         {actions}
         <div ref={notifRef} className="relative">
-          <Button variant="ghost" size="icon"
+          <Button variant="outline" size="icon"
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
-              "relative flex items-center justify-center hover:-translate-y-0.5",
-              notifOpen && "bg-white shadow-md border-[#8127cf]/20",
+              "relative flex items-center justify-center",
+              notifOpen && "border-primary",
               bellShake && "sk-shake"
             )}
             title={t("View notifications")}
@@ -321,12 +323,12 @@ export function RoleHeader({
         <Button variant="outline" size="icon"
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="flex items-center justify-center hover:-translate-y-0.5"
+          className="flex items-center justify-center"
           title={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
         </Button>
-        <div className="hidden h-6 w-[1px] bg-gradient-to-b from-transparent via-[#cfc2d6]/30 to-transparent sm:block" />
+        <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
 
         <div ref={menuRef} className="relative">
           <Button variant="ghost"
@@ -371,30 +373,30 @@ export function RoleHeader({
               <div className="p-1.5">
                 <MenuLink href="/account/security" icon={KeyRound} label="Active sessions" onClick={() => setMenuOpen(false)} />
                 <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
-                <Button variant="secondary" size="sm"
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setSettingsOpen(true);
                   }}
-                  className="flex justify-start w-full items-center gap-3"
+                  className={accountMenuItemClass}
                   role="menuitem"
                 >
                   <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></Button>
-                <Button variant="secondary" size="sm"
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setPasswordModalOpen(true);
                   }}
-                  className="flex justify-start w-full items-center gap-3"
+                  className={accountMenuItemClass}
                   role="menuitem"
                 >
                   <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></Button>
-                <Button variant="destructive" size="sm"
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={handleLogout}
-                  className="mt-0.5 flex justify-start w-full items-center gap-3"
+                  className={accountMenuItemClass}
                   role="menuitem"
                 >
                   <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></Button>
@@ -634,7 +636,7 @@ function MenuLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className={buttonVariants({ variant: "ghost", size: "sm", className: accountMenuItemClass })}
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

@@ -168,7 +168,7 @@ export function Composer({
   const remaining = MAX_LENGTH - value.length;
 
   return (
-    <div className="shrink-0 border-t border-[#cfc2d6]/25 bg-white/85 px-3 py-3 backdrop-blur-xl md:px-4">
+    <div className="shrink-0 border-t border-border bg-card px-3 py-3 md:px-4">
       <AnimatePresence initial={false}>
         {(replyTo || editing) && (
           <motion.div
@@ -271,7 +271,7 @@ export function Composer({
               }}
               accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
             />
-            <Button variant="secondary" size="icon"
+            <Button variant="ghost" size="icon"
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={files.length >= 5}
@@ -310,7 +310,7 @@ export function Composer({
             }
           }}
           placeholder={editing ? "Edit your message…" : "Write a message…"}
-          className="max-h-[150px] min-h-12 flex-1 resize-none px-1.5 py-2.5"
+          className="max-h-[150px] min-h-12 flex-1 resize-none px-2 py-3 text-sm"
         />
 
         <MotionButton variant="default" size="icon"
@@ -321,7 +321,7 @@ export function Composer({
           whileTap={canSend ? { scale: 0.9 } : undefined}
           animate={canSend ? { scale: 1 } : { scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 28 }}
-          className="shrink-0"
+          className="order-2 shrink-0"
         >
           {isSending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

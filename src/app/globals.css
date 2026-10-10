@@ -989,3 +989,57 @@ button:disabled,
 @utility safe-area-pb {
   padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
 }
+
+/* One animated, circular launcher for messaging across all role dashboards. */
+.chat-launcher {
+  border: 0;
+  background: linear-gradient(135deg, #6723b5, #a328b9 55%, #ba246e);
+  color: white;
+  isolation: isolate;
+  box-shadow: 0 8px 24px -6px rgba(107, 33, 168, 0.5);
+}
+.chat-launcher-background {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.chat-launcher-orb {
+  position: absolute;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  filter: blur(10px);
+  animation: chatLauncherOrbit 8s ease-in-out infinite alternate;
+}
+.chat-launcher-orb:nth-child(1) { inset-inline-start: -15%; top: -15%; background: #6b35d6; }
+.chat-launcher-orb:nth-child(2) { inset-inline-end: -20%; top: 10%; background: #b832a7; animation-delay: -3s; }
+.chat-launcher-orb:nth-child(3) { inset-inline-start: 15%; bottom: -25%; background: #da387c; animation-delay: -5s; }
+.chat-launcher > span > svg { color: white; }
+@keyframes chatLauncherOrbit {
+  0% { transform: translate(-8%, -8%) scale(0.85); }
+  50% { transform: translate(20%, 12%) scale(1.15); }
+  100% { transform: translate(-5%, 25%) scale(0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher-orb { animation: none; }
+}
+
+/* Visible circular ripples complement the moving gradient inside the launcher. */
+.chat-launcher-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #a855f7;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: chatLauncherRipple 3.6s ease-out infinite;
+}
+.chat-launcher-ring-delayed { animation-delay: -1.8s; border-color: #d946a4; }
+@keyframes chatLauncherRipple {
+  0% { transform: scale(1); opacity: 0.5; }
+  80%, 100% { transform: scale(1.55); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher-ring { animation: none; opacity: 0; }
+}
