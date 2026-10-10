@@ -1,5 +1,6 @@
 "use client";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { createContext, useContext } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isNavigationActive } from "@/lib/navigation/items";
@@ -8,17 +9,21 @@ import { useNavigationAccess } from "./NavigationAccess";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 
+// RoleShell owns desktop and mobile navigation; standalone pages retain their strip.
+export const SidebarNavigationContext = createContext(false);
+
 export function WorkspaceSubnav({ label, items, active, onSelect }: {
   label: string;
   items: { id: string; label: string; href?: string }[];
   active?: string;
   onSelect?: (id: string) => void;
 }) {
+  const sidebarOwnsNavigation = useContext(SidebarNavigationContext);
   const t = useUiText();
   const access = useNavigationAccess();
   const pathname = usePathname();
   const visible = items.filter((item) => item.href ? access.allowsHref(item.href) : access.allows(moduleForView(item.id)));
-  if (!visible.length) return null;
+  if (sidebarOwnsNavigation || !visible.length) return null;
   return <nav aria-label={t(label)} className="flex min-w-0 shrink-0 flex-wrap gap-1 border-b border-border bg-card p-2">
     {visible.map((item) => {
       const selected = item.href ? isNavigationActive(item, pathname) : item.id === active;

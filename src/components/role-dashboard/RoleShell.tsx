@@ -5,9 +5,11 @@ import { LocaleProvider, UiText } from "@/components/locale/LocaleProvider";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { NavigationAccessProvider, NavigationAccessNotice, useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { SidebarNavigationContext } from "@/components/nav/WorkspaceSubnav";
 import type { NavigationAccess } from "@/lib/navigation/modules";
 import { cn } from "@/lib/utils";
 import { ChatDock, ChatProvider } from "@/components/chat";
+import { SkeletonBar } from "@/components/ui/skeleton";
 import { RoleHeader } from "./RoleHeader";
 import { RoleSidebar, type RoleNavItem, type SidebarEntry } from "./RoleSidebar";
 
@@ -32,7 +34,7 @@ interface RoleShellProps {
 }
 
 export function RoleShell(props: RoleShellProps) {
-  return <LocaleProvider><NavigationAccessProvider access={props.navigationAccess}><RoleShellContent {...props} /></NavigationAccessProvider></LocaleProvider>;
+  return <LocaleProvider><NavigationAccessProvider access={props.navigationAccess}><SidebarNavigationContext.Provider value={true}><RoleShellContent {...props} /></SidebarNavigationContext.Provider></NavigationAccessProvider></LocaleProvider>;
 }
 
 function RoleShellContent({
@@ -63,7 +65,8 @@ function RoleShellContent({
   const pathname = usePathname();
   const access = useNavigationAccess();
   const activeItems = navItems.flatMap((item) => "children" in item ? item.children : [item]).filter((item) => item.active);
-  const denied = !access.allowsHref(pathname) || activeItems.some((item) => item.available === false || !access.allows(item.module));
+  const checkingAccess = access.status === "loading";
+  const denied = access.status !== "ready" || !access.allowsHref(pathname) || activeItems.some((item) => item.available === false || !access.allows(item.module));
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -112,14 +115,15 @@ function RoleShellContent({
     <ChatProvider>
       <div className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
         <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:p-3"><UiText>Skip to content</UiText></a>
-        <RoleSidebar
+        {checkingAccess && <aside aria-hidden="true" className={cn("fixed inset-y-0 start-0 hidden flex-col gap-3 border-e border-border bg-card p-4 md:flex", collapsed ? "w-[72px]" : "w-64")}><SkeletonBar className="mb-4 h-11 w-full" />{Array.from({ length: navItems.length || 8 }, (_, i) => <SkeletonBar key={i} className="h-11 w-full" delay={i * 60} />)}</aside>}
+        <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleSidebar
           tagline={tagline}
           items={navItems}
           bottomItems={bottomItems}
           logoUrl={logoUrl}
           collapsed={collapsed}
           onToggleCollapse={toggleCollapsed}
-        />
+        /></div>
         <main
           id="workspace-content"
           tabIndex={-1}
@@ -129,7 +133,8 @@ function RoleShellContent({
             className,
           )}
         >
-          <RoleHeader
+          {checkingAccess && <div aria-hidden="true" className="sk-panel mb-4 flex shrink-0 items-center justify-between gap-3 px-4 py-3"><SkeletonBar className="h-9 w-9 shrink-0" /><SkeletonBar className="hidden h-5 w-48 max-w-full sm:block" /><div className="ms-auto flex gap-2"><SkeletonBar className="h-11 w-11" /><SkeletonBar className="h-11 w-11" /><SkeletonBar className="h-11 w-24" /></div></div>}
+          <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleHeader
             eyebrow={eyebrow}
             searchPlaceholder={searchPlaceholder}
             userName={userName}
@@ -137,7 +142,7 @@ function RoleShellContent({
             avatarSeed={avatarSeed}
             dashboardHref={dashboardHref}
             actions={headerActions}
-          />
+          /></div>
           <div className="flex-1 min-h-0 flex flex-col">
             <NavigationAccessNotice denied={denied} fallback={navigationAccessFallback} />
             <div style={{ display: denied ? "none" : "contents" }}>{children}</div>

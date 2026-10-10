@@ -1,10 +1,11 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { chatHeader } from "@/components/chat/chat-styles";
+import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Settings, Sparkles } from "lucide-react";
+import { ArrowLeft, Settings, MessageCircle } from "lucide-react";
 import { ChatSettingsDialog, ChatWorkspace, useChat } from "@/components/chat";
 
 /**
@@ -29,36 +30,29 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
-    <div className="flex h-screen flex-col bg-[#fbf0fe] font-sans text-[#1f1a23]">
-      <header className="relative z-30 flex shrink-0 items-center gap-3 overflow-hidden border-b border-[#cfc2d6]/25 bg-white/80 px-3 py-3 shadow-[0_4px_24px_-16px_rgba(129,39,207,0.5)] backdrop-blur-xl md:px-6">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -left-16 -top-24 h-48 w-48 rounded-full bg-[#8127cf]/10 blur-3xl"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-24 h-48 w-48 rounded-full bg-[#b10e6b]/10 blur-3xl"
-        />
+    <div className="flex h-dvh flex-col bg-background font-sans text-foreground">
+      <header className={`${chatHeader} relative z-30 md:px-6`}>
 
         <Link
           href={dashboardHref}
-          className="relative flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-bold text-ink-muted transition-all hover:-translate-x-0.5 hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+          aria-label="Back to dashboard"
+          className={buttonVariants({ variant: "ghost", size: "sm", className: "shrink-0" })}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Back to dashboard</span>
         </Link>
 
         <span className="relative flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.75)]">
-            <Sparkles className="h-3.5 w-3.5" />
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary">
+            <MessageCircle className="h-5 w-5" />
           </span>
-          <h1 className="text-sm font-black tracking-tight">Messages</h1>
+          <h1 className="text-base font-semibold tracking-tight">Messages</h1>
         </span>
 
         <span className="flex-1" />
 
         {viewer?.canManageSettings && (
-          <Button variant="secondary"
+          <Button variant="outline"
             type="button"
             onClick={() => setIsSettingsOpen(true)}
             className="relative shrink-0 items-center gap-1.5 justify-start"
@@ -71,14 +65,14 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
 
       <ChatSettingsDialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
-      <main className="min-h-0 flex-1">
+      <main className="min-h-0 flex-1 p-2 md:p-5">
         {/* useSearchParams needs a boundary, or the tree above it is pushed
             into client-side rendering. Nothing to fall back to — DeepLink
             renders no markup, it only opens a thread. */}
         <Suspense fallback={null}>
           <DeepLink />
         </Suspense>
-        <ChatWorkspace layout="split" className="h-full" />
+        <ChatWorkspace layout="split" className="h-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm" />
       </main>
     </div>
   );

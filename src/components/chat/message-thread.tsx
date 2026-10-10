@@ -16,12 +16,13 @@ import {
   MoreVertical,
   Pencil,
   Pin,
-  PinOff,
   Sparkles,
+  PinOff,
   Trash2,
   Users,
   X,
 } from "lucide-react";
+import { chatHeader, chatEmptyIcon } from "./chat-styles";
 import { cn } from "@/lib/utils";
 import { roleLabel } from "@/lib/roles";
 import { useChat } from "./chat-provider";
@@ -128,7 +129,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     <MotionConfig reducedMotion="user">
       <div className="flex h-full min-h-0 flex-col">
         {/* ── Header ── */}
-        <header className="relative z-20 flex shrink-0 items-center gap-2.5 border-b border-[#cfc2d6]/25 bg-white/80 px-3 py-2.5 shadow-[0_4px_20px_-12px_rgba(129,39,207,0.35)] backdrop-blur-xl md:px-4">
+        <header className={cn(chatHeader, "relative z-20")}>
           {showBack && (
             <Button variant="ghost" size="icon"
               type="button"
@@ -153,7 +154,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           />
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-black tracking-tight text-[#1f1a23]">
+            <p className="truncate text-sm font-semibold tracking-tight text-foreground">
               {detail.title}
             </p>
             <div className="mt-0.5 h-3.5">
@@ -175,7 +176,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     initial={{ opacity: 0, y: 3 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -3 }}
-                    className="truncate text-[10px] font-bold text-ink-muted"
+                    className="truncate text-xs font-medium text-ink-muted"
                   >
                     {detail.kind === "DIRECT" ? (
                       detail.isOnline ? (
@@ -317,7 +318,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
         {/* ── Messages ── */}
         <div
           ref={scrollRef}
-          className="custom-scrollbar sk-chat-canvas relative min-h-0 flex-1 overflow-y-auto bg-[#fdfaff] px-3 py-4 md:px-5"
+          className="custom-scrollbar relative min-h-0 flex-1 overflow-y-auto bg-background px-3 py-4 md:px-5"
         >
           {hasOlder && (
             <div className="mb-5 flex justify-center">
@@ -515,7 +516,7 @@ function MessageBubble({
         </span>
       )}
 
-      <div className={cn("max-w-[85%] sm:max-w-[68%]", isMine && "order-2")}>
+      <div className={cn("min-w-0 max-w-[85%] sm:max-w-[72%]", isMine && "order-2")}>
         {showSender && message.sender && (
           <p className="mb-1 px-1 text-[10px] font-black text-[#8127cf]">
             {message.sender.fullName}
@@ -528,13 +529,13 @@ function MessageBubble({
             "relative overflow-hidden px-3.5 py-2.5 transition-shadow",
             isMine
               ? [
-                  "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white",
-                  "shadow-[0_8px_22px_-10px_rgba(129,39,207,0.75)]",
+                  "bg-primary text-primary-foreground",
+                  "shadow-sm",
                   grouped ? "rounded-2xl rounded-br-md" : "rounded-2xl rounded-br-sm",
                 ]
               : [
                   "bg-white text-ink ring-1 ring-[#cfc2d6]/30",
-                  "shadow-[0_6px_18px_-10px_rgba(31,26,35,0.28)]",
+                  "shadow-sm",
                   grouped ? "rounded-2xl rounded-bl-md" : "rounded-2xl rounded-bl-sm",
                 ],
             isPending && "opacity-70"
@@ -583,7 +584,7 @@ function MessageBubble({
           ) : (
             <>
               {message.body && (
-                <p className="whitespace-pre-wrap break-words text-[13px] font-semibold leading-relaxed">
+                <p className="whitespace-pre-wrap break-words text-sm font-normal leading-relaxed">
                   {message.body}
                 </p>
               )}
@@ -697,19 +698,12 @@ function IconAction({
 /** Shown in the thread pane before anything is selected. */
 function ThreadPlaceholder() {
   return (
-    <div className="sk-chat-canvas relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-[#fdfaff] p-8 text-center">
-      <div className="relative">
-        <span className="sk-float grid h-20 w-20 place-items-center rounded-[28px] bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white shadow-[0_20px_44px_-16px_rgba(129,39,207,0.75)]">
-          <Users className="h-9 w-9" />
-        </span>
-        <span className="absolute -right-2 -top-2 grid h-8 w-8 place-items-center rounded-2xl bg-white text-[#b10e6b] shadow-[0_8px_20px_-8px_rgba(177,14,107,0.6)]">
-          <Sparkles className="h-4 w-4" />
-        </span>
-      </div>
+    <div className="relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-background p-8 text-center">
+      <span className={chatEmptyIcon}><Users className="h-7 w-7" /></span>
 
       <div className="max-w-xs">
-        <p className="text-base font-black tracking-tight text-[#1f1a23]">Select a conversation</p>
-        <p className="mt-1.5 text-xs font-semibold leading-relaxed text-ink-muted">
+        <p className="text-base font-semibold tracking-tight text-foreground">Select a conversation</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
           Pick someone from the list, or start a new conversation with anyone you are connected
           to at school.
         </p>

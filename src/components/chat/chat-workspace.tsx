@@ -57,12 +57,12 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
           width for the same reason. */}
       <aside
         className={cn(
-          "min-h-0 w-full shrink-0 border-r border-[#cfc2d6]/25 bg-white/70 backdrop-blur-xl",
+          "min-h-0 w-full shrink-0 border-e border-border bg-card",
           stacked
             ? activeId
               ? "hidden"
               : "block"
-            : cn("md:w-[340px]", activeId ? "hidden md:block" : "block")
+            : cn("md:w-[320px] lg:w-[360px]", activeId ? "hidden md:block" : "block")
         )}
       >
         <ConversationList onNewChat={() => setIsNewOpen(true)} />
