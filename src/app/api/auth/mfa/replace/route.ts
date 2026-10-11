@@ -2,7 +2,7 @@ import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { requireAuthUser, ApiError, errorResponse } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { authRateLimit } from "@/lib/auth/rate-limit";
-import { recoveryHash, revealSecret, verifyTotp } from "@/lib/auth/mfa-crypto";
+import { MfaSecretUnavailableError, normalizeMfaCode, recoveryHash, revealSecret, verifyTotp } from "@/lib/auth/mfa-crypto";
 import { startMfa } from "@/lib/auth/mfa-ticket";
 import bcrypt from "bcryptjs";
 /** Replacing a lost authenticator requires both password and a current second factor. */
@@ -14,10 +14,21 @@ export async function POST(req: Request) {
   const body = await req.json();
   const user = await prisma.user.findUniqueOrThrow({ where: { id: principal.userId } });
   if (!user.mfaEnabled || !user.mfaSecret || !user.password || typeof body.password !== "string" || !await bcrypt.compare(body.password, user.password)) throw new ApiError("Credentials not accepted. Check your password and code.", 400);
-  const code = String(body.code || "");
-  const step = verifyTotp(revealSecret(user.mfaSecret), code, user.mfaLastStep);
+  const code = normalizeMfaCode(body.code);
+  let step: number | null = null;
+  let secretUnavailable = false;
+  try {
+    step = verifyTotp(revealSecret(user.mfaSecret), code, user.mfaLastStep);
+  } catch (error) {
+    // A secret encrypted under another key can't be checked here; an unused recovery code still can.
+    if (!(error instanceof MfaSecretUnavailableError)) throw error;
+    secretUnavailable = true;
+    console.warn("[auth/mfa/replace]", { userId: user.id, reason: "secret_unavailable" });
+  }
   const hash = recoveryHash(code);
-  if (step === null && !user.recoveryCodeHashes.includes(hash)) throw new ApiError("Use a current authenticator code or an unused recovery code.", 400);
+  if (step === null && !user.recoveryCodeHashes.includes(hash)) {
+    throw new ApiError(secretUnavailable ? "Your authenticator can't be checked right now. Use an unused recovery code." : "Use a current authenticator code or an unused recovery code.", 400);
+  }
   await prisma.$transaction(async tx => {
     const result = await tx.user.updateMany({ where: { id: user.id, accessVersion: user.accessVersion, mfaEnabled: true, mfaLastStep: user.mfaLastStep, recoveryCodeHashes: { equals: user.recoveryCodeHashes } }, data: { mfaEnabled: false, mfaSecret: null, mfaLastStep: -1, recoveryCodeHashes: [], mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingVerified: false, accessVersion: { increment: 1 } } });
     if (result.count !== 1) throw new ApiError("Security settings changed. Sign in again.", 409);
