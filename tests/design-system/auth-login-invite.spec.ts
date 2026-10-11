@@ -32,7 +32,7 @@ test.beforeAll(async () => {
         args.path === "next/navigation" ? 'const query=new URLSearchParams(location.search);const router={push:(url)=>window.__authNavigations.push(url)};export const useRouter=()=>router;export const useSearchParams=()=>query;'
           : args.path === "next/link" ? 'import React from "react";export default function Link({children,...props}){return <a {...props}>{children}</a>}'
             : args.path.includes("actions/invite") ? 'export const acceptInvite=(...args)=>window.__fixtureAcceptInvite(...args);'
-              : args.path.includes("LocaleProvider") ? 'export const useLocale=()=>({language:"en",timezone:"UTC",weekStartsOn:1});export const useUiText=()=>text=>text;'
+              : args.path.includes("LocaleProvider") ? 'export const useLocale=()=>({language:"en",timezone:"UTC",weekStartsOn:1});export const useUiText=()=>text=>text;export const StaticLocaleProvider=({children})=>children;'
                 : 'export default {}',
       }));
     } }],

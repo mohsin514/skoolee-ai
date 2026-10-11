@@ -6,3 +6,4 @@ export const previewLocaleChange = unexpected;
 export const reviewLocaleCurrency = unexpected;
 export const saveLanguagePreference = unexpected;
 export const setLocaleDelegation = unexpected;
+export const getPersonalLanguage = async () => ({ personal: null, inherited: "en" as const });

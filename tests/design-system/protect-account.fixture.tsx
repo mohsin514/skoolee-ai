@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import ProtectAccount from "../../src/app/(auth)/protect-account/page";
+import { AuthLocaleProvider } from "../../src/components/locale/AuthLocaleProvider";
 
 export type MfaFixtureReply = { status?: number; body?: unknown; pending?: boolean; reject?: boolean };
 export type MfaFixtureConfig = { statusReplies: MfaFixtureReply[]; actionReplies?: MfaFixtureReply[] };
@@ -31,4 +32,6 @@ window.fetch = async (input, init) => {
   if (reply.reject) throw new Error("Synthetic connection failure");
   return new Response(JSON.stringify(reply.body ?? {}), { status: reply.status ?? 200, headers: { "Content-Type": "application/json" } });
 };
-createRoot(document.getElementById("fixture-root")!).render(<ProtectAccount />);
+// The (auth) layout seeds the language from the cookie; here the served <html lang> stands in for it.
+const initial = (["en", "ar", "ur"] as const).find(l => l === document.documentElement.lang) ?? "en";
+createRoot(document.getElementById("fixture-root")!).render(<AuthLocaleProvider initialLanguage={initial}><ProtectAccount /></AuthLocaleProvider>);

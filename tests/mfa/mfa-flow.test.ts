@@ -14,8 +14,9 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { format } from "node:util";
 import { createFakePrisma, deserializeState, serializeState } from "./fake-prisma";
-import { SCHOOL, loadMfa, newUser, stepAt, type CallResult } from "./harness";
+import { ORIGIN, SCHOOL, loadMfa, newUser, stepAt, type CallResult } from "./harness";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
+import bcrypt from "bcryptjs";
 
 const AUTH_SECRET = "mfa-test-auth-secret-0123456789abcdef0123456789";
 const OTHER_AUTH_SECRET = "mfa-test-other-deployment-secret-9876543210fedcba";
@@ -360,5 +361,45 @@ describe("MFA sign-in across days, restarts and deployments", () => {
       }
       for (const row of fake.state.auditLogs) assert.deepEqual(Object.keys(row.newValue as object).sort().filter(key => !["action", "reason", "sessionsRevoked"].includes(key)), []);
     });
+  });
+});
+
+describe("needsMfaChallenge gate (design §B.2.3)", () => {
+  const PASSWORD = "Gate-test-password-1";
+  const passwordHash = bcrypt.hashSync(PASSWORD, 4);
+
+  async function login(email: string) {
+    const { POST } = await import("@/app/api/auth/login/route");
+    const { NextRequest } = await import("next/server");
+    const res = await POST(new NextRequest(`${ORIGIN}/api/auth/login`, { method: "POST", headers: { origin: ORIGIN, "content-type": "application/json" }, body: JSON.stringify({ email, password: PASSWORD }) }));
+    return { status: res.status, json: await res.json() as Record<string, unknown>, setCookies: res.headers.getSetCookie() };
+  }
+
+  it("an optional-role user who turned 2FA on is challenged at login; without it they get a session", async () => {
+    const on = "gate-optional-on";
+    const off = "gate-optional-off";
+    fake.state.users.push(newUser(on, { role: "TEACHER", isInstitutionOwner: false, password: passwordHash, mfaEnabled: true, mfaSecret: mfa.crypto.protectSecret(mfa.crypto.newAuthenticatorSecret()) }));
+    fake.state.users.push(newUser(off, { role: "TEACHER", isInstitutionOwner: false, password: passwordHash }));
+    const challenged = await login(`${on}@example.test`);
+    assert.equal(challenged.status, 200, JSON.stringify(challenged.json));
+    assert.equal(challenged.json.mfaRequired, true);
+    assert.ok(challenged.setCookies.some(cookie => cookie.startsWith("skoolee-mfa=") && !cookie.startsWith("skoolee-mfa=;")));
+    assert.ok(!issuedSession(challenged as CallResult), "no session before the second factor");
+    const plain = await login(`${off}@example.test`);
+    assert.equal(plain.status, 200, JSON.stringify(plain.json));
+    assert.equal(plain.json.mfaRequired, undefined);
+    assert.ok(issuedSession(plain as CallResult));
+  });
+
+  it("rollout: an optional-role mfaEnabled user's mfaVerified:false session is rejected by principal", async () => {
+    const { resolveCurrentPrincipal } = await import("@/lib/auth/principal");
+    const id = "gate-rollout";
+    fake.state.users.push(newUser(id, { role: "PARENT", isInstitutionOwner: false, mfaEnabled: true, mfaSecret: "unused" }));
+    const claims = { userId: id, schoolId: SCHOOL.id, role: "PARENT", accessVersion: 0 };
+    assert.equal(await resolveCurrentPrincipal({ ...claims, mfaVerified: false }), null);
+    assert.equal(await resolveCurrentPrincipal(claims), null, "a legacy token without the claim is rejected too");
+    assert.equal((await resolveCurrentPrincipal({ ...claims, mfaVerified: true }))?.userId, id);
+    user(id).mfaEnabled = false;
+    assert.equal((await resolveCurrentPrincipal({ ...claims, mfaVerified: false }))?.userId, id, "2FA off: an unverified session stays valid");
   });
 });

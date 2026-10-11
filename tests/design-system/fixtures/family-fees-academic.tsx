@@ -4,7 +4,7 @@ import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { FeeInvoicesTab } from "@/components/fees/FeeInvoicesTab";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
-import AccountSecurity from "@/app/account/security/page";
+import { SecuritySettingsPanel } from "@/components/account-security/SecuritySettingsPanel";
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 
 type FixtureWindow = Window & { __ownedView: string; __ownedReadOnly: boolean };
@@ -16,7 +16,7 @@ function Fixture() {
     {view === "model" && <AcademicModelPanel campusId="synthetic-campus" />}
     {view === "invoices" && <FeeInvoicesTab campusId="synthetic-campus" />}
     {view === "currency" && <><CurrencySelect value={currency} onChange={setCurrency} /><output>{currency}</output></>}
-    {view === "account" && <AccountSecurity />}
+    {view === "account" && <SecuritySettingsPanel />}
   </main></LocaleProvider>;
 }
 createRoot(document.getElementById("owned-ui-fixture")!).render(<Fixture />);

@@ -6,7 +6,7 @@ import { ClipboardCheck } from "lucide-react";
  * A static synthetic activity example. It is deliberately not presented as
  * a live event or a customer outcome.
  */
-export default function LiveActivityTicker({ className = "" }: { className?: string }) {
+export default function LiveActivityTicker({ className = "", label = "Illustrative activity · synthetic example only" }: { className?: string; label?: string }) {
   return (
     <div
       aria-hidden="true"
@@ -14,7 +14,7 @@ export default function LiveActivityTicker({ className = "" }: { className?: str
     >
       <span className="flex items-center gap-2">
         <ClipboardCheck className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
-        <span className="whitespace-nowrap text-[11px] font-bold text-white/90">Illustrative activity · synthetic example only</span>
+        <span className="whitespace-nowrap text-[11px] font-bold text-white/90">{label}</span>
       </span>
     </div>
   );

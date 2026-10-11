@@ -75,6 +75,10 @@ export const loginSchema = z.object({
   // Sent on the second attempt when one address holds accounts at more than
   // one school and the user has picked which to sign in to.
   schoolId: z.string().optional(),
+  // Display language picked on the login page. Invalid values are dropped,
+  // never rejected: a preference must not fail sign-in (design §B.1.3).
+  language: z.enum(["en", "ar", "ur"]).optional().catch(undefined),
+  languageSource: z.enum(["explicit", "cookie"]).optional().catch(undefined),
 });
 
 // Legacy combined onboarding (kept for existing routes)

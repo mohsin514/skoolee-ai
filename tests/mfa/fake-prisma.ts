@@ -78,17 +78,23 @@ export function createFakePrisma(initial?: Partial<FakeState>) {
   };
 
   const findUser = (where: Row) => state.users.find(row => matches(row, where));
+  /** The whole row plus the `school`/`campus` relations named in `include` (or a nested `select`). */
+  const withRelations = (row: Row, relations?: Row) => {
+    const result = clone(row);
+    if (relations?.school) result.school = clone(state.schools.find(school => school.id === row.schoolId) ?? null);
+    if (relations?.campus) result.campus = row.campusId ? { schoolId: row.schoolId } : null;
+    return result;
+  };
 
   const client = {
     state,
     user: {
-      async findFirst({ where, include }: { where: Row; include?: Row }) {
+      async findFirst({ where, include, select: shape }: { where: Row; include?: Row; select?: Row }) {
         const row = findUser(where);
-        if (!row) return null;
-        const result = clone(row);
-        if (include?.school) result.school = clone(state.schools.find(school => school.id === row.schoolId) ?? null);
-        if (include?.campus) result.campus = row.campusId ? { schoolId: row.schoolId } : null;
-        return result;
+        return row ? withRelations(row, include ?? shape) : null;
+      },
+      async findMany({ where, include }: { where: Row; include?: Row }) {
+        return state.users.filter(row => matches(row, where)).map(row => withRelations(row, include));
       },
       async findUnique({ where }: { where: Row }) {
         const row = findUser(where);
@@ -112,6 +118,10 @@ export function createFakePrisma(initial?: Partial<FakeState>) {
       },
     },
     school: {
+      async findUnique({ where, select: shape }: { where: Row; select?: Row }) {
+        const row = state.schools.find(school => matches(school, where));
+        return row ? select(row, shape) : null;
+      },
       async findUniqueOrThrow({ where, select: shape }: { where: Row; select?: Row }) {
         const row = state.schools.find(school => matches(school, where));
         if (!row) throw new Error("fake-prisma: school not found");
@@ -133,6 +143,13 @@ export function createFakePrisma(initial?: Partial<FakeState>) {
         const row = { id: nextId("session"), isActive: true, loginAt: new Date(), logoutAt: null, ...clone(data) };
         state.loginSessions.push(row);
         return clone(row);
+      },
+      async findFirst({ where, select: shape }: { where: Row; select?: Row }) {
+        const row = state.loginSessions.find(session => matches(session, where));
+        return row ? select(row, shape) : null;
+      },
+      async findMany({ where, select: shape }: { where: Row; select?: Row }) {
+        return state.loginSessions.filter(row => matches(row, where)).map(row => select(row, shape));
       },
       async updateMany({ where, data }: { where: Row; data: Row }) {
         const rows = state.loginSessions.filter(row => matches(row, where));

@@ -54,6 +54,7 @@ export function newUser(id: string, overrides: Record<string, unknown> = {}) {
     isActive: true, isInstitutionOwner: true, onboardingComplete: true, mustChangePassword: false, password: null,
     accessVersion: 0, mfaEnabled: false, mfaSecret: null, mfaLastStep: -1, recoveryCodeHashes: [] as string[],
     mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false,
+    mfaEnrolledAt: null,
     lastLogin: null,
     ...overrides,
   };

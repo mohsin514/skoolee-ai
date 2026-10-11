@@ -2,7 +2,7 @@
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useEffectEvent, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +21,10 @@ import { dashboardPathForRole, roleLabel } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
+import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
+import { LanguageSelect } from "@/components/locale/LanguageSelect";
+import { directionFor } from "@/lib/locale/language-cookie";
+import type { Language } from "@/lib/locale/package";
 
 /**
  * One proof point on the brand panel, pairing the claim with something concrete
@@ -31,13 +35,181 @@ import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
  * flickered every six seconds next to a form people are trying to type into,
  * and two thirds of the copy was never read. One card, stated once.
  */
-const PROOF = {
-  icon: Building2,
-  stat: "Multi",
-  unit: "campus by design",
-  quote: "One login for the whole group. Each campus stays sealed from the others.",
-  caption: "Built for school groups, not single classrooms",
+const PROOF_ICON = Building2;
+
+/**
+ * Every visible login string, co-located like protect-account and
+ * accept-invite. Switching language only swaps text nodes, so typed
+ * credentials, "remember me" and the school picker survive the change.
+ */
+const en = {
+  language: "Language",
+  proof: {
+    stat: "Multi",
+    unit: "campus by design",
+    quote: "One login for the whole group. Each campus stays sealed from the others.",
+    caption: "Built for school groups, not single classrooms",
+  },
+  eyebrow: "AI-assisted school management",
+  titleLine1: "Run the whole",
+  titleLine2: "institution from",
+  titleHighlight: " one place.",
+  ticker: "Illustrative activity · synthetic example only",
+  encrypted: "Encrypted at rest & in transit",
+  humanReviewed: "Human-reviewed AI",
+  chooseSchool: "Choose your school",
+  chooseSchoolBody: "This email is registered at more than one institution.",
+  welcome: "Welcome back",
+  welcomeBody: "Sign in to your campus dashboard.",
+  email: "Work Email",
+  password: "Password",
+  forgot: "Forgot password?",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
+  capsLock: "Caps Lock is on",
+  remember: "Keep me signed in for 30 days",
+  welcomeDone: "Welcome back!",
+  tryAgainIn: "Try again in {0}s",
+  signingIn: "Signing in…",
+  signIn: "Sign in",
+  differentAccount: "Use a different account",
+  noAccount: "Don't have an account?",
+  createAccount: "Create New Account",
+  privacy: "Privacy",
+  security: "Security",
+  aiGovernance: "AI Governance",
+  welcomeToast: "Welcome back, {0}!",
+  verified: "Account verified. Please log in.",
+  invited: "Invitation accepted. Log in with your new password.",
+  sessionEnded: "Your session has ended. Please sign in again.",
+  unableToVerify: "Unable to verify this link. Please open the latest verification email and try again.",
+  tooMany: "Too many attempts. Please wait a moment.",
+  loginFailed: "Login failed",
+  schoolFailed: "Could not sign in to that school.",
+  /** Known English messages (zod, verification redirect, /api/auth/login) → localized text. Unknown text passes through. */
+  messages: {} as Record<string, string>,
 };
+type LoginCopy = typeof en;
+
+const copy: Record<Language, LoginCopy> = {
+  en,
+  ar: {
+    language: "اللغة",
+    proof: {
+      stat: "متعدد",
+      unit: "الفروع بالتصميم",
+      quote: "تسجيل دخول واحد للمجموعة كلها. يبقى كل فرع معزولاً عن الآخرين.",
+      caption: "مصمَّم لمجموعات المدارس، لا للفصول المنفردة",
+    },
+    eyebrow: "إدارة مدرسية بمساعدة الذكاء الاصطناعي",
+    titleLine1: "أدِر المؤسسة",
+    titleLine2: "بأكملها من",
+    titleHighlight: " مكان واحد.",
+    ticker: "نشاط توضيحي · مثال اصطناعي فقط",
+    encrypted: "مشفّر أثناء التخزين والنقل",
+    humanReviewed: "ذكاء اصطناعي يراجعه البشر",
+    chooseSchool: "اختر مدرستك",
+    chooseSchoolBody: "هذا البريد الإلكتروني مسجّل في أكثر من مؤسسة.",
+    welcome: "مرحباً بعودتك",
+    welcomeBody: "سجّل الدخول إلى لوحة تحكم فرعك.",
+    email: "البريد الإلكتروني للعمل",
+    password: "كلمة المرور",
+    forgot: "نسيت كلمة المرور؟",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
+    capsLock: "مفتاح الأحرف الكبيرة مفعّل",
+    remember: "ابقَ مسجّلاً لمدة 30 يوماً",
+    welcomeDone: "مرحباً بعودتك!",
+    tryAgainIn: "حاول مجدداً بعد {0} ث",
+    signingIn: "جارٍ تسجيل الدخول…",
+    signIn: "تسجيل الدخول",
+    differentAccount: "استخدم حساباً آخر",
+    noAccount: "ليس لديك حساب؟",
+    createAccount: "إنشاء حساب جديد",
+    privacy: "الخصوصية",
+    security: "الأمان",
+    aiGovernance: "حوكمة الذكاء الاصطناعي",
+    welcomeToast: "مرحباً بعودتك، {0}!",
+    verified: "تم التحقق من الحساب. سجّل الدخول.",
+    invited: "قُبلت الدعوة. سجّل الدخول بكلمة المرور الجديدة.",
+    sessionEnded: "انتهت جلستك. سجّل الدخول مجدداً.",
+    unableToVerify: "تعذر التحقق من هذا الرابط. افتح أحدث رسالة تحقق وحاول مجدداً.",
+    tooMany: "محاولات كثيرة جداً. انتظر قليلاً.",
+    loginFailed: "تعذر تسجيل الدخول",
+    schoolFailed: "تعذر تسجيل الدخول إلى تلك المدرسة.",
+    messages: {
+      "Valid email required": "أدخل بريداً إلكترونياً صالحاً",
+      "Password required": "كلمة المرور مطلوبة",
+      "Invalid email or password": "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+      "Too many login attempts. Please try again in a minute.": "محاولات تسجيل دخول كثيرة جداً. حاول مجدداً بعد دقيقة.",
+      "Account not verified. Please check your email inbox to activate it.": "لم يتم التحقق من الحساب. تحقق من بريدك الإلكتروني لتفعيله.",
+      "Login failed": "تعذر تسجيل الدخول",
+      "Invalid verification link": "رابط التحقق غير صالح",
+      "This verification link is invalid or has expired": "رابط التحقق هذا غير صالح أو انتهت صلاحيته",
+      "User not found": "المستخدم غير موجود",
+      "Verification failed": "فشل التحقق",
+    },
+  },
+  ur: {
+    language: "زبان",
+    proof: {
+      stat: "متعدد",
+      unit: "کیمپس، شروع سے",
+      quote: "پورے گروپ کے لیے ایک لاگ اِن۔ ہر کیمپس دوسروں سے الگ اور محفوظ رہتا ہے۔",
+      caption: "اسکول گروپس کے لیے بنایا گیا، صرف ایک کلاس روم کے لیے نہیں",
+    },
+    eyebrow: "اے آئی کی مدد سے اسکول کا انتظام",
+    titleLine1: "پورا ادارہ",
+    titleLine2: "چلائیں",
+    titleHighlight: " ایک ہی جگہ سے۔",
+    ticker: "مثالی سرگرمی · صرف فرضی مثال",
+    encrypted: "محفوظ شدہ اور منتقلی کے دوران خفیہ کردہ",
+    humanReviewed: "انسانوں کا جائزہ لیا ہوا اے آئی",
+    chooseSchool: "اپنا اسکول منتخب کریں",
+    chooseSchoolBody: "یہ ای میل ایک سے زیادہ اداروں میں رجسٹرڈ ہے۔",
+    welcome: "خوش آمدید",
+    welcomeBody: "اپنے کیمپس ڈیش بورڈ میں سائن اِن کریں۔",
+    email: "دفتری ای میل",
+    password: "پاس ورڈ",
+    forgot: "پاس ورڈ بھول گئے؟",
+    showPassword: "پاس ورڈ دکھائیں",
+    hidePassword: "پاس ورڈ چھپائیں",
+    capsLock: "کیپس لاک آن ہے",
+    remember: "مجھے 30 دن تک سائن اِن رکھیں",
+    welcomeDone: "خوش آمدید!",
+    tryAgainIn: "{0} سیکنڈ بعد دوبارہ کوشش کریں",
+    signingIn: "سائن اِن ہو رہا ہے…",
+    signIn: "سائن اِن",
+    differentAccount: "کوئی اور اکاؤنٹ استعمال کریں",
+    noAccount: "اکاؤنٹ نہیں ہے؟",
+    createAccount: "نیا اکاؤنٹ بنائیں",
+    privacy: "رازداری",
+    security: "سیکیورٹی",
+    aiGovernance: "اے آئی گورننس",
+    welcomeToast: "خوش آمدید، {0}!",
+    verified: "اکاؤنٹ کی تصدیق ہو گئی۔ براہ کرم سائن اِن کریں۔",
+    invited: "دعوت قبول ہو گئی۔ اپنے نئے پاس ورڈ سے سائن اِن کریں۔",
+    sessionEnded: "آپ کا سیشن ختم ہو گیا۔ دوبارہ سائن اِن کریں۔",
+    unableToVerify: "اس لنک کی تصدیق نہیں ہو سکی۔ تازہ ترین تصدیقی ای میل کھولیں اور دوبارہ کوشش کریں۔",
+    tooMany: "بہت زیادہ کوششیں۔ تھوڑی دیر انتظار کریں۔",
+    loginFailed: "سائن اِن نہیں ہو سکا",
+    schoolFailed: "اس اسکول میں سائن اِن نہیں ہو سکا۔",
+    messages: {
+      "Valid email required": "درست ای میل درج کریں",
+      "Password required": "پاس ورڈ درکار ہے",
+      "Invalid email or password": "ای میل یا پاس ورڈ غلط ہے",
+      "Too many login attempts. Please try again in a minute.": "سائن اِن کی بہت زیادہ کوششیں۔ ایک منٹ بعد دوبارہ کوشش کریں۔",
+      "Account not verified. Please check your email inbox to activate it.": "اکاؤنٹ کی تصدیق نہیں ہوئی۔ فعال کرنے کے لیے اپنا ای میل اِن باکس دیکھیں۔",
+      "Login failed": "سائن اِن نہیں ہو سکا",
+      "Invalid verification link": "تصدیقی لنک درست نہیں",
+      "This verification link is invalid or has expired": "یہ تصدیقی لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے",
+      "User not found": "صارف نہیں ملا",
+      "Verification failed": "تصدیق ناکام ہو گئی",
+    },
+  },
+};
+
+const fill = (template: string, value: string | number) => template.replace("{0}", String(value));
 
 /**
  * One address can hold accounts at several schools (a parent with children at
@@ -74,6 +246,15 @@ const verificationErrors = new Set([
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
+  const t = copy[language];
+  // The one-shot query notice reads the current catalog without re-running (and re-toasting) on a language switch.
+  const showNotice = useEffectEvent((notice: "verified" | "invited" | "expired") => {
+    if (notice === "verified") toast.success(t.verified, { duration: 8000 });
+    else if (notice === "invited") toast.success(t.invited, { duration: 8000 });
+    else toast.info(t.sessionEnded, { duration: 8000 });
+  });
+  const localize = (message: string) => t.messages[message] ?? message;
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -125,15 +306,16 @@ export default function LoginPage() {
     // Wait until sibling effects have mounted, and cancel a superseded notice.
     const noticeTimer = window.setTimeout(() => {
       if (verified) {
-        toast.success("Account verified. Please log in.", { duration: 8000 });
+        showNotice("verified");
       } else if (invited) {
-        toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
+        showNotice("invited");
       } else if (expired) {
-        toast.info("Your session has ended. Please sign in again.", { duration: 8000 });
+        showNotice("expired");
       } else {
+        // Stored as the English source; rendered through `localize` so a later language switch re-translates it.
         setFormError(verificationErrors.has(verificationError ?? "")
           ? verificationError
-          : "Unable to verify this link. Please open the latest verification email and try again.");
+          : en.unableToVerify);
       }
       const remaining = new URLSearchParams(searchParams.toString());
       for (const key of ["verified", "invite", "reason", "error"]) remaining.delete(key);
@@ -167,7 +349,7 @@ export default function LoginPage() {
   // by the school picker so the two can never drift apart.
   const landAfterLogin = useCallback(async (user: LoginUser) => {
     if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) { router.push("/protect-account"); return; }
-    toast.success(`Welcome back, ${user.fullName}!`);
+    toast.success(fill(t.welcomeToast, user.fullName));
     setSuccess(true);
 
     // Let the button's checkmark morph play before navigating away —
@@ -181,7 +363,7 @@ export default function LoginPage() {
     } else {
       router.push(dashboardPathForRole(user.role));
     }
-  }, [router]);
+  }, [router, t]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which
@@ -194,7 +376,8 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, rememberMe: remember, ...(schoolId ? { schoolId } : {}) }),
+      // Every pass, including the school-picker re-POST, carries the sign-in language (design §B.1.2).
+      body: JSON.stringify({ ...data, rememberMe: remember, ...(schoolId ? { schoolId } : {}), ...signInLanguage() }),
     });
     const json = await res.json();
 
@@ -202,7 +385,7 @@ export default function LoginPage() {
       // Honour the server's own Retry-After rather than guessing.
       const retry = Number(res.headers.get("Retry-After")) || 60;
       setCooldown(retry);
-      throw new Error(json.error || "Too many attempts. Please wait a moment.");
+      throw new Error(json.error || en.tooMany);
     }
     if (!res.ok) {
       // Zod field errors come back as an object; flatten to the first message.
@@ -210,11 +393,13 @@ export default function LoginPage() {
       const message = typeof raw === "string"
         ? raw
         : Object.values(raw ?? {}).flat()[0] as string | undefined;
-      throw new Error(message || "Login failed");
+      throw new Error(message || en.loginFailed);
     }
     if (json.needsSchoolSelection) return { choices: json.schools as SchoolChoice[] };
+    // The MFA-ticket response is not a session: keep the explicit flag for /protect-account (AC9b).
+    if (json.success === true && !json.mfaRequired) clearExplicit();
     return { user: json.user as LoginUser };
-  }, [remember]);
+  }, [remember, signInLanguage, clearExplicit]);
 
   const onSubmit = async (data: LoginFormData) => {
     if (cooldown > 0) return;
@@ -229,9 +414,9 @@ export default function LoginPage() {
       }
       await landAfterLogin(result.user);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Login failed";
+      const message = e instanceof Error ? e.message : en.loginFailed;
       setFormError(message);
-      toast.error(message);
+      toast.error(localize(message));
       setIsLoading(false);
     }
   };
@@ -243,20 +428,21 @@ export default function LoginPage() {
     setFormError(null);
     try {
       const result = await attemptLogin(getValues(), choice.schoolId);
-      if ("choices" in result) throw new Error("Could not sign in to that school.");
+      if ("choices" in result) throw new Error(t.schoolFailed);
       await landAfterLogin(result.user);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Login failed";
+      const message = e instanceof Error ? e.message : en.loginFailed;
       setFormError(message);
-      toast.error(message);
+      toast.error(localize(message));
       setChoosing(null);
     }
   };
 
-  const ProofIcon = PROOF.icon;
+  const ProofIcon = PROOF_ICON;
+  const PROOF = t.proof;
 
   return (
-    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
@@ -321,7 +507,7 @@ export default function LoginPage() {
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
-              AI-assisted school management
+              {t.eyebrow}
             </span>
           </div>
 
@@ -329,10 +515,10 @@ export default function LoginPage() {
             className="sk-rise mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
             style={{ animationDelay: "80ms" }}
           >
-            Run the whole
+            {t.titleLine1}
             <br />
-            institution from
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent"> one place.</span>
+            {t.titleLine2}
+            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">{t.titleHighlight}</span>
           </h1>
 
           {/* Sits on a mid-purple ground, so the card needs a darker scrim
@@ -359,19 +545,23 @@ export default function LoginPage() {
           </div>
 
           <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
-            <LiveActivityTicker />
+            <LiveActivityTicker label={t.ticker} />
           </div>
         </div>
 
         <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Human-reviewed AI</span>
+          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> {t.humanReviewed}</span>
         </div>
       </section>
 
       {/* ─── FORM PANEL ──────────────────────────────── */}
       <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
         <div className="w-full max-w-[30rem]">
+          {/* Top inline-end corner of the form panel, as on protect-account. */}
+          <div className="mb-6 flex justify-end">
+            <LanguageSelect id="login-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} />
+          </div>
           {/* Brand mark sits above the form on every breakpoint. */}
           <div className="sk-rise mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
@@ -380,12 +570,10 @@ export default function LoginPage() {
 
           <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
             <h2 ref={schoolHeadingRef} tabIndex={-1} className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
-              {choices ? "Choose your school" : "Welcome back"}
+              {choices ? t.chooseSchool : t.welcome}
             </h2>
             <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
-              {choices
-                ? "This email is registered at more than one institution."
-                : "Sign in to your campus dashboard."}
+              {choices ? t.chooseSchoolBody : t.welcomeBody}
             </p>
           </div>
 
@@ -402,7 +590,7 @@ export default function LoginPage() {
                 className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3"
               >
                 <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-status-error-text" />
-                <p className="text-[13px] font-bold leading-snug text-status-error-text">{formError}</p>
+                <p className="text-[13px] font-bold leading-snug text-status-error-text">{localize(formError)}</p>
               </div>
             )}
 
@@ -437,7 +625,7 @@ export default function LoginPage() {
                         </span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
                           <span className="rounded-full bg-[#8127cf]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-                            {roleLabel(c.role)}
+                            {roleLabel(c.role, language)}
                           </span>
                           {(c.campusName || c.schoolCity) && (
                             <span className="truncate text-[11px] font-bold text-ink-subtle">
@@ -447,9 +635,9 @@ export default function LoginPage() {
                         </span>
                       </span>
                       {busy ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#8127cf]" />
+                        <Loader2 className="h-4 w-4 shrink-0 motion-safe:animate-spin text-[#8127cf]" />
                       ) : (
-                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
+                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 group-hover:text-[#8127cf]" />
                       )}
                     </Button>
                   );
@@ -462,7 +650,7 @@ export default function LoginPage() {
                   disabled={!!choosing}
                   className="mt-2 w-full text-xs"
                 >
-                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:-scale-x-100" /> Use a different account
+                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:-scale-x-100" /> {t.differentAccount}
                 </Button>
               </div>
             ) : (
@@ -470,7 +658,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="ms-1 text-[10px] font-black uppercase tracking-wider text-ink">
-                  Work Email
+                  {t.email}
                 </Label>
                 <InputGroup surfaceClassName="bg-[#eff6ff]">
                   <Mail aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
@@ -485,19 +673,19 @@ export default function LoginPage() {
                     {...emailField}
                   />
                 </InputGroup>
-                {errors.email && <p id="login-email-error" className="px-1 text-xs font-bold text-status-error-text">{errors.email.message}</p>}
+                {errors.email && <p id="login-email-error" className="px-1 text-xs font-bold text-status-error-text">{localize(errors.email.message ?? "")}</p>}
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between px-1">
                   <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-ink">
-                    Password
+                    {t.password}
                   </Label>
                   <Link
                     href="/forgot-password"
                     className="text-[10px] font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
                   >
-                    Forgot password?
+                    {t.forgot}
                   </Link>
                 </div>
                 <InputGroup surfaceClassName="bg-[#fdf2f8]">
@@ -517,7 +705,7 @@ export default function LoginPage() {
                   <FieldAction data-field-affix="end"
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
-                    aria-label={showPass ? "Hide password" : "Show password"}
+                    aria-label={showPass ? t.hidePassword : t.showPassword}
                     aria-pressed={showPass}
                     aria-controls="password"
                     className="cursor-pointer"
@@ -525,10 +713,10 @@ export default function LoginPage() {
                     {showPass ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
                   </FieldAction>
                 </InputGroup>
-                {errors.password && <p id="login-password-error" className="px-1 text-xs font-bold text-status-error-text">{errors.password.message}</p>}
+                {errors.password && <p id="login-password-error" className="px-1 text-xs font-bold text-status-error-text">{localize(errors.password.message ?? "")}</p>}
                 {capsOn && !errors.password && (
                   <p id="login-caps-lock" role="status" className="flex items-center gap-1.5 px-1 text-xs font-bold text-status-warning-text">
-                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> Caps Lock is on
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> {t.capsLock}
                   </p>
                 )}
               </div>
@@ -560,7 +748,7 @@ export default function LoginPage() {
                   </span>
                 </span>
                 <span className="text-[12px] font-bold text-ink-muted transition-colors group-hover:text-[#1f1a23]">
-                  Keep me signed in for 30 days
+                  {t.remember}
                 </span>
               </label>
 
@@ -577,22 +765,22 @@ export default function LoginPage() {
                   {success ? (
                     <>
                       <CheckCircle2 className="sk-check-pop h-4 w-4" />
-                      <span>Welcome back!</span>
+                      <span>{t.welcomeDone}</span>
                     </>
                   ) : cooldown > 0 ? (
                     <>
                       <Timer className="h-4 w-4" />
-                      <span>Try again in {cooldown}s</span>
+                      <span>{fill(t.tryAgainIn, cooldown)}</span>
                     </>
                   ) : isLoading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Signing in…</span>
+                      <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
+                      <span>{t.signingIn}</span>
                     </>
                   ) : (
                     <>
-                      <span>Sign in</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      <span>{t.signIn}</span>
+                      <ArrowRight className="h-4 w-4 transition-transform rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" />
                     </>
                   )}
                 </span>
@@ -601,9 +789,9 @@ export default function LoginPage() {
 
             <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
               <p className="text-center text-[12.5px] font-semibold leading-relaxed text-ink-muted">
-                Don&apos;t have an account?{" "}
+                {t.noAccount}{" "}
                 <Link href="/register" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
-                  Create New Account
+                  {t.createAccount}
                 </Link>
               </p>
             </div>
@@ -612,11 +800,11 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">
-            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
+            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">{t.privacy}</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>
+            <Link href="/security" className="transition-colors hover:text-[#8127cf]">{t.security}</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">AI Governance</Link>
+            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">{t.aiGovernance}</Link>
           </div>
         </div>
       </section>

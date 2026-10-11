@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { requirePageSession } from "@/lib/auth/require-page-session";
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
+import { getDisplayLocale } from "@/lib/locale/display";
 import { ParentDataProvider } from "./parent-data-context";
 import { ParentShell } from "./parent-shell";
 
@@ -22,13 +24,16 @@ export default async function ParentLayout({ children }: { children: React.React
   // here serves an anonymous visitor, so the entry looks like an oversight, but
   // removing it changes proxy behaviour for a route family beyond the scope of
   // this change.
-  await requirePageSession();
+  const user = await requirePageSession();
 
+  // Server-seeded so the shell's first paint has the right language; the shell's own provider becomes a passthrough.
   return (
-    <Suspense>
-      <ParentDataProvider>
-        <ParentShell>{children}</ParentShell>
-      </ParentDataProvider>
-    </Suspense>
+    <LocaleProvider initialLocale={await getDisplayLocale(user)}>
+      <Suspense>
+        <ParentDataProvider>
+          <ParentShell>{children}</ParentShell>
+        </ParentDataProvider>
+      </Suspense>
+    </LocaleProvider>
   );
 }
