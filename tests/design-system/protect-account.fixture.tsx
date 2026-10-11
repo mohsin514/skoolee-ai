@@ -8,11 +8,18 @@ declare global {
     __mfaFixture: MfaFixtureConfig;
     __mfaRequests: { method: string; cache?: RequestCache; body: string | null }[];
     __mfaNavigation: string[];
+    __mfaClipboard: string[];
+    __mfaPrints: number;
   }
 }
 const config = window.__mfaFixture;
 window.__mfaRequests = [];
 window.__mfaNavigation = [];
+window.__mfaClipboard = [];
+window.__mfaPrints = 0;
+// The fixture origin is not a secure context, so record clipboard and print calls instead.
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { window.__mfaClipboard.push(text); } } });
+window.print = () => { window.__mfaPrints += 1; };
 // No real MFA service, valid secret, credential, challenge, or acknowledgement.
 window.fetch = async (input, init) => {
   if (String(input) !== "/api/auth/mfa") throw new Error("Unexpected fixture request");
