@@ -110,9 +110,9 @@ test('header icons and account menu share consistent button surfaces', async ({ 
   await page.getByTitle('Account menu').click();
   const menu = page.getByRole('menu');
   const account = menu.getByRole('menuitem', { name: 'Account settings', exact: true });
-  const password = menu.getByRole('menuitem', { name: 'Change password', exact: true });
+  const dashboard = menu.getByRole('menuitem', { name: 'Main dashboard', exact: true });
   const signout = menu.getByRole('menuitem', { name: 'Sign out', exact: true });
   await expect(account).toBeVisible();
-  expect(await account.evaluate(surface)).toEqual(await password.evaluate(surface));
+  expect(await account.evaluate(surface)).toEqual(await dashboard.evaluate(surface));
   expect(await account.evaluate(surface)).toEqual(await signout.evaluate(surface));
 });

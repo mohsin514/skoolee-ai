@@ -2,33 +2,26 @@
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
-import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
+import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
+import { openSettings } from "@/components/settings/settings-sections";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
-import { InputGroup , FieldAction } from "@/components/ui/input-group";
 
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Modal } from "@/components/ui/modal";
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
   Award,
   Bell,
   BookOpen,
   Calendar,
   CalendarCheck,
-  CheckCircle,
   ChevronDown,
-  Eye,
-  EyeOff,
   FileText,
   GraduationCap,
-  KeyRound,
   LayoutDashboard,
   LayoutGrid,
-  Loader2,
   LogOut,
   Mail,
   MessageCircle,
@@ -36,18 +29,15 @@ import {
   Settings,
   UserCheck,
   UserRound,
-  X,
-  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
+import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
-import { Input as SystemInput } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 
@@ -101,9 +91,7 @@ export function RoleHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
@@ -322,9 +310,10 @@ export function RoleHeader({
         </div>
         <Button variant="outline" size="icon"
           type="button"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => openSettings("profile")}
           className="flex items-center justify-center"
           title={t("Account settings")}
+          aria-label={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
         </Button>
@@ -371,28 +360,17 @@ export function RoleHeader({
               </div>
 
               <div className="p-1.5">
-                <MenuLink href="/account/security" icon={KeyRound} label="Active sessions" onClick={() => setMenuOpen(false)} />
                 <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
                 <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
-                    setSettingsOpen(true);
+                    openSettings("profile");
                   }}
                   className={accountMenuItemClass}
                   role="menuitem"
                 >
                   <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></Button>
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setPasswordModalOpen(true);
-                  }}
-                  className={accountMenuItemClass}
-                  role="menuitem"
-                >
-                  <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></Button>
                 <Button variant="ghost" size="sm"
                   type="button"
                   onClick={handleLogout}
@@ -407,218 +385,9 @@ export function RoleHeader({
       </div>
       </header>
 
-      {settingsOpen && (
-        <Modal
-          title={t("Account Settings")}
-          eyebrow={t("Your account")}
-          subtitle={t("Manage your profile details")}
-          avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
-          size="xl"
-          onClose={() => setSettingsOpen(false)}
-        >
-          <EditableProfileCard
-            initialProfile={{
-              fullName: displayName,
-              roleLabel: displayRole,
-              profileImageUrl: headerProfile?.profileImageUrl || "",
-            }}
-            onSaved={setHeaderProfile}
-          />
-          <div className="mt-6"><LocaleSettingsPanel /></div>
-        </Modal>
-      )}
-
-      {passwordModalOpen && (
-        <ChangePasswordModal
-          onClose={() => setPasswordModalOpen(false)}
-        />
-      )}
+      <SettingsModalHost onProfileSaved={setHeaderProfile} />
     </>
   );
-}
-
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const t = useUiText();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const strength = passwordStrength(newPassword);
-
-  const reqs = [
-    { label: "Min 8 characters", met: newPassword.length >= 8 },
-    { label: "One uppercase", met: /[A-Z]/.test(newPassword) },
-    { label: "One lowercase", met: /[a-z]/.test(newPassword) },
-    { label: "One number", met: /[0-9]/.test(newPassword) },
-    { label: "Special character", met: /[^A-Za-z0-9]/.test(newPassword) },
-    { label: "Passwords match", met: newPassword === confirmPassword && newPassword !== "" },
-  ];
-
-  const handleSubmit = async () => {
-    setError("");
-    if (!currentPassword) return setError("Current password is required");
-    if (!newPassword) return setError("New password is required");
-    if (newPassword.length < 8) return setError("Password must be at least 8 characters");
-    if (newPassword !== confirmPassword) return setError("Passwords do not match");
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to change password");
-      toast.success(t("Password changed successfully"));
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={t("Change Password")}
-      eyebrow={t("Security")}
-      subtitle={t("Update your account password")}
-      icon={KeyRound}
-      tone="amber"
-      size="xs"
-      onClose={onClose}
-      dirty={Boolean(currentPassword || newPassword) && !loading}
-      dirtyMessage={t("Your new password has not been saved yet. Leave without changing it?")}
-      footer={
-        <div className="flex gap-3">
-          <Button variant="secondary"
-            onClick={onClose}
-            className="flex-1 h-12"
-          ><UiText>{"Cancel"}</UiText></Button>
-          <Button variant="default"
-            onClick={handleSubmit}
-            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-12 flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {t(loading ? "Updating..." : "Update Password")}
-          </Button>
-        </div>
-      }
-    >
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="current-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Current Password"}</UiText></label>
-            <SystemInput
-              type={showPasswords ? "text" : "password"}
-              id="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder={t("Enter current password")}
-              className="h-12 w-full px-4"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"New Password"}</UiText></label>
-            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
-              <SystemInput
-                type={showPasswords ? "text" : "password"}
-                id="new-password"
-              value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder={t("Enter new password")}
-                className="h-12 w-full px-4 pe-12"
-              />
-              <FieldAction   data-field-affix="end"
-                type="button"
-                onClick={() => setShowPasswords(!showPasswords)}
-                aria-label={t(showPasswords ? "Hide passwords" : "Show passwords")}
-                className="absolute end-4 top-1/2 -translate-y-1/2"
-              >
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </FieldAction>
-            </InputGroup>
-            {newPassword && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex gap-1 flex-1">
-                  {[1, 2, 3, 4].map((level) => (
-                    <div
-                      key={level}
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        level <= strength.level
-                          ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                          : "bg-[#f3f4f9]"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-wider ${
-                  strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
-                }`}>
-                  {t(strength.label)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="confirm-new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Confirm New Password"}</UiText></label>
-            <SystemInput
-              type={showPasswords ? "text" : "password"}
-              id="confirm-new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder={t("Re-enter new password")}
-              className="h-12 w-full px-4"
-            />
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /><UiText>{"Passwords do not match"}</UiText></p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {reqs.slice(0, 3).map((r, i) => (
-              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
-              </div>
-            ))}
-            {reqs.slice(3).map((r, i) => (
-              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-3">
-              <p className="text-[10px] font-bold text-rose-700">{t(error)}</p>
-            </div>
-          )}
-        </div>
-
-    </Modal>
-  );
-}
-
-function passwordStrength(password: string): { level: number; label: string } {
-  if (!password) return { level: 0, label: "" };
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-  if (/\d/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  if (score <= 1) return { level: 1, label: "Weak" };
-  if (score <= 2) return { level: 2, label: "Fair" };
-  if (score <= 3) return { level: 3, label: "Good" };
-  return { level: 4, label: "Strong" };
 }
 
 function MenuLink({

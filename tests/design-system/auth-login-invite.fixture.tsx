@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import LoginPage from "../../src/app/(auth)/login/page";
 import AcceptInvitePage from "../../src/app/(auth)/accept-invite/page";
 import { AppToaster } from "../../src/components/ui/app-toaster";
+import { AuthLocaleProvider } from "../../src/components/locale/AuthLocaleProvider";
 
 type Reply = { status?: number; body?: unknown; headers?: Record<string, string>; pending?: boolean };
 export type AuthFixtureConfig = {
@@ -44,7 +45,9 @@ window.__fixtureAcceptInvite = async (...args) => {
   if (config.acceptError) throw new Error(config.acceptError);
 };
 
-createRoot(document.getElementById("fixture-root")!).render(<>
+// The (auth) layout seeds the language from the cookie; here the served <html lang> stands in for it.
+const initial = (["en", "ar", "ur"] as const).find(l => l === document.documentElement.lang) ?? "en";
+createRoot(document.getElementById("fixture-root")!).render(<AuthLocaleProvider initialLanguage={initial}>
   {config.page === "login" ? <LoginPage /> : <AcceptInvitePage />}
   <AppToaster />
-</>);
+</AuthLocaleProvider>);

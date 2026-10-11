@@ -42,7 +42,7 @@ const modules: Record<string, string> = {
   "next/navigation": `export function useSearchParams() { return new URLSearchParams(window.__recoveryFixture.token ? {token: window.__recoveryFixture.token} : {}); } export function useRouter() { return { push: path => window.__recoveryNavigation.push(path) }; }`,
   "next/link": `import React from "react"; export default function Link(props) { return <a {...props} />; }`,
   "sonner": `export const toast = { error() {}, success() {} };`,
-  "@/components/locale/LocaleProvider": `export function useLocale() { return { language: window.__recoveryFixture.language || "en" }; } export function useUiText() { return source => source; }`,
+  "@/components/locale/LocaleProvider": `export function useLocale() { return { language: window.__recoveryFixture.language || "en" }; } export function useUiText() { return source => source; } export const StaticLocaleProvider = ({ children }) => children;`,
 };
 
 test.beforeAll(async () => {
@@ -206,10 +206,13 @@ test("reset constraints, linked errors, busy protection, failure and success nav
   expect(await calls(page)).toEqual(["verify", "reset", "reset"]);
 });
 
+// FR-L2 translates the page, so ar/ur assert the localized heading.
+const resetHeading = { en: "New password", ar: "كلمة مرور جديدة", ur: "نیا پاس ورڈ" } as const;
 for (const language of ["en", "ar", "ur"] as const) {
-  test(`recovery responsive controls: ${language} direction with existing English copy`, async ({ page }) => {
+  test(`recovery responsive controls: ${language} direction with localized copy`, async ({ page }) => {
     await mount(page, { token: "synthetic-token", language });
-    await expect(page.getByRole("heading", { level:1, name:"New password" })).toBeVisible();
+    await expect(page.getByRole("heading", { level:1, name:resetHeading[language] })).toBeVisible();
+    await expect(page.locator("main")).toHaveAttribute("dir", language === "en" ? "ltr" : "rtl");
     for (const viewport of [{width:1440,height:1000},{width:768,height:1024},{width:390,height:844},{width:320,height:720}]) {
       await page.setViewportSize(viewport);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

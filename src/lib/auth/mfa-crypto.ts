@@ -106,3 +106,7 @@ export function newRecoveryCodes() { return Array.from({ length: 10 }, () => ran
 export function requiresMfa(user: { role: string; isInstitutionOwner?: boolean; canManageMemberships?: boolean; canPurchaseSubscription?: boolean }) {
   return Boolean(user.isInstitutionOwner || user.canManageMemberships || user.canPurchaseSubscription || ["APP_OWNER", "SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"].includes(user.role));
 }
+/** Sign-in asks for the second factor when the role requires it or the user turned it on. Login and principal both use this. */
+export function needsMfaChallenge(user: Parameters<typeof requiresMfa>[0] & { mfaEnabled: boolean }): boolean {
+  return requiresMfa(user) || user.mfaEnabled;
+}

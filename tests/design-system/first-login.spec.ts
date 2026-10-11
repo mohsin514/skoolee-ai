@@ -14,7 +14,7 @@ let fixtureCss: string;
 const modules: Record<string, string> = {
   "next/navigation": `window.__firstLoginNavigation = []; window.__firstLoginRefreshes = 0; export function useRouter() { return { push: path => window.__firstLoginNavigation.push(path), refresh: () => window.__firstLoginRefreshes++ }; }`,
   "sonner": `export const toast = { error() {}, success() {} };`,
-  "@/components/locale/LocaleProvider": `export function useLocale() { return { language: window.__firstLoginLanguage || "en" }; } export function useUiText() { return source => source; }`,
+  "@/components/locale/LocaleProvider": `export function useLocale() { return { language: window.__firstLoginLanguage || "en" }; } export function useUiText() { return source => source; } export const StaticLocaleProvider = ({ children }) => children;`,
 };
 
 test.beforeAll(async () => {
@@ -49,7 +49,8 @@ async function mount(page: Page, language = "en") {
   await page.goto("/__first_login_fixture__");
   await page.evaluate(value => { (window as unknown as FixtureWindow).__firstLoginLanguage = value; }, language);
   await page.addScriptTag({ content: fixtureScript });
-  await expect(page.getByRole("heading", {level:1,name:"Set your password"})).toBeVisible();
+  // FR-L2 translates the page, so ar/ur wait for the localized heading.
+  await expect(page.getByRole("heading", {level:1,name:({ ar: "عيّن كلمة المرور", ur: "اپنا پاس ورڈ مقرر کریں" } as Record<string, string>)[language] ?? "Set your password"})).toBeVisible();
 }
 
 async function fillPasswords(page: Page, value = "Synthetic9") {
@@ -155,8 +156,9 @@ for (const scenario of [
 }
 
 for (const language of ["en","ar","ur"]) {
-  test(`first-login responsive ${language} direction with existing English copy`, async ({ page }) => {
+  test(`first-login responsive ${language} direction with localized copy`, async ({ page }) => {
     await mount(page,language);
+    await expect(page.locator("main")).toHaveAttribute("dir", language === "en" ? "ltr" : "rtl");
     for (const viewport of [{width:1440,height:1000},{width:768,height:1024},{width:390,height:844},{width:320,height:720}]) {
       await page.setViewportSize(viewport);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

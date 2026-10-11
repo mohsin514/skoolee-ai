@@ -463,6 +463,7 @@ model User {
   mfaPendingTicket String? @map("mfa_pending_ticket")
   mfaPendingExpiresAt DateTime? @map("mfa_pending_expires_at")
   mfaPendingVerified Boolean @default(false) @map("mfa_pending_verified")
+  mfaEnrolledAt DateTime? @map("mfa_enrolled_at")
 
   preferredLanguage String? @map("preferred_language")
   isInstitutionOwner Boolean @default(false) @map("is_institution_owner")

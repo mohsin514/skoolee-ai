@@ -1,6 +1,7 @@
-import { requiresMfa } from "@/lib/auth/mfa-crypto";
+import { needsMfaChallenge } from "@/lib/auth/mfa-crypto";
 import { startMfa } from "@/lib/auth/mfa-ticket";
 import { issueSession } from "@/lib/auth/issue-session";
+import { applySignInLanguage } from "@/lib/locale/sign-in-language";
 // ─────────────────────────────────────────────────────────────────
 // POST /api/auth/login  — Email + password login
 // POST /api/auth/logout — Clear session
@@ -128,8 +129,11 @@ async function handleLogin(req: NextRequest) {
       return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
     }
 
-    if (requiresMfa(user)) return startMfa(user, sessionDays);
-    return issueSession(user, sessionDays, false, req);
+    // MFA users get their language applied only after the second factor (AC7).
+    if (needsMfaChallenge(user)) return startMfa(user, sessionDays);
+    const res = await issueSession(user, sessionDays, false, req);
+    await applySignInLanguage(user, body, res);
+    return res;
   } catch (error) {
     console.error("[auth/login]", error);
     return Response.json({ error: "Login failed" }, { status: 500 });

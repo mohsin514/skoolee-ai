@@ -24,13 +24,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-
-type InviteLanguage = "en" | "ar" | "ur";
+import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
+import { LanguageSelect } from "@/components/locale/LanguageSelect";
+import { directionFor } from "@/lib/locale/language-cookie";
 
 const copy = {
   en: {
-    secureInvitation: "Secure invitation", title: "Accept invitation", intro: "Set your password to activate your campus account.", language: "Language",
+    secureInvitation: "Secure invitation", title: "Accept invitation", brandImage: "Skoolee invitation", brandTitle: "Create your profile and step into your Skoolee workspace.", brandBody: "Your campus role is already prepared. Complete this setup to activate your protected account.", intro: "Set your password to activate your campus account.", language: "Language",
     missingToken: "This invitation link is missing its secure token.", invalid: "This invitation link is invalid or no longer available.",
     expired: "This invitation has expired. Please request a new invite.", cancelled: "This invitation has been cancelled. Please ask your administrator to resend it.",
     alreadyAccepted: "This invitation has already been accepted. Please sign in.", unavailable: "Unable to validate invitation status. Please try again later.",
@@ -43,7 +43,7 @@ const copy = {
     completeRequirements: "Please complete the remaining password requirements.", acceptFailed: "Could not accept this invitation. Please try again.",
   },
   ar: {
-    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", intro: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", language: "اللغة",
+    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", brandImage: "دعوة Skoolee", brandTitle: "أنشئ ملفك الشخصي وادخل إلى مساحة عملك في Skoolee.", brandBody: "دورك في الفرع جاهز بالفعل. أكمل هذا الإعداد لتفعيل حسابك المحمي.", intro: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", language: "اللغة",
     missingToken: "رابط الدعوة لا يحتوي على رمز الأمان.", invalid: "رابط الدعوة غير صالح أو لم يعد متاحاً.",
     expired: "انتهت صلاحية هذه الدعوة. اطلب دعوة جديدة.", cancelled: "أُلغيت هذه الدعوة. اطلب من المسؤول إعادة إرسالها.",
     alreadyAccepted: "قُبلت هذه الدعوة من قبل. سجّل الدخول.", unavailable: "تعذر التحقق من حالة الدعوة. حاول مجدداً لاحقاً.",
@@ -56,7 +56,7 @@ const copy = {
     completeRequirements: "أكمل متطلبات كلمة المرور المتبقية.", acceptFailed: "تعذر قبول الدعوة. حاول مجدداً.",
   },
   ur: {
-    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", intro: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
+    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", brandImage: "Skoolee دعوت نامہ", brandTitle: "اپنی پروفائل بنائیں اور اپنے Skoolee ورک اسپیس میں قدم رکھیں۔", brandBody: "آپ کا کیمپس کردار پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ فعال کرنے کے لیے یہ سیٹ اپ مکمل کریں۔", intro: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
     missingToken: "دعوت کے لنک میں محفوظ ٹوکن موجود نہیں۔", invalid: "دعوت کا لنک درست نہیں یا اب دستیاب نہیں۔",
     expired: "اس دعوت کی مدت ختم ہو گئی ہے۔ نئی دعوت طلب کریں۔", cancelled: "یہ دعوت منسوخ ہو گئی ہے۔ منتظم سے دوبارہ بھیجنے کو کہیں۔",
     alreadyAccepted: "یہ دعوت پہلے ہی قبول ہو چکی ہے۔ سائن اِن کریں۔", unavailable: "دعوت کی حالت کی تصدیق نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔",
@@ -71,7 +71,7 @@ const copy = {
 } as const;
 
 export default function AcceptInvitePage() {
-  const [language, setLanguage] = useState<InviteLanguage>("en");
+  const { language, setLanguage } = useAuthLanguage();
   const t = copy[language];
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,11 +91,6 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     if (validationError) errorRef.current?.focus();
   }, [validationError]);
-
-  useEffect(() => {
-    const pageLanguage = document.documentElement.lang;
-    if (pageLanguage === "ar" || pageLanguage === "ur") setLanguage(pageLanguage);
-  }, []);
 
   const passwordChecks = useMemo(
     () => [
@@ -194,24 +189,24 @@ export default function AcceptInvitePage() {
   };
 
   return (
-    <main dir={language === "en" ? "ltr" : "rtl"} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-background font-sans text-foreground md:grid-cols-2">
+    <main dir={directionFor(language)} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-background font-sans text-foreground md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
         <div className="absolute inset-0 z-10 bg-[#8127cf]/10 mix-blend-multiply" />
         <img
           src="/login.svg"
-          alt="Skoolee invitation"
+          alt={t.brandImage}
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#8127cf]/40 to-transparent" />
         <div className="absolute bottom-12 start-12 z-30 max-w-md rounded-xl border border-white/20 bg-white/70 p-8 shadow-2xl backdrop-blur-[24px]">
           <span className="mb-2 block text-[12px] font-bold uppercase tracking-normal text-[#9c48ea]">
-            Secure Invitation
+            {t.secureInvitation}
           </span>
           <h1 className="mb-4 text-3xl font-extrabold leading-tight text-[#1f1a23]">
-            Create your profile and step into your Skoolee workspace.
+            {t.brandTitle}
           </h1>
           <p className="text-sm font-medium text-ink">
-            Your campus role is already prepared. Complete this setup to activate your protected account.
+            {t.brandBody}
           </p>
         </div>
       </section>
@@ -231,12 +226,7 @@ export default function AcceptInvitePage() {
                 <MailCheck aria-hidden="true" className="h-3.5 w-3.5" />
                 {t.secureInvitation}
               </div>
-              <label className="mb-4 flex items-center gap-2 text-sm font-medium text-ink-muted">
-                <span>{t.language}</span>
-                <Select aria-label={t.language} value={language} onChange={event => setLanguage(event.target.value as InviteLanguage)} className="flex-1">
-                  <option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option>
-                </Select>
-              </label>
+              <LanguageSelect id="invite-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} className="mb-4" />
               <h1 className="text-2xl font-black tracking-normal text-foreground">{t.title}</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 {t.intro}

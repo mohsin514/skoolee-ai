@@ -2,7 +2,8 @@
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
-import { applyLocaleChange, getLocaleSettings, previewLocaleChange, reviewLocaleCurrency, saveLanguagePreference, setLocaleDelegation } from "@/app/actions/locale";
+import { applyLocaleChange, getLocaleSettings, previewLocaleChange, reviewLocaleCurrency, setLocaleDelegation } from "@/app/actions/locale";
+import { useLocale } from "@/components/locale/LocaleProvider";
 import { CURRENCIES, defaultLocale, formatInstant, POLICY_KEYS, type Language, type LocalePackage } from "@/lib/locale/package";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 import { messages } from "@/lib/locale/messages";
@@ -15,7 +16,8 @@ type Preview = Awaited<ReturnType<typeof previewLocaleChange>>;
 const fieldClass = "w-full";
 export function LocaleSettingsPanel() {
   const [data, setData] = useState<Settings | null>(null);
-  const [language, setLanguage] = useState<Language>("en");
+  // The personal language now lives in PersonalLanguageSetting; this panel follows the live display language.
+  const { language } = useLocale();
   const [scope, setScope] = useState("");
   const [draft, setDraft] = useState<LocalePackage>(defaultLocale);
   const [overrides, setOverrides] = useState<string[]>([]);
@@ -28,14 +30,13 @@ export function LocaleSettingsPanel() {
   const canEdit = !!data && (data.canManage || !!scope && ["PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"].includes(data.role) && campus?.id === data.ownCampusId);
   const editable = (key: string) => canEdit && (data?.canManage || campus?.localeDelegatedFields.includes(key));
   async function load() { const result = await getLocaleSettings(); setData(result); return result; }
-  useEffect(() => { getLocaleSettings().then((result) => { setData(result); const initial = result.canManage ? "" : result.ownCampusId || ""; setScope(initial); const policy = result.campuses.find((c) => c.id === initial)?.policy || result.school; setDraft(policy); setLanguage((result.personal as Language) || policy.language); }).catch(() => setStatus("permission")); }, []);
+  useEffect(() => { getLocaleSettings().then((result) => { setData(result); const initial = result.canManage ? "" : result.ownCampusId || ""; setScope(initial); const policy = result.campuses.find((c) => c.id === initial)?.policy || result.school; setDraft(policy); }).catch(() => setStatus("permission")); }, []);
   function reset(next = scope) { const policy = data?.campuses.find((c) => c.id === next)?.policy || data?.school || defaultLocale; setScope(next); setDraft(policy); setOverrides([]); setPreview(null); setStatus(""); }
   function change<K extends keyof LocalePackage>(key: K, value: LocalePackage[K]) { setDraft((old) => ({ ...old, [key]: value })); setOverrides((old) => [...new Set([...old, key])]); setPreview(null); }
   async function run(action: () => Promise<void>) { setBusy(true); setStatus(""); try { await action(); } catch (e) { const message = e instanceof Error ? e.message : "error"; setStatus(message.includes("timezone") ? "timezoneError" : ["permission", "stale", "futureDate"].includes(message) ? message : "error"); } finally { setBusy(false); } }
   const sample = preview ? workflowSample({ ...preview.after, language }) : null;
   return <section className="sk-panel min-w-0 space-y-5 p-4 sm:p-6" lang={language} dir={language !== "en" ? "rtl" : "ltr"} aria-labelledby="locale-heading">
     <header><h2 id="locale-heading" className="text-xl font-bold">{t.title}</h2><p className="mt-2 text-sm text-slate-600">{t.help}</p></header>
-    <label className="block space-y-2"><span>{t.personal}</span><Select className="w-full min-w-0" value={data?.personal || ""} disabled={busy || !data} onChange={(e) => { const value = e.target.value as Language | ""; void run(async () => { await saveLanguagePreference(value || null); setLanguage(value || draft.language); window.dispatchEvent(new Event("skoolee:locale-change")); await load(); }); }}><option value="">{t.inherit}</option><option value="en" lang="en">English</option><option value="ur" lang="ur">اردو</option><option value="ar" lang="ar">العربية</option></Select></label>
     {!data && !status ? <p role="status">{t.preparing}</p> : null}
     {data ? <>
       <label className="block space-y-2"><span>{t.scope}</span><Select className="w-full min-w-0" value={scope} onChange={(e) => reset(e.target.value)}><option value="">{data.grouped ? t.group : t.school}</option>{data.campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>

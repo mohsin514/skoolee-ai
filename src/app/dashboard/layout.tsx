@@ -4,8 +4,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ChatDock, ChatProvider } from "@/components/chat";
+import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { getDisplayLocale } from "@/lib/locale/display";
 import { dashboardPathForRole, isStaffRole } from "@/lib/roles";
 
 export const metadata: Metadata = {
@@ -38,7 +40,7 @@ export default async function DashboardLayout({
   return (
     // This console predates RoleShell, so the messenger is mounted here too —
     // otherwise the school-group workspace would be the one dashboard without it.
-    <LocaleProvider><ChatProvider>
+    <LocaleProvider initialLocale={await getDisplayLocale(user)}><ChatProvider>
       <div className="flex min-h-screen bg-background font-sans text-[#1f1a23]">
         <Sidebar />
         <main className="skoolee-dashboard-main min-h-screen min-w-0 flex-1 pb-24 md:ms-64 md:pb-0">
@@ -50,6 +52,8 @@ export default async function DashboardLayout({
           <div className="p-3 sm:p-5"><PageCard className="p-0 sm:p-0">{children}</PageCard></div>
         </main>
         <ChatDock />
+        {/* This console has no RoleHeader, so it hosts the Settings modal itself (?settings=… deep links, openSettings()). */}
+        <SettingsModalHost />
       </div>
     </ChatProvider></LocaleProvider>
   );

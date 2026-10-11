@@ -3,58 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { MFA_COOKIE, readMfaTicket } from "@/lib/auth/mfa-ticket";
-import { newAuthenticatorSecret, protectSecret, revealSecret, checkTotp, newRecoveryCodes, recoveryHash, normalizeMfaCode, looksLikeRecoveryCode, MfaSecretUnavailableError, type TotpCheck } from "@/lib/auth/mfa-crypto";
+import { newAuthenticatorSecret, protectSecret, checkTotp, newRecoveryCodes, recoveryHash, normalizeMfaCode, looksLikeRecoveryCode } from "@/lib/auth/mfa-crypto";
 import { issueSession } from "@/lib/auth/issue-session";
+import { applySignInLanguage } from "@/lib/locale/sign-in-language";
 import { authRateLimit } from "@/lib/auth/rate-limit";
-import { ApiError } from "@/lib/api/scope";
-
-/**
- * Every MFA failure is answered as `{ error, reason }` so the page can explain
- * what went wrong, and is recorded (audit row + warning) with the reason only:
- * never the code, the secret or a hash.
- */
-type MfaReason = "invalid_code" | "clock_skew" | "code_reused" | "recovery_invalid" | "session_expired" | "setup_expired" | "secret_unavailable" | "rate_limited" | "invalid_request" | "server_error";
-const FAILURES: Record<MfaReason, { status: number; message: string }> = {
-  invalid_code: { status: 400, message: "That code didn't match. Enter the current 6-digit code from your authenticator app." },
-  clock_skew: { status: 400, message: "That code is out of date. Make sure your phone sets its date and time automatically, then enter the current code." },
-  code_reused: { status: 409, message: "That code was already used. Wait for the next code in your authenticator app." },
-  recovery_invalid: { status: 400, message: "That recovery code isn't recognised or has already been used. Try another unused recovery code." },
-  session_expired: { status: 401, message: "Your sign-in timed out. Sign in again to continue." },
-  setup_expired: { status: 409, message: "This setup session has expired. Start setup again." },
-  secret_unavailable: { status: 400, message: "Your authenticator can't be checked right now. Sign in with one of your recovery codes, or ask your administrator for help." },
-  rate_limited: { status: 429, message: "Too many attempts. Wait five minutes, then try again." },
-  invalid_request: { status: 400, message: "Complete verification and save your recovery instructions before continuing." },
-  server_error: { status: 500, message: "Something went wrong. Try again." },
-};
-const TOTP_REASONS: Record<Exclude<TotpCheck, { ok: true }>["reason"], MfaReason> = { invalid: "invalid_code", skew: "clock_skew", reused: "code_reused" };
-const NO_STORE = { "Cache-Control": "no-store" };
-
-class MfaFailure extends Error {
-  constructor(readonly reason: MfaReason, readonly auditAction?: string, message = FAILURES[reason].message, readonly status = FAILURES[reason].status) {
-    super(message);
-  }
-}
+import { MfaFailure, NO_STORE, TOTP_REASONS, audit as auditWith, failureResponse as respondWithFailure, reveal } from "@/lib/auth/mfa-failure";
 
 type MfaUser = Awaited<ReturnType<typeof context>>["user"];
 
-async function audit(user: MfaUser, action: string, reason?: MfaReason) {
-  await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: reason ? { action, reason } : { action } } });
-}
-
-async function failureResponse(error: unknown, user: MfaUser | undefined, action: unknown) {
-  let failure: MfaFailure;
-  if (error instanceof MfaFailure) failure = error;
-  else if (error instanceof ApiError) failure = new MfaFailure("invalid_request", undefined, error.message, error.status);
-  else {
-    console.error("[auth/mfa]", error);
-    failure = new MfaFailure("server_error");
-  }
-  console.warn("[auth/mfa]", { userId: user?.id ?? null, action: typeof action === "string" ? action : null, reason: failure.reason });
-  if (user && failure.auditAction) {
-    await audit(user, failure.auditAction, failure.reason).catch(auditError => console.error("[auth/mfa] audit write failed", auditError));
-  }
-  return NextResponse.json({ error: failure.message, reason: failure.reason }, { status: failure.status, headers: NO_STORE });
-}
+const audit = (user: MfaUser, action: string) => auditWith(prisma, user, action);
+const failureResponse = (error: unknown, user: MfaUser | undefined, action: unknown) => respondWithFailure(error, user, action, "[auth/mfa]", prisma);
 
 async function context(req: NextRequest) {
   const claims = await readMfaTicket(req.cookies.get(MFA_COOKIE)?.value || "").catch(() => { throw new MfaFailure("session_expired"); });
@@ -66,15 +24,6 @@ async function context(req: NextRequest) {
 /** Verified during setup but never acknowledged (tab closed, ticket expired): finished by a normal challenge. */
 function resumable(user: MfaUser) {
   return !user.mfaEnabled && user.mfaPendingVerified && Boolean(user.mfaPendingSecret);
-}
-
-function reveal(value: string) {
-  try {
-    return revealSecret(value);
-  } catch (error) {
-    if (error instanceof MfaSecretUnavailableError) throw new MfaFailure("secret_unavailable", "mfa.secret.unavailable");
-    throw error;
-  }
 }
 
 export async function GET(req: NextRequest) {
@@ -119,7 +68,7 @@ export async function POST(req: NextRequest) {
       }
       let recoveryUsed = false;
       if (action === "acknowledge" && pending && user.mfaPendingVerified && user.mfaPendingSecret && body.acknowledged === true) {
-        const changed = await prisma.user.updateMany({ where: { id: user.id, accessVersion: user.accessVersion, mfaEnabled: false, mfaPendingVerified: true, mfaPendingTicket: claims.ticketId, mfaPendingExpiresAt: { gt: new Date() } }, data: { mfaEnabled: true, mfaSecret: user.mfaPendingSecret, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingVerified: false, mfaPendingExpiresAt: null } });
+        const changed = await prisma.user.updateMany({ where: { id: user.id, accessVersion: user.accessVersion, mfaEnabled: false, mfaPendingVerified: true, mfaPendingTicket: claims.ticketId, mfaPendingExpiresAt: { gt: new Date() } }, data: { mfaEnabled: true, mfaSecret: user.mfaPendingSecret, mfaEnrolledAt: new Date(), mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingVerified: false, mfaPendingExpiresAt: null } });
         if (changed.count !== 1) throw new MfaFailure("setup_expired", undefined, "Setup changed. Sign in again.");
         await audit(user, "mfa.enrolled");
       } else if (action === "challenge" && ((user.mfaEnabled && user.mfaSecret) || resumable(user))) {
@@ -127,7 +76,7 @@ export async function POST(req: NextRequest) {
         // A second factor is still required, and promotion is atomic with its use.
         const resume = !user.mfaEnabled;
         const promotionGuard = resume ? { mfaEnabled: false, mfaPendingVerified: true, mfaPendingSecret: user.mfaPendingSecret } : {};
-        const promotion = resume ? { mfaEnabled: true, mfaSecret: user.mfaPendingSecret, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingVerified: false, mfaPendingExpiresAt: null } : {};
+        const promotion = resume ? { mfaEnabled: true, mfaSecret: user.mfaPendingSecret, mfaEnrolledAt: new Date(), mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingVerified: false, mfaPendingExpiresAt: null } : {};
         const code = normalizeMfaCode(body.code);
         if (body.recovery === true || looksLikeRecoveryCode(code)) {
           const hash = recoveryHash(code);
@@ -151,6 +100,7 @@ export async function POST(req: NextRequest) {
       const expectedVersion = user.accessVersion + (recoveryUsed ? 1 : 0);
       if (!current.isActive || !current.mfaEnabled || current.accessVersion !== expectedVersion) throw new MfaFailure("session_expired", undefined, "Access changed. Sign in again.");
       const response = await issueSession(current, claims.days, true, req);
+      await applySignInLanguage(current, body, response);
       response.cookies.set(MFA_COOKIE, "", { path: "/", maxAge: 0 });
       return response;
     } catch (error) { return failureResponse(error, user, action); }

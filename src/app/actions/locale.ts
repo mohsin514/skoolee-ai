@@ -1,5 +1,6 @@
 "use server";
 import { createHash } from "node:crypto";
+import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
@@ -9,8 +10,10 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { wallTimeInstants } from "@/lib/locale/events";
 import { currencyForCountry } from "@/lib/locale/country";
-import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage } from "@/lib/locale/package";
+import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
 import { getLocalePackage } from "@/lib/locale/store";
+import { getDisplayLocale } from "@/lib/locale/display";
+import { LANGUAGE_COOKIE, languageCookieAttributes, parseLanguage } from "@/lib/locale/language-cookie";
 
 async function session() {
   const auth = await getAuthUser();
@@ -42,10 +45,22 @@ export async function getLocaleSettings() {
       policies: policies.map((p) => ({ id: p.id, campusId: p.campusId, settings: localePatchSchema.parse(p.settings), effectiveAt: p.effectiveAt.toISOString(), status: p.status })) };
   });
 }
+/** The personal choice plus what "School default" currently resolves to (school/campus policy, `en` for APP_OWNER). */
+export async function getPersonalLanguage(): Promise<{ personal: Language | null; inherited: Language }> {
+  const user = await session();
+  const personal = parseLanguage(user.preferredLanguage);
+  if (user.role === "APP_OWNER") return { personal, inherited: defaultLocale.language };
+  const inherited = await runWithTenantContext(user, () => getLocalePackage(user.schoolId, user.campusId));
+  return { personal, inherited: inherited.language };
+}
 export async function saveLanguagePreference(language: string | null) {
   const preferredLanguage = z.enum(LANGUAGES).nullable().parse(language);
   const user = await session();
   await runWithTenantContext(user, async () => { await prisma.user.update({ where: { id: user.id, schoolId: user.schoolId }, data: { preferredLanguage } }); });
+  // Keep logged-out pages in step with the last explicit choice; "School default" forgets it (design §B.1.5).
+  const jar = await cookies();
+  if (preferredLanguage) jar.set(LANGUAGE_COOKIE, preferredLanguage, languageCookieAttributes());
+  else jar.delete(LANGUAGE_COOKIE);
   return { preferredLanguage };
 }
 const changeSchema = z.object({ campusId: z.string().min(1).nullable(), settings: localePatchSchema, effectiveDate: z.string().transform(dateOnly) }).strict();
@@ -125,9 +140,7 @@ export async function reviewLocaleCurrency(id: string, approved: boolean) {
 
 export async function getEffectiveDisplayLocale() {
   const user = await session();
-  const personal = user.preferredLanguage === "en" || user.preferredLanguage === "ar" || user.preferredLanguage === "ur" ? user.preferredLanguage : null;
-  if (user.role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
-  return runWithTenantContext(user, () => getLocalePackage(user.schoolId, user.campusId, new Date(), personal));
+  return getDisplayLocale({ userId: user.id, schoolId: user.schoolId, campusId: user.campusId, role: user.role });
 }
 
 /** Currency entry must use the selected campus policy, not the viewer's home campus. */

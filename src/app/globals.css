@@ -708,6 +708,12 @@ button:disabled,
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: var(--focus-offset);
 }
+/* A card that wraps a visually hidden radio/checkbox shows the shared indicator
+   on the card, since the native control itself is not visible. */
+.sk-choice-card:has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
 @utility focus-on-dark {
   --focus-color: #fff;
 }
@@ -975,6 +981,13 @@ button:disabled,
   body:has(#locale-print-sample) #locale-print-sample,
   body:has(#locale-print-sample) #locale-print-sample * { visibility: visible; }
   #locale-print-sample { position: absolute; inset: 0; width: 100%; padding: 20mm; border: 0; background: white; font-family: Arial, sans-serif; }
+}
+
+/* Recovery codes print alone (RecoveryCodesSheet toggles the class), also from inside a Modal portal. */
+@media print {
+  html.sk-print-recovery body * { visibility: hidden; }
+  html.sk-print-recovery [data-print-recovery], html.sk-print-recovery [data-print-recovery] * { visibility: visible; }
+  html.sk-print-recovery [data-print-recovery] { position: absolute; inset-block-start: 0; inset-inline-start: 0; }
 }
 
 /* Role navigation remains fixed below md; Sonner's own mobile breakpoint is
