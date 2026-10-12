@@ -43,12 +43,17 @@ export async function POST(
     }
     if (exam.isLocked) return Response.json({ error: "Exam already locked" }, { status: 400 });
 
-    const expectedMarks = exam.class.students.length * exam.class.subjects.length;
+    // A subject-specific exam must not demand unrelated class subjects. Use
+    // this same scope for both the expected total and the rows allowed to count.
+    const examSubjects = exam.subjectId
+      ? exam.class.subjects.filter((subject) => subject.id === exam.subjectId)
+      : exam.class.subjects;
+    const expectedMarks = exam.class.students.length * examSubjects.length;
     if (expectedMarks === 0) {
       return Response.json({ error: "Add students and subjects before locking this exam" }, { status: 409 });
     }
     const studentIds = new Set(exam.class.students.map((student) => student.id));
-    const subjectIds = new Set(exam.class.subjects.map((subject) => subject.id));
+    const subjectIds = new Set(examSubjects.map((subject) => subject.id));
     const validMarks = await prisma.mark.findMany({
       where: {
         examId: id,

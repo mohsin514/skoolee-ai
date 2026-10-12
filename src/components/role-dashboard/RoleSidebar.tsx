@@ -7,7 +7,7 @@ import { useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, ChevronDown, ChevronLeft, Menu, X, type LucideIcon } from "lucide-react";
+import { History, Sparkles, BookOpen, ChevronDown, ChevronLeft, Menu, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableNavigation, isNavigationActive } from "@/lib/navigation/items";
 import { ModalSurface } from "@/components/ui/modal";
@@ -66,7 +66,11 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
   const access = useNavigationAccess();
   const visible = (item: RoleNavItem) => ({ ...item, label: t(item.label), lang: locale.language, available: item.available !== false && access.allows(item.module) && access.allowsHref(item.href) });
   const items = availableNavigation<SidebarEntry>(allItems.map((entry) => isNavGroup(entry) ? { ...entry, label: t(entry.label), children: entry.children.map(visible) } : visible(entry)));
-  const bottomItems = availableNavigation([{ href: "/corrections", label: locale.language === "ar" ? "تصحيحات السجلات" : locale.language === "ur" ? "ریکارڈ کی تصحیحات" : "Record corrections", icon: History }, ...allBottomItems].map(visible));
+  const hasAiLink = allItems.some(item => isNavGroup(item) ? item.children.some(child => child.href === "/ai") : item.href === "/ai");
+  const aiItems: RoleNavItem[] = !hasAiLink && access.allows("schoolAi") ? [{ href: "/ai", label: locale.language === "ar" ? "مساحة المدرسة الذكية" : locale.language === "ur" ? "اسکول اے آئی ورک اسپیس" : "School AI workspace", icon: Sparkles, module: "ai" }] : [];
+  const hasExamLink = [...allItems, ...allBottomItems].some(item => isNavGroup(item) ? item.children.some(child => child.href === "/ai/exams") : item.href === "/ai/exams");
+  const examItems: RoleNavItem[] = !hasExamLink && access.allows("schoolAiExams") ? [{ href: "/ai/exams", label: locale.language === "ar" ? "اختباراتي الإلكترونية" : locale.language === "ur" ? "میرے آن لائن امتحانات" : "My online exams", icon: BookOpen }] : [];
+  const bottomItems = availableNavigation([...aiItems, ...examItems, { href: "/corrections", label: locale.language === "ar" ? "تصحيحات السجلات" : locale.language === "ur" ? "ریکارڈ کی تصحیحات" : "Record corrections", icon: History }, ...allBottomItems].map(visible));
   const shortcuts = items.filter((entry): entry is RoleNavItem => !isNavGroup(entry)).slice(0, 4);
 
   useEffect(() => setMobileOpen(false), [pathname]);

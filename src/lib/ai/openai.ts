@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { getTenantContext, resolveTenantFromRequest, runWithTenantContext } from "@/lib/db/tenant-context";
 import { getPlanLimits, normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
@@ -424,6 +425,7 @@ export async function getAICreditSnapshot(schoolId: string) {
 }
 
 export async function ensureAICreditsAvailable(schoolId: string, credits = 1) {
+  if (!Number.isSafeInteger(credits) || credits < 1) throw Object.assign(new AICreditError("AI credit cost must be a positive integer."), { status: 400 });
   const snapshot = await getAICreditSnapshot(schoolId);
   if (snapshot.remaining < credits) {
     throw new AICreditError("AI credit limit reached");
@@ -433,21 +435,28 @@ export async function ensureAICreditsAvailable(schoolId: string, credits = 1) {
 
 export async function consumeAICreditAndLog<T = null>(
   input: AIUsageRecordInput,
-  afterLog?: (tx: TxClient) => Promise<T>
+  afterLog?: (tx: TxClient) => Promise<T>,
+  transactionClient?: TxClient,
 ) {
   const credits = input.credits ?? 1;
+  if (!Number.isSafeInteger(credits) || credits < 1 || !Number.isSafeInteger(input.tokensUsed) || input.tokensUsed < 0) throw Object.assign(new AICreditError("AI credit cost and token usage must be valid nonnegative integers, with a positive credit cost."), { status: 400 });
+  const context = getTenantContext() ?? await resolveTenantFromRequest();
+  if (!context || context.unscoped || context.schoolId !== input.schoolId) throw Object.assign(new AICreditError("AI usage must be charged inside its authenticated school scope."), { status: 403 });
 
-  return prisma.$transaction(async (tx) => {
+  const charge = async (tx: TxClient) => {
+    // Serialize charges and billing/reset updates for this school. A read followed
+    // by an unlocked increment allowed parallel requests to spend the last credit twice.
+    await tx.$queryRaw`SELECT "id" FROM "schools" WHERE "id" = ${input.schoolId} FOR UPDATE`;
     const school = await tx.school.findUnique({
       where: { id: input.schoolId },
-      select: { aiCreditsUsed: true, plan: true, status: true, commercialContract: true },
+      select: { aiCreditsUsed: true, plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
     });
 
     if (!school) {
       throw new AICreditError("AI credit limit reached");
     }
 
-    if (!isSchoolOperational(school.status)) {
+    if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
       throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
     }
 
@@ -478,13 +487,19 @@ export async function consumeAICreditAndLog<T = null>(
             : {}),
           policyVersion: AI_POLICY_VERSION,
           sourceVersion: AI_SOURCE_VERSION,
+          creditsCharged: credits,
         },
       },
     });
 
     const extra = afterLog ? await afterLog(tx) : null;
     return { usageLog, extra };
-  });
+  };
+  if (transactionClient) return charge(transactionClient);
+  return runWithTenantContext({ ...context, rlsSession: true }, () => prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_school_id', ${input.schoolId}, true)`;
+    return charge(tx as TxClient);
+  }));
 }
 
 export async function generateAIDraft({

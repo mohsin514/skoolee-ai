@@ -11,11 +11,7 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
-import {
-  detectTeacherClashes,
-  syncTimetableSlotsForSubjects,
-  type TimetableClash,
-} from "@/lib/api/timetable-sync";
+import { deleteSubjectWithTimetableSync, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
 
 async function getScopedClass(classId: string, userCampusId: string | null, schoolId: string) {
   const cls = await prisma.class.findFirst({
@@ -186,47 +182,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     if (!body.id) throw new ApiError("Subject id is required", 400);
 
-    const existing = await prisma.subject.findFirst({
-      where: { id: body.id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-      select: { id: true, campusId: true, name: true },
-    });
-    if (!existing) throw new ApiError("Subject not found", 404);
-
-    const data: any = {};
-    if (body.name !== undefined) data.name = String(body.name).trim();
-    if (body.totalMarks !== undefined) data.totalMarks = Number(body.totalMarks);
-    if (body.teacherId !== undefined) data.teacherId = await assertTeacher(body.teacherId, existing.campusId, user.schoolId);
-    if (body.classId !== undefined) {
-      const cls = await getScopedClass(body.classId, existing.campusId, user.schoolId);
-      data.classId = cls.id;
-    }
-
-    const subject = await prisma.subject.update({
-      where: { id: body.id },
-      data,
-      include: {
-        class: { select: { id: true, name: true, section: true } },
-        teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-      },
-    });
-
-    // Keep the published timetable pointing at whoever now teaches this
-    // subject, then report any double-booking the change introduced.
-    let clashes: TimetableClash[] = [];
-    if (body.teacherId !== undefined) {
-      await syncTimetableSlotsForSubjects([subject.id], subject.teacherId);
-      clashes = await detectTeacherClashes(subject.teacherId);
-    }
-
-    await prisma.auditLog.create({
-      data: {
-        tableName: 'subject',
-        recordId: body.id,
-        oldValue: { name: existing.name },
-        newValue: { name: subject.name, teacherId: subject.teacher?.id || null },
-        userId: user.userId,
-      }
-    });
+    const { existing, subject, clashes } = await updateSubjectWithTeacherAssignment(user, body);
 
     if (body.teacherId !== undefined && subject.teacher) {
       notify("SUBJECT_TEACHER_ASSIGNED", {
@@ -256,25 +212,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) throw new ApiError("Subject id is required", 400);
 
-    const subject = await prisma.subject.findFirst({
-      where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      include: { _count: { select: { marks: true } } },
-    });
-    if (!subject) throw new ApiError("Subject not found", 404);
-    if (subject._count.marks > 0) {
-      throw new ApiError("Subjects with marks cannot be deleted", 409);
-    }
-
-    await prisma.subject.delete({ where: { id } });
-
-    await prisma.auditLog.create({
-      data: {
-        tableName: 'subject',
-        recordId: id,
-        oldValue: { name: subject.name, deleted: true },
-        userId: user.userId,
-      }
-    });
+    await deleteSubjectWithTimetableSync(user, id);
 
     return Response.json({ success: true });
   } catch (error) {

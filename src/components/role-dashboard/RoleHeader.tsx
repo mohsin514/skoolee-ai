@@ -213,7 +213,7 @@ export function RoleHeader({
   return (
     <>
       <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
-        <div className="flex items-center gap-4">
+        <div className="hidden min-[400px]:flex items-center gap-4">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
           </div>
@@ -229,7 +229,7 @@ export function RoleHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="ms-auto min-w-0 flex items-center gap-2 sm:gap-2.5">
           <CycleBadge />
         {actions}
         <div ref={notifRef} className="relative">
@@ -325,7 +325,7 @@ export function RoleHeader({
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
             title={t("Account menu")}
             className={cn(
-              "flex justify-start items-center gap-2.5 hover:-translate-y-0.5",
+              "flex justify-start items-center gap-0 px-1.5 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
               menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
@@ -337,7 +337,7 @@ export function RoleHeader({
             <div className="hidden sm:block text-start">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
+            <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
           </Button>
 
           {menuOpen && (

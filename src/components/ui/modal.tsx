@@ -449,6 +449,7 @@ export function ModalSurface({
   onClose,
   size,
   wide = false,
+  fullscreen = false,
   dirty = false,
   dirtyMessage,
   disableBackdropClose = false,
@@ -465,6 +466,8 @@ export function ModalSurface({
   onClose: () => void;
   size?: ModalSize;
   wide?: boolean;
+  /** An immersive workflow using the same focus, dismissal and draft guards. */
+  fullscreen?: boolean;
   dirty?: boolean;
   dirtyMessage?: string;
   disableBackdropClose?: boolean;
@@ -554,12 +557,12 @@ export function ModalSurface({
   });
 
   const onGrabStart = useCallback((e: React.PointerEvent) => {
-    if (!dismissible || closing || askDiscard || !isTop) return;
+    if (fullscreen || !dismissible || closing || askDiscard || !isTop) return;
     if (window.matchMedia("(min-width: 640px)").matches) return;
     dragState.current = { startY: e.clientY, active: true, travelled: 0 };
     setDragY(0);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [dismissible, closing, askDiscard, isTop]);
+  }, [fullscreen, dismissible, closing, askDiscard, isTop]);
 
   const onGrabMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.current.active || !dismissible) return;
@@ -600,7 +603,8 @@ export function ModalSurface({
   const dialog = (
     <div
       className={cn(
-        "fixed inset-0 flex items-end justify-center sm:items-center sm:p-6",
+        "fixed inset-0 flex justify-center",
+        fullscreen ? "items-stretch p-0" : "items-end sm:items-center sm:p-6",
         closing ? "animate-backdrop-exit" : "animate-backdrop-enter",
       )}
       style={{ zIndex: z }}
@@ -636,11 +640,14 @@ export function ModalSurface({
           transition: dragging ? "none" : undefined,
         }}
         className={cn(
-          "relative flex min-w-0 max-h-[92dvh] w-full max-w-full flex-col overflow-hidden border border-[#cfc2d6]/20 bg-white",
-          "rounded-t-[32px] shadow-[0_-8px_60px_rgba(31,26,35,0.28)]",
-          "sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
-          width,
-          closing ? "animate-sheet-exit sm:animate-modal-exit" : "animate-sheet-enter sm:animate-modal-enter",
+          "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-white",
+          fullscreen
+            ? "h-[100dvh] max-h-[100dvh] rounded-none"
+            : "max-h-[92dvh] rounded-t-[32px] border border-[#cfc2d6]/20 shadow-[0_-8px_60px_rgba(31,26,35,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
+          !fullscreen && width,
+          fullscreen
+            ? closing ? "animate-modal-exit" : "animate-modal-enter"
+            : closing ? "animate-sheet-exit sm:animate-modal-exit" : "animate-sheet-enter sm:animate-modal-enter",
           className,
         )}
       >

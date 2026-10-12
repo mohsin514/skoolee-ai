@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { studentSchema, bulkStudentSchema } from "@/lib/validators/schemas";
 import { sendInviteEmail } from "@/lib/email";
 import {
@@ -17,6 +17,8 @@ import {
 } from "@/lib/api/scope";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { notify } from "@/lib/notifications/in-app";
+import { importReviewToken } from "@/lib/imports/review-token";
+import { assertRosterPermission } from "@/lib/imports/roster-access";
 
 type StudentInput = {
   fullName: string;
@@ -241,9 +243,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "students", "add");
-
     const body = await req.json();
+    if (typeof body?._importBatchId === "string") await assertRosterPermission(user, "add");
+    else await assertPermission(user, "students", "add");
     let students: StudentInput[];
     let importBatch: Awaited<ReturnType<typeof prisma.importBatch.findFirst>> = null;
     let importRows: Array<{ rowNumber: number; state: string; selected: boolean; proposal?: unknown; errors?: string[]; matchKey?: string | null; matchLabel?: string | null }> = [];
@@ -256,6 +258,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ success: true, data: [], message: `Batch ${importBatch.id} was already committed`, importBatchId: importBatch.id, importBatchState: importBatch.state, receipt, idempotent: true });
       }
       if (importBatch.state !== "STAGED" || importBatch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
+      if (body._reviewToken !== importReviewToken(importBatch)) throw new ApiError("The roster changed after your review. Refresh the preview before creating students.", 409);
       const batchData = importBatch.data as Prisma.JsonObject;
       importRows = Array.isArray(batchData.rows) ? batchData.rows as unknown as typeof importRows : [];
       const selected = importRows.filter((row) => row.state === "ACCEPTED" && row.selected);
@@ -284,6 +287,7 @@ export async function POST(req: NextRequest) {
       where: {
         id: { in: classIds },
         campus: { schoolId: user.schoolId },
+        ...(importBatch ? { status: "ACTIVE", archivedAt: null } : {}),
         ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
       },
       select: { id: true, campusId: true, name: true, section: true, campus: { select: { name: true } } },
@@ -341,8 +345,22 @@ export async function POST(req: NextRequest) {
     const created = await prisma.$transaction(
       async (tx) => {
       const createdStudents: Awaited<ReturnType<typeof tx.student.create>>[] = [];
+      // Serialize admissions per campus, including ordinary admission requests, so
+      // a case-variant roll created after staging cannot slip past the import check.
+      const creationCampuses = [...new Set(classes.map(item => item.campusId))].sort();
+      if (creationCampuses.length) await tx.$queryRaw`SELECT id FROM campuses WHERE school_id=${user.schoolId} AND id IN (${Prisma.join(creationCampuses)}) ORDER BY id FOR UPDATE`;
+      for (const targetCampusId of creationCampuses) {
+        const rolls = students.filter(student => classesById.get(student.classId)?.campusId === targetCampusId).map(student => student.rollNo.trim().toLocaleLowerCase("en"));
+        if (new Set(rolls).size !== rolls.length) throw new ApiError("This request repeats a roll number in the campus. Correct its identity before creating students.", 409);
+        const existing = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM students WHERE school_id=${user.schoolId} AND campus_id=${targetCampusId} AND archived_at IS NULL AND lower(btrim(roll_no)) IN (${Prisma.join(rolls)}) LIMIT 1`;
+        if (existing.length) throw new ApiError(importBatch ? "A pupil with this roll number was created after preview. Refresh and reconcile the roster before creating students." : "This roll number already belongs to a pupil in the campus.", 409);
+      }
       if (importBatch) {
-        const claimed = await tx.importBatch.updateMany({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId, state: "STAGED", expiresAt: { gt: new Date() } }, data: { state: "COMMITTING" } });
+        await assertRosterPermission(user, "add", tx as TxClient);
+        await tx.$queryRaw`SELECT id FROM classes WHERE school_id=${user.schoolId} AND id IN (${Prisma.join(classIds)}) ORDER BY id FOR UPDATE`;
+        const liveClasses = await tx.class.count({ where: { id: { in: classIds }, schoolId: user.schoolId, campusId: importBatch.campusId, status: "ACTIVE", archivedAt: null } });
+        if (liveClasses !== classIds.length) throw new ApiError("A destination class changed or was archived. Refresh and correct this roster before creating students.", 409);
+        const claimed = await tx.importBatch.updateMany({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId, state: "STAGED", expiresAt: { gt: new Date() }, data: { equals: importBatch.data as Prisma.InputJsonValue } }, data: { state: "COMMITTING" } });
         if (claimed.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
       }
 
@@ -659,7 +677,7 @@ export async function POST(req: NextRequest) {
             matchKey: row.matchKey || null,
             matchLabel: row.matchLabel || null,
             errors: row.errors || [],
-            result: student ? { studentId: student.id, fullName: student.fullName, rollNo: student.rollNo } : undefined,
+            result: student ? { studentId: student.id, fullName: student.fullName, rollNo: student.rollNo, classId: student.classId } : undefined,
           };
         });
         const committedCount = createdStudents.length;

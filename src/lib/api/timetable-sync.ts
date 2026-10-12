@@ -1,7 +1,8 @@
-import { prisma } from "@/lib/db/prisma";
+import type { TxClient } from "@/lib/db/prisma";
+import { ApiError } from "@/lib/api/scope";
+import { validateStoredTimetable } from "@/lib/timetable/validate";
 
-const DAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
+/** Kept in successful assignment responses for existing administrative clients. */
 export interface TimetableClash {
   teacherName: string;
   label: string;
@@ -10,65 +11,42 @@ export interface TimetableClash {
 }
 
 /**
- * Repoint a subject's timetable slots at whoever now teaches that subject.
- *
- * Without this, changing a subject's teacher leaves the published timetable
- * still showing the previous teacher — the roster and the schedule silently
- * disagree. Slots are the authoritative "who is where, when" record, so they
- * have to move with the assignment.
+ * The caller owns the SERIALIZABLE transaction and must acquire the campus
+ * timetable fence before reading assignments. There is intentionally no global
+ * client fallback: assignment, slot updates and validation commit together.
  */
 export async function syncTimetableSlotsForSubjects(
+  tx: TxClient,
+  scope: { schoolId: string; campusId: string },
   subjectIds: string[],
-  teacherId: string | null
+  teacherId: string | null,
 ): Promise<void> {
-  if (subjectIds.length === 0) return;
-  await prisma.timetableSlot.updateMany({
-    where: { subjectId: { in: subjectIds } },
+  const ids = [...new Set(subjectIds)];
+  if (!ids.length) return;
+  const subjects = await tx.subject.findMany({
+    where: { id: { in: ids }, ...scope }, select: { id: true, classId: true },
+  });
+  if (subjects.length !== ids.length) throw new ApiError("A subject is outside this school or campus", 403);
+  const classBySubject = new Map(subjects.map(subject => [subject.id, subject.classId]));
+  const affected = await tx.timetableSlot.findMany({
+    where: { schoolId: scope.schoolId, subjectId: { in: ids } },
+    select: { id: true, subjectId: true, timetable: { select: { id: true, schoolId: true, campusId: true, classId: true } } },
+  });
+  if (affected.some(slot => slot.timetable.schoolId !== scope.schoolId || slot.timetable.campusId !== scope.campusId || slot.timetable.classId !== classBySubject.get(slot.subjectId!))) {
+    throw new ApiError("A scheduled subject no longer belongs to its timetable class. Correct the schedule before changing its teacher.", 409);
+  }
+  if (!affected.length) return;
+  await tx.timetableSlot.updateMany({
+    where: { id: { in: affected.map(slot => slot.id) }, schoolId: scope.schoolId, timetable: { schoolId: scope.schoolId, campusId: scope.campusId } },
     data: { teacherId },
   });
-}
-
-/**
- * Find genuine double-bookings for a teacher: the same weekday + period
- * occupied by two different classes. Returns [] when the teacher is unset or
- * has no clashes, so callers can spread it into a response unconditionally.
- */
-export async function detectTeacherClashes(teacherId: string | null): Promise<TimetableClash[]> {
-  if (!teacherId) return [];
-
-  const [teacher, slots] = await Promise.all([
-    prisma.user.findUnique({ where: { id: teacherId }, select: { fullName: true } }),
-    prisma.timetableSlot.findMany({
-      where: { teacherId, slotType: "CLASS" },
-      select: {
-        dayOfWeek: true,
-        periodNumber: true,
-        timetable: { select: { class: { select: { name: true, section: true } } } },
-      },
-    }),
-  ]);
-
-  const byKey = new Map<string, string[]>();
-  for (const slot of slots) {
-    const key = `${slot.dayOfWeek}-${slot.periodNumber}`;
-    const cls = slot.timetable?.class;
-    const label = cls ? `${cls.name}${cls.section ? ` ${cls.section}` : ""}` : "Unknown class";
-    byKey.set(key, [...(byKey.get(key) || []), label]);
+  const timetableIds = [...new Set(affected.map(slot => slot.timetable.id))];
+  for (const timetableId of timetableIds) {
+    // Validate the entire resulting board, including unchanged lessons, using
+    // its own academic year and term. Draft completeness remains a warning.
+    const validation = await validateStoredTimetable(timetableId, scope.campusId, tx);
+    const conflicts = validation.conflicts.filter(conflict => conflict.severity === "CRITICAL");
+    if (conflicts.length) throw new ApiError(`Teacher assignment was not saved. ${conflicts.map(conflict => conflict.message).join(" ")}`, 409);
   }
-
-  const teacherName = teacher?.fullName || "This teacher";
-  return [...byKey.entries()]
-    .filter(([, classes]) => new Set(classes).size > 1)
-    .map(([key, classes]) => {
-      const [day, period] = key.split("-").map(Number);
-      const label = `${DAY_LABELS[day] || `Day ${day}`} P${period}`;
-      const unique = [...new Set(classes)];
-      return {
-        teacherName,
-        label,
-        classes: unique,
-        message: `${teacherName} is double-booked on ${label} (${unique.join(" & ")})`,
-      };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label));
+  await tx.timetable.updateMany({ where: { id: { in: timetableIds }, ...scope }, data: { updatedAt: new Date() } });
 }

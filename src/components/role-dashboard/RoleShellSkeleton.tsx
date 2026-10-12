@@ -43,7 +43,7 @@ export function RoleShellSkeleton({
       aria-busy="true"
       aria-label={label}
     >
-      <aside className="fixed hidden h-full w-64 shrink-0 flex-col border-r border-[#cfc2d6]/25 bg-white/70 p-6 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
+      <aside className="fixed inset-y-0 start-0 hidden h-full w-64 shrink-0 flex-col border-e border-[#cfc2d6]/25 bg-white/70 p-6 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
         <div className="mb-5 flex shrink-0 items-center gap-3">
           <SkeletonBar className="h-11 w-11 shrink-0" />
           <div className="min-w-0 flex-1 space-y-1.5">
@@ -58,7 +58,7 @@ export function RoleShellSkeleton({
         </div>
       </aside>
 
-      <main className="flex h-screen flex-1 flex-col overflow-hidden p-3 pb-20 md:ml-64 md:p-5 md:pb-5">
+      <main className="flex h-screen flex-1 flex-col overflow-hidden p-3 pb-20 md:ms-64 md:p-5 md:pb-5">
         <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-[22px] border border-[#cfc2d6]/25 bg-white/40 px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <SkeletonBar className="h-9 w-9 shrink-0 rounded-xl" />

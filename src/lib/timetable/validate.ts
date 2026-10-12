@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 
 /**
  * Server-side conflict engine for a class timetable.
@@ -28,6 +28,8 @@ export type ConflictType =
   | "MISSING_ROOM";
 
 export interface TimetableConflict {
+  /** Stable server-derived identity; never built from translated display labels. */
+  identity?: string;
   type: ConflictType;
   severity: ConflictSeverity;
   /** One sentence an administrator can act on without opening another screen. */
@@ -82,6 +84,18 @@ export interface ValidatableSlot {
   teacherId?: string | null;
   roomId?: string | null;
   slotType?: string | null;
+  startTime?: string;
+  endTime?: string;
+}
+
+function overlaps(first: ValidatableSlot, second: ValidatableSlot) {
+  if (first.dayOfWeek !== second.dayOfWeek) return false;
+  if (first.periodNumber === second.periodNumber) return true;
+  if (!first.startTime || !first.endTime || !second.startTime || !second.endTime) return false;
+  const valid = (slot: ValidatableSlot) => /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.startTime!) && /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.endTime!) && slot.startTime! < slot.endTime!;
+  // Bad persisted times cannot prove that a teacher or room is free.
+  if (!valid(first) || !valid(second)) return true;
+  return first.startTime < second.endTime && second.startTime < first.endTime;
 }
 
 /**
@@ -97,13 +111,16 @@ export async function validateTimetableSlots(opts: {
   slots: ValidatableSlot[];
   /** Treat unassigned teacher/room as a warning. Off during drafting. */
   requireComplete?: boolean;
-}): Promise<TimetableValidation> {
+  /** Reviewed setup uses the same year and overlapping annual/term schedules. */
+  academicYear?: number;
+  term?: string;
+}, db: Pick<TxClient, "student" | "timetableSlot" | "classRoom"> = prisma): Promise<TimetableValidation> {
   const { campusId, timetableId, classId, slots, requireComplete = false } = opts;
 
-  const teaching = slots.filter((s) => (s.slotType ?? "CLASS") === "CLASS" && s.subjectId);
+  const teaching = slots.filter((s) => (s.slotType ?? "CLASS") === "CLASS" && (s.subjectId || s.teacherId || s.roomId));
   if (teaching.length === 0) return summarise([]);
 
-  const classSize = await prisma.student.count({ where: { classId, campusId } });
+  const classSize = await db.student.count({ where: { classId, campusId } });
 
   const teacherIds = [...new Set(teaching.map((s) => s.teacherId).filter(Boolean))] as string[];
   const roomIds = [...new Set(teaching.map((s) => s.roomId).filter(Boolean))] as string[];
@@ -113,9 +130,21 @@ export async function validateTimetableSlots(opts: {
   // 48-slot week meant ~96 round-trips per save.
   const [otherSlots, rooms] = await Promise.all([
     teacherIds.length || roomIds.length
-      ? prisma.timetableSlot.findMany({
+      ? db.timetableSlot.findMany({
           where: {
-            timetable: { campusId, id: { not: timetableId } },
+            timetable: {
+              campusId,
+              id: { not: timetableId },
+              ...(opts.academicYear ? { academicYear: opts.academicYear } : {}),
+              // Only known, disjoint terms can narrow the search. Legacy labels
+              // have no reliable date range, so they overlap every term.
+              ...(opts.term && ["TERM_1", "TERM_2", "TERM_3"].includes(opts.term) ? {
+                OR: [
+                  { term: { in: ["ANNUAL", opts.term] } },
+                  { term: { notIn: ["ANNUAL", "TERM_1", "TERM_2", "TERM_3"] } },
+                ],
+              } : {}),
+            },
             slotType: "CLASS",
             OR: [
               ...(teacherIds.length ? [{ teacherId: { in: teacherIds } }] : []),
@@ -123,18 +152,21 @@ export async function validateTimetableSlots(opts: {
             ],
           },
           select: {
+            id: true,
             dayOfWeek: true,
             periodNumber: true,
+            startTime: true,
+            endTime: true,
             teacherId: true,
             roomId: true,
             teacher: { select: { fullName: true } },
             room: { select: { roomNumber: true } },
-            timetable: { select: { class: { select: { name: true, section: true } } } },
+            timetable: { select: { id: true, class: { select: { name: true, section: true } } } },
           },
         })
       : Promise.resolve([]),
     roomIds.length
-      ? prisma.classRoom.findMany({
+      ? db.classRoom.findMany({
           where: { id: { in: roomIds }, campusId },
           select: { id: true, roomNumber: true, capacity: true },
         })
@@ -144,18 +176,42 @@ export async function validateTimetableSlots(opts: {
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const conflicts: TimetableConflict[] = [];
 
+  // The stored board is excluded above, so check the proposed complete board
+  // against itself as well. Assignment synchronization can change several
+  // lessons together, including legacy periods with overlapping clock times.
+  for (let index = 0; index < teaching.length; index++) {
+    const slot = teaching[index];
+    for (const other of teaching.slice(0, index)) {
+      if (!overlaps(slot, other)) continue;
+      const when = `${DAYS[slot.dayOfWeek] ?? "Day " + slot.dayOfWeek}, periods ${other.periodNumber} and ${slot.periodNumber}`;
+      if (slot.teacherId && slot.teacherId === other.teacherId) conflicts.push({
+        identity: JSON.stringify(["TEACHER_DOUBLE_BOOKED", slot.teacherId, timetableId, ...[slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, other.id ?? `${other.dayOfWeek}/${other.periodNumber}`].sort()]),
+        type: "TEACHER_DOUBLE_BOOKED", severity: "CRITICAL",
+        message: `The same teacher is assigned to overlapping lessons in this timetable on ${when}.`,
+        dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id,
+      });
+      if (slot.roomId && slot.roomId === other.roomId) conflicts.push({
+        identity: JSON.stringify(["ROOM_DOUBLE_BOOKED", slot.roomId, timetableId, ...[slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, other.id ?? `${other.dayOfWeek}/${other.periodNumber}`].sort()]),
+        type: "ROOM_DOUBLE_BOOKED", severity: "CRITICAL",
+        message: `The same room is assigned to overlapping lessons in this timetable on ${when}.`,
+        dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id,
+        roomNumber: roomById.get(slot.roomId)?.roomNumber,
+      });
+    }
+  }
+
   for (const slot of teaching) {
     const when = `${DAYS[slot.dayOfWeek] ?? "Day " + slot.dayOfWeek}, period ${slot.periodNumber}`;
 
     if (slot.teacherId) {
-      const clash = otherSlots.find(
+      const clashes = otherSlots.filter(
         (o) =>
           o.teacherId === slot.teacherId &&
-          o.dayOfWeek === slot.dayOfWeek &&
-          o.periodNumber === slot.periodNumber,
+          overlaps(slot, o),
       );
-      if (clash) {
+      for (const clash of clashes) {
         conflicts.push({
+          identity: JSON.stringify(["TEACHER_DOUBLE_BOOKED", slot.teacherId, timetableId, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, clash.timetable.id, clash.id]),
           type: "TEACHER_DOUBLE_BOOKED",
           severity: "CRITICAL",
           message: `${clash.teacher?.fullName ?? "This teacher"} is already teaching ${classLabel(clash.timetable.class)} on ${when}.`,
@@ -178,14 +234,14 @@ export async function validateTimetableSlots(opts: {
     }
 
     if (slot.roomId) {
-      const clash = otherSlots.find(
+      const clashes = otherSlots.filter(
         (o) =>
           o.roomId === slot.roomId &&
-          o.dayOfWeek === slot.dayOfWeek &&
-          o.periodNumber === slot.periodNumber,
+          overlaps(slot, o),
       );
-      if (clash) {
+      for (const clash of clashes) {
         conflicts.push({
+          identity: JSON.stringify(["ROOM_DOUBLE_BOOKED", slot.roomId, timetableId, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, clash.timetable.id, clash.id]),
           type: "ROOM_DOUBLE_BOOKED",
           severity: "CRITICAL",
           message: `Room ${clash.room?.roomNumber ?? ""} is already booked for ${classLabel(clash.timetable.class)} on ${when}.`,
@@ -229,16 +285,21 @@ export async function validateTimetableSlots(opts: {
 export async function validateStoredTimetable(
   timetableId: string,
   campusId: string,
+  db: TxClient = prisma,
 ): Promise<TimetableValidation> {
-  const timetable = await prisma.timetable.findFirst({
+  const timetable = await db.timetable.findFirst({
     where: { id: timetableId, campusId },
     select: {
       classId: true,
+      academicYear: true,
+      term: true,
       slots: {
         select: {
           id: true,
           dayOfWeek: true,
           periodNumber: true,
+          startTime: true,
+          endTime: true,
           subjectId: true,
           teacherId: true,
           roomId: true,
@@ -255,5 +316,7 @@ export async function validateStoredTimetable(
     classId: timetable.classId,
     slots: timetable.slots,
     requireComplete: true,
-  });
+    academicYear: timetable.academicYear,
+    term: timetable.term,
+  }, db);
 }

@@ -12,6 +12,7 @@ import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
+import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 
 function requireCampusId(session: AuthUser): string {
   if (!session.campusId) {
@@ -944,6 +945,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
 
   const campusId = requireCampusId(session);
   const { currency } = await getLocalePackage(session.schoolId, campusId);
+  const communicationScope = { schoolId: session.schoolId, campusId, ...await announcementHistoryRestriction(session) };
 
   const today = new Date(new Date().setHours(0, 0, 0, 0));
 
@@ -1193,11 +1195,11 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     }),
     prisma.parentCommunication.groupBy({
       by: ["status"],
-      where: { schoolId: session.schoolId, campusId },
+      where: communicationScope,
       _count: { _all: true },
     }),
     prisma.parentCommunication.findMany({
-      where: { schoolId: session.schoolId, campusId },
+      where: communicationScope,
       include: {
         student: {
           select: {

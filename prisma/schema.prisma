@@ -27,6 +27,12 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  schoolAiRequests SchoolAiRequest[]
+  schoolAiExecutions SchoolAiExecution[]
+  schoolAiRecords SchoolAiRecord[]
+  schoolAiRevisions SchoolAiRevision[]
+  schoolAiExamAssignments SchoolAiExamAssignment[]
+  schoolAiExamAttempts SchoolAiExamAttempt[]
   activityJobs ActivityJob[]
   deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
@@ -355,6 +361,12 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  schoolAiRequests SchoolAiRequest[]
+  schoolAiExecutions SchoolAiExecution[]
+  schoolAiRecords SchoolAiRecord[]
+  schoolAiRevisions SchoolAiRevision[]
+  schoolAiExamAssignments SchoolAiExamAssignment[]
+  schoolAiExamAttempts SchoolAiExamAttempt[]
   activityJobs ActivityJob[]
   corrections Correction[]
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
@@ -3785,4 +3797,176 @@ model PaymentReceipt {
 
   @@index([schoolId, campusId])
   @@map("payment_receipts")
+}
+
+
+// AI authoring stores drafts and approved snapshots; it does not bypass domain workflows.
+model SchoolAiRecord {
+  schoolAiExecutions SchoolAiExecution[]
+  id             String @id @default(uuid())
+  schoolId       String @default("") @map("school_id")
+  school         School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String? @map("campus_id")
+  campus         Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  kind           String
+  title          String
+  version        Int @default(1)
+  status         String @default("DRAFT")
+  data           Json
+  subjectId      String? @map("subject_id")
+  classId        String? @map("class_id")
+  createdById    String @map("created_by_id")
+  updatedById    String @map("updated_by_id")
+  approvedById   String? @map("approved_by_id")
+  approvedAt     DateTime? @map("approved_at")
+  idempotencyKey String @map("idempotency_key")
+  requestHash    String @map("request_hash")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  revisions      SchoolAiRevision[]
+  assignments    SchoolAiExamAssignment[]
+
+  @@unique([schoolId, createdById, idempotencyKey])
+  @@unique([id, schoolId])
+  @@index([schoolId, campusId, kind, updatedAt])
+  @@index([schoolId, campusId, createdById, updatedAt])
+  @@index([schoolId, campusId, subjectId, status])
+  @@map("school_ai_records")
+}
+
+model SchoolAiRevision {
+  id           String @id @default(uuid())
+  schoolId     String @default("") @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String? @map("campus_id")
+  campus       Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  recordId     String @map("record_id")
+  record       SchoolAiRecord @relation(fields: [recordId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  version      Int
+  action       String
+  title        String
+  status       String
+  data         Json
+  actorId      String @map("actor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([recordId, version])
+  @@index([schoolId, campusId, createdAt])
+  @@map("school_ai_revisions")
+}
+
+model SchoolAiExamAssignment {
+  id           String @id @default(uuid())
+  schoolId     String @default("") @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String @map("campus_id")
+  campus       Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  classId      String @map("class_id")
+  paperId      String @map("paper_id")
+  paper        SchoolAiRecord @relation(fields: [paperId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  paperVersion Int @map("paper_version")
+  paperSnapshot Json @map("paper_snapshot")
+  createdById  String @map("created_by_id")
+  title        String
+  startsAt     DateTime @map("starts_at")
+  endsAt       DateTime @map("ends_at")
+  studentIds   Json @map("student_ids")
+  accommodations Json @default("{}")
+  gradebookPublication Json? @map("gradebook_publication")
+  status       String @default("DRAFT")
+  mode         String @default("STANDARD")
+  version      Int @default(1)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  attempts     SchoolAiExamAttempt[]
+
+  @@unique([id, schoolId, campusId])
+  @@index([schoolId, campusId, classId, startsAt])
+  @@index([schoolId, createdById, status])
+  @@map("school_ai_exam_assignments")
+}
+
+model SchoolAiExamAttempt {
+  id           String @id @default(uuid())
+  schoolId     String @default("") @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String @map("campus_id")
+  campus       Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  assignmentId String @map("assignment_id")
+  assignment   SchoolAiExamAssignment @relation(fields: [assignmentId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
+  studentId    String @map("student_id")
+  userId       String @map("user_id")
+  startedAt    DateTime @default(now()) @map("started_at")
+  deadlineAt   DateTime @map("deadline_at")
+  sequence     Int @default(0)
+  responses    Json
+  status       String @default("IN_PROGRESS")
+  submittedAt  DateTime? @map("submitted_at")
+  scoreProposal Json? @map("score_proposal")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewedById String? @map("reviewed_by_id")
+  review       Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([assignmentId, userId])
+  @@index([schoolId, campusId, studentId, status])
+  @@map("school_ai_exam_attempts")
+}
+
+
+// One atomic tool effect per approved artifact version. Retries replay this durable receipt.
+model SchoolAiExecution {
+  id             String @id @default(uuid())
+  schoolId       String @default("") @map("school_id")
+  school         School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String @map("campus_id")
+  campus         Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  recordId       String @map("record_id")
+  record         SchoolAiRecord @relation(fields: [recordId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  recordVersion  Int @map("record_version")
+  operation      String
+  previewHash    String @map("preview_hash")
+  requestedById  String @map("requested_by_id")
+  idempotencyKey String @map("idempotency_key")
+  status         String @default("COMPLETED")
+  receipt        Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  completedAt    DateTime @default(now()) @map("completed_at")
+
+  @@unique([schoolId, requestedById, idempotencyKey])
+  @@unique([recordId, recordVersion, operation])
+  @@index([schoolId, campusId, createdAt])
+  @@map("school_ai_executions")
+}
+
+// Request receipts persist retry state, never the raw prompt or provider payload.
+model SchoolAiRequest {
+  id               String @id @default(uuid())
+  schoolId         String @default("") @map("school_id")
+  school           School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId         String? @map("campus_id")
+  campus           Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  actorId          String @map("actor_id")
+  actorRole        String @map("actor_role")
+  subjectId        String? @map("subject_id")
+  classId          String? @map("class_id")
+  feature          String @default("ASSISTANT")
+  idempotencyKey   String @map("idempotency_key")
+  requestHash      String @map("request_hash")
+  status           String @default("PENDING")
+  claimToken       String? @map("claim_token")
+  leaseExpiresAt   DateTime? @map("lease_expires_at")
+  attempts         Int @default(1)
+  reply            String?
+  recordId         String? @map("record_id")
+  contextRecordIds Json @default("[]") @map("context_record_ids")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  completedAt      DateTime? @map("completed_at")
+
+  @@unique([schoolId, actorId, feature, idempotencyKey])
+  @@index([schoolId, campusId, actorId, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@map("school_ai_requests")
 }

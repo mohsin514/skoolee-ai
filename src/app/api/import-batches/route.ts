@@ -7,6 +7,8 @@ import { parseMoney, localePackageSchema } from "@/lib/locale/package";
 import { bankImportSchema, studentSchema } from "@/lib/validators/schemas";
 import { importField, normalizeImportHeader, parseImportCsv } from "@/lib/imports/csv";
 import { isoDate, summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
+import { importReviewToken } from "@/lib/imports/review-token";
+import { assertRosterPermission } from "@/lib/imports/roster-access";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 1000;
@@ -47,6 +49,7 @@ function respond(batch: { id: string; campusId: string; kind: string; state: str
     summary: batch.receipt ? receiptCounts(batch.receipt) : storedSummary || summarizeImportRows(rows),
     rows: batch.state === "STAGED" ? rows : undefined,
     receipt: batch.receipt,
+    reviewToken: importReviewToken(batch),
   };
 }
 
@@ -57,7 +60,8 @@ export async function GET(request: NextRequest) {
     const kind = request.nextUrl.searchParams.get("kind");
     if (kind !== "STUDENT_ROSTER" && kind !== "BANK_STATEMENT") throw new ApiError("Choose a supported import type", 400);
     if (kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, kind === "STUDENT_ROSTER" ? "students" : "fees", "view");
+    if (kind === "STUDENT_ROSTER") await assertRosterPermission(user, "view");
+    else await assertPermission(user, "fees", "view");
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
     await expireStagedBatches(user.schoolId, campusId);
     const batches = await prisma.importBatch.findMany({ where: { schoolId: user.schoolId, campusId, kind }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, kind: true, state: true, sourceName: true, createdAt: true, expiresAt: true, receipt: true, data: true, campusId: true } });
@@ -105,7 +109,8 @@ export async function POST(request: NextRequest) {
     if (kind !== "STUDENT_ROSTER" && kind !== "BANK_STATEMENT") throw new ApiError("Choose a supported import type", 400);
     const permissionModule = kind === "STUDENT_ROSTER" ? "students" : "fees";
     if (kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, permissionModule, "add");
+    if (kind === "STUDENT_ROSTER") await assertRosterPermission(user, "add");
+    else await assertPermission(user, permissionModule, "add");
 
     let requestedCampusId = typeof body.campusId === "string" ? body.campusId : null;
     if (!requestedCampusId && kind === "STUDENT_ROSTER" && typeof body.defaultClassId === "string") {
@@ -138,7 +143,7 @@ export async function POST(request: NextRequest) {
       const proposals = rawRows.map(({ raw }) => studentSchema.safeParse(raw));
       const classIds = [...new Set(proposals.flatMap((parsed) => parsed.success ? [parsed.data.classId] : []))];
       const [classes, existing] = await Promise.all([
-        prisma.class.findMany({ where: { id: { in: classIds }, campusId, campus: { schoolId: user.schoolId } }, select: { id: true, name: true, section: true, campusId: true } }),
+        prisma.class.findMany({ where: { id: { in: classIds }, campusId, campus: { schoolId: user.schoolId }, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, campusId: true } }),
         prisma.student.findMany({ where: { campusId, campus: { schoolId: user.schoolId }, archivedAt: null }, select: { id: true, rollNo: true, classId: true, fullName: true } }),
       ]);
       const classesById = new Map(classes.map((item) => [item.id, item]));

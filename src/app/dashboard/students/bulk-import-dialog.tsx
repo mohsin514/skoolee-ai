@@ -16,7 +16,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 interface ClassRecord { id: string; name: string; section?: string | null; academicYear: number }
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; classes: ClassRecord[]; defaultClassId: string; onSuccess: () => void }
 interface ImportRow { rowNumber: number; source: Record<string, string>; proposal: Record<string, unknown> | null; state: string; selected: boolean; matchKey: string | null; matchLabel?: string | null; errors: string[] }
-interface Batch { id: string; campusId: string; kind: string; state: string; expiresAt: string; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; rows?: ImportRow[]; receipt?: Record<string, any> | null }
+interface Batch { id: string; campusId: string; kind: string; state: string; expiresAt: string; reviewToken: string; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; rows?: ImportRow[]; receipt?: Record<string, any> | null }
 interface ReversalAnalysis { eligible: boolean; dependencies: Array<{ studentName: string; rollNo: string; references: string[] }>; missing: string[]; action: string }
 
 const CSV_TEMPLATE = "fullName,rollNo,classId,gender,dateOfBirth,phone,studentEmail,guardianName,guardianPhone,guardianWhatsapp,guardianEmail,address,city,medicalNotes\nAli Ahmed Khan,V-A-001,,MALE,2010-03-15,+92 3001234567,ali@example.com,Ahmed Khan,+92 3001234567,,ahmed@example.com,123 Mosque Lane,Lahore,None";
@@ -49,19 +49,21 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     finally { setBusy(false); }
   };
   const selectRow = async (row: ImportRow, selected: boolean) => {
-    if (!batch) return;
+    if (!batch || busy) return;
+    setBusy(true);
     try {
-      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: [{ rowNumber: row.rowNumber, selected }] }) });
+      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviewToken: batch.reviewToken, rows: [{ rowNumber: row.rowNumber, selected }] }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || t("Could not save row selection"));
       setBatch(result.data as Batch);
     } catch (error) { toast.error(error instanceof Error ? error.message : t("Could not save row selection")); }
+    finally { setBusy(false); }
   };
   const updateProposal = async (row: ImportRow, proposal: Record<string, unknown>) => {
     if (!batch) return;
     setBusy(true);
     try {
-      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: [{ rowNumber: row.rowNumber, proposal }] }) });
+      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviewToken: batch.reviewToken, rows: [{ rowNumber: row.rowNumber, proposal }] }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || t("Could not save row decision"));
       setBatch(result.data);
@@ -72,7 +74,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     if (!batch) return;
     setBusy(true);
     try {
-      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: [{ rowNumber: row.rowNumber, skip: true }] }) });
+      const response = await fetch(batchUrl(batch.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviewToken: batch.reviewToken, rows: [{ rowNumber: row.rowNumber, skip: true }] }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || t("Could not save row decision"));
       setBatch(result.data);
@@ -83,7 +85,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     if (!batch || batch.summary.accepted < 1) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/students?campusId=" + encodeURIComponent(batch.campusId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _importBatchId: batch.id }) });
+      const response = await fetch("/api/students?campusId=" + encodeURIComponent(batch.campusId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _importBatchId: batch.id, _reviewToken: batch.reviewToken }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || t("Import failed"));
       const receipt = result.receipt || null;

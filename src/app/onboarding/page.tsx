@@ -483,7 +483,7 @@ export default function OnboardingWizard() {
       if (res.success) {
         recovery.markSaved();
         toast.success("Setup complete! Opening your dashboard...");
-        router.push(dashboardPathForRole(res.role));
+        router.push("/ai?setup=1");
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Setup failed");

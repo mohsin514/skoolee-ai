@@ -4,6 +4,7 @@ import type { PermissionModule } from "@/lib/permissions";
 export function moduleForHref(href?: string): PermissionModule | null {
   const path = href?.split(/[?#]/)[0];
   if (!path) return null;
+  if (path === '/ai') return 'ai';
   const segments = path.split('/').filter(Boolean);
   if (segments.length < 2) return null;
   const leaf = segments[1];

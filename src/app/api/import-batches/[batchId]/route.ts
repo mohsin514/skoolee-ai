@@ -5,6 +5,8 @@ import { ApiError, assertPermission, assertStaffRole, canManageOperations, error
 import { summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
 import { isoDate } from "@/lib/imports/batch";
 import { studentSchema } from "@/lib/validators/schemas";
+import { importReviewToken } from "@/lib/imports/review-token";
+import { assertRosterPermission } from "@/lib/imports/roster-access";
 
 type RouteContext = { params: Promise<{ batchId: string }> };
 type Batch = NonNullable<Awaited<ReturnType<typeof findBatch>>>;
@@ -49,6 +51,7 @@ function response(batch: Batch) {
     summary: batch.receipt ? receiptCounts(batch.receipt) : data.summary && typeof data.summary === "object" ? data.summary : summarizeImportRows(rows),
     rows: batch.state === "STAGED" ? rows : undefined,
     receipt: batch.receipt,
+    reviewToken: importReviewToken(batch),
   };
 }
 
@@ -60,7 +63,8 @@ async function authorizedBatch(id: string, request: NextRequest, action: "view" 
   if (!batch) throw new ApiError("Import batch not found", 404);
   if (batch.kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
   if (action !== "view" && batch.kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-  await assertPermission(user, batch.kind === "STUDENT_ROSTER" ? "students" : "fees", action);
+  if (batch.kind === "STUDENT_ROSTER") await assertRosterPermission(user, action);
+  else await assertPermission(user, "fees", action);
   return { user, batch };
 }
 
@@ -71,8 +75,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (batch.state === "STAGED" && batch.expiresAt <= new Date()) {
       const rows = rowsFrom(batch);
       const receipt = { summary: summarizeImportRows(rows), expiredAt: new Date().toISOString() };
-      const expired = await prisma.importBatch.update({ where: { id: batch.id }, data: { state: "EXPIRED", data: { rows: [], metadata: {} }, receipt } });
-      return Response.json({ success: true, data: response(expired) });
+      await prisma.importBatch.updateMany({ where: { id: batch.id, schoolId: batch.schoolId, campusId: batch.campusId, state: "STAGED", expiresAt: { lte: new Date() } }, data: { state: "EXPIRED", data: { rows: [], metadata: {} }, receipt } });
+      const current = await findBatch(batch.id, batch.schoolId, batch.campusId);
+      if (!current) throw new ApiError("Import batch not found", 404);
+      return Response.json({ success: true, data: response(current) });
     }
     return Response.json({ success: true, data: response(batch) });
   } catch (error) {
@@ -85,9 +91,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { batchId } = await context.params;
     const { batch } = await authorizedBatch(batchId, request, "add");
     if (batch.state !== "STAGED" || batch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
-    const body = await request.json() as { rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean }> };
+    const body = await request.json() as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean }> };
+    if ((batch.kind === "STUDENT_ROSTER" || body.reviewToken !== undefined) && body.reviewToken !== importReviewToken(batch)) throw new ApiError("This import changed. Review its current rows before saving.", 409);
     if (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 1000) throw new ApiError("Choose at least one row to update", 400);
     const { user } = await authorizedBatch(batchId, request, "add");
+    // Keep the database snapshot intact while editing the in-memory row objects.
+    const reviewedData = structuredClone(batch.data) as Prisma.InputJsonValue;
     const rows = rowsFrom(batch);
     const metadata = metadataFrom(batch);
     const changes = new Map<number, (typeof body.rows)[number]>();
@@ -116,7 +125,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         const proposal = parsed.data;
         const errors: string[] = [];
         if (proposal.dateOfBirth && !isoDate(proposal.dateOfBirth)) errors.push("dateOfBirth: Use a real date in YYYY-MM-DD format");
-        const targetClass = await prisma.class.findFirst({ where: { id: proposal.classId, campusId: batch.campusId, campus: { schoolId: user.schoolId } }, select: { id: true, name: true, section: true } });
+        const targetClass = await prisma.class.findFirst({ where: { id: proposal.classId, campusId: batch.campusId, campus: { schoolId: user.schoolId }, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true } });
         if (!targetClass) errors.push("classId: Class is outside the selected campus or does not exist");
         const matchKey = `class:${proposal.classId}/roll:${proposal.rollNo}`;
         const existing = await prisma.student.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, archivedAt: null, rollNo: { equals: proposal.rollNo, mode: "insensitive" } }, select: { id: true, classId: true, fullName: true } });
@@ -179,7 +188,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
-    const updated = await prisma.importBatch.update({ where: { id: batch.id }, data: { data: { rows, metadata, summary: summarizeImportRows(rows) } as Prisma.InputJsonValue } });
+    const changed = await prisma.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: "STAGED", expiresAt: { gt: new Date() }, data: { equals: reviewedData } }, data: { data: { rows, metadata, summary: summarizeImportRows(rows) } as Prisma.InputJsonValue } });
+    if (changed.count !== 1) throw new ApiError("This import changed during your edit. Review its current rows before saving.", 409);
+    const updated = await findBatch(batch.id, user.schoolId, batch.campusId);
+    if (!updated) throw new ApiError("Import batch not found", 404);
     return Response.json({ success: true, data: response(updated) });
   } catch (error) {
     return errorResponse(error, "[import-batches] PATCH failed");
@@ -200,7 +212,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!selected.length || rows.some((row) => row.state === "UNRESOLVED" && row.selected)) throw new ApiError("Select at least one validated row and resolve selected conflicts", 400);
       const metadata = metadataFrom(batch);
       const result = await prisma.$transaction(async (tx) => {
-        const locked = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: "STAGED", expiresAt: { gt: new Date() } }, data: { state: "COMMITTING" } });
+        const locked = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: "STAGED", expiresAt: { gt: new Date() }, data: { equals: batch.data as Prisma.InputJsonValue } }, data: { state: "COMMITTING" } });
         if (locked.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
         const matched = selected.filter((row) => row.proposal?.matchedInvoiceId);
         const unmatched = selected.filter((row) => !row.proposal?.matchedInvoiceId);

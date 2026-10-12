@@ -11,11 +11,7 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import {
-  detectTeacherClashes,
-  syncTimetableSlotsForSubjects,
-  type TimetableClash,
-} from "@/lib/api/timetable-sync";
+import { updateClassWithTeacherAssignment } from "@/lib/api/teacher-assignments";
 
 async function assertTeacherInCampus(teacherId: string | null | undefined, campusId: string, schoolId: string) {
   if (!teacherId) return null;
@@ -195,70 +191,7 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ success: true, restored: true });
     }
 
-    const existing = await prisma.class.findFirst({
-      where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-      select: { id: true, campusId: true, classTeacherId: true, teachingMode: true },
-    });
-    if (!existing) throw new ApiError("Class not found", 404);
-
-    const data: any = {};
-    if (body.name !== undefined) data.name = String(body.name).trim();
-    if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
-    if (body.academicYear !== undefined) data.academicYear = Number(body.academicYear);
-    if (body.classTeacherId !== undefined || body.teacherId !== undefined) {
-      data.classTeacherId = await assertTeacherInCampus(body.classTeacherId || body.teacherId, existing.campusId, user.schoolId);
-    }
-    if (body.teachingMode !== undefined) {
-      const mode = String(body.teachingMode).toUpperCase();
-      if (mode !== "SINGLE" && mode !== "SUBJECT") {
-        throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
-      }
-      data.teachingMode = mode;
-    }
-
-    const cls = await prisma.class.update({
-      where: { id },
-      data,
-      include: {
-        classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-        _count: { select: { students: true, subjects: true } },
-      },
-    });
-
-    // In SINGLE mode the class teacher owns every subject, so keep subjects in
-    // lockstep — but ONLY when the class teacher is actually (re)assigned.
-    // Merely toggling the teachingMode flag must stay lightweight and
-    // non-destructive: overwriting every subject on a mode switch used to wipe
-    // individually-assigned per-subject teachers (and, with no class teacher
-    // set, null them all out). The flag alone is enough — the UI presents
-    // SINGLE as "the class teacher teaches everything" regardless of what each
-    // subject row currently stores.
-    const effectiveMode = data.teachingMode ?? existing.teachingMode;
-    const teacherChanged = data.classTeacherId !== undefined && data.classTeacherId !== existing.classTeacherId;
-    let clashes: TimetableClash[] = [];
-    if (effectiveMode === "SINGLE" && teacherChanged) {
-      await prisma.subject.updateMany({
-        where: { classId: id },
-        data: { teacherId: cls.classTeacherId },
-      });
-      // Move the timetable with the assignment, then surface any resulting
-      // double-booking so the admin finds out here rather than on the day.
-      const affected = await prisma.subject.findMany({ where: { classId: id }, select: { id: true } });
-      await syncTimetableSlotsForSubjects(affected.map((s) => s.id), cls.classTeacherId);
-      clashes = await detectTeacherClashes(cls.classTeacherId);
-    }
-
-    if (body.classTeacherId !== undefined || body.teacherId !== undefined) {
-      await prisma.auditLog.create({
-        data: {
-          tableName: 'class',
-          recordId: id,
-          oldValue: { classTeacherId: existing.classTeacherId },
-          newValue: { classTeacherId: cls.classTeacher?.id || null },
-          userId: user.userId,
-        }
-      });
-    }
+    const { existing, cls, clashes } = await updateClassWithTeacherAssignment(user, body);
 
     notify("CLASS_UPDATED", {
       schoolId: user.schoolId,
