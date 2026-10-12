@@ -3,6 +3,8 @@ import { curriculumDataSchema, paperDataSchema } from "./assessment";
 import { academicSetupProposalSchema } from "./academic-setup";
 import { timetableSetupProposalSchema } from "./timetable-setup";
 import { announcementProposalSchema } from "./announcements";
+import { examSessionPlanProposalSchema } from "./exam-session-plan";
+import { feeInvoiceProposalSchema } from "./fee-invoices";
 
 export const workspaceKindSchema = z.enum(["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY"]);
 export const workspaceStatusSchema = z.enum(["DRAFT", "IN_REVIEW", "APPROVED", "ARCHIVED"]);
@@ -49,7 +51,7 @@ export const workflowDataSchema = z.strictObject({
   missingInformation: z.array(z.string().max(1000)).max(50),
   subjectId: workspaceIdSchema.optional(),
   classId: workspaceIdSchema.optional(),
-  proposal: z.union([academicSetupProposalSchema, timetableSetupProposalSchema, announcementProposalSchema]).optional(),
+  proposal: z.union([academicSetupProposalSchema, timetableSetupProposalSchema, announcementProposalSchema, examSessionPlanProposalSchema, feeInvoiceProposalSchema]).optional(),
 }).superRefine((value, ctx) => {
   if (new Set(value.steps.map((step) => step.id)).size !== value.steps.length) ctx.addIssue({ code: "custom", path: ["steps"], message: "Workflow step IDs must be unique." });
   if (Boolean(value.subjectId) !== Boolean(value.classId)) ctx.addIssue({ code: "custom", path: ["subjectId"], message: "Choose both the subject and its class." });

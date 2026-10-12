@@ -12,14 +12,13 @@ import { schoolAICopy } from "@/lib/school-ai/copy";
 import { readSetupDraft, setupReadiness, type SetupDraft, type SetupAnswers } from "@/lib/school-ai/onboarding";
 import type { AiWorkspaceRecord, SourceData, WorkspaceCapabilities } from "@/lib/school-ai/types";
 import { moduleWorkspaceHref } from "@/lib/school-ai/navigation";
-import { boundedAssistantHistory } from "@/lib/school-ai/assistant-context";
 import { AssessmentStudio } from "./assessment-studio";
 import { AcademicSetupPanel, isAcademicSetupPlan } from "./academic-setup-panel";
 import { TimetableSetupPanel, isTimetableSetupPlan } from "./timetable-setup-panel";
 import { RevisionHistoryPanel } from "./revision-history";
 import { AnnouncementPanel, isAnnouncementPlan } from "./announcement-panel";
 import { GuidedSetup } from "./guided-setup";
-import { MultimodalComposer } from "./multimodal-composer";
+import { PrivateAssistant } from "./private-assistant";
 import { SourceLibrary } from "./source-library";
 import { PolicyPanel, WorkPanel } from "./planning-panels";
 import { UNCONFIGURED_CAPABILITIES, workspaceRequest, type AIFeatureCapabilities, type RecordAction, type SaveRecord } from "./workspace-client";
@@ -58,20 +57,12 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const [selectedCampus, setSelectedCampus] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [message, setMessage] = useState("");
-  const [conversation, setConversation] = useState<{ id: string; role: "user" | "assistant"; text: string }[]>([]);
-  const [asking, setAsking] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
   const mounted = useRef(true);
   const setupRequested = useRef(false);
   const setupCreateKey = useRef<string | null>(null);
   const scopeInitialized = useRef(false);
-  const scopeEpoch = useRef(0);
-  const assistantAbort = useRef<AbortController | null>(null);
   const requestSequence = useRef(0);
-  const assistantRequest = useRef<{ fingerprint: string; key: string; failed: boolean } | null>(null);
-  const conversationRef = useRef<HTMLDivElement>(null);
   const role = capabilities?.role || initialRole || "";
   const manager = ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(role);
   const subjects = capabilities?.subjects || [];
@@ -82,7 +73,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const needsCampus = manager && !campusId;
   const canCreate = Boolean(capabilities?.canCreate && !needsSubject && !needsCampus);
   const visibleRecords = records.filter(record => !needsCampus && record.campusId === campusId && (!needsSubject && (role !== "TEACHER" || record.data.subjectId === subject?.id && record.data.classId === subject?.classId)));
-  useWorkspaceDraft(Boolean(message.trim()) || asking || uploading || voiceBusy);
+  useWorkspaceDraft(uploading);
   const hasKind = (kind: AiWorkspaceRecord["kind"]) => capabilities?.kinds.includes(kind) ?? false;
   const putRecord = useCallback((record: AiWorkspaceRecord) => setRecords(previous => [record, ...previous.filter(item => item.id !== record.id)]), []);
   const refresh = useCallback(async () => {
@@ -102,7 +93,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     void workspaceRequest<AIFeatureCapabilities | { capabilities: AIFeatureCapabilities }>("/api/school-ai/capabilities", { signal: abort.signal }).then(result => {
       if (mounted.current) { setFeatures({ ...UNCONFIGURED_CAPABILITIES, ...("capabilities" in result ? result.capabilities : result) }); setFeatureStatusKnown(true); }
     }).catch(() => { if (mounted.current) setFeatures(UNCONFIGURED_CAPABILITIES); });
-    return () => { mounted.current = false; abort.abort(); assistantAbort.current?.abort(); };
+    return () => { mounted.current = false; abort.abort(); };
   }, [refresh]);
   useEffect(() => {
     if (!capabilities || setupRequested.current || needsCampus) return;
@@ -111,7 +102,6 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
       setSetupRecord(records.find(record => record.kind === "ONBOARDING" && record.status !== "ARCHIVED" && record.campusId === campusId)); setSetup(true);
     }
   }, [capabilities, records, campusId, needsCampus]);
-  useEffect(() => { conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: "instant" }); }, [conversation.length]);
   const saveRecord: SaveRecord = async (kind, title, data, existing, idempotencyKey) => {
     const result = await workspaceRequest<{ record: AiWorkspaceRecord }>(existing ? `/api/school-ai/workspace/${encodeURIComponent(existing.id)}` : "/api/school-ai/workspace", {
       method: existing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
@@ -139,30 +129,8 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     } catch (error) { if (mounted.current) setError(error instanceof Error && error.message === "unavailable" ? "serviceUnavailable" : "failed"); throw error; }
     finally { if (mounted.current) setUploading(false); }
   };
-  const ask = async () => {
-    if (!message.trim() || asking || !canCreate) return;
-    if (!features.assistant) { setError("serviceUnavailable"); return; }
-    setAsking(true); setError("");
-    const text = message.trim();
-    const history = boundedAssistantHistory(conversation);
-    const fingerprint = JSON.stringify({ text, language, campusId, scope, history });
-    const epoch = scopeEpoch.current;
-    const controller = new AbortController(); assistantAbort.current = controller;
-    if (assistantRequest.current?.fingerprint !== fingerprint) assistantRequest.current = { fingerprint, key: crypto.randomUUID(), failed: false };
-    try {
-      const result = await workspaceRequest<{ reply: string; record?: AiWorkspaceRecord }>("/api/school-ai/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ message: text, language, campusId, ...scope, history, idempotencyKey: assistantRequest.current.key, retryFailed: assistantRequest.current.failed }) });
-      if (!mounted.current || controller.signal.aborted || scopeEpoch.current !== epoch) return;
-      setConversation(previous => [...previous, { id: crypto.randomUUID(), role: "user", text }, { id: crypto.randomUUID(), role: "assistant", text: result.reply }]);
-      setMessage(""); assistantRequest.current = null; if (result.record) putRecord(result.record);
-    } catch (error) { if (!controller.signal.aborted && scopeEpoch.current === epoch) { if (assistantRequest.current?.fingerprint === fingerprint) assistantRequest.current.failed = true; if (mounted.current) setError(error instanceof Error && error.message === "unavailable" ? "serviceUnavailable" : "failed"); } }
-    finally { if (mounted.current && scopeEpoch.current === epoch) setAsking(false); }
-  };
-  const clearComposer = () => {
-    assistantAbort.current?.abort(); assistantAbort.current = null; scopeEpoch.current += 1;
-    setMessage(""); setAsking(false); setVoiceBusy(false); assistantRequest.current = null;
-  };
   const changeScope = (next: () => void) => guard(() => {
-    clearComposer(); setConversation([]); setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); next();
+    setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); next();
   });
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
@@ -170,7 +138,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     try { const result = await workspaceRequest<WorkspaceResponse>(`/api/school-ai/workspace?cursor=${encodeURIComponent(nextCursor)}`); setRecords(previous => [...previous, ...result.records.filter(item => !previous.some(record => record.id === item.id))]); setNextCursor(result.nextCursor || null); }
     catch { setError("failed"); } finally { setLoadingMore(false); }
   };
-  const beginSetup = () => guard(() => { clearComposer(); setSetupRecord(visibleRecords.find(record => record.kind === "ONBOARDING" && record.status !== "ARCHIVED")); setSetup(true); setError(""); setNotice(""); });
+  const beginSetup = () => guard(() => { setSetupRecord(visibleRecords.find(record => record.kind === "ONBOARDING" && record.status !== "ARCHIVED")); setSetup(true); setError(""); setNotice(""); });
   const saveSetup = async (draft: SetupDraft, existing?: AiWorkspaceRecord) => {
     if (!setupCreateKey.current) setupCreateKey.current = crypto.randomUUID();
     const record = await saveRecord("ONBOARDING", draft.answers.schoolName || c.setupTitle, { ...draft }, existing, setupCreateKey.current);
@@ -203,17 +171,16 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     <header className={styles.hero}><p className={styles.eyebrow}>{c.eyebrow}</p><h1 className={styles.heroTitle}>{c.headline}</h1><p className={styles.heroDescription}>{c.introduction}</p>{hasKind("ONBOARDING") && <Button className="mt-6" disabled={needsCampus} onClick={beginSetup}><Sparkles aria-hidden="true" />{onboarding ? c.resumeSetup : c.startSetup}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>}</header>
     {manager && <section className="sk-panel mt-5 p-5"><FormField name="ai-campus-scope" label={c.workspaceCampus} hint={c.workspaceCampusHint}><Select value={selectedCampus} onChange={event => { const value = event.target.value; if (value !== selectedCampus) changeScope(() => setSelectedCampus(value)); }}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField>{needsCampus && <p className="mt-3 text-sm text-ink-muted">{c.selectCampusToStart}</p>}</section>}
     {role === "TEACHER" && <section className="sk-panel mt-5 p-5"><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
-    <nav className={styles.tabs} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} variant={tab === id ? "secondary" : "ghost"} aria-pressed={tab === id} className={styles.tab} onClick={() => { if (tab !== id) guard(() => { clearComposer(); setTab(id); setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setError(""); setNotice(""); }); }}><Icon aria-hidden="true" />{c[id]}</Button>)}</nav>
+    <nav className={styles.tabs} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} variant={tab === id ? "secondary" : "ghost"} aria-pressed={tab === id} className={styles.tab} onClick={() => { if (tab !== id) guard(() => { setTab(id); setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setError(""); setNotice(""); }); }}><Icon aria-hidden="true" />{c[id]}</Button>)}</nav>
     {hasKind("PAPER") && <div className="mb-5"><Link className={buttonVariants({ variant: "outline" })} href="/ai/exams"><BookOpen aria-hidden="true" />{c.exams}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link></div>}
     {error && <div className="mb-5"><TaskFeedback kind="error" title={c[error as "failed" | "serviceUnavailable" | "uploadInvalid"] || c.failed} action={<Button variant="outline" onClick={() => guard(() => void refresh())}><RefreshCw aria-hidden="true" />{c.reload}</Button>} /></div>}
     {notice && <p role="status" className={`${styles.notice} mb-5`}><CheckCircle2 className="mt-1 size-4 shrink-0" aria-hidden="true" />{notice}</p>}
     {tab === "overview" && <>
       {nextCursor && <p className="text-xs text-ink-muted">{c.loadedRecords}</p>}
       <div className={styles.metrics}>{[{ label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length }, { label: c.reviewCount, count: active.filter(record => record.status === "IN_REVIEW").length }, { label: c.approvedSources, count: active.filter(record => record.kind === "SOURCE" && record.status === "APPROVED").length }].map(metric => <div className={`sk-panel ${styles.metric}`} key={metric.label}><span className={styles.metricNumber}>{new Intl.NumberFormat(language).format(metric.count)}</span><span className={styles.metricLabel}>{metric.label}</span></div>)}</div>
-      <div className={styles.columns}><section className={`sk-panel ${styles.panel}`}><div className="mb-2 flex items-center gap-2"><Sparkles className="size-5 text-primary" aria-hidden="true" /><h2 className={styles.sectionTitle}>{c.ask}</h2></div><p className={styles.description}>{c.askHint}</p>
-        {!features.assistant && <p className={`${styles.notice} mb-5`}>{c.serviceUnavailable}</p>}
-        {!!conversation.length && <div ref={conversationRef} className={styles.conversation} role="log" aria-label={c.ask} aria-live="polite">{conversation.map(item => <div key={item.id} className={`${styles.message} ${item.role === "user" ? styles.userMessage : styles.assistantMessage}`}>{item.text}</div>)}</div>}
-        <MultimodalComposer key={`${campusId || "none"}:${selectedSubject}`} language={language} value={message} onChange={setMessage} onSubmit={ask} onUpload={upload} voiceAvailable={features.voiceTranscription} disabled={!canCreate || uploading} busy={asking} onActivityChange={setVoiceBusy} /><p className="mt-3 text-xs leading-relaxed text-ink-muted">{c.sessionConversationHint}</p>
+      <div className={styles.columns}><section className={`sk-panel ${styles.panel}`}>
+        {!needsCampus && !needsSubject && <PrivateAssistant language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord} />}
+        {(needsCampus || needsSubject) && <p className={styles.description}>{needsCampus ? c.selectCampusToStart : c.selectSubjectHint}</p>}
       </section><aside className="space-y-5"><section className={`sk-panel ${styles.panel}`}><h2 className={styles.sectionTitle}>{c.readiness}</h2>{onboarding ? setupReadiness(setupAnswers).map(group => <div className={styles.recordRow} key={group.label}><span className="text-sm font-semibold">{c[group.label]}</span><TaskStatus attention={Boolean(group.missing.length)}>{group.missing.length ? c.needsInformation : c.readyDraft}</TaskStatus></div>) : <><p className={styles.description}>{hasKind("ONBOARDING") ? c.setupHint : c.setupRestricted}</p>{hasKind("ONBOARDING") && <Button variant="outline" disabled={needsCampus} onClick={beginSetup}>{c.startSetup}</Button>}</>}</section>
         <section className={`sk-panel ${styles.panel}`}><h2 className="mb-3 font-bold">{c.capabilities}</h2>{(Object.keys(UNCONFIGURED_CAPABILITIES) as (keyof AIFeatureCapabilities)[]).map(key => <div className={styles.recordRow} key={key}><span className="text-xs font-semibold">{c[key]}</span><span className={`text-xs ${features[key] ? "text-primary" : "text-ink-muted"}`}>{!featureStatusKnown ? c.capabilityUnknown : features[key] ? c.configured : key === "secureBrowser" || key === "proctoring" ? c.notAvailable : c.notConfigured}</span></div>)}</section>
       </aside></div>

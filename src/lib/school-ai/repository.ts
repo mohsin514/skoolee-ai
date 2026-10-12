@@ -205,37 +205,39 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
   });
 }
 
+/** Reuses the same version/approval boundary inside a larger atomic domain transaction. */
+export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput, tx: TxClient, snapshot?: WorkspacePermissionSnapshot): Promise<AiWorkspaceRecord> {
+  const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user, tx);
+  await assertSchoolAiAccess(user, "view", permissions);
+  const input = updateWorkspaceSchema.parse(rawInput);
+  const current = await scopedRecord(user, id, "write", tx, permissions);
+  const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
+  const action = input.action;
+  if (action === "approve") assertApprovalRole(user);
+  await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
+  const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current)) : input.data ?? dataOf(current);
+  const data = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
+  await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
+  const subject = await assertWorkspaceSubject(user, current.campusId, data, tx);
+  await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);
+  if (action === "approve" || action === "review") {
+    const issues = await approvalIssues(user, current, tx, permissions);
+    if (issues.length) throw new SchoolAiError(issues.slice(0, 15).join(" "), 422);
+  }
+  const updated = await tx.schoolAiRecord.updateMany({
+    where: { id, schoolId: user.schoolId, campusId: current.campusId, version: input.version, status: current.status },
+    data: { title: input.title ?? current.title, data: json(data), ...subject, status, version: { increment: 1 }, updatedById: user.userId, approvedById: action === "approve" ? user.userId : null, approvedAt: action === "approve" ? new Date() : null },
+  });
+  if (updated.count !== 1) throw new SchoolAiError("This item changed during review. Reload and review the current version.", 409);
+  const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id, schoolId: user.schoolId } });
+  await revision(tx, record, user, action.toUpperCase() as WorkspaceRevision["action"]);
+  return publicRecord(record);
+}
+
 export async function updateWorkspaceRecord(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput): Promise<AiWorkspaceRecord> {
   return withContext(user, async () => {
-    try {
-      const permissions = await loadWorkspacePermissionSnapshot(user);
-      await assertSchoolAiAccess(user, "view", permissions);
-      const input = updateWorkspaceSchema.parse(rawInput);
-      return await transaction(user, async (tx) => {
-        const current = await scopedRecord(user, id, "write", tx, permissions);
-        const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
-        const action = input.action;
-        if (action === "approve") assertApprovalRole(user);
-        await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
-        const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current)) : input.data ?? dataOf(current);
-        const data = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
-        await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
-        const subject = await assertWorkspaceSubject(user, current.campusId, data, tx);
-        await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);
-        if (action === "approve" || action === "review") {
-          const issues = await approvalIssues(user, current, tx, permissions);
-          if (issues.length) throw new SchoolAiError(issues.slice(0, 15).join(" "), 422);
-        }
-        const updated = await tx.schoolAiRecord.updateMany({
-          where: { id, schoolId: user.schoolId, campusId: current.campusId, version: input.version, status: current.status },
-          data: { title: input.title ?? current.title, data: json(data), ...subject, status, version: { increment: 1 }, updatedById: user.userId, approvedById: action === "approve" ? user.userId : null, approvedAt: action === "approve" ? new Date() : null },
-        });
-        if (updated.count !== 1) throw new SchoolAiError("This item changed during review. Reload and review the current version.", 409);
-        const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id, schoolId: user.schoolId } });
-        await revision(tx, record, user, action.toUpperCase() as WorkspaceRevision["action"]);
-        return publicRecord(record);
-      });
-    } catch (error) { return translateDatabaseError(error); }
+    try { return await transaction(user, tx => updateWorkspaceRecordInTransaction(user, id, rawInput, tx)); }
+    catch (error) { return translateDatabaseError(error); }
   });
 }
 

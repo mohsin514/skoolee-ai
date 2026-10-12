@@ -1,3 +1,5 @@
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
+import { ApiError } from "@/lib/api/scope";
 import { reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
@@ -24,10 +26,10 @@ import {
  */
 function permissionAwareError(error: unknown) {
   const status = (error as { status?: number })?.status;
-  if (status === 403) {
+  if (typeof status === "number" && status >= 400 && status < 500) {
     return Response.json(
       { error: (error as Error).message || "Insufficient permissions" },
-      { status: 403 },
+      { status },
     );
   }
   return Response.json({ error: "Operation failed" }, { status: 500 });
@@ -163,6 +165,9 @@ export async function POST(req: NextRequest) {
 
     if (!cls) return Response.json({ error: "Class not found" }, { status: 404 });
 
+    const result = await withExamSchedulingWrite(user, cls.campusId, "add", async (prisma) => {
+    const currentClass = await prisma.class.findFirst({ where: { id: cls.id, schoolId: user.schoolId, campusId: cls.campusId, status: "ACTIVE", archivedAt: null, academicYear: parsed.data.academicYear } });
+    if (!currentClass) throw new ApiError("Class is not active in this academic year.", 409);
     // If teacher, verify they are assigned to this class
     if (user.role === "TEACHER") {
       const isAssigned = await prisma.subject.findFirst({
@@ -192,6 +197,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (["MID_TERM", "FINAL"].includes(examType)) {
+      const duplicate = await prisma.exam.findFirst({ where: { schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, academicYear: parsed.data.academicYear, examType, term: { equals: parsed.data.term, mode: "insensitive" } } });
+      if (duplicate) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
+    }
     const subjectFilter = parsed.data.subjectId
       ? { id: parsed.data.subjectId }
       : {};
@@ -206,7 +215,7 @@ export async function POST(req: NextRequest) {
       classId: parsed.data.classId,
       academicYear: parsed.data.academicYear,
       term: parsed.data.term,
-    });
+    }, prisma);
 
     // If a specific subject is selected, verify it belongs to the class
     if (parsed.data.subjectId && subjects.length === 0) {
@@ -233,6 +242,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    return exam;
+    }, true);
+    if (result instanceof Response) return result;
+    const exam = result;
     notify("EXAM_CREATED", {
       schoolId: user.schoolId,
       campusId: cls.campusId,

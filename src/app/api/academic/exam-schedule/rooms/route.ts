@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import {
   assertPermission,
@@ -48,8 +49,10 @@ export async function PUT(req: NextRequest) {
     }
 
     const campusId = await resolveCampusId(user, body.campusId);
-    const plan = await allocateExamRooms({ campusId, scheduleId, roomIds });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
+    const plan = await allocateExamRooms({ db: prisma, campusId, scheduleId, roomIds });
     return Response.json({ success: true, data: plan });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/rooms] PUT failed");
   }

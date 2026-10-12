@@ -1,8 +1,8 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
-import { resolveStudentFees } from "@/lib/fees/compute";
 import {
   ApiError,
   canManageOperations,
@@ -31,17 +31,16 @@ export async function POST(req: NextRequest) {
     }
 
     const campusId = await resolveCampusId(user, body.campusId);
-    const [year, month] = parsed.data.generationMonth.split("-").map(Number);
-    const dueDate = new Date(year, month, 0);
+    const { start: invoiceDate, end: nextMonth } = invoiceMonthDates(parsed.data.generationMonth);
+    const year = invoiceDate.getUTCFullYear();
+    const dueDate = new Date(nextMonth.getTime() - 86400000);
+    const committed = await invoiceGenerationTransaction(user, campusId, async tx => {
 
-    const invoiceDate = new Date(year, month - 1, 1);
+    const classWhere = { campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) };
 
-    const classWhere: any = { campusId };
-    if (parsed.data.classId) classWhere.id = parsed.data.classId;
-
-    const students = await prisma.student.findMany({
+    const students = await tx.student.findMany({
       where: {
-        campusId,
+        schoolId: user.schoolId, campusId, archivedAt: null,
         status: "active",
         class: classWhere,
       },
@@ -50,8 +49,8 @@ export async function POST(req: NextRequest) {
         invoices: {
           where: {
             invoiceDate: {
-              gte: new Date(year, month - 1, 1),
-              lt: new Date(year, month, 1),
+              gte: invoiceDate,
+              lt: nextMonth,
             },
           },
           select: { id: true },
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const feeStructures = await prisma.feeStructure.findMany({
+    const feeStructures = await tx.feeStructure.findMany({
       where: {
         campusId,
         activeFrom: { lte: dueDate },
@@ -85,8 +84,8 @@ export async function POST(req: NextRequest) {
 
     const feeMap = new Map(feeStructures.map((fs) => [fs.classId, fs]));
 
-    const maxSeq = await prisma.invoice.findFirst({
-      where: { campusId },
+    const maxSeq = await tx.invoice.findFirst({
+      where: { campusId, invoiceNumber: { startsWith: generateInvoiceNumber(campusId, year, 0).slice(0, -5) } },
       orderBy: { invoiceNumber: "desc" },
       select: { invoiceNumber: true },
     });
@@ -98,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     for (const student of students) {
       // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)
-      const assignment = await prisma.feeGroupAssignment.findFirst({
+      const assignment = await tx.feeGroupAssignment.findFirst({
         where: { campusId, classId: student.classId, academicYear: year },
         include: {
           feeGroup: {
@@ -121,19 +120,19 @@ export async function POST(req: NextRequest) {
         currency = assignment.feeGroup.currency;
         const lines = assignment.feeGroup.lines.map((line) => ({
           id: line.id,
-          typeName: line.feeType.name,
-          typeCode: line.feeType.code,
+          name: line.feeType.name,
+          code: line.feeType.code,
           amount: line.amount,
-          dueDate: line.dueDate,
+          dueDate: line.dueDate?.toISOString().slice(0, 10) ?? null,
         }));
 
         const categoryDiscounts = student.categoryId
-          ? await prisma.feeDiscount.findMany({
+          ? await tx.feeDiscount.findMany({
               where: { campusId, categoryId: student.categoryId },
               select: { id: true, name: true, code: true, type: true, value: true, currency: true },
             })
           : [];
-        const explicitAssignments = await prisma.feeDiscountAssignment.findMany({
+        const explicitAssignments = await tx.feeDiscountAssignment.findMany({
           where: { studentId: student.id },
           include: { discount: { select: { id: true, name: true, code: true, type: true, value: true, currency: true } } },
         });
@@ -145,21 +144,21 @@ export async function POST(req: NextRequest) {
             .map((a) => ({ ...a.discount, type: a.discount.type as "PERCENT" | "FLAT", source: "EXPLICIT" as const })),
         ];
 
-        const carryForward = await prisma.feeCarryForward.findUnique({
+        const carryForward = await tx.feeCarryForward.findUnique({
           where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: year } },
         });
 
         if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carryForward && carryForward.balance !== 0 && carryForward.currency !== currency)) {
           results.push({ studentId: student.id, status: "error", error: "Currencies cannot be combined. Review the discount or carry-forward." }); continue;
         }
-        const resolved = resolveStudentFees(lines, discounts, carryForward?.balance ?? 0);
-
-        const monthlyLine = assignment.feeGroup.lines.find((l) => l.feeType.code === "MONTHLY_TUITION");
-        monthlyFee = monthlyLine?.amount ?? 0;
-        oneTimeTotal = Math.max(0, resolved.subtotal - monthlyFee);
-        subtotal = resolved.subtotal;
-        discountAmount = resolved.totalDiscount;
-        taxAmount = 0;
+        if (carryForward?.balance) { results.push({ studentId: student.id, status: "error", error: "Review carry-forward allocation before generating another invoice." }); continue; }
+        try {
+          const resolved = calculateInvoiceAmounts(lines, discounts, currency);
+          monthlyFee = resolved.monthlyFee;
+          oneTimeTotal = resolved.oneTimeFees;
+          subtotal = resolved.subtotal;
+          discountAmount = resolved.discountAmount;
+        } catch { results.push({ studentId: student.id, status: "error", error: "Review fee and discount amounts." }); continue; }
       } else {
         // 2. Legacy fallback: feeStructure per class
         const feeStructure = feeMap.get(student.classId);
@@ -185,7 +184,7 @@ export async function POST(req: NextRequest) {
           : 0;
 
         if (parsed.data.includeLateFees) {
-          const prevInvoice = await prisma.invoice.findFirst({
+          const prevInvoice = await tx.invoice.findFirst({
             where: { studentId: student.id, status: { in: ["PENDING", "OVERDUE"] } },
             orderBy: { dueDate: "desc" },
           });
@@ -206,9 +205,10 @@ export async function POST(req: NextRequest) {
       }
 
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
+      if ([monthlyFee, oneTimeTotal, subtotal, discountAmount, lateFeeAmount, taxAmount, totalAmount].some(value => !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR) || discountAmount > subtotal) { results.push({ studentId: student.id, status: "error", error: "Review fee, discount and tax amounts." }); continue; }
 
-      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
-      const invoice = await prisma.invoice.create({
+      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
+      await tx.invoice.create({
         data: {
           campusId,
           studentId: student.id,
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
       results.push({ studentId: student.id, status: "generated" });
     }
 
-    await prisma.auditLog.create({
+    await tx.auditLog.create({
       data: {
         tableName: "invoice",
         recordId: `batch-${parsed.data.generationMonth}`,
@@ -245,13 +245,16 @@ export async function POST(req: NextRequest) {
     const generated = results.filter((r) => r.status === "generated").length;
     const errors = results.filter((r) => r.error);
 
+    return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
+    });
+    const { generated, errors } = committed;
     notify("INVOICES_GENERATED", {
       schoolId: user.schoolId,
       campusId,
       actorId: user.userId,
       actorName: user.fullName,
       count: generated,
-      className: students[0]?.class?.name,
+      className: committed.className,
     });
 
     return Response.json(
@@ -259,7 +262,7 @@ export async function POST(req: NextRequest) {
         success: true,
         jobId: `invoice-gen-${parsed.data.generationMonth}`,
         status: "completed",
-        totalStudents: students.length,
+        totalStudents: committed.totalStudents,
         generated,
         errors,
         message: `Generated ${generated} invoices for ${parsed.data.generationMonth}`,

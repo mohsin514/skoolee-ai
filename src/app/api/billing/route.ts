@@ -1,3 +1,5 @@
+import { invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { recordPayment } from "@/lib/fees/payment";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
@@ -127,70 +129,36 @@ export async function POST(req: NextRequest) {
       if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
       const campusId = await resolveCampusId(user, body.campusId);
-      const [year, month] = parsed.data.generationMonth.split("-").map(Number);
-      const invoiceDate = new Date(year, month - 1, 1);
-      const dueDate = new Date(year, month, 0);
-
-      const classWhere: any = { campusId };
-      if (parsed.data.classId) classWhere.id = parsed.data.classId;
-
-      const students = await prisma.student.findMany({
-        where: { campusId, status: "active", class: classWhere },
-        select: { id: true, classId: true },
+      const { start: invoiceDate, end: nextMonth } = invoiceMonthDates(parsed.data.generationMonth);
+      const dueDate = new Date(nextMonth.getTime() - 86400000);
+      const result = await invoiceGenerationTransaction(user, campusId, async tx => {
+        const students = await tx.student.findMany({
+          where: { schoolId: user.schoolId, campusId, archivedAt: null, status: "active", class: { campusId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) } },
+          select: { id: true, classId: true },
+        });
+        if (!students.length) throw new ApiError("No active students found", 404);
+        const structures = await tx.feeStructure.findMany({ where: { campusId, classId: { in: [...new Set(students.map(student => student.classId))] }, activeFrom: { lte: invoiceDate }, OR: [{ activeTo: null }, { activeTo: { gte: invoiceDate } }] }, orderBy: { activeFrom: "desc" } });
+        const existing = await tx.invoice.findMany({ where: { campusId, studentId: { in: students.map(student => student.id) }, invoiceDate: { gte: invoiceDate, lt: nextMonth } }, select: { studentId: true } });
+        const alreadyGenerated = new Set(existing.map(invoice => invoice.studentId));
+        const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
+        let created = 0;
+        for (const student of students) {
+          if (alreadyGenerated.has(student.id)) continue;
+          const structure = structures.find(item => item.classId === student.classId);
+          if (!structure) throw new ApiError("Fee structure not found for a selected class and period", 404);
+          const entries = Object.values((structure.oneTimeFeesJson as Record<string, unknown>) ?? {});
+          if (entries.some(value => typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR)) throw new ApiError("Review configured fee amounts", 422);
+          const oneTimeFees = (entries as number[]).reduce((sum, value) => sum + value, 0);
+          const subtotal = structure.monthlyFee + oneTimeFees;
+          if (![structure.monthlyFee, oneTimeFees, subtotal].every(value => Number.isSafeInteger(value) && value >= 0 && value <= MAX_INVOICE_MINOR)) throw new ApiError("Review configured fee amounts", 422);
+          await tx.invoice.create({ data: { schoolId: user.schoolId, campusId, studentId: student.id, currency: structure.currency, localeSnapshot: { ...localeSnapshot, currency: structure.currency }, monthlyFee: structure.monthlyFee, oneTimeFees, subtotal, totalAmount: subtotal, totalAmountPaid: 0, balanceDue: subtotal, invoiceDate, dueDate, status: "PENDING" } });
+          created++;
+        }
+        await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "invoices", recordId: `batch-${parsed.data.generationMonth}`, newValue: { month: parsed.data.generationMonth, created, skipped: alreadyGenerated.size } } });
+        return { created, skipped: alreadyGenerated.size, total: students.length };
       });
-      if (students.length === 0) throw new ApiError("No active students found", 404);
-
-      const feeStructure = await prisma.feeStructure.findFirst({
-        where: {
-          campusId,
-          classId: parsed.data.classId || students[0].classId,
-          activeFrom: { lte: invoiceDate },
-          AND: [{ OR: [{ activeTo: null }, { activeTo: { gte: invoiceDate } }] }],
-        },
-      });
-      if (!feeStructure) throw new ApiError("Fee structure not found for this period", 404);
-
-      const existingInvoices = await prisma.invoice.findMany({
-        where: { studentId: { in: students.map((s) => s.id) }, invoiceDate },
-        select: { studentId: true },
-      });
-      const alreadyGenerated = new Set(existingInvoices.map((inv) => inv.studentId));
-
-      const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
-      const oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
-      const subtotal = feeStructure.monthlyFee + oneTimeTotal;
-      const totalAmount = subtotal;
-
-      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate);
-      const created = await prisma.$transaction(
-        students
-          .filter((s) => !alreadyGenerated.has(s.id))
-          .map((student) =>
-            prisma.invoice.create({
-              data: {
-                campusId,
-                studentId: student.id,
-                currency: feeStructure.currency,
-                localeSnapshot,
-                monthlyFee: feeStructure.monthlyFee,
-                oneTimeFees: oneTimeTotal,
-                subtotal,
-                totalAmount,
-                totalAmountPaid: 0,
-                balanceDue: totalAmount,
-                invoiceDate,
-                dueDate,
-                status: "PENDING",
-              },
-            })
-          )
-      );
-
-      if (created.length > 0) {
-        await triggerFeeDueReminders({ schoolId: user.schoolId, campusId });
-      }
-
-      return Response.json({ success: true, created: created.length, skipped: alreadyGenerated.size, total: students.length });
+      if (result.created > 0) await triggerFeeDueReminders({ schoolId: user.schoolId, campusId });
+      return Response.json({ success: true, ...result });
     }
 
     if (action === "record-payment") {

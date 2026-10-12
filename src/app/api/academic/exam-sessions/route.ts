@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -50,9 +51,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
+    return await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
     const result = await createExamSession({
-      schoolId: user.schoolId,
+      db: prisma,      schoolId: user.schoolId,
       campusId,
       userId: user.userId,
       title: String(body.title ?? ""),
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     return Response.json({ success: true, ...result }, { status: 201 });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] POST failed");
   }
@@ -82,6 +85,7 @@ export async function PATCH(req: NextRequest) {
     if (!id) throw new ApiError("id is required", 400);
 
     const campusId = await resolveCampusId(user, body.campusId);
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const existing = await prisma.examSession.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Exam session not found", 404);
 
@@ -113,6 +117,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     return Response.json({ success: true, data: updated });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] PATCH failed");
   }
@@ -127,6 +132,7 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+    return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
 
     const session = await prisma.examSession.findFirst({
       where: { id, campusId },
@@ -154,16 +160,18 @@ export async function DELETE(req: NextRequest) {
     );
     const empty = session.exams.filter((e) => !keptIds.has(e.id));
 
-    await prisma.$transaction(async (tx) => {
+    const tx = prisma;
+    {
       if (empty.length) {
         await tx.exam.deleteMany({ where: { id: { in: empty.map((e) => e.id) } } });
       }
       await tx.examSession.delete({ where: { id } });
-    });
+    }
 
     return Response.json({
       success: true,
       data: { id, removedExams: empty.length, keptExams: keptIds.size },
+    });
     });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] DELETE failed");

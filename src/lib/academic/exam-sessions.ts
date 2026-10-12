@@ -1,7 +1,9 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity } from "@/lib/academic/room-capacity";
 import { allocateExamRooms, suggestRooms } from "@/lib/academic/exam-rooms";
+
+async function transaction<T>(db: TxClient | undefined, work: (tx: TxClient) => Promise<T>) { return db ? work(db) : prisma.$transaction(tx => work(tx as TxClient)); }
 
 /**
  * Exam sessions (§80) — scheduling for every class in one action.
@@ -80,6 +82,7 @@ function ymd(d: Date | null): string | null {
  * should add the missing class, not a second paper set for the other nineteen.
  */
 export async function createExamSession(opts: {
+  db?: TxClient;
   schoolId: string;
   campusId: string;
   userId: string;
@@ -92,6 +95,7 @@ export async function createExamSession(opts: {
   endDate: string | null;
   notes?: string | null;
 }) {
+  const db = opts.db ?? prisma;
   const { campusId, classIds } = opts;
 
   if (!(SESSION_EXAM_TYPES as readonly string[]).includes(opts.examType)) {
@@ -106,7 +110,7 @@ export async function createExamSession(opts: {
     throw new ApiError("The end date is before the start date", 400);
   }
 
-  const classes = await prisma.class.findMany({
+  const classes = await db.class.findMany({
     where: { id: { in: classIds }, campusId, status: "ACTIVE" },
     select: {
       id: true,
@@ -126,7 +130,7 @@ export async function createExamSession(opts: {
   }
 
   // Never create a second copy of an exam a class already has this term.
-  const existing = await prisma.exam.findMany({
+  const existing = await db.exam.findMany({
     where: {
       campusId,
       classId: { in: classes.map((c) => c.id) },
@@ -140,7 +144,7 @@ export async function createExamSession(opts: {
 
   const toCreate = classes.filter((c) => !alreadyHas.has(c.id) && c.subjects.length > 0);
 
-  const session = await prisma.$transaction(async (tx) => {
+  const session = await transaction(opts.db, async (tx) => {
     const created = await tx.examSession.create({
       data: {
         campusId,
@@ -289,15 +293,17 @@ export async function listSessions(campusId: string, academicYear?: number) {
  * the whole session with nothing to act on.
  */
 export async function autoSeatSession(opts: {
+  db?: TxClient;
   campusId: string;
   sessionId: string;
   /** Re-seat papers that already have rooms. Off by default: a plan an admin
    *  arranged by hand should not be silently rearranged. */
   includeSeated?: boolean;
 }) {
+  const db = opts.db ?? prisma;
   const { campusId, sessionId } = opts;
 
-  const schedules = await prisma.examSchedule.findMany({
+  const schedules = await db.examSchedule.findMany({
     where: { campusId, exam: { sessionId } },
     orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
     select: {
@@ -342,15 +348,15 @@ export async function autoSeatSession(opts: {
       continue;
     }
 
-    const headcount = await prisma.student.count({
-      where: { classId: s.exam.classId, campusId, status: "active" },
+    const headcount = await db.student.count({
+      where: { classId: s.exam.classId, campusId, status: "active", archivedAt: null },
     });
     if (headcount === 0) {
       results.push({ scheduleId: s.id, label, ok: false, message: "No active students in this class" });
       continue;
     }
 
-    const suggestion = await suggestRooms({
+    const suggestion = await suggestRooms({ db: opts.db,
       campusId,
       date: s.date.toISOString().slice(0, 10),
       periodDefinitionId: s.periodDefinitionId,
@@ -369,7 +375,7 @@ export async function autoSeatSession(opts: {
     }
 
     try {
-      await allocateExamRooms({ campusId, scheduleId: s.id, roomIds: suggestion.roomIds });
+      await allocateExamRooms({ db: opts.db, campusId, scheduleId: s.id, roomIds: suggestion.roomIds });
       results.push({
         scheduleId: s.id,
         label,
@@ -377,6 +383,8 @@ export async function autoSeatSession(opts: {
         message: `Seated ${headcount} in ${suggestion.roomIds.length} room${suggestion.roomIds.length === 1 ? "" : "s"}`,
       });
     } catch (error) {
+      // An outer transaction must roll back any earlier seating writes too.
+      if (opts.db) throw error;
       results.push({
         scheduleId: s.id,
         label,

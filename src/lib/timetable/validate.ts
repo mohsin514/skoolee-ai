@@ -1,4 +1,6 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { getExamBookingSlots } from "@/lib/academic/exam-bookings";
+import { SchoolAiError } from "@/lib/school-ai/access";
 
 /**
  * Server-side conflict engine for a class timetable.
@@ -114,13 +116,15 @@ export async function validateTimetableSlots(opts: {
   /** Reviewed setup uses the same year and overlapping annual/term schedules. */
   academicYear?: number;
   term?: string;
-}, db: Pick<TxClient, "student" | "timetableSlot" | "classRoom"> = prisma): Promise<TimetableValidation> {
+}, db: TxClient = prisma): Promise<TimetableValidation> {
   const { campusId, timetableId, classId, slots, requireComplete = false } = opts;
 
   const teaching = slots.filter((s) => (s.slotType ?? "CLASS") === "CLASS" && (s.subjectId || s.teacherId || s.roomId));
   if (teaching.length === 0) return summarise([]);
 
   const classSize = await db.student.count({ where: { classId, campusId } });
+  const cls = await db.class.findFirst({ where: { id: classId, campusId }, select: { schoolId: true } });
+  if (!cls) throw new SchoolAiError("Class not found in this campus.", 404);
 
   const teacherIds = [...new Set(teaching.map((s) => s.teacherId).filter(Boolean))] as string[];
   const roomIds = [...new Set(teaching.map((s) => s.roomId).filter(Boolean))] as string[];
@@ -175,6 +179,16 @@ export async function validateTimetableSlots(opts: {
 
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const conflicts: TimetableConflict[] = [];
+  const examBookings = await getExamBookingSlots(db, { schoolId: cls.schoolId, campusId, academicYear: opts.academicYear, term: opts.term });
+  for (const slot of teaching) for (const exam of examBookings) {
+    // CLASS and EXAM period numbers are separate namespaces; compare clocks.
+    if (slot.dayOfWeek !== exam.dayOfWeek || slot.startTime && slot.endTime && slot.startTime < slot.endTime && (slot.startTime >= exam.endTime || exam.startTime >= slot.endTime)) continue;
+    for (const resource of ["teacher", "room"] as const) {
+      const id = resource === "teacher" ? slot.teacherId : slot.roomId;
+      if (!id || id !== (resource === "teacher" ? exam.teacherId : exam.roomId)) continue;
+      conflicts.push({ identity: JSON.stringify(["EXAM_BOOKING", resource, id, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, exam.id]), type: resource === "teacher" ? "TEACHER_DOUBLE_BOOKED" : "ROOM_DOUBLE_BOOKED", severity: "CRITICAL", message: `${resource === "teacher" ? "Teacher" : "Room"} is reserved for ${exam.examTitle} at ${exam.startTime}–${exam.endTime} on ${DAYS[slot.dayOfWeek]}. Review the dated exam before using this weekly period.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, teacherName: exam.teacherName ?? undefined, roomNumber: exam.roomNumber ?? undefined, otherClass: exam.className });
+    }
+  }
 
   // The stored board is excluded above, so check the proposed complete board
   // against itself as well. Assignment synchronization can change several

@@ -112,7 +112,7 @@ export function GuidedSetup({ language, record, defaults, voiceAvailable, assist
       </div>}
       {error && question.type !== "date" && <p className="mt-4 text-sm text-destructive" role="alert">{error}</p>}
       {notice && <p className="mt-4 text-sm text-ink-muted" role="status">{notice}</p>}
-      <SetupHelp language={language} question={reviewing ? c.review : c[question.label]} campusId={campusId} assistantAvailable={assistantAvailable} voiceAvailable={voiceAvailable} disabled={pending || mediaBusy} onUpload={upload} onActivityChange={setHelpActive} onDraftChange={setHelpDirty} />
+      <SetupHelp language={language} topicKey={reviewing ? "review" : question.key} question={reviewing ? c.review : c[question.label]} campusId={campusId} assistantAvailable={assistantAvailable} voiceAvailable={voiceAvailable} disabled={pending || mediaBusy} onUpload={upload} onActivityChange={setHelpActive} onDraftChange={setHelpDirty} />
     </div>
   </section></ModalSurface>;
 }

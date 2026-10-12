@@ -820,3 +820,23 @@ ALTER TABLE "school_ai_requests" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "school_ai_requests";
 CREATE POLICY tenant_isolation ON "school_ai_requests"
   USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "school_ai_conversations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "school_ai_conversations" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "school_ai_conversations";
+CREATE POLICY tenant_isolation ON "school_ai_conversations" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "school_ai_setup_tasks" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "school_ai_setup_tasks" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "school_ai_setup_tasks";
+CREATE POLICY tenant_isolation ON "school_ai_setup_tasks" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "school_ai_setup_task_revisions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "school_ai_setup_task_revisions" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "school_ai_setup_task_revisions";
+CREATE POLICY tenant_isolation ON "school_ai_setup_task_revisions" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());
+
+ALTER TABLE "exam_invigilations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "exam_invigilations" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "exam_invigilations";
+CREATE POLICY tenant_isolation ON "exam_invigilations" USING ("school_id" = current_school_id()) WITH CHECK ("school_id" = current_school_id());

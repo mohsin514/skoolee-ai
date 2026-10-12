@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import {
   ApiError,
@@ -56,14 +57,16 @@ export async function POST(req: NextRequest) {
     const sessionId = String(body.sessionId ?? "");
     if (!sessionId) throw new ApiError("sessionId is required", 400);
     const campusId = await resolveCampusId(user, body.campusId);
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
 
     const result = await autoSeatSession({
-      campusId,
+      db: prisma,      campusId,
       sessionId,
       includeSeated: Boolean(body.includeSeated),
     });
 
     return Response.json({ success: true, data: result });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions/seating] POST failed");
   }

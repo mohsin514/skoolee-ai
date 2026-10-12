@@ -8,6 +8,9 @@ import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { assertSchoolAiAccess, assertSchoolAiRole, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
 import { getWorkspaceRecord, getWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
 import type { AiWorkspaceRecord } from "./types";
+import type { AssistantTurn } from "./assistant-context";
+import { schoolAiTransaction } from "./transaction";
+import { assertConversationActor, loadPrivateConversation, privateConversationContext, privateExchange } from "./conversation-service";
 
 export const SCHOOL_AI_REQUEST_LEASE_MS = 180000;
 const MAX_ATTEMPTS = 10;
@@ -18,6 +21,10 @@ const requestSchema = z.strictObject({
   subjectId: z.string().min(1).max(128).optional(),
   classId: z.string().min(1).max(128).optional(),
   retryFailed: z.boolean().optional(),
+  conversationId: z.string().min(1).max(128).optional(),
+  expectedConversationVersion: z.number().int().nonnegative().optional(),
+  userMessage: z.string().trim().min(1).max(8000).optional(),
+  requestLanguage: z.enum(["en", "ar", "ur"]).optional(),
 });
 const resultSchema = z.strictObject({
   reply: z.string().trim().min(1).max(8000),
@@ -39,6 +46,9 @@ export interface SchoolAiRequestClaim {
   classId: string | null;
   requestHash: string;
   permissions: WorkspacePermissionSnapshot;
+  conversationId?: string;
+  conversationVersion?: number;
+  history?: AssistantTurn[];
 }
 export type SchoolAiRequestStart = { state: "CLAIMED"; claim: SchoolAiRequestClaim } | { state: "COMPLETED"; reply: string; record?: AiWorkspaceRecord };
 
@@ -64,6 +74,7 @@ export async function beginSchoolAiRequest(user: AuthUser, raw: BeginSchoolAiReq
   return withContext(user, async () => {
     try {
       const input = requestSchema.parse(raw);
+      if (input.conversationId) return await beginPrivateRequest(user, input);
       const permissions = await loadWorkspacePermissionSnapshot(user);
       await assertSchoolAiAccess(user, "add", permissions);
       await assertSchoolAiAccess(user, "view", permissions);
@@ -116,6 +127,11 @@ export async function completeSchoolAiRequest(user: AuthUser, claim: SchoolAiReq
   try {
     checkClaim(user, claim);
     const output = resultSchema.parse(raw);
+    claim.permissions = await assertConversationActor(user, tx, "add");
+    if (claim.conversationId) {
+      const conversation = await loadPrivateConversation(user, claim.conversationId, tx);
+      if (conversation.version !== claim.conversationVersion) throw new SchoolAiError("This conversation advanced while preparing the reply. Continue from its latest saved version.", 409);
+    }
     await assertSchoolAiAccess(user, "add", claim.permissions);
     await assertSchoolAiAccess(user, "view", claim.permissions);
     await assertWorkspaceSubject(user, claim.campusId, { subjectId: claim.subjectId, classId: claim.classId }, tx);
@@ -133,7 +149,7 @@ export async function completeSchoolAiRequest(user: AuthUser, claim: SchoolAiReq
     }
     const updated = await tx.schoolAiRequest.updateMany({
       where: { ...claimWhere(user, claim), leaseExpiresAt: { gt: new Date() } },
-      data: { status: "COMPLETED", reply: output.reply, recordId: output.recordId ?? null, contextRecordIds: contextIds, claimToken: null, leaseExpiresAt: null, completedAt: new Date() },
+      data: { status: "COMPLETED", reply: output.reply, recordId: output.recordId ?? null, contextRecordIds: contextIds, contextVersions: output.contextVersions ?? {}, claimToken: null, leaseExpiresAt: null, completedAt: new Date() },
     });
     if (updated.count !== 1) throw new SchoolAiError("This assistant attempt expired or was superseded. Retry the request before saving its answer.", 409);
   } catch (error) { return translate(error); }
@@ -146,5 +162,46 @@ export async function failSchoolAiRequest(user: AuthUser, claim: SchoolAiRequest
     try {
       await prisma.schoolAiRequest.updateMany({ where: claimWhere(user, claim), data: { status: "FAILED", claimToken: null, leaseExpiresAt: null } });
     } catch (error) { return translate(error); }
+  });
+}
+
+/** Private conversation claims serialize only database state, never a model call. */
+async function beginPrivateRequest(user: AuthUser, input: BeginSchoolAiRequest): Promise<SchoolAiRequestStart> {
+  if (input.expectedConversationVersion === undefined || !input.userMessage || !input.requestLanguage) throw new SchoolAiError("A private conversation needs its saved version and message.", 400);
+  return schoolAiTransaction(user, async tx => {
+    const permissions = await assertConversationActor(user, tx, "add");
+    const conversation = await loadPrivateConversation(user, input.conversationId!, tx);
+    const campusId = await resolveWorkspaceCampus(user, input.campusId, tx);
+    const subject = await assertWorkspaceSubject(user, campusId, { subjectId: input.subjectId, classId: input.classId }, tx);
+    if (conversation.campusId !== campusId || conversation.subjectId !== subject.subjectId || conversation.classId !== subject.classId) throw new SchoolAiError("This conversation belongs to a different selected campus or subject.", 403);
+    const requestHash = workspaceRequestHash({ feature: "ASSISTANT", fingerprint: input.fingerprint, campusId, ...subject, role: user.role });
+    const where = { schoolId: user.schoolId, actorId: user.userId, feature: "ASSISTANT", idempotencyKey: input.key };
+    const row = await tx.schoolAiRequest.findFirst({ where });
+    const now = new Date();
+    const claim = async (saved: SchoolAiRequest): Promise<SchoolAiRequestStart> => ({ state: "CLAIMED", claim: { id: saved.id, token: saved.claimToken!, schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, ...subject, requestHash, permissions, conversationId: conversation.id, conversationVersion: saved.conversationVersion!, history: await privateConversationContext(user, conversation.id, saved.conversationVersion!, tx, permissions) } });
+    if (row) {
+      if (row.requestHash !== requestHash || row.conversationId !== conversation.id || row.userMessage !== input.userMessage || row.requestLanguage !== input.requestLanguage) throw new SchoolAiError("This request key was already used for different content or access scope.", 409);
+      if (row.status === "COMPLETED") {
+        const exchange = await privateExchange(user, row, tx, permissions);
+        if (exchange.hidden || !exchange.turns) throw new SchoolAiError("Access to evidence for this earlier reply is no longer available.", 403);
+        const record = row.recordId ? await getWorkspaceRecordInTransaction(user, row.recordId, tx, permissions) : undefined;
+        return { state: "COMPLETED", reply: exchange.turns[1].text, ...(record ? { record } : {}) };
+      }
+      if (row.conversationVersion !== conversation.version) throw new SchoolAiError("This conversation has a newer turn. Continue from the latest saved conversation.", 409);
+      if (row.status === "PENDING" && row.leaseExpiresAt && row.leaseExpiresAt > now) throw new SchoolAiError("This reply is still processing. Wait, then refresh this conversation.", 409);
+      if (!input.retryFailed) throw new SchoolAiError("Explicitly retry this incomplete reply or start another turn.", 409);
+      if (row.attempts >= MAX_ATTEMPTS) throw new SchoolAiError("This turn reached its retry limit. Start another turn.", 409);
+      const token = randomUUID(), leaseExpiresAt = new Date(now.getTime() + SCHOOL_AI_REQUEST_LEASE_MS);
+      const changed = await tx.schoolAiRequest.updateMany({ where: { ...where, id: row.id, requestHash, status: row.status, claimToken: row.claimToken, attempts: row.attempts, leaseExpiresAt: row.leaseExpiresAt }, data: { status: "PENDING", claimToken: token, leaseExpiresAt, attempts: { increment: 1 }, reply: null, recordId: null, contextRecordIds: [], contextVersions: {}, completedAt: null } });
+      if (changed.count !== 1) throw new SchoolAiError("Another attempt claimed this reply. Refresh the conversation.", 409);
+      return claim({ ...row, claimToken: token });
+    }
+    if (conversation.version !== input.expectedConversationVersion) throw new SchoolAiError("Another turn changed this conversation. Refresh before sending.", 409);
+    const pending = await tx.schoolAiRequest.findFirst({ where: { schoolId: user.schoolId, actorId: user.userId, conversationId: conversation.id, status: "PENDING", leaseExpiresAt: { gt: now } }, select: { id: true } });
+    if (pending) throw new SchoolAiError("Wait for this conversation's current reply before sending another message.", 409);
+    const reserved = await tx.schoolAiConversation.updateMany({ where: { id: conversation.id, schoolId: user.schoolId, actorId: user.userId, version: conversation.version, archivedAt: null }, data: { version: { increment: 1 } } });
+    if (reserved.count !== 1) throw new SchoolAiError("Another turn changed this conversation. Refresh before sending.", 409);
+    const saved = await tx.schoolAiRequest.create({ data: { ...where, actorRole: user.role, campusId, ...subject, requestHash, claimToken: randomUUID(), leaseExpiresAt: new Date(now.getTime() + SCHOOL_AI_REQUEST_LEASE_MS), conversationId: conversation.id, conversationVersion: conversation.version + 1, userMessage: input.userMessage, requestLanguage: input.requestLanguage } });
+    return claim(saved);
   });
 }

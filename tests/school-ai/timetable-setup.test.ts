@@ -34,6 +34,8 @@ type TimetableFilter = { campusId: string; id: { not: string }; academicYear?: n
 async function validateAgainstKnownTerm(term: string | undefined, existingTerm: string) {
   let captured: TimetableFilter | undefined;
   const client = {
+    class: { findFirst: async () => ({ schoolId: "school" }) },
+    examSchedule: { findMany: async () => [] },
     student: { count: async () => 0 },
     classRoom: { findMany: async () => [{ id: "room", roomNumber: "1", capacity: 20 }] },
     timetableSlot: { findMany: async (query: { where: { timetable: TimetableFilter } }) => {
@@ -67,6 +69,8 @@ test("known incoming terms retain annual and legacy clashes while excluding know
 
 test("full-board validation catches internal resource overlap without confusing adjacent periods or other days", async () => {
   const client = {
+    class: { findFirst: async () => ({ schoolId: "school" }) },
+    examSchedule: { findMany: async () => [] },
     student: { count: async () => 0 },
     classRoom: { findMany: async () => [{ id: "room", roomNumber: "1", capacity: 20 }] },
     timetableSlot: { findMany: async () => [] },

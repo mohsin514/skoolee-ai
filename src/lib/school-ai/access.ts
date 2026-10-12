@@ -129,7 +129,14 @@ export async function assertWorkspaceDomainPermission(user: AuthUser, kind: Work
   if (kind === "WORKFLOW") {
     if (data.proposal) {
       assertApprovalRole(user);
-      if ((data.proposal as { operation?: string }).operation === "communications.queue_announcement") {
+      if ((data.proposal as { operation?: string }).operation === "fees.generate_invoices") {
+        await assertPermission(user, "fees", "view");
+        if (action !== "view") await assertPermission(user, "fees", "add");
+      } else if ((data.proposal as { operation?: string }).operation === "exams.create_session_plan") {
+        await assertPermission(user, "exams", "view");
+        await assertPermission(user, "students", "view");
+        if (action !== "view") { await assertPermission(user, "exams", "add"); await assertPermission(user, "exams", "edit"); }
+      } else if ((data.proposal as { operation?: string }).operation === "communications.queue_announcement") {
         await assertPermission(user, "students", "view");
         if (action !== "view") await assertPermission(user, "students", "edit");
       } else if ((data.proposal as { operation?: string }).operation === "timetable.create_draft") {
@@ -177,6 +184,9 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
   const timetable = permissions.get("timetable");
   const canSetupTimetable = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canAdd));
   const canQueueAnnouncement = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && students?.canView && students?.canEdit));
+  const fees = permissions.get("fees");
+  const canGenerateInvoices = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd));
+  const canPlanExams = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && exam?.canView && exam?.canAdd && exam?.canEdit && students?.canView));
   return {
     role: user.role, campusId: user.campusId,
     canCreate: fixed || Boolean(ai?.canAdd),
@@ -188,8 +198,8 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
     subjects: subjects.map(({ class: cls, ...subject }) => ({ ...subject, className: [cls.name, cls.section].filter(Boolean).join(" · ") })),
     profile,
     setupDefaults: { ...profile, ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}) },
-    execution: canExecute || canSetupTimetable || canQueueAnnouncement ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
-    tools: [...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])],
+    execution: canExecute || canSetupTimetable || canQueueAnnouncement || canGenerateInvoices || canPlanExams ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
+    tools: [...(canGenerateInvoices ? [{ operation: "fees.generate_invoices" as const, kind: "WORKFLOW" as const }] : []), ...(canPlanExams ? [{ operation: "exams.create_session_plan" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])],
   };
 }
 

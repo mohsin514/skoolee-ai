@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+import { timetableSolverCopy } from "../../src/components/school-ai/timetable-solver-copy";
 import { timetableSetupCopy } from "../../src/components/school-ai/timetable-setup-copy";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
 
@@ -124,4 +125,30 @@ for (const language of ["ar", "ur"] as const) test(`${language} timetable contro
   await expect(page.getByRole("heading", { name: t.previewTitle, exact: true })).toBeVisible();
   const geometry = await page.evaluate(() => ({ width: window.innerWidth, scroll: document.documentElement.scrollWidth, dir: document.documentElement.dir }));
   expect(geometry.scroll).toBeLessThanOrEqual(geometry.width); expect(geometry.dir).toBe("rtl");
+});
+
+for (const language of ["en", "ar", "ur"] as const) test(`${language} solver reviews suggestions before replacing editable periods`, async ({ page }) => {
+  await db.user.update({ where: { id: adminId }, data: { preferredLanguage: language } });
+  await db.classRoom.update({ where: { id: roomId }, data: { capacity: 25 } });
+  if (language !== "en") await page.setViewportSize({ width: 360, height: 800 });
+  await openPlan(page, language);
+  const t = timetableSolverCopy(language), setup = timetableSetupCopy(language), c = schoolAICopy(language);
+  await page.locator("summary").filter({ hasText: t.title }).click();
+  const solver = page.locator("details").filter({ has: page.getByText(t.hint, { exact: true }) });
+  await solver.getByRole("checkbox", { name: /^QA-101/ }).check();
+  await solver.getByRole("spinbutton", { name: t.weekly, exact: true }).fill("2");
+  await solver.getByRole("button", { name: t.solve, exact: true }).click();
+  await expect(solver.getByText(t.solved, { exact: true })).toBeVisible();
+  await expect(solver.getByRole("button", { name: t.use, exact: true })).toBeDisabled();
+  expect(await db.timetable.count({ where: { campusId } })).toBe(0);
+  await expect(page.getByRole("textbox", { name: setup.teacher, exact: true })).toHaveCount(1);
+  await solver.getByRole("checkbox", { name: t.confirm, exact: true }).check();
+  await solver.getByRole("button", { name: t.use, exact: true }).click();
+  await expect(page.getByRole("textbox", { name: setup.teacher, exact: true })).toHaveCount(2);
+  const savedResponse = page.waitForResponse(response => response.url().endsWith("/api/school-ai/workspace") && response.request().method() === "POST");
+  await page.getByRole("button", { name: c.save, exact: true }).click();
+  const response = await savedResponse; expect(response.ok(), await response.text()).toBeTruthy();
+  expect((await response.json()).record.data.proposal.slots).toHaveLength(2);
+  expect(await db.timetable.count({ where: { campusId } })).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

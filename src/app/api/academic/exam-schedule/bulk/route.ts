@@ -1,6 +1,8 @@
-import { loadCampusLocaleTimeline } from "@/lib/locale/store";
+import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
+import { loadCampusLocaleTimeline, loadLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { BulkConflict } from "@/lib/academic/exam-conflicts";
 import {
   ApiError,
@@ -49,10 +51,11 @@ function classLabelOf(c: { name: string; section: string | null }) {
 }
 
 /** Weekend and holiday days for a campus, as a lookup. */
-async function calendarBlocks(campusId: string) {
+async function calendarBlocks(campusId: string, client?: TxClient, schoolId?: string) {
+  const db = client ?? prisma;
   const [weekends, holidays] = await Promise.all([
-    loadCampusLocaleTimeline(campusId),
-    prisma.holiday.findMany({
+    client && schoolId ? loadLocaleTimeline(schoolId, campusId, client) : loadCampusLocaleTimeline(campusId),
+    db.holiday.findMany({
       where: { campusId },
       select: { name: true, fromDate: true, toDate: true },
     }),
@@ -271,6 +274,7 @@ export async function POST(req: NextRequest) {
     if (!DATE_RE.test(date)) throw new ApiError("date must be YYYY-MM-DD", 400);
 
     const campusId = await resolveCampusId(user, body.campusId);
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const session = await prisma.examSession.findFirst({
       where: { id: sessionId, campusId },
       select: { id: true },
@@ -279,7 +283,7 @@ export async function POST(req: NextRequest) {
 
     const conflicts: BulkConflict[] = [];
 
-    const { weekendDays, holidayFor } = await calendarBlocks(campusId);
+    const { weekendDays, holidayFor } = await calendarBlocks(campusId, prisma, user.schoolId);
     const day = dayOfWeek(date);
     if (weekendDays(date).has(day)) {
       conflicts.push({
@@ -382,15 +386,18 @@ export async function POST(req: NextRequest) {
     }
 
     const dateValue = new Date(`${date}T00:00:00.000Z`);
-    await prisma.$transaction(async (tx) => {
+    const tx = prisma;
+    const affectedIds: string[] = [];
+    {
       for (const t of targets) {
         if (t.scheduleId) {
-          await tx.examSchedule.update({
+          const saved = await tx.examSchedule.update({
             where: { id: t.scheduleId },
             data: { date: dateValue, periodDefinitionId },
           });
+          affectedIds.push(saved.id);
         } else {
-          await tx.examSchedule.create({
+          const saved = await tx.examSchedule.create({
             data: {
               campusId,
               examId: t.examId,
@@ -399,9 +406,11 @@ export async function POST(req: NextRequest) {
               periodDefinitionId,
             },
           });
+          affectedIds.push(saved.id);
         }
       }
-    });
+    }
+    await validateStoredExamSchedules(tx, { schoolId: user.schoolId, campusId }, affectedIds);
 
     return Response.json({
       success: true,
@@ -410,6 +419,7 @@ export async function POST(req: NextRequest) {
         classes: targets.map((t) => t.classLabel),
         conflicts,
       },
+    });
     });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/bulk] POST failed");
@@ -429,6 +439,7 @@ export async function DELETE(req: NextRequest) {
       throw new ApiError("sessionId and subjectName are required", 400);
     }
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+    return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
 
     const schedules = await prisma.examSchedule.findMany({
       where: {
@@ -444,6 +455,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     return Response.json({ success: true, data: { removed: schedules.length } });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/bulk] DELETE failed");
   }
